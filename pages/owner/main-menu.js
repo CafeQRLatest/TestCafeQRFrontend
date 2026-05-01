@@ -57,6 +57,7 @@ function MainMenuContent() {
     "Reports & Billing":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Stock":            { icon: <FaBoxes />,       color: "#ea580c" },
     "Table Management": { icon: <FaChair />,       color: "#f97316" },
+    "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
   };
 
   // Only show PARENT menus and Filter out Point of Sale

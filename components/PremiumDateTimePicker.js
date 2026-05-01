@@ -276,22 +276,22 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         .day.empty { cursor: default; }
 
         .dt-time-side { width: 110px; padding: 14px; background: #fcfdfe; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        .time-box-title { font-size: 8px; font-weight: 700; color: #e2e8f0; text-transform: uppercase; letter-spacing: 1px; }
+        .time-box-title { font-size: 8px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
         
-        .time-stepper { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid #f8fafc; width: 100%; }
+        .time-stepper { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid #f1f5f9; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
         .step-col { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
-        .step-btn { border: none; background: none; color: #e2e8f0; cursor: pointer; font-size: 12px; transition: 0.2s; padding: 8px 0; width: 100%; display: flex; align-items: center; justify-content: center; }
-        .step-btn:hover { color: ${themeColor}; }
+        .step-btn { border: none; background: none; color: ${themeColor}; cursor: pointer; font-size: 16px; transition: 0.2s; padding: 6px 0; width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.8; }
+        .step-btn:hover { opacity: 1; transform: scale(1.2); }
         .step-btn:active { transform: scale(0.9); }
-        .step-val { font-size: 16px; font-weight: 600; color: #475569; font-variant-numeric: tabular-nums; margin: -2px 0; }
-        .step-sep { font-size: 12px; font-weight: 300; color: #e2e8f0; margin: -4px 0; }
+        .step-val { font-size: 18px; font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; margin: -2px 0; }
+        .step-sep { font-size: 12px; font-weight: 800; color: #cbd5e1; margin: -4px 0; }
         
-        .ampm-toggle { display: flex; gap: 2px; background: #f8fafc; padding: 2px; border-radius: 8px; margin-top: 4px; border: 1px solid #f8fafc; width: 100%; }
-        .ampm-p { border: none; background: none; color: #cbd5e1; padding: 4px 0; border-radius: 6px; font-size: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; flex: 1; text-align: center; }
-        .ampm-p.on { background: #fff; color: ${themeColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .ampm-toggle { display: flex; gap: 2px; background: #f1f5f9; padding: 3px; border-radius: 10px; margin-top: 4px; border: 1px solid #f1f5f9; width: 100%; }
+        .ampm-p { border: none; background: none; color: #94a3b8; padding: 5px 0; border-radius: 7px; font-size: 9px; font-weight: 700; cursor: pointer; transition: 0.2s; flex: 1; text-align: center; }
+        .ampm-p.on { background: #fff; color: ${themeColor}; box-shadow: 0 4px 8px rgba(0,0,0,0.04); }
         
-        .now-btn { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #f1f5f9; background: #fff; color: #94a3b8; font-size: 9px; font-weight: 600; cursor: pointer; transition: 0.2s; margin-top: auto; }
-        .now-btn:hover { border-color: ${themeColor}; color: ${themeColor}; background: ${themeColor}05; }
+        .now-btn { width: 100%; padding: 8px; border-radius: 10px; border: 1px solid #f1f5f9; background: #fff; color: ${themeColor}; font-size: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; margin-top: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .now-btn:hover { border-color: ${themeColor}; color: #fff; background: ${themeColor}; box-shadow: 0 4px 10px ${themeColor}20; }
       `}</style>
     </div>
   );

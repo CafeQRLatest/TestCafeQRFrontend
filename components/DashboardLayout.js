@@ -525,6 +525,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Document Sequences": <FaFileInvoice />,
   };
 
   // Group by Parent and Filter out Point of Sale & Table Management if disabled
@@ -588,6 +589,10 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
              <div className="sidebar-icon"><FaCog /></div>
              {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>System Configurations</span>}
           </Link>
+          <Link href="/owner/sequences" className={`sidebar-link ${router.pathname === '/owner/sequences' ? 'active' : ''}`} title={collapsed ? "Document Sequences" : ""}>
+             <div className="sidebar-icon"><FaFileInvoice /></div>
+             {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>Document Sequences</span>}
+          </Link>
       </div>
       
       <div style={{ padding: '24px', borderTop: '1px solid #f1f5f9' }}>
@@ -626,6 +631,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Document Sequences": <FaFileInvoice />,
   };
 
   const parentMenus = menus.filter(m => {
@@ -664,6 +670,10 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
           <Link href="/owner/configurations" onClick={onNavigate} className={`sidebar-link ${router.pathname === '/owner/configurations' ? 'active' : ''}`}>
              <div className="sidebar-icon"><FaCog /></div>
              <span>System Configurations</span>
+          </Link>
+          <Link href="/owner/sequences" onClick={onNavigate} className={`sidebar-link ${router.pathname === '/owner/sequences' ? 'active' : ''}`}>
+             <div className="sidebar-icon"><FaFileInvoice /></div>
+             <span>Document Sequences</span>
           </Link>
        </div>
 

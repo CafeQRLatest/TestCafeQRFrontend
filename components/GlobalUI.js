@@ -30,6 +30,7 @@ export default function GlobalUI() {
               <div className="modal-icon-small">
                 {modal.type === 'error' ? <FaExclamationCircle className="error" /> : 
                  modal.type === 'info' ? <FaInfoCircle className="info" /> : 
+                 modal.type === 'success' ? <FaCheckCircle className="success" /> :
                  <FaExclamationTriangle className="warning" />}
               </div>
               <h3>{modal.title}</h3>
@@ -135,6 +136,7 @@ export default function GlobalUI() {
         .modal-icon-small .warning { color: #f97316; }
         .modal-icon-small .error { color: #ef4444; }
         .modal-icon-small .info { color: #3b82f6; }
+        .modal-icon-small .success { color: #10b981; }
 
         .modal-body h3 { 
           margin: 0 0 8px; 
@@ -186,6 +188,9 @@ export default function GlobalUI() {
         
         .btn-confirm.error { background: #ef4444; border: 1px solid #dc2626; }
         .btn-confirm.error:hover { background: #dc2626; transform: translateY(-1px); }
+        
+        .btn-confirm.success { background: #10b981; border: 1px solid #059669; }
+        .btn-confirm.success:hover { background: #059669; transform: translateY(-1px); }
 
         .modal-close-x {
           position: absolute;

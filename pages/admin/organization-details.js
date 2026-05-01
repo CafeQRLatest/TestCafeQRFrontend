@@ -100,6 +100,7 @@ function OrganizationSettingsContent() {
       address: '',
       pinCode: '',
       gstin: '',
+      branchCode: 'HQ',
       isactive: 'Y',
       deliveryRadiusKm: 5,
       latitude: null,
@@ -232,6 +233,17 @@ function OrganizationSettingsContent() {
                         placeholder="e.g. Thalassery Main"
                         required
                       />
+                    </div>
+                    <div className="v2-input-group">
+                      <label>Branch Code (for Numbering) <span style={{color:'red'}}>*</span></label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.branchCode || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, branchCode: e.target.value.toUpperCase().replace(/\s/g, '')})}
+                        placeholder="e.g. THA"
+                        required
+                      />
+                      <small>Short code used in Order/Invoice numbering</small>
                     </div>
                     <div className="v2-input-group">
                       <label>GSTIN / Tax ID</label>
