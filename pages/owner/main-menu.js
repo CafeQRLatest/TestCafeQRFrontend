@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
-import SubscriptionGate from '../../components/SubscriptionGate';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
 import { 
@@ -15,11 +14,7 @@ import {
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
-  return (
-    <SubscriptionGate>
-      <MainMenuContent />
-    </SubscriptionGate>
-  );
+  return <MainMenuContent />;
 }
 
 function MainMenuContent() {
