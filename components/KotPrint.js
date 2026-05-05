@@ -1,6 +1,6 @@
 // components/KotPrint.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { buildReceiptText, buildKotText, downloadTextAndShare } from '../utils/printUtils';
+import { buildReceiptText, buildKotText, downloadTextAndShare, toDisplayItems } from '../utils/printUtils';
 import api from '../utils/api';
 import { printUniversal } from '../utils/printGateway';
 import { openThermerWithText, openRawBTWithText } from '../utils/thermer';
@@ -47,17 +47,49 @@ function kotRoutesEnabled() {
 }
 
 function getItemCategoryName(oi) {
-  return String(oi?.categoryName || oi?.category || '').trim();
+  const category = oi?.categoryName || oi?.category_name || oi?.category || oi?.menu_items?.category || oi?.product?.category;
+  if (!category) return '';
+  if (typeof category === 'string') return category.trim();
+  return String(category.name || category.categoryName || '').trim();
 }
 
 function toLegacyItemsFromOrderItems(orderItems) {
   return (Array.isArray(orderItems) ? orderItems : []).map((oi) => ({
-    name: oi?.productName || oi?.item_name || oi?.itemName || 'Item',
+    name: oi?.productName || oi?.product_name || oi?.name || oi?.item_name || oi?.itemName || 'Item',
     quantity: Number(oi?.quantity ?? oi?.qty ?? 1),
     price: Number(oi?.unitPrice ?? oi?.price ?? oi?.rate ?? 0),
     category: String(oi?.categoryName || oi?.category || '').trim(),
     variantname: oi?.variantName || oi?.variant_name || null,
   }));
+}
+
+const ORDER_ITEM_KEYS = ['lines', 'orderLines', 'lineItems', 'order_items', 'orderItems', 'items'];
+
+function rawItemsFromOrder(value) {
+  const source = ORDER_ITEM_KEYS
+    .map(key => value?.[key])
+    .find(items => Array.isArray(items) && items.length > 0);
+  return source || [];
+}
+
+function mergeOrderForPrint(primary, fallback) {
+  const merged = { ...(fallback || {}), ...(primary || {}) };
+  const mergedItems = toDisplayItems(merged);
+  const fallbackItems = toDisplayItems(fallback);
+
+  if (mergedItems.length || !fallbackItems.length) {
+    return merged;
+  }
+
+  const fallbackRawItems = rawItemsFromOrder(fallback);
+  return {
+    ...merged,
+    lines: fallbackRawItems.length ? fallbackRawItems : fallbackItems,
+    items: Array.isArray(fallback?.items) && fallback.items.length ? fallback.items : fallbackItems,
+    order_items: Array.isArray(fallback?.order_items) && fallback.order_items.length
+      ? fallback.order_items
+      : merged.order_items,
+  };
 }
 
 function hasPrintedRecently(orderId, kind = 'bill') {
@@ -160,7 +192,7 @@ async function ensurePrinterConfigured() {
 
 export default function KotPrint({ order, onClose, onPrint, autoPrint = true, kind = 'bill' }) {
   const [status, setStatus] = useState('');
-  const [fullOrder, setFullOrder] = useState(order);
+  const [fullOrder, setFullOrder] = useState(() => mergeOrderForPrint(order, null));
   const [bill] = useState(order?.bill || null);
   const [restaurantProfile, setRestaurantProfile] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -184,6 +216,15 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
   }, [order?.id, kind]);
 
   useEffect(() => {
+    setFullOrder(prev => {
+      if (prev?.id && order?.id && prev.id === order.id) {
+        return mergeOrderForPrint(order, prev);
+      }
+      return mergeOrderForPrint(order, null);
+    });
+  }, [order]);
+
+  useEffect(() => {
     if (!androidPwa) return;
     const onKey = (ev) => {
       if (ev.key === 'Escape') onClose?.();
@@ -202,7 +243,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           const freshOrder = res.data;
 
           if (alive && freshOrder) {
-            setFullOrder(freshOrder);
+            setFullOrder(mergeOrderForPrint(freshOrder, order));
           }
         }
 
@@ -237,16 +278,14 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
     return () => {
       alive = false;
     };
-  }, [order?.id]);
+  }, [order]);
 
   const doPrint = useCallback(async () => {
     if (lockRef.current) return;
     lockRef.current = true;
 
     try {
-      const normalizedOrder = {
-        ...fullOrder,
-      };
+      const normalizedOrder = mergeOrderForPrint(fullOrder, order);
 
       const onAndroidPWA = isAndroidPWA();
       // Never show browser print dialog — the gateway's auto-discovery
@@ -291,7 +330,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       }
 
       const routes = readJson('PRINT_KOT_ROUTES_V1', []).filter((r) => r && r.enabled);
-      const allOrderItems = Array.isArray(fullOrder?.lines) ? fullOrder.lines : [];
+      const allOrderItems = rawItemsFromOrder(normalizedOrder);
 
       if (!routes.length) {
         const text = buildKotText(normalizedOrder, restaurantProfile);
@@ -331,7 +370,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         if (!subset.length) continue;
 
         const routedOrder = {
-          ...fullOrder,
+          ...normalizedOrder,
           lines: subset,
           items: toLegacyItemsFromOrderItems(subset),
         };
@@ -398,7 +437,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         lockRef.current = false;
       }, 600);
     }
-  }, [fullOrder, bill, restaurantProfile, onPrint, kind, closeAfterPrint, autoPrint]);
+  }, [fullOrder, order, bill, restaurantProfile, onPrint, kind, closeAfterPrint, autoPrint]);
 
   useEffect(() => {
     if (!autoPrint || !order?.id || loadingData) return;

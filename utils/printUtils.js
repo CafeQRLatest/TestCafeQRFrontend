@@ -54,43 +54,67 @@ function pickNumber(obj, keys, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-export function toDisplayItems(order) {
-  if (Array.isArray(order?.lines)) {
-    return order.lines.map(l => ({
-      name: l.productName || l.item_name || l.itemName || "Item",
-      variant_name: l.variantName || l.variant_name,
-      quantity: Number(l.quantity || 1),
-      price: Number(l.unitPrice || l.unit_price || 0),
-      discount_amount: Number(l.discountAmount || l.discount_amount || 0),
-      line_total: Number(l.lineTotal || l.line_total || 0),
-      productId: l.productId || l.product_id,
-      is_packaged_good: l.isPackagedGood || l.is_packaged,
-      category: l.categoryName || l.category || ''
-    }));
-  }
-  
-  if (Array.isArray(order?.order_items)) {
-    return order.order_items.map((oi) => {
-      const lineDisc = Number(oi.line_discount_amount || 0);
-      const orderShare = Number(oi.order_discount_share || 0);
-      const totalDisc = Number(oi.discount_amount || (lineDisc + orderShare));
-      return {
-        name: oi.menu_items?.name || oi.item_name || oi.itemName || "Item",
-        variant_name: oi.variant_name || oi.variantName,
-        quantity: Number(oi.quantity || oi.qty || 1),
-        price: Number(oi.unit_price || oi.price || oi.rate || 0),
-        line_discount_amount: lineDisc,
-        order_discount_share: orderShare,
-        discount_amount: totalDisc,
-        line_total: Number(oi.line_total || 0),
-        productId: oi.menu_items?.id || oi.product_id || oi.productId,
-        is_packaged_good: oi.menu_items?.is_packaged_good || oi.is_packaged,
-        category: oi.menu_items?.category || oi.categoryName || oi.category || ''
-      };
-    });
-  }
+const ORDER_ITEM_KEYS = ["lines", "orderLines", "lineItems", "order_items", "orderItems", "items"];
 
-  return [];
+function getCategoryName(raw, menu) {
+  const category = raw?.category ?? raw?.categoryName ?? raw?.category_name ?? menu?.category ?? menu?.categoryName;
+  if (!category) return "";
+  if (typeof category === "string") return category;
+  return String(category.name || category.categoryName || category.label || "").trim();
+}
+
+function normalizeDisplayItem(raw) {
+  const menu = raw?.menu_items || raw?.menuItem || raw?.product || raw?.productDto || raw?.item || {};
+  const name = String(
+    pickValue(
+      raw,
+      ["productName", "product_name", "name", "item_name", "itemName", "description"],
+      pickValue(menu, ["name", "productName", "item_name", "itemName"], "Item")
+    ) || "Item"
+  ).trim() || "Item";
+  const quantity = pickNumber(raw, ["quantity", "qty"], 1);
+  const price = pickNumber(
+    raw,
+    ["unitPrice", "unit_price", "price", "rate", "unitPriceIncTax", "unit_price_inc_tax"],
+    0
+  );
+  const lineDisc = pickNumber(raw, ["line_discount_amount", "lineDiscountAmount"], 0);
+  const orderShare = pickNumber(raw, ["order_discount_share", "orderDiscountShare"], 0);
+  const discount = pickNumber(raw, ["discountAmount", "discount_amount"], lineDisc + orderShare);
+  const lineTotal = pickNumber(
+    raw,
+    ["lineTotal", "line_total", "total", "amount", "totalPrice"],
+    price * quantity
+  );
+
+  return {
+    name,
+    variant_name: pickValue(raw, ["variantName", "variant_name", "variantname"], pickValue(menu, ["variantName", "variant_name"], undefined)),
+    quantity,
+    price,
+    line_discount_amount: lineDisc,
+    order_discount_share: orderShare,
+    discount_amount: discount,
+    line_total: lineTotal,
+    productId: pickValue(raw, ["productId", "product_id", "pid", "id"], pickValue(menu, ["id", "productId"], undefined)),
+    is_packaged_good: Boolean(
+      pickValue(raw, ["isPackagedGood", "is_packaged_good", "is_packaged"], pickValue(menu, ["isPackagedGood", "is_packaged_good"], false))
+    ),
+    category: getCategoryName(raw, menu),
+    uom_precision: raw?.uom_precision ?? raw?.uomPrecision ?? menu?.uom?.precision,
+  };
+}
+
+export function toDisplayItems(order) {
+  const source = ORDER_ITEM_KEYS
+    .map(key => order?.[key])
+    .find(items => Array.isArray(items) && items.length > 0);
+
+  if (!source) return [];
+
+  return source
+    .map(normalizeDisplayItem)
+    .filter(item => item.name || Number(item.quantity) > 0 || Number(item.price) > 0);
 }
 
 function getOrderTypeLabel(order) {
@@ -506,9 +530,10 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     items.forEach((it) => {
       const qtyNum = Number(it.quantity || 1);
       const rateNum = Number(it.price || 0);
+      const lineTotalNum = Number.isFinite(Number(it.line_total)) ? Number(it.line_total) : rateNum * qtyNum;
       const nameLines = wrapText(it.variant_name ? `${it.name} (${it.variant_name})` : it.name, name);
       const qtyStr = Number.isInteger(qtyNum) ? qtyNum.toString() : qtyNum.toFixed(2);
-      const totalStr = (rateNum * qtyNum).toFixed(2);
+      const totalStr = lineTotalNum.toFixed(2);
       let row = leftAlign(nameLines[0], name) + " " + rightAlignEnd(qtyStr, qty) + " " + rightAlignEnd(fmtRate(rateNum), rate);
       if (showDiscCol) row += " " + rightAlignEnd("", disc);
       row += " " + rightAlignEnd(totalStr, total);

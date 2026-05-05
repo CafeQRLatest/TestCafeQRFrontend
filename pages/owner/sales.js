@@ -9,6 +9,7 @@ import {
 import { PageContainer, POSHeader, HeaderTitle, ModeSwitchGroup, ModeSwitchBtn } from '../../components/PremiumPOSUI';
 import CounterSale from '../../components/CounterSale';
 import KotPrint from '../../components/KotPrint';
+import { toDisplayItems } from '../../utils/printUtils';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
@@ -344,6 +345,60 @@ const OrderActions = styled.div`
   gap: 8px;
 `;
 
+const OrderItemsList = styled.div`
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 180px;
+  overflow-y: auto;
+`;
+
+const OrderItemsTitle = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 8px 10px;
+  text-transform: uppercase;
+`;
+
+const OrderItemRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+
+  span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+`;
+
+const OrderItemsEmpty = styled.div`
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 12px;
+  text-align: center;
+`;
+
 const ActionButton = styled.button`
   border: none;
   border-radius: 12px;
@@ -410,6 +465,12 @@ const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(
 
 function orderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
+}
+
+function quantityText(value) {
+  const qty = Number(value || 0);
+  if (!Number.isFinite(qty)) return '0';
+  return Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
 }
 
 function orderTime(order) {
@@ -696,6 +757,7 @@ function OrderHistory({ orders, loading, onRefresh, onPrint, onSettle }) {
           {orders.map(order => {
             const date = orderTime(order);
             const open = isOpenOrder(order);
+            const items = toDisplayItems(order);
             return (
               <OrderCard key={order.id} $tone={orderStatusTone(order)}>
                 <OrderTop>
@@ -724,6 +786,32 @@ function OrderHistory({ orders, loading, onRefresh, onPrint, onSettle }) {
                     <strong>{order.paymentStatus || order.payment_status || '-'}</strong>
                   </InfoPill>
                 </OrderInfo>
+
+                {items.length ? (
+                  <OrderItemsList>
+                    <OrderItemsTitle>
+                      <span>Item</span>
+                      <span>Qty</span>
+                      <span>Total</span>
+                    </OrderItemsTitle>
+                    {items.map((item, index) => {
+                      const displayName = item.variant_name ? `${item.name} (${item.variant_name})` : item.name;
+                      const parsedLineTotal = Number(item.line_total);
+                      const rowTotal = Number.isFinite(parsedLineTotal)
+                        ? parsedLineTotal
+                        : Number(item.price || 0) * Number(item.quantity || 1);
+                      return (
+                        <OrderItemRow key={`${order.id}-${item.productId || item.name}-${index}`}>
+                          <span>{displayName}</span>
+                          <strong>{quantityText(item.quantity)} x {money(item.price)}</strong>
+                          <strong>{money(rowTotal)}</strong>
+                        </OrderItemRow>
+                      );
+                    })}
+                  </OrderItemsList>
+                ) : (
+                  <OrderItemsEmpty>No order items found for this order</OrderItemsEmpty>
+                )}
 
                 <OrderActions>
                   <ActionButton type="button" onClick={() => onPrint(order, 'kot')}>

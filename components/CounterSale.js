@@ -382,7 +382,13 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated }) {
   const totals = useMemo(() => {
     if (!config) return { subtotal: 0, tax: 0, total: 0 };
     return calculateOrderTotals(
-      cart.map(i => ({ ...i, quantity: i.qty, tax_rate: i.taxRate || 0 })),
+      cart.map(i => ({
+        ...i,
+        quantity: i.qty,
+        tax_rate: i.taxRate || 0,
+        is_packaged_good: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true,
+        is_packaged: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true
+      })),
       { type: 'amount', value: 0 },
       { 
         gst_enabled: config.taxEnabled,
@@ -397,6 +403,33 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated }) {
     if (processing) return;
     setProcessing(true);
     try {
+      const processedLines = (totals.processed_items || []).map(pi => {
+        const piId = pi.id || pi.productId || pi.product_id || pi.pid;
+        const cartItem = cart.find(item => {
+          const itemId = item.id || item.productId || item.product_id || item.pid;
+          return String(itemId || '') === String(piId || '')
+            || item.name === pi.name
+            || item.name === pi.item_name
+            || item.productName === pi.productName;
+        });
+        const unitPrice = Number(pi.unit_price ?? pi.price ?? cartItem?.price ?? 0);
+        const productName = pi.productName || pi.name || pi.item_name || cartItem?.name || 'Item';
+
+        return {
+          productId: cartItem?.id || pi.productId || pi.product_id || pi.id || pi.pid || null,
+          productName,
+          categoryName: cartItem?.categoryName || pi.categoryName || pi.category || null,
+          isPackagedGood: Boolean(cartItem?.isPackagedGood ?? cartItem?.is_packaged_good ?? cartItem?.is_packaged ?? pi.isPackagedGood ?? pi.is_packaged_good ?? pi.is_packaged),
+          quantity: pi.quantity,
+          unitPrice: Number(unitPrice.toFixed(2)),
+          unitOfMeasure: cartItem?.uomName || cartItem?.unitOfMeasure || pi.unitOfMeasure || pi.unit_of_measure || 'units',
+          taxRate: Number(Number(pi.tax_rate || 0).toFixed(2)),
+          taxAmount: Number(Number(pi.tax_amount || 0).toFixed(2)),
+          discountAmount: Number(Number(pi.discount_amount || 0).toFixed(2)),
+          lineTotal: Number(Number(pi.line_total || (unitPrice * Number(pi.quantity || 1))).toFixed(2))
+        };
+      });
+
       const payload = {
         orderType: 'SALE',
         orderSource: 'OFFLINE',
@@ -409,22 +442,15 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated }) {
         grandTotal: Number(totals.total_amount.toFixed(2)),
         totalTaxAmount: Number(totals.total_tax.toFixed(2)),
         totalAmount: Number(totals.total_inc_tax.toFixed(2)),
-        lines: totals.processed_items.map(pi => ({
-          productId: pi.id,
-          productName: pi.name,
-          categoryName: cart.find(item => item.id === pi.id)?.categoryName || pi.categoryName || null,
-          quantity: pi.quantity,
-          unitPrice: Number(pi.price.toFixed(2)),
-          taxRate: Number((pi.tax_rate || 0).toFixed(2)),
-          taxAmount: Number(pi.tax_amount.toFixed(2)),
-          discountAmount: Number((pi.discount_amount || 0).toFixed(2)),
-          lineTotal: Number(pi.line_total.toFixed(2))
-        }))
+        lines: processedLines
       };
 
       const res = await api.post('/api/v1/orders', payload);
       if (res.data.success) {
         const savedOrder = res.data.data;
+        const savedLines = Array.isArray(savedOrder?.lines) && savedOrder.lines.length
+          ? savedOrder.lines
+          : processedLines;
         const printOrder = {
           ...savedOrder,
           ...payload,
@@ -434,7 +460,9 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated }) {
           paymentNo: savedOrder?.paymentNo,
           createdAt: savedOrder?.createdAt,
           updatedAt: savedOrder?.updatedAt,
-          lines: payload.lines,
+          lines: savedLines,
+          items: processedLines,
+          pricesIncludeTax: config?.pricesIncludeTax,
         };
 
         onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : 'bill');
