@@ -85,7 +85,7 @@ export default function SubscriptionPage() {
         amount: payment.amount,
         currency: payment.currency || 'INR',
         name: 'CafeQR Subscription',
-        description: payment.description || 'Monthly Subscription - Rs 99',
+        description: payment.description || 'Monthly Subscription - Rs 1',
         order_id: payment.orderId,
         prefill: {
           name: fullName || clientName || 'CafeQR User',
@@ -144,9 +144,9 @@ export default function SubscriptionPage() {
       <div className="subscription-wrapper">
         <div className="container">
           <header className="page-header">
-             <span className="premium-label"><FaCrown /> BILLING CENTER</span>
-             <h1>Manage Subscription</h1>
-             <p>Transparency and performance for your professional restaurant operations.</p>
+            <span className="premium-label"><FaCrown /> BILLING CENTER</span>
+            <h1>Manage Subscription</h1>
+            <p>Transparency and performance for your professional restaurant operations.</p>
           </header>
 
           <main className="sub-layout">
@@ -154,58 +154,58 @@ export default function SubscriptionPage() {
               <div className="glass-card status-card">
                 <h3>Service Status</h3>
                 <div className={`status-indicator ${active ? 'active' : 'expired'}`}>
-                   <span className="pulse-dot"></span>
-                   {statusLabel}
+                  <span className="pulse-dot"></span>
+                  {statusLabel}
                 </div>
 
                 <div className="info-row">
-                   <FaCalendarCheck className="icon" />
-                   <div className="text">
-                      <label>Valid Until</label>
-                      <span>{expiryDate ? expiryDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</span>
-                   </div>
+                  <FaCalendarCheck className="icon" />
+                  <div className="text">
+                    <label>Valid Until</label>
+                    <span>{expiryDate ? expiryDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</span>
+                  </div>
                 </div>
 
                 {Number.isFinite(daysLeft) && (
                   <div className="info-row compact">
-                     <FaCheckCircle className="icon" />
-                     <div className="text">
-                        <label>Days Remaining</label>
-                        <span>{daysLeft} days</span>
-                     </div>
+                    <FaCheckCircle className="icon" />
+                    <div className="text">
+                      <label>Days Remaining</label>
+                      <span>{daysLeft} days</span>
+                    </div>
                   </div>
                 )}
 
                 <div className="highlight-box">
-                   <FaRocket className="rocket" />
-                   <span>Priority Cloud Server Access Enabled</span>
+                  <FaRocket className="rocket" />
+                  <span>Priority Cloud Server Access Enabled</span>
                 </div>
               </div>
 
               <div className="support-card">
-                 <p>Questions about billing?</p>
-                 <a href="mailto:pnriyas50@gmail.com"><FaHeadset /> Reach Support</a>
+                <p>Questions about billing?</p>
+                <a href="mailto:pnriyas50@gmail.com"><FaHeadset /> Reach Support</a>
               </div>
             </section>
 
             <section className="pricing-panel">
               <div className="glass-card pricing-card featured">
                 <div className="card-top">
-                   <div className="plan-name">BUSINESS PRO</div>
-                   <div className="price-tag">
-                      <span className="currency">₹</span>
-                      <span className="val">99</span>
-                      <span className="cycle">/ month</span>
-                   </div>
+                  <div className="plan-name">BUSINESS PRO</div>
+                  <div className="price-tag">
+                    <span className="currency">₹</span>
+                    <span className="val">1</span>
+                    <span className="cycle">/ month</span>
+                  </div>
                 </div>
 
                 <ul className="perks-list">
-                   <li><FaCheckCircle className="check" /> Unlimited Digital Ordering</li>
-                   <li><FaCheckCircle className="check" /> Professional QR Menu Studio</li>
-                   <li><FaCheckCircle className="check" /> Advanced Business Analytics</li>
-                   <li><FaCheckCircle className="check" /> Multi-device KDS Support</li>
-                   <li><FaCheckCircle className="check" /> GST & Tax Compliance Tools</li>
-                   <li><FaCheckCircle className="check" /> 24/7 Priority Assistance</li>
+                  <li><FaCheckCircle className="check" /> Unlimited Digital Ordering</li>
+                  <li><FaCheckCircle className="check" /> Professional QR Menu Studio</li>
+                  <li><FaCheckCircle className="check" /> Advanced Business Analytics</li>
+                  <li><FaCheckCircle className="check" /> Multi-device KDS Support</li>
+                  <li><FaCheckCircle className="check" /> GST & Tax Compliance Tools</li>
+                  <li><FaCheckCircle className="check" /> 24/7 Priority Assistance</li>
                 </ul>
 
                 <button
@@ -213,15 +213,15 @@ export default function SubscriptionPage() {
                   onClick={handlePayment}
                   disabled={loading}
                 >
-                   {loading ? 'PROCESSING...' : active ? 'RENEW SUBSCRIPTION' : 'ACTIVATE PRO NOW'}
+                  {loading ? 'PROCESSING...' : active ? 'RENEW SUBSCRIPTION' : 'ACTIVATE PRO NOW'}
                 </button>
 
                 <div className="card-notes">
-                   <svg width="80" height="20" viewBox="0 0 100 25" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M14.5 12.5C14.5 15.5376 12.0376 18 9 18C5.96243 18 3.5 15.5376 3.5 12.5C3.5 9.46243 5.96243 7 9 7C12.0376 7 14.5 9.46243 14.5 12.5Z" fill="#115e59"/>
-                      <text x="20" y="18" fill="#525252" style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'Plus Jakarta Sans' }}>RAZORPAY</text>
-                   </svg>
-                   <span>SECURE 128-BIT ENCRYPTED PAYMENTS</span>
+                  <svg width="80" height="20" viewBox="0 0 100 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14.5 12.5C14.5 15.5376 12.0376 18 9 18C5.96243 18 3.5 15.5376 3.5 12.5C3.5 9.46243 5.96243 7 9 7C12.0376 7 14.5 9.46243 14.5 12.5Z" fill="#115e59" />
+                    <text x="20" y="18" fill="#525252" style={{ fontSize: '12px', fontWeight: '900', fontFamily: 'Plus Jakarta Sans' }}>RAZORPAY</text>
+                  </svg>
+                  <span>SECURE 128-BIT ENCRYPTED PAYMENTS</span>
                 </div>
 
                 {error && (
