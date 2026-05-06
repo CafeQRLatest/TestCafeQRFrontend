@@ -3,6 +3,8 @@ import { FaImage, FaMagic, FaCheckCircle, FaExclamationCircle, FaTrash } from 'r
 import api from '../../utils/api';
 import CafeQRPopup from '../CafeQRPopup';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default function MenuImageImport({ onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -52,13 +54,24 @@ export default function MenuImageImport({ onClose, onImported }) {
     setError(null);
     try {
       const base64 = await compressImage(file);
-      const res = await fetch('/api/ai/parse-menu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to parse menu');
+      let data = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const res = await fetch('/api/ai/parse-menu', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64 })
+        });
+
+        data = await res.json().catch(() => ({}));
+        if (res.ok) break;
+
+        if ((res.status === 503 || res.status === 504) && attempt === 1) {
+          await sleep(2500);
+          continue;
+        }
+
+        throw new Error(data.details || data.message || 'Failed to parse menu');
+      }
       
       setItems(data.items.map(it => ({ ...it, selected: true })));
       setStep('review');

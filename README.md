@@ -38,3 +38,29 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+## AI Menu Image Import
+
+The product-management page uses the frontend API route `pages/api/ai/parse-menu.js`, so Gemini keys must be configured in the frontend hosting environment.
+
+For Vercel, add this to the frontend project environment variables and redeploy:
+
+```env
+GEMINI_API_KEYS=key1,key2,key3,key4,key5
+```
+
+You can also use a single key:
+
+```env
+GEMINI_API_KEY=key1
+```
+
+Optional settings:
+
+```env
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_QUOTA_COOLDOWN_MS=43200000
+GEMINI_AUTH_COOLDOWN_MS=3600000
+```
+
+When multiple keys are configured, the route starts each warm request from a different key. If Gemini returns a quota/rate-limit error for one key, that key is skipped temporarily and the next configured key is tried automatically.
