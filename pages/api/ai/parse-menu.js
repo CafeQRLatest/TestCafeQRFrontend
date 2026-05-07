@@ -120,17 +120,23 @@ function getApiKeys() {
 }
 
 function getModels() {
+  const envModels = (process.env.GEMINI_MODELS || "")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean);
   const envModel = (process.env.GEMINI_MODEL || process.env.AI_MODEL_NAME || "").trim();
   const defaults = [
+    "gemini-2.5-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
+    "gemini-2.0-flash-lite",
   ];
 
-  return envModel
-    ? [envModel, ...defaults.filter((model) => model !== envModel)]
-    : defaults;
+  return [...new Set([
+    ...envModels,
+    ...(envModel ? [envModel] : []),
+    ...defaults,
+  ])];
 }
 
 function extractErrorMessage(status, body) {
@@ -159,6 +165,46 @@ function isAuthError(error) {
   return error?.status === 401 ||
     error?.status === 403 ||
     /API_KEY_INVALID|API key not valid|permission denied|forbidden|unauthorized/i.test(details);
+}
+
+function isRetryableModelError(error) {
+  const details = String(error?.details || error?.message || "");
+  return error?.name === "AbortError" ||
+    (error?.provider === "gemini" && error?.status === 500) ||
+    error?.status === 503 ||
+    error?.status === 504 ||
+    /high demand|spikes in demand|temporarily unavailable|unavailable|overloaded|overload|try again later|deadline|timeout|timed out|internal error/i.test(details);
+}
+
+function responseStatusForError(error) {
+  if (isQuotaError(error) || isRetryableModelError(error)) return 503;
+  if (error?.status === 413) return 413;
+  if (error?.status >= 400 && error?.status < 500 && !isAuthError(error)) return error.status;
+  return 500;
+}
+
+function responseMessageForError(error) {
+  if (isRetryableModelError(error)) {
+    return "Gemini is temporarily busy.";
+  }
+
+  if (isQuotaError(error)) {
+    return "Gemini quota is temporarily unavailable.";
+  }
+
+  return "Menu extraction failed.";
+}
+
+function responseDetailsForError(error) {
+  if (isRetryableModelError(error)) {
+    return "Gemini is temporarily busy. The app tried the configured fallback models/keys. Please retry in a minute, or set GEMINI_MODELS=gemini-2.5-flash-lite,gemini-2.5-flash for steadier hosted imports.";
+  }
+
+  if (isQuotaError(error)) {
+    return "All available Gemini API keys are currently quota-limited or rate-limited. Try again after quota reset or add another key in GEMINI_API_KEYS.";
+  }
+
+  return error?.details || error?.message || "Please try again with a clearer image.";
 }
 
 function parseJsonText(text) {
@@ -265,6 +311,7 @@ async function callGemini({ key, model, mimeType, base64Data, signal, useSchema 
     const error = new Error(`Gemini API error (Status ${response.status}): ${message}`);
     error.status = response.status;
     error.details = message;
+    error.provider = "gemini";
     throw error;
   }
 
@@ -317,10 +364,11 @@ export default async function handler(req, res) {
       let moveToNextKey = false;
 
       for (const model of models) {
+        let moveToNextModel = false;
         if (moveToNextKey) break;
 
         for (const useSchema of [true, false]) {
-          if (moveToNextKey) break;
+          if (moveToNextKey || moveToNextModel) break;
 
           for (let attempt = 1; attempt <= 2; attempt++) {
             if (Date.now() > hardDeadline - 8_000) {
@@ -354,8 +402,13 @@ export default async function handler(req, res) {
               console.error(`Gemini menu parse failed. model=${model}, schema=${useSchema}, attempt=${attempt}, status=${error.status || "n/a"}:`, error.message);
 
               if (error.name === "AbortError") {
-                await sleep(800);
-                continue;
+                if (attempt < 2) {
+                  await sleep(800);
+                  continue;
+                }
+
+                moveToNextModel = true;
+                break;
               }
 
               if (error.status === 404) {
@@ -368,9 +421,10 @@ export default async function handler(req, res) {
                 break;
               }
 
-              if (error.status === 503) {
-                await sleep(1500 * attempt);
-                continue;
+              if (isRetryableModelError(error)) {
+                await sleep(500 * attempt);
+                moveToNextModel = true;
+                break;
               }
 
               if (isAuthError(error)) {
@@ -396,9 +450,10 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(lastError?.status === 429 ? 503 : 500).json({
-      message: "Menu extraction failed.",
-      details: lastError?.details || lastError?.message || "Please try again with a clearer image.",
+    return res.status(responseStatusForError(lastError)).json({
+      message: responseMessageForError(lastError),
+      details: responseDetailsForError(lastError),
+      retryable: isQuotaError(lastError) || isRetryableModelError(lastError),
     });
   } catch (error) {
     console.error("Parse Menu API Route Error:", error);

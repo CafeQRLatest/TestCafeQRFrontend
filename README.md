@@ -58,9 +58,11 @@ GEMINI_API_KEY=key1
 Optional settings:
 
 ```env
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODELS=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash
 GEMINI_QUOTA_COOLDOWN_MS=43200000
 GEMINI_AUTH_COOLDOWN_MS=3600000
 ```
 
-When multiple keys are configured, the route starts each warm request from a different key. If Gemini returns a quota/rate-limit error for one key, that key is skipped temporarily and the next configured key is tried automatically.
+`GEMINI_MODELS` is tried from left to right for menu imports. `gemini-2.5-flash-lite` is the best first choice for this hosted image-to-menu task because it is fast and high-throughput; `gemini-2.5-flash` remains the stronger fallback. You can still set `GEMINI_MODEL=gemini-2.5-flash` if you want one preferred model, but `GEMINI_MODELS` gives better failover.
+
+When multiple keys are configured, the route starts each warm request from a different key. If Gemini returns a quota/rate-limit error for one key, that key is skipped temporarily and the next configured key is tried automatically. If a Gemini model returns a temporary high-demand/timeout/internal service error, the route moves to the next fallback model and returns HTTP 503 with a retryable message instead of masking it as a generic 500.

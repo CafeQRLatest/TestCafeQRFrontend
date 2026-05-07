@@ -69,7 +69,7 @@ function ProductManagementContent() {
     try {
       const isNew = !option.id;
       const url = isNew ? '/api/v1/products/variants/options' : `/api/v1/products/variants/options/${option.id}`;
-      const payload = { ...option, group: { id: selectedVariantGroup.id } };
+      const payload = { ...option, groupId: selectedVariantGroup.id, group: { id: selectedVariantGroup.id } };
       const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
         notify('success', "Variant option saved!");
@@ -1118,6 +1118,7 @@ function ProductManagementContent() {
         {showImageImport && (
           <MenuImageImport 
             onClose={() => setShowImageImport(false)} 
+            existingItems={products}
             onImported={(newItems) => {
               notify('success', `Successfully imported ${newItems?.length || 0} items!`);
               fetchProducts();

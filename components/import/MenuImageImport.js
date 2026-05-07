@@ -64,7 +64,7 @@ const normalizeImportedItem = (item) => {
   };
 };
 
-export default function MenuImageImport({ onClose, onImported }) {
+export default function MenuImageImport({ onClose, onImported, existingItems = [] }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
@@ -131,8 +131,21 @@ export default function MenuImageImport({ onClose, onImported }) {
 
         throw new Error(data.details || data.message || 'Failed to parse menu');
       }
-      
-      setItems((data.items || []).map(normalizeImportedItem).filter((it) => it.name));
+
+      const existingNames = new Set(
+        (existingItems || [])
+          .map((item) => keyFor(item?.name))
+          .filter(Boolean)
+      );
+      const processedItems = (data.items || [])
+        .map(normalizeImportedItem)
+        .filter((it) => it.name)
+        .map((it) => {
+          const isDupe = existingNames.has(keyFor(it.name));
+          return { ...it, isDupe, selected: !isDupe };
+        });
+
+      setItems(processedItems);
       setStep('review');
     } catch (err) {
       setError(err.message);
@@ -192,6 +205,7 @@ export default function MenuImageImport({ onClose, onImported }) {
         name: option.name,
         additionalPrice: 0,
         isActive: true,
+        groupId: group.id,
         group: { id: group.id },
       });
       if (optionResp.data?.data?.id) {
@@ -323,6 +337,17 @@ export default function MenuImageImport({ onClose, onImported }) {
     return 'Save';
   };
 
+  const baseInputStyle = {
+    color: '#0f172a',
+    WebkitTextFillColor: '#0f172a',
+    caretColor: '#f97316',
+  };
+  const categoryInputStyle = {
+    color: '#f97316',
+    WebkitTextFillColor: '#f97316',
+    caretColor: '#f97316',
+  };
+
   return (
     <CafeQRPopup
       title="AI Menu Image Import"
@@ -385,13 +410,16 @@ export default function MenuImageImport({ onClose, onImported }) {
                         value={it.name} 
                         onChange={(e) => updateItemField(idx, 'name', e.target.value)} 
                         placeholder="Item Name" 
+                        style={baseInputStyle}
                       />
+                      {it.isDupe && <span className="duplicate-badge">Duplicate</span>}
                       <div className="price-input-wrap">
                         <span>₹</span>
                         <input 
                           type="number" 
                           value={it.price} 
                           onChange={(e) => updateItemField(idx, 'price', e.target.value)} 
+                          style={baseInputStyle}
                         />
                       </div>
                     </div>
@@ -401,12 +429,14 @@ export default function MenuImageImport({ onClose, onImported }) {
                         value={it.category} 
                         onChange={(e) => updateItemField(idx, 'category', e.target.value)} 
                         placeholder="Category" 
+                        style={categoryInputStyle}
                       />
                       <input 
                         className="desc-input" 
                         value={it.description} 
                         onChange={(e) => updateItemField(idx, 'description', e.target.value)} 
                         placeholder="Description (Optional)" 
+                        style={baseInputStyle}
                       />
                     </div>
                     {it.variants?.length > 0 && (
@@ -423,6 +453,7 @@ export default function MenuImageImport({ onClose, onImported }) {
                                 value={variant.template}
                                 onChange={(e) => updateVariantField(idx, variantIdx, 'template', e.target.value)}
                                 placeholder="Variant group, e.g. Size"
+                                style={baseInputStyle}
                               />
                               <label className="required-toggle">
                                 <input
@@ -445,6 +476,7 @@ export default function MenuImageImport({ onClose, onImported }) {
                                     value={option.name}
                                     onChange={(e) => updateVariantOption(idx, variantIdx, optionIdx, 'name', e.target.value)}
                                     placeholder="Option name"
+                                    style={baseInputStyle}
                                   />
                                   <div className="variant-price-wrap">
                                     <span>₹</span>
@@ -453,6 +485,7 @@ export default function MenuImageImport({ onClose, onImported }) {
                                       value={option.price}
                                       onChange={(e) => updateVariantOption(idx, variantIdx, optionIdx, 'price', e.target.value)}
                                       placeholder="0"
+                                      style={baseInputStyle}
                                     />
                                   </div>
                                   <button className="variant-option-delete" onClick={() => removeVariantOption(idx, variantIdx, optionIdx)}>
@@ -537,6 +570,7 @@ export default function MenuImageImport({ onClose, onImported }) {
         }
         .name-input { flex: 1; font-weight: 800; border: 1px solid #e2e8f0; outline: none; padding: 8px 10px; border-radius: 8px; font-size: 15px; background: #ffffff; min-width: 0; }
         .name-input:focus { background: white; box-shadow: 0 0 0 2px #fff7ed; }
+        .duplicate-badge { align-self: center; border: 1px solid #fde68a; background: #fffbeb; color: #b45309; border-radius: 999px; padding: 5px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
         .price-input-wrap { display: flex; align-items: center; gap: 4px; background: #ffffff; padding: 8px 10px; border-radius: 8px; width: 120px; border: 1px solid #e2e8f0; }
         .price-input-wrap span { font-weight: 800; color: #64748b; }
         .price-input-wrap input { border: none; background: none; font-weight: 800; font-size: 14px; width: 100%; outline: none; }
