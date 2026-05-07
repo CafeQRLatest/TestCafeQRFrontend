@@ -10,6 +10,11 @@ const toMoney = (value) => {
   const number = Number.parseFloat(value);
   return Number.isFinite(number) ? number : 0;
 };
+const getRequestErrorMessage = (err, fallback = 'Request failed') => {
+  const data = err?.response?.data;
+  const message = data?.message || err?.message || fallback;
+  return data?.errorReference ? `${message} (ref ${data.errorReference})` : message;
+};
 
 const normalizeImportedVariants = (variants) => {
   if (!Array.isArray(variants)) return [];
@@ -158,6 +163,10 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
     const groups = resp.data?.data || [];
 
     return Promise.all(groups.map(async (group) => {
+      if (Array.isArray(group.options)) {
+        return group;
+      }
+
       try {
         const optionsResp = await api.get(`/api/v1/products/variants/groups/${group.id}/options`);
         return { ...group, options: optionsResp.data?.data || group.options || [] };
@@ -186,7 +195,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
       if (!created?.id) throw new Error(`Variant group "${variant.template}" could not be created.`);
 
       let createdOptions = created.options || [];
-      if (!createdOptions.length) {
+      if (!Array.isArray(created.options) || !createdOptions.length) {
         const optionsResp = await api.get(`/api/v1/products/variants/groups/${created.id}/options`);
         createdOptions = optionsResp.data?.data || [];
       }
@@ -281,7 +290,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
         throw new Error(res.data.message || 'Failed to import products');
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
+      setError(getRequestErrorMessage(err, 'Failed to import products'));
       setStep('review');
     }
   };
