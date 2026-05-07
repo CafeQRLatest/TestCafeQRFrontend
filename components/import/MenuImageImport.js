@@ -12,7 +12,7 @@ const toMoney = (value) => {
 };
 const getRequestErrorMessage = (err, fallback = 'Request failed') => {
   const data = err?.response?.data;
-  const message = data?.message || err?.message || fallback;
+  const message = data?.message || data?.error || err?.message || fallback;
   return data?.errorReference ? `${message} (ref ${data.errorReference})` : message;
 };
 
@@ -159,8 +159,13 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
   };
 
   const loadVariantGroupsWithOptions = async () => {
-    const resp = await api.get('/api/v1/products/variants/groups');
-    const groups = resp.data?.data || [];
+    let groups = [];
+    try {
+      const resp = await api.get('/api/v1/products/variants/groups');
+      groups = resp.data?.data || [];
+    } catch (err) {
+      throw new Error(getRequestErrorMessage(err, 'Failed to load variant groups'));
+    }
 
     return Promise.all(groups.map(async (group) => {
       if (Array.isArray(group.options)) {

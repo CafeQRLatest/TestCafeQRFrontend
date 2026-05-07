@@ -15,6 +15,12 @@ import MenuImageImport from '../../components/import/MenuImageImport';
 import MenuExcelImport from '../../components/import/MenuExcelImport';
 import CafeQRPopup from '../../components/CafeQRPopup';
 
+const getRequestErrorMessage = (err, fallback = 'Request failed') => {
+  const data = err?.response?.data;
+  const message = data?.message || data?.error || err?.message || fallback;
+  return data?.errorReference ? `${message} (ref ${data.errorReference})` : message;
+};
+
 export default function ProductManagementPage() {
   return (
     <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']}>
@@ -139,16 +145,27 @@ function ProductManagementContent() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      await Promise.all([
+      const coreResults = await Promise.allSettled([
         fetchProducts(),
         fetchCategories(),
-        fetchUoms(),
-        fetchVariantGroups()
+        fetchUoms()
       ]);
+
+      const failedCore = coreResults.find((result) => result.status === 'rejected');
+      if (failedCore) throw failedCore.reason;
+
+      try {
+        await fetchVariantGroups();
+      } catch (err) {
+        if (isMounted.current) {
+          console.error("Failed to load variant groups:", err);
+          notify('error', getRequestErrorMessage(err, "Failed to load variant groups."));
+        }
+      }
     } catch (err) {
       if (isMounted.current) {
         console.error("Failed to load ERP data:", err);
-        notify('error', "Failed to sync ERP catalog.");
+        notify('error', getRequestErrorMessage(err, "Failed to sync ERP catalog."));
       }
     } finally {
       if (isMounted.current) setLoading(false);
@@ -175,6 +192,10 @@ function ProductManagementContent() {
     if (resp.data.success) {
       const groups = resp.data.data || [];
       const hydratedGroups = await Promise.all(groups.map(async (group) => {
+        if (Array.isArray(group.options)) {
+          return group;
+        }
+
         try {
           const optionsResp = await api.get(`/api/v1/products/variants/groups/${group.id}/options`);
           return { ...group, options: optionsResp.data.data || group.options || [] };
