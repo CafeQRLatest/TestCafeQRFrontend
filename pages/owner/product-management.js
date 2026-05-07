@@ -854,16 +854,24 @@ function ProductManagementContent() {
                      </div> {/* Closing the mapping-selector */}
 
                     <div className="mappings-list">
-                       {(selectedProduct.variantMappings || []).map((m, idx) => (
-                         <div key={idx} className="mapping-item-card">
-                            <div className="item-header">
-                               <strong>{m.variantGroup?.name}</strong>
-                               <button className="text-red" onClick={() => {
-                                  // Also clear related pricings
-                                  const groupOptionIds = m.variantGroup?.options?.map(o => o.id) || [];
-                                  setSelectedProduct({
-                                     ...selectedProduct,
-                                     variantMappings: selectedProduct.variantMappings.filter((_, i) => i !== idx),
+                       {(selectedProduct.variantMappings || []).map((m, idx) => {
+                         const groupOptions = m.variantGroup?.options || [];
+                         return (
+                         <div key={idx} className="mapping-item-card variant-mapping-card">
+                             <div className="item-header">
+                                <div className="variant-group-heading">
+                                  <strong>{m.variantGroup?.name || 'Variant group'}</strong>
+                                  <div className="variant-group-meta">
+                                    <span>{groupOptions.length} option{groupOptions.length === 1 ? '' : 's'}</span>
+                                    <span>{m.isRequired ? 'Required' : 'Optional'}</span>
+                                  </div>
+                                </div>
+                                <button className="text-red" onClick={() => {
+                                   // Also clear related pricings
+                                   const groupOptionIds = groupOptions.map(o => o.id);
+                                   setSelectedProduct({
+                                      ...selectedProduct,
+                                      variantMappings: selectedProduct.variantMappings.filter((_, i) => i !== idx),
                                      variantPricings: (selectedProduct.variantPricings || []).filter(vp => !groupOptionIds.includes(vp.variantOption?.id))
                                   });
                                }}><FaTimes /></button>
@@ -876,21 +884,29 @@ function ProductManagementContent() {
                                }} /> Required selection</label>
                             </div>
                             
-                            {/* Option Price Overrides */}
-                            <div className="option-overrides" style={{ marginTop: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                               <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', marginBottom: '8px', textTransform: 'uppercase' }}>Price Overrides</div>
-                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  {m.variantGroup?.options?.map(opt => {
-                                     const pricing = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
-                                     const currentVal = pricing ? pricing.overridePrice : opt.additionalPrice;
-                                     return (
-                                        <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 10px', borderRadius: '8px' }}>
-                                           <span style={{ fontSize: '12px', fontWeight: 500 }}>{opt.name} <small style={{ color: '#94a3b8' }}> (Base: ₹{opt.additionalPrice})</small></span>
-                                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', marginRight: '8px', fontSize: '11px', color: '#64748b' }}>
-                                                 <input
-                                                   type="checkbox"
-                                                   checked={pricing?.isAvailable !== false}
+                             {/* Option Price Overrides */}
+                             <div className="option-overrides">
+                                <div className="option-overrides-title">Price Overrides</div>
+                                {groupOptions.length === 0 ? (
+                                  <div className="variant-options-empty">
+                                    No options found for this variant group.
+                                  </div>
+                                ) : (
+                                <div className="variant-options-list">
+                                   {groupOptions.map(opt => {
+                                      const pricing = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
+                                      const currentVal = pricing ? pricing.overridePrice : opt.additionalPrice;
+                                      return (
+                                         <div key={opt.id} className="variant-option-row">
+                                            <div className="variant-option-copy">
+                                              <span className="variant-option-name">{opt.name}</span>
+                                              <span className="variant-option-base">Base: ₹{opt.additionalPrice || 0}</span>
+                                            </div>
+                                            <div className="variant-option-controls">
+                                               <label className="variant-enabled-label">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={pricing?.isAvailable !== false}
                                                    onChange={e => {
                                                      const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
                                                      setSelectedProduct({
@@ -903,16 +919,16 @@ function ProductManagementContent() {
                                                        }]
                                                      });
                                                    }}
-                                                 />
-                                                 Enabled
-                                              </label>
-                                              <span style={{ fontSize: '11px', fontWeight: 700 }}>₹</span>
-                                              <input 
-                                                 type="number" 
-                                                style={{ width: '60px', padding: '4px', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                                                value={currentVal}
-                                                onChange={e => {
-                                                   const newVal = parseFloat(e.target.value) || 0;
+                                                  />
+                                                  Enabled
+                                               </label>
+                                               <span className="variant-currency">₹</span>
+                                               <input 
+                                                  type="number" 
+                                                 className="variant-price-input"
+                                                 value={currentVal}
+                                                 onChange={e => {
+                                                    const newVal = parseFloat(e.target.value) || 0;
                                                    const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
                                                     setSelectedProduct({
                                                        ...selectedProduct,
@@ -924,18 +940,20 @@ function ProductManagementContent() {
                                                        }]
                                                     });
                                                 }}
-                                             />
-                                          </div>
-                                        </div>
-                                     );
-                                  })}
-                               </div>
-                         </div>
-                       </div>
-                        ))}
-                    </div>
-                 </div>
-               </>)}
+                                              />
+                                           </div>
+                                         </div>
+                                      );
+                                   })}
+                                </div>
+                                )}
+                          </div>
+                        </div>
+                         );
+                         })}
+                     </div>
+                  </div>
+                </>)}
 
                {formTab === 'upsells' && (<>
                  <div className="erp-section">
@@ -1256,10 +1274,28 @@ function ProductManagementContent() {
 
         .mappings-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
         .mapping-item-card { background: white; border: 1px solid #f1f5f9; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .variant-mapping-card { border-color: #e2e8f0; box-shadow: 0 8px 18px rgba(15,23,42,0.04); }
         .mapping-item-card.horizontal { flex-direction: row; align-items: center; }
         .item-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+        .variant-group-heading { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .variant-group-heading strong { color: #0f172a; font-size: 14px; font-weight: 800; line-height: 1.2; }
+        .variant-group-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+        .variant-group-meta span { color: #475569; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
         .item-settings { background: #f8fafc; padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; }
         .item-settings label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: #475569; }
+        .option-overrides { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+        .option-overrides-title { color: #334155; font-size: 11px; font-weight: 800; letter-spacing: 0; margin-bottom: 10px; text-transform: uppercase; }
+        .variant-options-list { display: flex; flex-direction: column; gap: 8px; }
+        .variant-option-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+        .variant-option-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .variant-option-name { color: #0f172a; font-size: 13px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+        .variant-option-base { color: #64748b; font-size: 11px; font-weight: 700; }
+        .variant-option-controls { display: grid; grid-template-columns: auto auto 72px; align-items: center; gap: 6px; }
+        .variant-enabled-label { display: flex; align-items: center; gap: 5px; color: #334155; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .variant-currency { color: #0f172a; font-size: 12px; font-weight: 900; }
+        .variant-price-input { width: 72px; padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; color: #0f172a; font-size: 12px; font-weight: 800; text-align: right; }
+        .variant-price-input:focus { border-color: #FF7A00; box-shadow: 0 0 0 3px rgba(255,122,0,0.12); outline: none; }
+        .variant-options-empty { color: #64748b; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; font-size: 12px; font-weight: 700; }
         
         .card-img-sm { width: 44px; height: 44px; border-radius: 8px; background-size: cover; background-position: center; border: 1px solid #f1f5f9; flex-shrink: 0; }
         .item-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
@@ -1270,9 +1306,17 @@ function ProductManagementContent() {
         .text-red { color: #ef4444; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
         .view-mode input, .view-mode textarea { pointer-events: none; background: #f8fafc !important; border-color: transparent !important; }
+        .view-mode .variant-option-name, .view-mode .variant-group-heading strong { color: #0f172a !important; opacity: 1; }
+        .view-mode .variant-option-base, .view-mode .variant-enabled-label, .view-mode .variant-currency { opacity: 1; }
+        .view-mode .variant-price-input { color: #0f172a !important; border-color: #e2e8f0 !important; }
         .view-mode .NiceSelect { pointer-events: none; opacity: 0.8; }
         .card-check { display: flex; align-items: center; justify-content: center; }
         .card-check input { width: 18px; height: 18px; }
+        @media (max-width: 640px) {
+          .variant-option-row { grid-template-columns: 1fr; align-items: stretch; }
+          .variant-option-controls { grid-template-columns: 1fr auto 82px; }
+          .variant-price-input { width: 82px; }
+        }
       `}</style>
         {/* Modals for Import */}
         {showImageImport && (
