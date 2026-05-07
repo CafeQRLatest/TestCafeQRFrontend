@@ -10,18 +10,40 @@ export const config = {
 };
 
 const MENU_SCHEMA = {
-  type: "object",
+  type: "OBJECT",
   properties: {
     items: {
-      type: "array",
+      type: "ARRAY",
       items: {
-        type: "object",
+        type: "OBJECT",
         properties: {
-          name: { type: "string" },
-          category: { type: "string" },
-          price: { type: "number" },
-          description: { type: "string" },
-          veg: { type: "boolean" },
+          name: { type: "STRING" },
+          category: { type: "STRING" },
+          price: { type: "NUMBER" },
+          description: { type: "STRING" },
+          veg: { type: "BOOLEAN" },
+          variants: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                template: { type: "STRING" },
+                required: { type: "BOOLEAN" },
+                options: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      name: { type: "STRING" },
+                      price: { type: "NUMBER" },
+                    },
+                    required: ["name"],
+                  },
+                },
+              },
+              required: ["template", "options"],
+            },
+          },
         },
         required: ["name"],
       },
@@ -39,6 +61,9 @@ Rules:
 - Infer category from nearby headings such as Starters, Rice & Breads, Grilled, Drinks, etc. Use "General" only when no category is visible.
 - Parse prices as plain numbers. For Indian menus, "RS 120", "₹120", and "120/-" should become 120.
 - If an item has multiple prices for sizes/portions, set price to the lowest/base price and add variants with useful option names.
+- For variants, infer useful group names such as "Size", "Portion", "Rice Type", or "Preparation".
+- If multiple variant groups have the same name but different options, rename them clearly so they stay unique.
+- Do not use the menu item name as the variant group name.
 - If a price is unreadable but the item is clearly visible, include the item with price 0.
 - Keep descriptions short. Leave description empty if none is visible.
 - Return JSON in this shape: { "items": [ { "name": "...", "category": "...", "price": 100, "description": "", "veg": false, "variants": [] } ] }.
@@ -206,11 +231,11 @@ async function callGemini({ key, model, mimeType, base64Data, signal, useSchema 
   const generationConfig = {
     temperature: 0.1,
     maxOutputTokens: 8192,
-    responseMimeType: "application/json",
+    response_mime_type: "application/json",
   };
 
   if (useSchema) {
-    generationConfig.responseJsonSchema = MENU_SCHEMA;
+    generationConfig.response_schema = MENU_SCHEMA;
   }
 
   const response = await fetch(url, {

@@ -69,7 +69,7 @@ function ProductManagementContent() {
     try {
       const isNew = !option.id;
       const url = isNew ? '/api/v1/products/variants/options' : `/api/v1/products/variants/options/${option.id}`;
-      const payload = { ...option, groupId: selectedVariantGroup.id };
+      const payload = { ...option, group: { id: selectedVariantGroup.id } };
       const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
         notify('success', "Variant option saved!");
@@ -172,7 +172,18 @@ function ProductManagementContent() {
 
   const fetchVariantGroups = async () => {
     const resp = await api.get('/api/v1/products/variants/groups');
-    if (resp.data.success) setVariantGroups(resp.data.data || []);
+    if (resp.data.success) {
+      const groups = resp.data.data || [];
+      const hydratedGroups = await Promise.all(groups.map(async (group) => {
+        try {
+          const optionsResp = await api.get(`/api/v1/products/variants/groups/${group.id}/options`);
+          return { ...group, options: optionsResp.data.data || group.options || [] };
+        } catch {
+          return { ...group, options: group.options || [] };
+        }
+      }));
+      setVariantGroups(hydratedGroups);
+    }
   };
 
   const handleSaveProduct = async (e) => {
@@ -266,13 +277,46 @@ function ProductManagementContent() {
       kdsStation: '', uom: null, category: categories[0] || null, isActive: true,
       variantMappings: [], variantPricings: [], upsells: []
     });
+    setViewOnly(false);
     setFormTab('basic');
+  };
+
+  const hydrateProductForDrawer = (product) => {
+    const category = product.category || categories.find(c => c.name === product.categoryName) || null;
+    const uom = product.uom || uoms.find(u => u.name === product.uomName || u.shortName === product.uomName) || null;
+
+    return {
+      ...product,
+      category,
+      uom,
+      variantMappings: product.variantMappings || [],
+      variantPricings: product.variantPricings || [],
+      upsells: product.upsells || [],
+    };
+  };
+
+  const openProduct = async (product, readOnly = true) => {
+    setSelectedProduct(hydrateProductForDrawer(product));
+    setViewOnly(readOnly);
+    setFormTab('basic');
+
+    if (!product?.id) return;
+
+    try {
+      const resp = await api.get(`/api/v1/products/${product.id}`);
+      if (resp.data.success) {
+        setSelectedProduct(hydrateProductForDrawer(resp.data.data));
+      }
+    } catch (err) {
+      console.warn("Failed to load product details:", err);
+    }
   };
 
   if (loading) return <div className="loading-state"><span>Syncing ERP Catalog...</span></div>;
 
+  const selectedCategoryFilter = categories.find(c => c.id === tableCategoryFilter);
   const filteredProducts = products.filter(p => 
-    (!tableCategoryFilter || p.category?.id === tableCategoryFilter) && 
+    (!tableCategoryFilter || p.category?.id === tableCategoryFilter || p.categoryName === selectedCategoryFilter?.name) && 
     (!tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? p.isActive !== false : p.isActive === false)) &&
     (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase())))
   );
@@ -355,7 +399,7 @@ function ProductManagementContent() {
                       {filteredProducts.map(p => (
                         <tr key={p.id} onClick={(e) => {
                           if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-                            setSelectedProduct(p); setViewOnly(true);
+                            openProduct(p, true);
                           }
                         }} className={`clickable-row ${selectedItemIds.includes(p.id) ? 'row-selected' : ''}`}>
                           <td onClick={e => e.stopPropagation()}>
@@ -363,9 +407,12 @@ function ProductManagementContent() {
                           </td>
                           <td><div className="table-img" style={{ backgroundImage: `url(${p.imageUrl || 'https://via.placeholder.com/40'})` }}></div></td>
                           <td className="code-cell">{p.productCode || '-'}</td>
-                          <td><span className="name-text">{p.name}</span></td>
-                          <td>{p.category?.name || 'N/A'}</td>
-                          <td>₹{p.price} <small>/ {p.uom?.shortName || 'Unit'}</small></td>
+                          <td>
+                            <span className="name-text">{p.name}</span>
+                            {p.hasVariants && <span className="variant-badge">{p.variantCount || 1} variant{(p.variantCount || 1) > 1 ? 's' : ''}</span>}
+                          </td>
+                          <td>{p.category?.name || p.categoryName || 'N/A'}</td>
+                          <td>₹{p.price} <small>/ {p.uom?.shortName || p.uomName || 'Unit'}</small></td>
                           <td><span className={`type-badge ${p.productType?.toLowerCase().replace('_', '-')}`}>{p.productType || 'N/A'}</span></td>
                           <td className="text-center">
                               {p.isIngredient ? (
@@ -381,8 +428,8 @@ function ProductManagementContent() {
                              </span>
                           </td>
                           <td onClick={e => e.stopPropagation()} className="row-actions">
-                             <button className="table-btn" title="View" onClick={() => { setSelectedProduct(p); setViewOnly(true); }}><FaSearch /></button>
-                             <button className="table-btn" title="Edit" onClick={() => { setSelectedProduct(p); setViewOnly(false); }}><FaSlidersH /></button>
+                             <button className="table-btn" title="View" onClick={() => openProduct(p, true)}><FaSearch /></button>
+                             <button className="table-btn" title="Edit" onClick={() => openProduct(p, false)}><FaSlidersH /></button>
                           </td>
                         </tr>
                       ))}
@@ -460,14 +507,15 @@ function ProductManagementContent() {
 
           <div className="erp-mobile-list mobile-only">
              {activeTab === 'products' && filteredProducts.map(p => (
-               <div key={p.id} className={`mobile-card ${selectedItemIds.includes(p.id) ? 'row-selected' : ''}`} onClick={() => { setSelectedProduct(p); setViewOnly(true); }}>
+               <div key={p.id} className={`mobile-card ${selectedItemIds.includes(p.id) ? 'row-selected' : ''}`} onClick={() => openProduct(p, true)}>
                   <div className="card-check" onClick={e => { e.stopPropagation(); toggleSelectItem(p.id); }}>
                      <input type="checkbox" checked={selectedItemIds.includes(p.id)} readOnly />
                   </div>
                   <div className="card-img" style={{ backgroundImage: `url(${p.imageUrl || 'https://via.placeholder.com/40'})` }}></div>
                   <div className="card-info">
                      <span className="card-name">{p.name} {p.isIngredient && <FaUtensilSpoon style={{ color: '#db2777', fontSize: '10px', marginLeft: '4px' }}/>}</span>
-                     <span className="card-sub">{p.category?.name || 'No Category'} • ₹{p.price}</span>
+                     <span className="card-sub">{p.category?.name || p.categoryName || 'No Category'} • ₹{p.price}</span>
+                     {p.hasVariants && <span className="variant-badge mobile">{p.variantCount || 1} variant{(p.variantCount || 1) > 1 ? 's' : ''}</span>}
                   </div>
                   <div className="card-action" onClick={e => { e.stopPropagation(); /* could add a small menu here */ }}>
                      <FaChevronRight />
@@ -879,7 +927,7 @@ function ProductManagementContent() {
                     {(!selectedVariantGroup.options || selectedVariantGroup.options.length === 0) && (
                        <div style={{ textAlign: 'center', color: '#64748b', padding: '24px 16px', fontSize: '13px', background: '#f8fafc', borderRadius: '8px', margin: '8px 0', border: '1px dashed #cbd5e1' }}>
                           <FaSlidersH style={{ marginBottom: '8px', color: '#94a3b8', fontSize: '18px' }} /><br />
-                          No options added yet.<br />Click <strong>"+ Add Option"</strong> below to create choices like 'Small', 'Medium', etc.
+                          No options added yet.<br />Click <strong>+ Add Option</strong> below to create choices like Small, Medium, etc.
                        </div>
                     )}
                        <div className="add-option-row" style={{ marginTop: '12px' }}>
@@ -920,7 +968,9 @@ function ProductManagementContent() {
         .erp-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #475569; vertical-align: middle; }
         .clickable-row { cursor: pointer; }
         .clickable-row:hover { background: #fcfdfe; }
-        .name-text { font-weight: 600; color: #0f172a; }
+        .name-text { font-weight: 600; color: #0f172a; display: block; }
+        .variant-badge { display: inline-flex; align-items: center; width: fit-content; margin-top: 4px; padding: 3px 8px; border-radius: 999px; background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; }
+        .variant-badge.mobile { margin-top: 4px; font-size: 9px; padding: 2px 7px; }
         
         .table-img { width: 40px; height: 40px; border-radius: 8px; background-size: cover; background-position: center; border: 1px solid #e2e8f0; }
         .code-cell { font-family: 'Inter', monospace; color: #64748b; font-weight: 500; font-size: 12px; }
@@ -1072,6 +1122,7 @@ function ProductManagementContent() {
               notify('success', `Successfully imported ${newItems?.length || 0} items!`);
               fetchProducts();
               fetchCategories(); // In case new categories were created
+              fetchVariantGroups(); // In case AI import created variant groups/options
             }} 
           />
         )}
