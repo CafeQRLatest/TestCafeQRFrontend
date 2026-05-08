@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { buildReceiptText, buildKotText, downloadTextAndShare, toDisplayItems } from '../utils/printUtils';
 import api from '../utils/api';
-import { printUniversal } from '../utils/nativePrint';
+import { printUniversal } from '../utils/printGateway';
 import { Capacitor } from '@capacitor/core';
 import Cookies from 'js-cookie';
 
@@ -168,6 +168,34 @@ function isDesktopPWA() {
   }
 }
 
+function isOfflinePrintOrder(order) {
+  return Boolean(order?.offline || order?.offlineOperationId || order?.syncStatus === 'QUEUED');
+}
+
+function getPrintJobMeta(order, kind = 'bill', target = 'default') {
+  const offline = isOfflinePrintOrder(order);
+  const orderId = !offline && order?.id ? String(order.id) : undefined;
+  const offlineOperationId = order?.offlineOperationId || (offline && order?.id ? String(order.id) : undefined);
+  const orderNo = order?.orderNo || order?.order_no;
+  const ref = String(offlineOperationId || orderId || orderNo || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '').slice(-48);
+  const targetKey = String(target || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48) || 'default';
+
+  return {
+    jobId: `print:${kind}:${targetKey}:${ref}`,
+    orderId,
+    offlineOperationId,
+    orderNo,
+    printTarget: targetKey,
+  };
+}
+
+function fallbackRestaurantProfile() {
+  return {
+    restaurant_name: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR',
+    bill_footer_enabled: true,
+  };
+}
+
 async function ensurePrinterConfigured() {
   try {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
@@ -193,7 +221,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
   const [status, setStatus] = useState('');
   const [fullOrder, setFullOrder] = useState(() => mergeOrderForPrint(order, null));
   const [bill] = useState(order?.bill || null);
-  const [restaurantProfile, setRestaurantProfile] = useState(null);
+  const [restaurantProfile, setRestaurantProfile] = useState(() => fallbackRestaurantProfile());
   const [loadingData, setLoadingData] = useState(true);
 
   const ranRef = useRef(false);
@@ -236,16 +264,24 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
     let alive = true;
 
     (async () => {
-      try {
-        if (order?.id) {
+      const offlineOrder = isOfflinePrintOrder(order);
+
+      if (order?.id && !offlineOrder) {
+        try {
           const { data: res } = await api.get(`/api/v1/orders/${order.id}`);
           const freshOrder = res.data;
 
           if (alive && freshOrder) {
             setFullOrder(mergeOrderForPrint(freshOrder, order));
           }
+        } catch (err) {
+          if (err?.code !== 'OFFLINE_CACHE_MISS') {
+            console.warn('Unable to hydrate print order:', err?.message || err);
+          }
         }
+      }
 
+      try {
         const { data: cfgRes } = await api.get('/api/v1/configurations');
         if (alive && cfgRes.data) {
           setRestaurantProfile({
@@ -268,7 +304,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           });
         }
       } catch (err) {
-        console.error('Error hydrating print data:', err);
+        if (err?.code !== 'OFFLINE_CACHE_MISS') {
+          console.warn('Unable to hydrate print configuration:', err?.message || err);
+        }
+        if (alive) {
+          setRestaurantProfile((current) => current || fallbackRestaurantProfile());
+        }
       } finally {
         if (alive) setLoadingData(false);
       }
@@ -280,7 +321,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
   }, [order]);
 
   const doPrint = useCallback(async () => {
-    if (lockRef.current) return;
+    if (lockRef.current) return false;
     lockRef.current = true;
 
     try {
@@ -306,12 +347,14 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: kind,
+              ...getPrintJobMeta(normalizedOrder, kind, 'main'),
             });
             onPrint?.();
+            return true;
           } catch (e) {
             setStatus('✗ ' + (e.message || 'Printing failed'));
+            return false;
           }
-          return;
         }
 
         await printUniversal({
@@ -324,11 +367,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           allowSystemDialog,
           scale,
           jobKind: kind,
+          ...getPrintJobMeta(normalizedOrder, kind, 'main'),
         });
 
         onPrint?.();
         closeAfterPrint();
-        return;
+        return true;
       }
 
       const routes = readJson('PRINT_KOT_ROUTES_V1', []).filter((r) => r && r.enabled);
@@ -345,12 +389,14 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: 'kot',
+              ...getPrintJobMeta(normalizedOrder, 'kot', 'main'),
             });
             onPrint?.();
+            return true;
           } catch (e) {
             setStatus('✗ ' + (e.message || 'Printing failed'));
+            return false;
           }
-          return;
         }
 
         await printUniversal({
@@ -360,11 +406,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           scale,
           codepage: 0,
           jobKind: 'kot',
+          ...getPrintJobMeta(normalizedOrder, 'kot', 'main'),
         });
 
         onPrint?.();
         closeAfterPrint();
-        return;
+        return true;
       }
 
       for (const r of routes) {
@@ -389,6 +436,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: 'kot',
+              ...getPrintJobMeta(routedOrder, 'kot', `route-${r.id || r.name || r.label || 'android'}`),
             });
           } catch (e) {
             console.error(e);
@@ -397,6 +445,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         }
 
         const routeNet = getRouteNetworkTargets(r);
+        const routeWinPrinterNames = Array.isArray(r.printerNames) ? r.printerNames : [];
+        let printedRoute = false;
 
         if (routeNet.relayUrl && routeNet.targets.length) {
           for (const t of routeNet.targets) {
@@ -410,37 +460,73 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: false,
               scale,
               jobKind: 'kot',
+              ...getPrintJobMeta(routedOrder, 'kot', `route-net-${r.id || r.name || t.ip}`),
             });
+            printedRoute = true;
           }
         }
 
-        await printUniversal({
-          text,
-          relayUrl: (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
-          ip: (typeof window !== 'undefined' && localStorage.getItem('PRINTER_IP')) || undefined,
-          port: Number((typeof window !== 'undefined' && localStorage.getItem('PRINTER_PORT')) || 9100),
-          codepage: 0,
-          allowPrompt: false,
-          allowSystemDialog,
-          scale,
-          jobKind: 'kot',
-          winPrinterNames: Array.isArray(r.printerNames) ? r.printerNames : [],
-        });
+        if (routeWinPrinterNames.length) {
+          await printUniversal({
+            text,
+            codepage: 0,
+            allowPrompt: false,
+            allowSystemDialog,
+            scale,
+            jobKind: 'kot',
+            winPrinterNames: routeWinPrinterNames,
+            ...getPrintJobMeta(routedOrder, 'kot', `route-win-${r.id || r.name || routeWinPrinterNames.join('-')}`),
+          });
+          printedRoute = true;
+        }
+
+        if (!printedRoute) {
+          await printUniversal({
+            text,
+            relayUrl: (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
+            ip: (typeof window !== 'undefined' && localStorage.getItem('PRINTER_IP')) || undefined,
+            port: Number((typeof window !== 'undefined' && localStorage.getItem('PRINTER_PORT')) || 9100),
+            codepage: 0,
+            allowPrompt: false,
+            allowSystemDialog,
+            scale,
+            jobKind: 'kot',
+            ...getPrintJobMeta(routedOrder, 'kot', `route-default-${r.id || r.name || 'fallback'}`),
+          });
+        }
       }
 
       onPrint?.();
       closeAfterPrint();
+      return true;
     } catch (e) {
       if (!autoPrint) {
         try {
           await downloadTextAndShare(fullOrder, bill, restaurantProfile);
           onPrint?.();
-          return;
+          return true;
         } catch {
         }
       }
+      const message = e?.message || '';
+      if (message.includes('NO_PRINTER_CONFIGURED') || message.includes('NO_WIN_PRINTER')) {
+        console.warn('[print] printer not configured:', message);
+        setStatus('Order saved. Printer not configured.');
+        return false;
+      }
+      if (message.includes('PRINT_HUB_UNREACHABLE')) {
+        console.warn('[print] PrintHub unreachable:', message);
+        setStatus('Order saved. PrintHub is not running.');
+        return false;
+      }
+      if (message.includes('PRINT_HUB_FAILED')) {
+        console.warn('[print] PrintHub failed:', message);
+        setStatus('Order saved. Printer rejected the job.');
+        return false;
+      }
       console.error('[print] failed:', e);
-      setStatus('✗ Printing failed');
+      setStatus('Printing failed. Order remains saved.');
+      return false;
     } finally {
       setTimeout(() => {
         lockRef.current = false;
@@ -458,8 +544,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
     (async () => {
       try {
-        await doPrint();
-        markPrinted(id, kind);
+        const printed = await doPrint();
+        if (printed) {
+          markPrinted(id, kind);
+        } else {
+          ranRef.current = false;
+        }
       } catch {
         ranRef.current = false;
       }

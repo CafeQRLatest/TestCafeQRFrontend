@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import api from '../../utils/api';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -12,6 +12,7 @@ import CounterSale from '../../components/CounterSale';
 import KotPrint from '../../components/KotPrint';
 import { toDisplayItems } from '../../utils/printUtils';
 import { isKnownOffline } from '../../utils/networkState';
+import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
@@ -313,6 +314,21 @@ const OrderAmount = styled.div`
   text-align: right;
 `;
 
+const OrderBadges = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const OrderBadge = styled.span`
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 900;
+  color: ${props => props.$tone === 'red' ? '#b91c1c' : props.$tone === 'blue' ? '#0369a1' : '#c2410c'};
+  background: ${props => props.$tone === 'red' ? '#fee2e2' : props.$tone === 'blue' ? '#e0f2fe' : '#ffedd5'};
+`;
+
 const OrderInfo = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -469,6 +485,67 @@ function orderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
 }
 
+function orderIdentity(order) {
+  if (!order) return '';
+  if (order.offlineOperationId) return `op:${order.offlineOperationId}`;
+  if (order.id) return `id:${order.id}`;
+  const orderNo = order.orderNo || order.order_no;
+  if (orderNo) return `no:${orderNo}`;
+  return '';
+}
+
+function orderPrintKeys(order) {
+  const keys = [];
+  if (order?.offlineOperationId) keys.push(`op:${order.offlineOperationId}`);
+  if (order?.id) keys.push(`id:${order.id}`);
+  const orderNo = order?.orderNo || order?.order_no;
+  if (orderNo) keys.push(`no:${orderNo}`);
+  return keys;
+}
+
+function mergeOrdersWithQueued(orders, queuedOrders) {
+  const byKey = new Map();
+
+  [...(queuedOrders || []), ...(orders || [])].forEach((order) => {
+    const key = orderIdentity(order) || `fallback:${byKey.size}`;
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? { ...existing, ...order } : order);
+  });
+
+  return Array.from(byKey.values())
+    .sort((a, b) => orderTime(b).getTime() - orderTime(a).getTime());
+}
+
+function buildPrintJobMap(jobs) {
+  const map = {};
+
+  (jobs || []).forEach((job) => {
+    const keys = [];
+    if (job.offlineOperationId) keys.push(`op:${job.offlineOperationId}`);
+    if (job.orderId) keys.push(`id:${job.orderId}`);
+    if (job.orderNo) keys.push(`no:${job.orderNo}`);
+
+    keys.forEach((key) => {
+      map[key] = map[key] || {};
+      const kind = job.kind || 'bill';
+      const current = map[key][kind];
+      if (!current || String(job.updatedAt || job.createdAt).localeCompare(String(current.updatedAt || current.createdAt)) > 0) {
+        map[key][kind] = job;
+      }
+    });
+  });
+
+  return map;
+}
+
+function attachPrintJobs(order, printJobsByOrder) {
+  const printJobs = {};
+  orderPrintKeys(order).forEach((key) => {
+    Object.assign(printJobs, printJobsByOrder[key] || {});
+  });
+  return { ...order, printJobs };
+}
+
 function quantityText(value) {
   const qty = Number(value || 0);
   if (!Number.isFinite(qty)) return '0';
@@ -482,6 +559,8 @@ function orderTime(order) {
 }
 
 function orderStatusTone(order) {
+  if (order?.syncStatus === 'CONFLICT') return '#ef4444';
+  if (order?.offline || order?.syncStatus === 'QUEUED') return '#f97316';
   const status = String(order?.orderStatus || order?.order_status || '').toUpperCase();
   if (status === 'COMPLETED' || status === 'PAID') return '#16a34a';
   if (status === 'CANCELLED' || status === 'VOID') return '#ef4444';
@@ -489,6 +568,8 @@ function orderStatusTone(order) {
 }
 
 function statusText(order) {
+  if (order?.syncStatus === 'CONFLICT') return 'SYNC CONFLICT';
+  if (order?.offline || order?.syncStatus === 'QUEUED') return 'SYNC PENDING';
   return String(order?.orderStatus || order?.order_status || 'DRAFT').replace('_', ' ');
 }
 
@@ -508,6 +589,8 @@ function fulfillmentLabel(order) {
 export default function Sales() {
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [queuedOrders, setQueuedOrders] = useState([]);
+  const [printJobsByOrder, setPrintJobsByOrder] = useState({});
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [selectedTable, setSelectedTable] = useState(null);
@@ -517,13 +600,30 @@ export default function Sales() {
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
   const [toast, setToast] = useState(null);
+  const tablesInFlightRef = useRef(false);
+  const ordersInFlightRef = useRef(false);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
     window.setTimeout(() => setToast(null), 3000);
   }, []);
 
+  const loadOfflineOrderState = useCallback(async () => {
+    try {
+      const [queued, jobs] = await Promise.all([
+        getQueuedOfflineOrders(),
+        getRecentPrintJobs(300),
+      ]);
+      setQueuedOrders(queued);
+      setPrintJobsByOrder(buildPrintJobMap(jobs));
+    } catch (error) {
+      console.warn('Failed to load offline order state', error?.message || error);
+    }
+  }, []);
+
   const fetchTables = useCallback(async () => {
+    if (tablesInFlightRef.current) return;
+    tablesInFlightRef.current = true;
     try {
       const res = await api.get('/api/v1/tables/active');
       setTables(res.data.data || []);
@@ -535,11 +635,14 @@ export default function Sales() {
         showToast('Failed to load tables', 'error');
       }
     } finally {
+      tablesInFlightRef.current = false;
       setLoading(false);
     }
   }, [showToast]);
 
   const fetchOrders = useCallback(async () => {
+    if (ordersInFlightRef.current) return;
+    ordersInFlightRef.current = true;
     setOrdersLoading(true);
     try {
       const res = await api.get('/api/v1/orders/type/SALE');
@@ -552,15 +655,19 @@ export default function Sales() {
         showToast('Failed to load order history', 'error');
       }
     } finally {
+      await loadOfflineOrderState();
+      ordersInFlightRef.current = false;
       setOrdersLoading(false);
     }
-  }, [showToast]);
+  }, [loadOfflineOrderState, showToast]);
 
   useEffect(() => {
     fetchTables();
     fetchOrders();
+    loadOfflineOrderState();
 
     let intervalId = null;
+    let refreshTimerId = null;
 
     const startPolling = () => {
       if (intervalId || isKnownOffline()) return;
@@ -578,10 +685,27 @@ export default function Sales() {
       }
     };
 
-    const handleOnline = () => {
+    const runRefresh = () => {
+      if (isKnownOffline()) {
+        stopPolling();
+        return;
+      }
       fetchTables();
       fetchOrders();
+      loadOfflineOrderState();
       startPolling();
+    };
+
+    const refreshWhenReachable = () => {
+      if (refreshTimerId) return;
+      refreshTimerId = window.setTimeout(() => {
+        refreshTimerId = null;
+        runRefresh();
+      }, 500);
+    };
+
+    const handleOnline = () => {
+      refreshWhenReachable();
     };
 
     const handleOffline = () => {
@@ -592,24 +716,33 @@ export default function Sales() {
       if (event?.detail?.offline) {
         stopPolling();
       } else {
-        fetchTables();
-        fetchOrders();
-        startPolling();
+        refreshWhenReachable();
       }
+    };
+
+    const handleQueueChanged = () => {
+      loadOfflineOrderState();
     };
 
     startPolling();
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('cafeqr-network-state', handleNetworkState);
+    window.addEventListener('cafeqr-sync-queue-changed', handleQueueChanged);
+    window.addEventListener('cafeqr-print-jobs-changed', handleQueueChanged);
+    window.addEventListener('cafeqr-sync-complete', runRefresh);
 
     return () => {
       stopPolling();
+      if (refreshTimerId) window.clearTimeout(refreshTimerId);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('cafeqr-network-state', handleNetworkState);
+      window.removeEventListener('cafeqr-sync-queue-changed', handleQueueChanged);
+      window.removeEventListener('cafeqr-print-jobs-changed', handleQueueChanged);
+      window.removeEventListener('cafeqr-sync-complete', runRefresh);
     };
-  }, [fetchTables, fetchOrders]);
+  }, [fetchTables, fetchOrders, loadOfflineOrderState]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -626,12 +759,17 @@ export default function Sales() {
 
   const activeOrderByTable = useMemo(() => {
     const map = new Map();
-    orders.filter(isOpenOrder).forEach(order => {
+    mergeOrdersWithQueued(orders, queuedOrders).filter(isOpenOrder).forEach(order => {
       const key = String(order.tableId || order.table_id || order.tableNumber || order.table_number || '');
       if (key && !map.has(key)) map.set(key, order);
     });
     return map;
-  }, [orders]);
+  }, [orders, queuedOrders]);
+
+  const displayOrders = useMemo(() => {
+    return mergeOrdersWithQueued(orders, queuedOrders)
+      .map((order) => attachPrintJobs(order, printJobsByOrder));
+  }, [orders, queuedOrders, printJobsByOrder]);
 
   const handleOrderCreated = useCallback((order, kind) => {
     setPrintOrder(order);
@@ -646,6 +784,8 @@ export default function Sales() {
     });
 
     if (order?.offline) {
+      setQueuedOrders((current) => mergeOrdersWithQueued(current, [order]));
+      loadOfflineOrderState();
       showToast('Offline sale queued. It will sync when internet returns.');
       return;
     }
@@ -655,7 +795,7 @@ export default function Sales() {
       fetchOrders();
       fetchTables();
     }
-  }, [fetchOrders, fetchTables, showToast]);
+  }, [fetchOrders, fetchTables, loadOfflineOrderState, showToast]);
 
   const handleCounterSale = () => {
     setSelectedTable({ tableNumber: 'COUNTER', id: null });
@@ -771,7 +911,7 @@ export default function Sales() {
               <StatsRow>
                 <StatPill $tone="orange">Occupied: {tables.filter(t => t.status === 'OCCUPIED').length}</StatPill>
                 <StatPill $tone="green">Available: {tables.filter(t => t.status === 'AVAILABLE').length}</StatPill>
-                <StatPill>Open Orders: {orders.filter(isOpenOrder).length}</StatPill>
+                <StatPill>Open Orders: {displayOrders.filter(isOpenOrder).length}</StatPill>
               </StatsRow>
             </SectionHeader>
 
@@ -795,7 +935,7 @@ export default function Sales() {
           </>
         ) : (
           <OrderHistory
-            orders={orders}
+            orders={displayOrders}
             loading={ordersLoading}
             onRefresh={fetchOrders}
             onPrint={handlePrintOrder}
@@ -868,8 +1008,11 @@ function OrderHistory({ orders, loading, onRefresh, onPrint, onSettle }) {
             const date = orderTime(order);
             const open = isOpenOrder(order);
             const items = toDisplayItems(order);
+            const renderKey = orderIdentity(order) || `order:${date.getTime()}:${order.orderNo || order.order_no || ''}`;
+            const kotPrintFailed = order.printJobs?.kot?.status === 'FAILED';
+            const billPrintFailed = order.printJobs?.bill?.status === 'FAILED';
             return (
-              <OrderCard key={order.id} $tone={orderStatusTone(order)}>
+              <OrderCard key={renderKey} $tone={orderStatusTone(order)}>
                 <OrderTop>
                   <div>
                     <OrderNo>{order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`}</OrderNo>
@@ -877,6 +1020,23 @@ function OrderHistory({ orders, loading, onRefresh, onPrint, onSettle }) {
                   </div>
                   <OrderAmount>{money(orderTotal(order))}</OrderAmount>
                 </OrderTop>
+
+                {(order.offline || order.syncStatus === 'CONFLICT' || kotPrintFailed || billPrintFailed) && (
+                  <OrderBadges>
+                    {(order.offline || order.syncStatus === 'QUEUED') && (
+                      <OrderBadge>Sync pending</OrderBadge>
+                    )}
+                    {order.syncStatus === 'CONFLICT' && (
+                      <OrderBadge $tone="red">Sync conflict</OrderBadge>
+                    )}
+                    {kotPrintFailed && (
+                      <OrderBadge $tone="red">KOT print failed</OrderBadge>
+                    )}
+                    {billPrintFailed && (
+                      <OrderBadge $tone="red">Bill print failed</OrderBadge>
+                    )}
+                  </OrderBadges>
+                )}
 
                 <OrderInfo>
                   <InfoPill>
@@ -911,7 +1071,7 @@ function OrderHistory({ orders, loading, onRefresh, onPrint, onSettle }) {
                         ? parsedLineTotal
                         : Number(item.price || 0) * Number(item.quantity || 1);
                       return (
-                        <OrderItemRow key={`${order.id}-${item.productId || item.name}-${index}`}>
+                        <OrderItemRow key={`${renderKey}-${item.productId || item.name}-${index}`}>
                           <span>{displayName}</span>
                           <strong>{quantityText(item.quantity)} x {money(item.price)}</strong>
                           <strong>{money(rowTotal)}</strong>

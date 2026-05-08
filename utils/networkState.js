@@ -1,11 +1,7 @@
-const CONNECTION_LOST_MS = 30000;
-
-let connectionLostUntil = 0;
+let connectionLost = false;
 let lastReason = null;
 
 const isBrowser = () => typeof window !== 'undefined';
-
-const currentTime = () => Date.now();
 
 const browserReportsOffline = () => {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
@@ -36,8 +32,16 @@ export const getOfflineReasonFromError = (error) => {
     message.includes('network error') ||
     message.includes('timeout') ||
     message.includes('failed to fetch') ||
+    message.includes('err_connection_closed') ||
+    message.includes('connection_closed') ||
+    message.includes('err_insufficient_resources') ||
+    message.includes('insufficient_resources') ||
+    message.includes('insufficient resources') ||
     message.includes('err_name_not_resolved') ||
     message.includes('name_not_resolved') ||
+    requestStatus.includes('connection_closed') ||
+    requestStatus.includes('insufficient_resources') ||
+    requestStatus.includes('insufficient resources') ||
     requestStatus.includes('name_not_resolved')
   ) {
     return error.code || error.message || 'network-error';
@@ -49,15 +53,16 @@ export const getOfflineReasonFromError = (error) => {
 export const markConnectionLost = (reason = 'network-error') => {
   if (!isBrowser()) return;
 
-  connectionLostUntil = currentTime() + CONNECTION_LOST_MS;
+  connectionLost = true;
   lastReason = reason;
   emitNetworkState();
 };
 
 export const markConnectionOnline = () => {
   if (!isBrowser()) return;
+  if (browserReportsOffline()) return;
 
-  connectionLostUntil = 0;
+  connectionLost = false;
   lastReason = null;
   emitNetworkState();
 };
@@ -66,7 +71,11 @@ export const isKnownOffline = () => {
   if (browserReportsOffline()) return true;
   if (!isBrowser()) return false;
 
-  return connectionLostUntil > currentTime();
+  return connectionLost;
+};
+
+export const canAttemptNetworkProbe = () => {
+  return !browserReportsOffline();
 };
 
 export const getNetworkStatus = () => {
@@ -76,11 +85,11 @@ export const getNetworkStatus = () => {
     offline: browserOffline || isKnownOffline(),
     browserOffline,
     reason: browserOffline ? 'browser-offline' : lastReason,
-    retryAfter: Math.max(0, connectionLostUntil - currentTime()),
+    retryAfter: 0,
   };
 };
 
 if (isBrowser()) {
   window.addEventListener('offline', () => markConnectionLost('browser-offline'));
-  window.addEventListener('online', markConnectionOnline);
+  window.addEventListener('online', emitNetworkState);
 }

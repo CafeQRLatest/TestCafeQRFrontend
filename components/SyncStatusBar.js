@@ -1,35 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { FaSync, FaExclamationTriangle, FaCheckCircle, FaCloudUploadAlt } from 'react-icons/fa';
 import { getPendingSyncCount, getConflictEntries, getLastSyncTime } from '../utils/offlineStore';
-import { syncQueuedOperations } from '../utils/offlineSync';
+import { reconnectAndSync, syncQueuedOperations } from '../utils/offlineSync';
+import { getNetworkStatus } from '../utils/networkState';
 import SyncConflictDrawer from './SyncConflictDrawer';
 
 export default function SyncStatusBar({ collapsed }) {
-  const [isOnline, setIsOnline] = useState(true);
+  const [networkStatus, setNetworkStatus] = useState(() => ({
+    offline: false,
+    browserOffline: false,
+  }));
   const [pendingCount, setPendingCount] = useState(0);
   const [conflictCount, setConflictCount] = useState(0);
   const [lastSync, setLastSync] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showConflicts, setShowConflicts] = useState(false);
+  const isOnline = !networkStatus.offline;
+  const canAttemptSync = !networkStatus.browserOffline;
 
   useEffect(() => {
-    // Initial status
-    setIsOnline(navigator.onLine);
+    const refreshNetworkStatus = (event) => {
+      setNetworkStatus(event?.detail || getNetworkStatus());
+    };
+
+    refreshNetworkStatus();
     
-    // Listeners
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', refreshNetworkStatus);
+    window.addEventListener('offline', refreshNetworkStatus);
+    window.addEventListener('cafeqr-network-state', refreshNetworkStatus);
+    window.addEventListener('cafeqr-sync-queue-changed', loadStatus);
     
     // Start polling DB for status
     loadStatus();
     const interval = setInterval(loadStatus, 5000); // Check IDB every 5s
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', refreshNetworkStatus);
+      window.removeEventListener('offline', refreshNetworkStatus);
+      window.removeEventListener('cafeqr-network-state', refreshNetworkStatus);
+      window.removeEventListener('cafeqr-sync-queue-changed', loadStatus);
       clearInterval(interval);
     };
   }, []);
@@ -49,11 +58,15 @@ export default function SyncStatusBar({ collapsed }) {
   };
 
   const handleSyncNow = async () => {
-    if (!isOnline || isSyncing) return;
+    if (!canAttemptSync || isSyncing) return;
     
     setIsSyncing(true);
     try {
-      await syncQueuedOperations();
+      if (isOnline) {
+        await syncQueuedOperations();
+      } else {
+        await reconnectAndSync();
+      }
       await loadStatus(); // Refresh counts
     } catch (err) {
       console.error("Manual sync failed", err);
@@ -134,20 +147,20 @@ export default function SyncStatusBar({ collapsed }) {
         {/* Sync Button */}
         <button
           onClick={handleSyncNow}
-          disabled={!isOnline || isSyncing || (pendingCount === 0 && conflictCount === 0)}
+          disabled={!canAttemptSync || isSyncing || (isOnline && pendingCount === 0 && conflictCount === 0)}
           className={`
             flex items-center justify-center rounded-md transition-all
             ${collapsed ? 'p-2' : 'py-2 px-3'}
-            ${!isOnline || (pendingCount === 0 && conflictCount === 0)
+            ${!canAttemptSync || (isOnline && pendingCount === 0 && conflictCount === 0)
               ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
               : 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200'}
           `}
-          title="Sync Now"
+          title={isOnline ? "Sync Now" : "Reconnect and Sync"}
         >
           <FaSync className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-orange-500' : ''} ${!collapsed ? 'mr-2' : ''}`} />
           {!collapsed && (
             <span className="text-xs font-semibold whitespace-nowrap">
-              {isSyncing ? 'Syncing...' : 'Sync Now'}
+              {isSyncing ? 'Syncing...' : (isOnline ? 'Sync Now' : 'Reconnect')}
             </span>
           )}
         </button>

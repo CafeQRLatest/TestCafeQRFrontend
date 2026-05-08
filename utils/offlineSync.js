@@ -1,5 +1,7 @@
 import api from './api';
+import Cookies from 'js-cookie';
 import {
+  cacheApiResponse,
   getQueuedOperations,
   markOperationFailed,
   markOperationConflict,
@@ -8,9 +10,21 @@ import {
   setLastSyncTime,
   upsertEntities,
 } from './offlineStore';
-import { getOfflineReasonFromError, isKnownOffline, markConnectionLost } from './networkState';
+import {
+  canAttemptNetworkProbe,
+  getOfflineReasonFromError,
+  isKnownOffline,
+  markConnectionLost,
+  markConnectionOnline,
+} from './networkState';
 
 let syncInFlight = false;
+let reconnectInFlight = null;
+
+function emitSyncEvent(name, detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+}
 
 function isOnline() {
   return !isKnownOffline();
@@ -20,8 +34,51 @@ function unwrapData(response) {
   return response?.data?.data ?? response?.data ?? null;
 }
 
-export async function bootstrapOfflineData() {
-  if (!isOnline()) {
+function tenantHeaders() {
+  return {
+    'X-Client-ID': Cookies.get('clientId') || '0',
+    'X-Org-ID': Cookies.get('orgId') || '0',
+    'X-Terminal-ID': Cookies.get('terminalId') || '0',
+  };
+}
+
+async function seedApiCache(path, data) {
+  await cacheApiResponse({
+    method: 'get',
+    url: path,
+    baseURL: process.env.NEXT_PUBLIC_API_URL || '',
+    headers: tenantHeaders(),
+  }, {
+    success: true,
+    data,
+  });
+}
+
+async function seedBootstrapApiCaches(data) {
+  const products = data.products || [];
+  const categories = data.categories || [];
+  const uoms = data.uoms || [];
+  const variantGroups = data.variantGroups || [];
+  const tables = data.tables || [];
+  const saleOrders = (data.orders || []).filter((order) => {
+    const type = String(order?.orderType || order?.order_type || '').toUpperCase();
+    return !type || type === 'SALE';
+  });
+
+  await Promise.all([
+    seedApiCache('/api/v1/products', products),
+    seedApiCache('/api/v1/products/categories', categories),
+    seedApiCache('/api/v1/products/uoms', uoms),
+    seedApiCache('/api/v1/products/variants/groups', variantGroups),
+    seedApiCache('/api/v1/tables/active', tables),
+    seedApiCache('/api/v1/orders/type/SALE', saleOrders),
+    seedApiCache('/api/v1/configurations', data.configuration || null),
+  ]);
+}
+
+export async function bootstrapOfflineData(options = {}) {
+  const forceProbe = Boolean(options.forceProbe);
+  if (!forceProbe && !isOnline()) {
     return null;
   }
 
@@ -30,54 +87,13 @@ export async function bootstrapOfflineData() {
     skipOfflineQueue: true,
     skipAuthRedirect: true,
     backgroundSync: true,
+    allowOfflineProbe: forceProbe,
   });
   const data = unwrapData(response);
 
   if (!data) {
     return null;
   }
-
-  // Fetch secondary entities in parallel for full offline support
-  const fetchSecondary = async (url) => {
-    if (!isOnline()) {
-      return [];
-    }
-
-    try {
-      const res = await api.get(`${url}?size=1000`, {
-        skipOfflineCache: false,
-        skipOfflineQueue: true,
-        skipAuthRedirect: true,
-        backgroundSync: true,
-      });
-      const unwrapped = unwrapData(res);
-      return Array.isArray(unwrapped?.content) ? unwrapped.content : (Array.isArray(unwrapped) ? unwrapped : []);
-    } catch (error) {
-      const offlineReason = getOfflineReasonFromError(error);
-      if (offlineReason) {
-        markConnectionLost(offlineReason);
-      }
-      return [];
-    }
-  };
-
-  const [
-    customers,
-    vendors,
-    expenses,
-    expenseCategories,
-    purchaseOrders,
-    stockAdjustments,
-    waste
-  ] = await Promise.all([
-    fetchSecondary('/api/v1/purchasing/customers'),
-    fetchSecondary('/api/v1/purchasing/vendors'),
-    fetchSecondary('/api/v1/expenses'),
-    fetchSecondary('/api/v1/expense-categories'),
-    fetchSecondary('/api/v1/purchasing/orders'),
-    fetchSecondary('/api/v1/stock/adjustments'),
-    fetchSecondary('/api/v1/waste')
-  ]);
 
   await Promise.all([
     upsertEntities('products', data.products || []),
@@ -86,13 +102,7 @@ export async function bootstrapOfflineData() {
     upsertEntities('variantGroups', data.variantGroups || []),
     upsertEntities('tables', data.tables || []),
     upsertEntities('orders', data.orders || []),
-    upsertEntities('customers', customers),
-    upsertEntities('vendors', vendors),
-    upsertEntities('expenses', expenses),
-    upsertEntities('expenseCategories', expenseCategories),
-    upsertEntities('purchaseOrders', purchaseOrders),
-    upsertEntities('stockAdjustments', stockAdjustments),
-    upsertEntities('waste', waste),
+    seedBootstrapApiCaches(data),
     setSyncMetadata('lastBootstrapAt', data.serverTime || new Date().toISOString()),
     setSyncMetadata('lastChangeCursor', data.serverTime || new Date().toISOString()),
   ]);
@@ -194,11 +204,49 @@ export async function syncQueuedOperations() {
     }
 
     await setLastSyncTime();
+    emitSyncEvent('cafeqr-sync-complete', { pushed: pushedCount, results });
 
     return { pushed: pushedCount, results };
   } finally {
     syncInFlight = false;
   }
+}
+
+export async function reconnectAndSync() {
+  if (!canAttemptNetworkProbe()) {
+    return { skipped: true, offline: true };
+  }
+
+  if (reconnectInFlight) {
+    return reconnectInFlight;
+  }
+
+  reconnectInFlight = (async () => {
+    try {
+      const bootstrap = await bootstrapOfflineData({ forceProbe: true });
+      markConnectionOnline();
+      const syncResult = await syncQueuedOperations();
+      return { bootstrapped: Boolean(bootstrap), sync: syncResult };
+    } catch (error) {
+      if (error?.response) {
+        markConnectionOnline();
+        const status = error.response.status;
+        if (status === 401 || status === 403) {
+          return { skipped: true, authBlocked: true, status };
+        }
+      }
+
+      const offlineReason = getOfflineReasonFromError(error);
+      if (offlineReason) {
+        markConnectionLost(offlineReason);
+      }
+      throw error;
+    } finally {
+      reconnectInFlight = null;
+    }
+  })();
+
+  return reconnectInFlight;
 }
 
 export function registerOfflineSyncListeners() {
@@ -216,6 +264,9 @@ export function registerOfflineSyncListeners() {
         if (!result?.skipped) consecutiveFailures = 0;
       })
       .catch((error) => {
+        if (error?.code === 'OFFLINE_REQUEST_SKIPPED') {
+          return;
+        }
         const offlineReason = getOfflineReasonFromError(error);
         if (offlineReason) {
           markConnectionLost(offlineReason);
@@ -226,16 +277,41 @@ export function registerOfflineSyncListeners() {
       });
   };
 
+  const probeThenRun = () => {
+    return reconnectAndSync()
+      .then((result) => {
+        if (result?.skipped) return;
+        consecutiveFailures = 0;
+      })
+      .catch((error) => {
+        if (error?.code === 'OFFLINE_REQUEST_SKIPPED') {
+          return;
+        }
+        const offlineReason = getOfflineReasonFromError(error);
+        if (offlineReason) {
+          markConnectionLost(offlineReason);
+        } else if (error?.response?.status !== 401 && error?.response?.status !== 403) {
+          console.warn('[Offline Sync] Reconnect probe failed:', error?.message || error);
+        }
+        consecutiveFailures += 1;
+      });
+  };
+
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible' && isOnline()) {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+
+    if (isOnline()) {
       consecutiveFailures = 0;
       run();
+    } else if (canAttemptNetworkProbe()) {
+      probeThenRun();
     }
   };
 
   const handleOnline = () => {
-    consecutiveFailures = 0;
-    run();
+    probeThenRun();
   };
 
   const handleNetworkState = (event) => {
@@ -252,13 +328,19 @@ export function registerOfflineSyncListeners() {
   // Adaptive interval: backs off when failures stack up (max 5 min)
   const BASE_INTERVAL = 60000;
   const tick = () => {
-    run();
+    if (isOnline()) {
+      run();
+    } else if (canAttemptNetworkProbe()) {
+      probeThenRun();
+    }
     const backoff = Math.min(BASE_INTERVAL * Math.pow(2, consecutiveFailures), 300000);
     intervalId = window.setTimeout(tick, backoff);
   };
-  // Initial run only if online
+
   if (isOnline()) {
     run();
+  } else if (canAttemptNetworkProbe()) {
+    probeThenRun();
   }
   intervalId = window.setTimeout(tick, BASE_INTERVAL);
 

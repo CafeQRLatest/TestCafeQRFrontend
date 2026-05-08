@@ -1,10 +1,11 @@
 const DB_NAME = 'cafeqr-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const RESPONSE_STORE = 'apiResponses';
 const QUEUE_STORE = 'syncQueue';
 const META_STORE = 'syncMetadata';
 const ENTITY_STORE = 'entities';
+const PRINT_JOB_STORE = 'printJobs';
 
 const isBrowser = () => typeof window !== 'undefined' && typeof indexedDB !== 'undefined';
 
@@ -44,9 +45,21 @@ function openOfflineDb() {
         entities.createIndex('collection', 'collection', { unique: false });
         entities.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
+
+      if (!db.objectStoreNames.contains(PRINT_JOB_STORE)) {
+        const printJobs = db.createObjectStore(PRINT_JOB_STORE, { keyPath: 'id' });
+        printJobs.createIndex('status', 'status', { unique: false });
+        printJobs.createIndex('orderId', 'orderId', { unique: false });
+        printJobs.createIndex('offlineOperationId', 'offlineOperationId', { unique: false });
+        printJobs.createIndex('updatedAt', 'updatedAt', { unique: false });
+      }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
   });
 
@@ -76,6 +89,11 @@ function requestToPromise(request) {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+function emitOfflineEvent(name, detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
 function stableJson(value) {
@@ -218,6 +236,49 @@ function createId() {
   return `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+const createOfflineOrderNo = (id) => `OFFLINE-${String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase() || Date.now()}`;
+
+function isOrderOperation(record) {
+  return record?.entity === 'orders' || String(record?.path || '').includes('/orders');
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function buildQueuedOrder(record) {
+  const payload = isPlainObject(record?.payload) ? record.payload : {};
+  const id = payload.id || record.offlineId || record.id;
+  const createdAt = payload.createdAt || payload.created_at || record.createdAt || new Date().toISOString();
+  const updatedAt = payload.updatedAt || payload.updated_at || record.updatedAt || createdAt;
+  const status = String(record.status || '').toUpperCase();
+  const orderStatus = payload.orderStatus || payload.order_status || payload.status || (status === 'CONFLICT' ? 'SYNC_CONFLICT' : 'PENDING_SYNC');
+  const paymentStatus = payload.paymentStatus || payload.payment_status || (orderStatus === 'COMPLETED' ? 'PAID' : 'PENDING');
+  const lines = Array.isArray(payload.lines) ? payload.lines
+    : Array.isArray(payload.orderLines) ? payload.orderLines
+      : Array.isArray(payload.order_items) ? payload.order_items
+        : Array.isArray(payload.items) ? payload.items
+          : [];
+
+  return {
+    ...payload,
+    id,
+    offline: true,
+    offlineOperationId: record.id,
+    syncStatus: status === 'CONFLICT' ? 'CONFLICT' : 'QUEUED',
+    syncError: record.lastError || null,
+    orderNo: payload.orderNo || payload.order_no || createOfflineOrderNo(record.id),
+    orderType: payload.orderType || payload.order_type || 'SALE',
+    orderSource: payload.orderSource || payload.order_source || 'OFFLINE',
+    orderStatus,
+    paymentStatus,
+    createdAt,
+    updatedAt,
+    lines,
+    items: Array.isArray(payload.items) && payload.items.length ? payload.items : lines,
+  };
+}
+
 export async function enqueueOfflineMutation(config) {
   if (!isOfflineQueueableMutation(config)) {
     return null;
@@ -245,6 +306,7 @@ export async function enqueueOfflineMutation(config) {
   };
 
   await runStore(QUEUE_STORE, 'readwrite', (store) => store.put(record));
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'PENDING' });
   return record;
 }
 
@@ -268,6 +330,7 @@ export async function markOperationSynced(id, result) {
     current.updatedAt = new Date().toISOString();
     store.put(current);
   });
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'SYNCED' });
 }
 
 export async function markOperationFailed(id, errorMessage) {
@@ -280,6 +343,7 @@ export async function markOperationFailed(id, errorMessage) {
     current.updatedAt = new Date().toISOString();
     store.put(current);
   });
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'PENDING' });
 }
 
 export async function getSyncMetadata(key) {
@@ -336,6 +400,11 @@ export function isProbablyOfflineError(error) {
     || message.includes('network error')
     || message.includes('timeout')
     || message.includes('failed to fetch')
+    || message.includes('connection_closed')
+    || message.includes('err_connection_closed')
+    || message.includes('insufficient_resources')
+    || message.includes('err_insufficient_resources')
+    || message.includes('insufficient resources')
     || message.includes('name_not_resolved')
     || message.includes('err_name_not_resolved');
 }
@@ -358,6 +427,15 @@ export async function getConflictEntries() {
   return (records || []).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
+export async function getQueuedOfflineOrders() {
+  const records = await getQueuedOperations();
+  return (records || [])
+    .filter((record) => isOrderOperation(record))
+    .filter((record) => ['PENDING', 'CONFLICT'].includes(String(record.status || '').toUpperCase()))
+    .map(buildQueuedOrder)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
 export async function markOperationConflict(id, errorMessage) {
   await runStore(QUEUE_STORE, 'readwrite', async (store) => {
     const current = await requestToPromise(store.get(id));
@@ -367,6 +445,7 @@ export async function markOperationConflict(id, errorMessage) {
     current.updatedAt = new Date().toISOString();
     store.put(current);
   });
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'CONFLICT' });
 }
 
 export async function markOperationPending(id) {
@@ -378,10 +457,12 @@ export async function markOperationPending(id) {
     current.updatedAt = new Date().toISOString();
     store.put(current);
   });
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'PENDING' });
 }
 
 export async function discardSyncQueueEntry(id) {
   await runStore(QUEUE_STORE, 'readwrite', (store) => store.delete(id));
+  emitOfflineEvent('cafeqr-sync-queue-changed', { operationId: id, status: 'DISCARDED' });
 }
 
 export async function getLastSyncTime() {
@@ -390,4 +471,70 @@ export async function getLastSyncTime() {
 
 export async function setLastSyncTime(time) {
   return setSyncMetadata('lastSyncTime', time || new Date().toISOString());
+}
+
+export async function queuePrintJob(job = {}) {
+  if (!job.id) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const record = {
+    ...job,
+    status: 'PENDING',
+    attempts: Number(job.attempts || 0) + 1,
+    createdAt: job.createdAt || now,
+    updatedAt: now,
+    lastError: null,
+  };
+
+  await runStore(PRINT_JOB_STORE, 'readwrite', async (store) => {
+    const existing = await requestToPromise(store.get(record.id));
+    store.put({
+      ...(existing || {}),
+      ...record,
+      attempts: Number(existing?.attempts || 0) + 1,
+      createdAt: existing?.createdAt || record.createdAt,
+      updatedAt: now,
+    });
+  });
+
+  emitOfflineEvent('cafeqr-print-jobs-changed', { jobId: record.id, status: 'PENDING' });
+  return record;
+}
+
+export async function markPrintJobSent(id, result) {
+  await runStore(PRINT_JOB_STORE, 'readwrite', async (store) => {
+    const current = await requestToPromise(store.get(id));
+    if (!current) return;
+    current.status = 'SENT';
+    current.result = result || null;
+    current.lastError = null;
+    current.updatedAt = new Date().toISOString();
+    store.put(current);
+  });
+  emitOfflineEvent('cafeqr-print-jobs-changed', { jobId: id, status: 'SENT' });
+}
+
+export async function markPrintJobFailed(id, errorMessage) {
+  await runStore(PRINT_JOB_STORE, 'readwrite', async (store) => {
+    const current = await requestToPromise(store.get(id));
+    if (!current) return;
+    current.status = 'FAILED';
+    current.lastError = errorMessage || 'Printing failed';
+    current.updatedAt = new Date().toISOString();
+    store.put(current);
+  });
+  emitOfflineEvent('cafeqr-print-jobs-changed', { jobId: id, status: 'FAILED' });
+}
+
+export async function getRecentPrintJobs(limit = 200) {
+  const records = await runStore(PRINT_JOB_STORE, 'readonly', async (store) => {
+    const all = await requestToPromise(store.getAll());
+    return all || [];
+  });
+
+  return (records || [])
+    .sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)))
+    .slice(0, limit);
 }

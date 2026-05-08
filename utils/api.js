@@ -55,6 +55,14 @@ const createOfflineCacheMissError = (config) => {
   return error;
 };
 
+const createOfflineSkippedError = (config) => {
+  const error = new Error('Connection is offline. Background request skipped.');
+  error.code = 'OFFLINE_REQUEST_SKIPPED';
+  error.offline = true;
+  error.config = config;
+  return error;
+};
+
 const createOfflineId = (prefix = 'offline') => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -103,6 +111,13 @@ const buildOfflineMutationResponse = (config, queued) => {
 
 const installOfflineAdapterIfNeeded = async (config) => {
   if (!isKnownOffline()) {
+    return config;
+  }
+
+  if (config.backgroundSync && !config.allowOfflineProbe) {
+    config.adapter = async () => {
+      throw createOfflineSkippedError(config);
+    };
     return config;
   }
 
@@ -206,6 +221,10 @@ api.interceptors.response.use(
     return response;
   },
   async (error) => {
+    if (error?.code === 'OFFLINE_REQUEST_SKIPPED') {
+      return Promise.reject(error);
+    }
+
     if (error?.code === 'OFFLINE_CACHE_MISS') {
       return Promise.reject(error);
     }
@@ -213,6 +232,10 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
     const offlineReason = getOfflineReasonFromError(error);
+
+    if (error.response) {
+      markConnectionOnline();
+    }
 
     if (offlineReason) {
       markConnectionLost(offlineReason);

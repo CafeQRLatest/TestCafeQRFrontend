@@ -1,6 +1,7 @@
 // utils/printGateway.ts
 import { Capacitor } from '@capacitor/core';
 import { textToEscPos } from './escpos';
+import { markPrintJobFailed, markPrintJobSent, queuePrintJob } from './offlineStore';
 
 type Options = {
   text: string;
@@ -16,6 +17,11 @@ type Options = {
   jobKind?: 'bill' | 'kot';
   winPrinterNames?: string[];
   btAddresses?: string[];
+  jobId?: string;
+  orderId?: string | number;
+  offlineOperationId?: string;
+  orderNo?: string;
+  printTarget?: string;
 };
 
 function readJsonArray(key: string): string[] {
@@ -37,6 +43,39 @@ function sleep(ms: number) {
   return new Promise<void>((r) => setTimeout(r, ms));
 }
 
+function hashText(value: string) {
+  let hash = 0;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function createPrintJobRecord(opts: Options) {
+  const orderRef = opts.offlineOperationId || opts.orderId || opts.orderNo;
+  if (!opts.jobId && !orderRef) return null;
+
+  const kind = opts.jobKind === 'kot' ? 'kot' : 'bill';
+  const targetKey = opts.printTarget || uniq(opts.winPrinterNames || []).join(',') || opts.ip || 'default';
+  const id = opts.jobId || `print:${kind}:${String(orderRef)}:${targetKey}:${hashText(opts.text)}`;
+
+  return {
+    id,
+    kind,
+    orderId: opts.orderId ? String(opts.orderId) : null,
+    offlineOperationId: opts.offlineOperationId || null,
+    orderNo: opts.orderNo || null,
+    target: targetKey,
+    winPrinterNames: uniq(opts.winPrinterNames || []),
+    relayUrl: opts.relayUrl || null,
+    ip: opts.ip || null,
+    port: opts.port || null,
+    textHash: hashText(opts.text),
+    text: opts.text,
+  };
+}
+
 /**
  * Global print queue:
  * - guarantees Route-1 KOT finishes before Route-2 begins
@@ -47,12 +86,37 @@ let printChain: Promise<void> = Promise.resolve();
 /** Public API: queued printing (never drops a job). */
 export function printUniversal(opts: Options) {
   const job = printChain.then(async () => {
-    const res = await printUniversalNow(opts);
+    const printJob = createPrintJobRecord(opts);
 
-    // small gap helps some printers/helpers flush before next job
-    await sleep(80);
+    if (printJob) {
+      await queuePrintJob(printJob).catch((error: any) => {
+        console.warn('[print] Unable to queue print job:', error?.message || error);
+      });
+    }
 
-    return res;
+    try {
+      const res = await printUniversalNow(opts);
+
+      if (printJob) {
+        await markPrintJobSent(printJob.id, res).catch((error: any) => {
+          console.warn('[print] Unable to mark print job sent:', error?.message || error);
+        });
+      }
+
+      // small gap helps some printers/helpers flush before next job
+      await sleep(80);
+
+      return res;
+    } catch (error: any) {
+      if (printJob) {
+        await markPrintJobFailed(printJob.id, error?.message || 'Printing failed').catch((storeError: any) => {
+          console.warn('[print] Unable to mark print job failed:', storeError?.message || storeError);
+        });
+      }
+
+      throw error;
+    }
+
   });
 
   // keep the chain alive even if a job fails
@@ -112,14 +176,14 @@ async function printUniversalNow(opts: Options) {
     return { url, names };
   };
 
-  const hasWinHelper =
-    !!window.localStorage.getItem('PRINT_WIN_URL') &&
-    (
-      readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').length > 0 ||
-      readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').length > 0 ||
-      !!window.localStorage.getItem('PRINT_WIN_PRINTER_NAME') ||
-      !!window.localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT')
-    );
+  const forcedWinPrinterNames = uniq(opts.winPrinterNames || []);
+  const hasWinHelperConfig =
+    !!window.localStorage.getItem('PRINT_WIN_URL') ||
+    readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').length > 0 ||
+    readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').length > 0 ||
+    !!window.localStorage.getItem('PRINT_WIN_PRINTER_NAME') ||
+    !!window.localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') ||
+    forcedWinPrinterNames.length > 0;
 
   const mode = window.localStorage.getItem('PRINTER_MODE') || '';
 
@@ -180,19 +244,24 @@ async function printUniversalNow(opts: Options) {
     for (const printerName of targets) {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 8000);
+      let resp: Response;
 
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printerName, dataBase64: base64Plain }),
-        signal: ctrl.signal,
-      });
-
-      clearTimeout(t);
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printerName, dataBase64: base64Plain }),
+          signal: ctrl.signal,
+        });
+      } catch (error: any) {
+        throw new Error(`PRINT_HUB_UNREACHABLE ${printerName} ${error?.message || ''}`.trim());
+      } finally {
+        clearTimeout(t);
+      }
 
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
-        throw new Error(`WIN_SPOOL_FAILED ${printerName} ${text}`);
+        throw new Error(`PRINT_HUB_FAILED ${printerName} ${text}`.trim());
       }
     }
 
@@ -248,12 +317,9 @@ async function printUniversalNow(opts: Options) {
     const n: any = navigator as any;
 
     // 1b) Windows helper mode
-    if (hasWinHelper && mode === 'winspool') {
-      try {
-        return await printWinspool(opts);
-      } catch (e) {
-        console.warn('[print] winspool failed, falling back to browser/device APIs', e);
-      }
+    const wantsWinspool = mode === 'winspool' || (!mode && hasWinHelperConfig) || forcedWinPrinterNames.length > 0;
+    if (wantsWinspool) {
+      return await printWinspool(opts);
     }
 
     // 2) WebUSB
@@ -363,17 +429,13 @@ async function printUniversalNow(opts: Options) {
     // 4b) Auto-discover Windows Print Hub (if no explicit mode was set)
     //     This probes localhost:3333 to see if print-hub.ps1 is running.
     //     If found, it auto-configures winspool and prints silently.
-    if (!mode || (mode !== 'winspool' && !hasWinHelper)) {
+    if (!mode && !hasWinHelperConfig) {
       const discovered = await autoDiscoverWinHub();
       if (discovered) {
-        try {
-          return await printWinspool({
-            ...opts,
-            winPrinterNames: [discovered],
-          });
-        } catch (e) {
-          console.warn('[print] Auto-discovered winspool failed:', e);
-        }
+        return await printWinspool({
+          ...opts,
+          winPrinterNames: [discovered],
+        });
       }
     }
 
