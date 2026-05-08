@@ -324,3 +324,55 @@ export async function getEntities(collection) {
 export function isProbablyOfflineError(error) {
   return !!error?.config && !error.response;
 }
+
+export async function getPendingSyncCount() {
+  const records = await runStore(QUEUE_STORE, 'readonly', async (store) => {
+    const index = store.index('status');
+    const items = await requestToPromise(index.getAll('PENDING'));
+    return items || [];
+  });
+  return (records || []).length;
+}
+
+export async function getConflictEntries() {
+  const records = await runStore(QUEUE_STORE, 'readonly', async (store) => {
+    const index = store.index('status');
+    const items = await requestToPromise(index.getAll('CONFLICT'));
+    return items || [];
+  });
+  return (records || []).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+export async function markOperationConflict(id, errorMessage) {
+  await runStore(QUEUE_STORE, 'readwrite', async (store) => {
+    const current = await requestToPromise(store.get(id));
+    if (!current) return;
+    current.status = 'CONFLICT';
+    current.lastError = errorMessage || 'Sync conflict';
+    current.updatedAt = new Date().toISOString();
+    store.put(current);
+  });
+}
+
+export async function markOperationPending(id) {
+  await runStore(QUEUE_STORE, 'readwrite', async (store) => {
+    const current = await requestToPromise(store.get(id));
+    if (!current) return;
+    current.status = 'PENDING';
+    current.attempts = 0;
+    current.updatedAt = new Date().toISOString();
+    store.put(current);
+  });
+}
+
+export async function discardSyncQueueEntry(id) {
+  await runStore(QUEUE_STORE, 'readwrite', (store) => store.delete(id));
+}
+
+export async function getLastSyncTime() {
+  return getSyncMetadata('lastSyncTime');
+}
+
+export async function setLastSyncTime(time) {
+  return setSyncMetadata('lastSyncTime', time || new Date().toISOString());
+}

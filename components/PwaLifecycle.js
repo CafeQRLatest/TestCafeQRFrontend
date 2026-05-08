@@ -12,9 +12,11 @@ export default function PwaLifecycle() {
     }
 
     const cleanupSync = registerOfflineSyncListeners();
-    if (document.cookie.includes('access_token=')) {
+    if (document.cookie.includes('access_token=') && navigator.onLine) {
       bootstrapOfflineData().catch((error) => {
-        console.warn('[Offline Sync] Initial bootstrap failed:', error?.message || error);
+        if (error?.message !== 'Network Error') {
+          console.warn('[Offline Sync] Initial bootstrap failed:', error?.message || error);
+        }
       });
     }
 

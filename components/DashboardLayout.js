@@ -10,6 +10,7 @@ import {
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle
 } from 'react-icons/fa';
+import SyncStatusBar from './SyncStatusBar';
 
 /**
  * DashboardLayout Component
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   }, [isAuthenticated]);
 
   const fetchConfig = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       const resp = await api.get('/api/v1/configurations');
       if (resp.data.success) setConfig(resp.data.data);
@@ -41,6 +43,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   };
 
   const fetchMenus = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       setFetchingMenus(true);
       const resp = await api.get('/api/v1/users/menus');
@@ -48,7 +51,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         setAssignedMenus(resp.data.data || []);
       }
     } catch (err) {
-      console.error("Failed to fetch sidebar menus:", err);
+      if (err?.message !== 'Network Error') {
+        console.error("Failed to fetch sidebar menus:", err);
+      }
     } finally {
       setFetchingMenus(false);
     }
@@ -594,11 +599,12 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
              {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>Document Sequences</span>}
           </Link>
       </div>
-      
-      <div style={{ padding: '24px', borderTop: '1px solid #f1f5f9' }}>
-         {!collapsed && (
-           <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Café QR v1.2</div>
-         )}
+
+      <div style={{ flexShrink: 0 }}>
+        <SyncStatusBar collapsed={collapsed} />
+        {!collapsed && (
+          <div style={{ padding: '12px 24px', fontSize: '11px', color: '#94a3b8', fontWeight: 800, textAlign: 'center' }}>Café QR v1.2</div>
+        )}
       </div>
 
       <style jsx>{`

@@ -2,8 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { buildReceiptText, buildKotText, downloadTextAndShare, toDisplayItems } from '../utils/printUtils';
 import api from '../utils/api';
-import { printUniversal } from '../utils/printGateway';
-import { openThermerWithText, openRawBTWithText } from '../utils/thermer';
+import { printUniversal } from '../utils/nativePrint';
 import { Capacitor } from '@capacitor/core';
 import Cookies from 'js-cookie';
 
@@ -301,13 +300,16 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
         if (onAndroidPWA) {
           try {
-            openThermerWithText(text);
+            await printUniversal({
+              text,
+              allowPrompt: true,
+              allowSystemDialog: true,
+              scale,
+              jobKind: kind,
+            });
             onPrint?.();
-          } catch {
-            try {
-              openRawBTWithText(text);
-              onPrint?.();
-            } catch {}
+          } catch (e) {
+            setStatus('✗ ' + (e.message || 'Printing failed'));
           }
           return;
         }
@@ -337,13 +339,16 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
         if (onAndroidPWA) {
           try {
-            openThermerWithText(text);
+            await printUniversal({
+              text,
+              allowPrompt: true,
+              allowSystemDialog: true,
+              scale,
+              jobKind: 'kot',
+            });
             onPrint?.();
-          } catch {
-            try {
-              openRawBTWithText(text);
-              onPrint?.();
-            } catch {}
+          } catch (e) {
+            setStatus('✗ ' + (e.message || 'Printing failed'));
           }
           return;
         }
@@ -378,11 +383,15 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
         if (onAndroidPWA) {
           try {
-            openThermerWithText(text);
-          } catch {
-            try {
-              openRawBTWithText(text);
-            } catch {}
+            await printUniversal({
+              text,
+              allowPrompt: true,
+              allowSystemDialog: true,
+              scale,
+              jobKind: 'kot',
+            });
+          } catch (e) {
+            console.error(e);
           }
           continue;
         }

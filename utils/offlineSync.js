@@ -2,8 +2,10 @@ import api from './api';
 import {
   getQueuedOperations,
   markOperationFailed,
+  markOperationConflict,
   markOperationSynced,
   setSyncMetadata,
+  setLastSyncTime,
   upsertEntities,
 } from './offlineStore';
 
@@ -32,6 +34,35 @@ export async function bootstrapOfflineData() {
     return null;
   }
 
+  // Fetch secondary entities in parallel for full offline support
+  const fetchSecondary = async (url) => {
+    try {
+      const res = await api.get(`${url}?size=1000`, { skipOfflineCache: false, skipOfflineQueue: true });
+      const unwrapped = unwrapData(res);
+      return Array.isArray(unwrapped?.content) ? unwrapped.content : (Array.isArray(unwrapped) ? unwrapped : []);
+    } catch {
+      return [];
+    }
+  };
+
+  const [
+    customers,
+    vendors,
+    expenses,
+    expenseCategories,
+    purchaseOrders,
+    stockAdjustments,
+    waste
+  ] = await Promise.all([
+    fetchSecondary('/api/v1/purchasing/customers'),
+    fetchSecondary('/api/v1/purchasing/vendors'),
+    fetchSecondary('/api/v1/expenses'),
+    fetchSecondary('/api/v1/expense-categories'),
+    fetchSecondary('/api/v1/purchasing/orders'),
+    fetchSecondary('/api/v1/stock/adjustments'),
+    fetchSecondary('/api/v1/waste')
+  ]);
+
   await Promise.all([
     upsertEntities('products', data.products || []),
     upsertEntities('categories', data.categories || []),
@@ -39,6 +70,13 @@ export async function bootstrapOfflineData() {
     upsertEntities('variantGroups', data.variantGroups || []),
     upsertEntities('tables', data.tables || []),
     upsertEntities('orders', data.orders || []),
+    upsertEntities('customers', customers),
+    upsertEntities('vendors', vendors),
+    upsertEntities('expenses', expenses),
+    upsertEntities('expenseCategories', expenseCategories),
+    upsertEntities('purchaseOrders', purchaseOrders),
+    upsertEntities('stockAdjustments', stockAdjustments),
+    upsertEntities('waste', waste),
     setSyncMetadata('lastBootstrapAt', data.serverTime || new Date().toISOString()),
     setSyncMetadata('lastChangeCursor', data.serverTime || new Date().toISOString()),
   ]);
@@ -59,30 +97,77 @@ export async function syncQueuedOperations() {
       return { pushed: 0 };
     }
 
-    const response = await api.post(
-      '/api/v1/sync/push',
-      { operations },
-      {
-        skipOfflineCache: true,
-        skipOfflineQueue: true,
+    // Split into legacy batch operations and direct native endpoint operations
+    const legacyEntities = ['products', 'categories', 'uoms', 'variantGroups', 'variants', 'tables', 'orders', 'configurations'];
+    const batchOperations = operations.filter(op => legacyEntities.includes(op.entity) || !op.entity || op.entity === 'unknown');
+    const directOperations = operations.filter(op => !batchOperations.includes(op));
+
+    let pushedCount = 0;
+    const results = [];
+
+    // 1. Process batch operations via the unified /sync/push endpoint
+    if (batchOperations.length > 0) {
+      const response = await api.post(
+        '/api/v1/sync/push',
+        { operations: batchOperations },
+        { skipOfflineCache: true, skipOfflineQueue: true }
+      );
+
+      const data = unwrapData(response);
+      const batchResults = data?.results || [];
+
+      await Promise.all(batchResults.map((result) => {
+        if (result.success) {
+          return markOperationSynced(result.operationId, result);
+        }
+        if (result.status === 'REJECTED' || result.status === 'FAILED') {
+          return markOperationConflict(result.operationId, result.message);
+        }
+        return markOperationFailed(result.operationId, result.message);
+      }));
+
+      pushedCount += batchOperations.length;
+      results.push(...batchResults);
+      
+      if (data?.serverTime) {
+        await setSyncMetadata('lastSuccessfulSyncAt', data.serverTime);
       }
-    );
-
-    const data = unwrapData(response);
-    const results = data?.results || [];
-
-    await Promise.all(results.map((result) => {
-      if (result.success) {
-        return markOperationSynced(result.operationId, result);
-      }
-      return markOperationFailed(result.operationId, result.message);
-    }));
-
-    if (data?.serverTime) {
-      await setSyncMetadata('lastSuccessfulSyncAt', data.serverTime);
     }
 
-    return { pushed: operations.length, results };
+    // 2. Process secondary entity operations directly against their native REST endpoints
+    for (const op of directOperations) {
+      try {
+        const res = await api.request({
+          method: op.method,
+          url: op.url,
+          data: op.payload,
+          headers: { 'Idempotency-Key': op.operationId },
+          skipOfflineCache: true,
+          skipOfflineQueue: true,
+        });
+        
+        const data = unwrapData(res);
+        await markOperationSynced(op.id, data);
+        results.push({ operationId: op.operationId, success: true, data });
+        pushedCount++;
+      } catch (err) {
+        const status = err.response?.status;
+        const msg = err.response?.data?.message || err.message;
+        
+        // 4xx errors (except 409 conflict/idempotency hit) are validation/business errors -> conflict drawer
+        if (status >= 400 && status < 500 && status !== 409) {
+          await markOperationConflict(op.id, msg);
+          results.push({ operationId: op.operationId, success: false, status: 'CONFLICT', message: msg });
+        } else {
+          await markOperationFailed(op.id, msg);
+          results.push({ operationId: op.operationId, success: false, status: 'FAILED', message: msg });
+        }
+      }
+    }
+
+    await setLastSyncTime();
+
+    return { pushed: pushedCount, results };
   } finally {
     syncInFlight = false;
   }
@@ -93,26 +178,54 @@ export function registerOfflineSyncListeners() {
     return () => {};
   }
 
+  let consecutiveFailures = 0;
+  let intervalId = null;
+
   const run = () => {
-    syncQueuedOperations().catch((error) => {
-      console.warn('[Offline Sync] Sync attempt failed:', error?.message || error);
-    });
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    syncQueuedOperations()
+      .then((result) => {
+        if (!result?.skipped) consecutiveFailures = 0;
+      })
+      .catch((error) => {
+        if (error?.message !== 'Network Error') {
+          console.warn('[Offline Sync] Sync attempt failed:', error?.message || error);
+        }
+        consecutiveFailures += 1;
+      });
   };
+
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      consecutiveFailures = 0;
       run();
     }
   };
 
-  window.addEventListener('online', run);
+  const handleOnline = () => {
+    consecutiveFailures = 0;
+    run();
+  };
+
+  window.addEventListener('online', handleOnline);
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
-  const intervalId = window.setInterval(run, 60000);
-  run();
+  // Adaptive interval: backs off when failures stack up (max 5 min)
+  const BASE_INTERVAL = 60000;
+  const tick = () => {
+    run();
+    const backoff = Math.min(BASE_INTERVAL * Math.pow(2, consecutiveFailures), 300000);
+    intervalId = window.setTimeout(tick, backoff);
+  };
+  // Initial run only if online
+  if (navigator.onLine) {
+    run();
+  }
+  intervalId = window.setTimeout(tick, BASE_INTERVAL);
 
   return () => {
-    window.removeEventListener('online', run);
+    window.removeEventListener('online', handleOnline);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.clearInterval(intervalId);
+    if (intervalId) window.clearTimeout(intervalId);
   };
 }

@@ -523,25 +523,34 @@ export default function Sales() {
   }, []);
 
   const fetchTables = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await api.get('/api/v1/tables/active');
       setTables(res.data.data || []);
     } catch (e) {
-      console.error('Failed to fetch tables', e);
-      showToast('Failed to load tables', 'error');
+      if (e?.message !== 'Network Error') {
+        console.error('Failed to fetch tables', e);
+        showToast('Failed to load tables', 'error');
+      }
     } finally {
       setLoading(false);
     }
   }, [showToast]);
 
   const fetchOrders = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     setOrdersLoading(true);
     try {
       const res = await api.get('/api/v1/orders/type/SALE');
       setOrders(res.data.data || []);
     } catch (e) {
-      console.error('Failed to fetch sale orders', e);
-      showToast('Failed to load order history', 'error');
+      if (e?.message !== 'Network Error') {
+        console.error('Failed to fetch sale orders', e);
+        showToast('Failed to load order history', 'error');
+      }
     } finally {
       setOrdersLoading(false);
     }
@@ -550,11 +559,44 @@ export default function Sales() {
   useEffect(() => {
     fetchTables();
     fetchOrders();
-    const interval = setInterval(() => {
+
+    let intervalId = null;
+
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        fetchTables();
+        fetchOrders();
+      }, 10000);
+    };
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleOnline = () => {
       fetchTables();
       fetchOrders();
-    }, 10000);
-    return () => clearInterval(interval);
+      startPolling();
+    };
+
+    const handleOffline = () => {
+      stopPolling();
+    };
+
+    startPolling();
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      stopPolling();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, [fetchTables, fetchOrders]);
 
   useEffect(() => {
