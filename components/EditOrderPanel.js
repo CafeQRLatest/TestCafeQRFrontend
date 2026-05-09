@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { FaMinus, FaPlus, FaSave, FaSearch, FaTimes, FaTrash, FaUtensils } from 'react-icons/fa';
+import { FaChevronRight, FaMinus, FaPlus, FaSave, FaSearch, FaTimes, FaTrash, FaUtensils } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
+import VariantSelector from './VariantSelector';
 
 const Overlay = styled.div`
   position: fixed;
@@ -133,6 +134,7 @@ const ProductButton = styled.button`
   padding: 12px;
   cursor: pointer;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   text-align: left;
@@ -151,6 +153,17 @@ const ProductButton = styled.button`
     font-size: 11px;
     font-weight: 800;
   }
+`;
+
+const ProductAction = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #f97316;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 `;
 
 const LineRow = styled.div`
@@ -252,6 +265,22 @@ const EmptyState = styled.div`
   font-weight: 800;
 `;
 
+const LoadingBubble = styled.div`
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1390;
+  transform: translate(-50%, -50%);
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+`;
+
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -264,12 +293,17 @@ function lineKey(line, index) {
 function normalizeLine(line, index) {
   const productName = line.productName || line.product_name || line.name || 'Item';
   const variantId = line.variantId || line.variant_id || null;
+  const variantName = line.variantName || line.variant_name || null;
+  const displayName = variantName && !String(productName).includes(`(${variantName})`)
+    ? `${productName} (${variantName})`
+    : productName;
   return {
     cartKey: lineKey(line, index),
     productId: line.productId || line.product_id || null,
     variantId,
+    variantName,
     productName,
-    displayName: productName,
+    displayName,
     categoryName: line.categoryName || line.category_name || null,
     isPackagedGood: Boolean(line.isPackagedGood ?? line.is_packaged_good ?? line.is_packaged),
     quantity: toNumber(line.quantity || line.qty || 1) || 1,
@@ -291,7 +325,7 @@ function productToLine(product) {
     quantity: 1,
     unitPrice: toNumber(product.price),
     taxRate: toNumber(product.taxRate || product.tax_rate),
-    unitOfMeasure: product.uomName || product.unitOfMeasure || 'units',
+    unitOfMeasure: product.uomName || product.uom?.name || product.unitOfMeasure || 'units',
   };
 }
 
@@ -302,6 +336,8 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [lines, setLines] = useState(() => (order?.lines || []).map(normalizeLine));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [variantProduct, setVariantProduct] = useState(null);
+  const [variantLoading, setVariantLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -359,8 +395,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     );
   }, [config, lines]);
 
-  const addProduct = (product) => {
-    const newLine = productToLine(product);
+  const upsertLine = (newLine) => {
     setLines((current) => {
       const existing = current.find((line) => line.cartKey === newLine.cartKey);
       if (existing) {
@@ -369,6 +404,53 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       return [...current, newLine];
     });
     setSearch('');
+  };
+
+  const openVariantSelector = async (product) => {
+    setVariantLoading(true);
+    try {
+      const { data } = await api.get(`/api/v1/products/${product.id}`);
+      const detail = data.data || {};
+      setVariantProduct({
+        ...product,
+        ...detail,
+        categoryName: product.categoryName || detail.category?.name,
+        uomName: product.uomName || detail.uom?.name,
+      });
+    } catch (error) {
+      console.error('Failed to load product variants', error);
+      alert('Unable to load item options. Please try again.');
+    } finally {
+      setVariantLoading(false);
+    }
+  };
+
+  const addProduct = async (product) => {
+    if (product.hasVariants || product.variantCount > 0) {
+      await openVariantSelector(product);
+      return;
+    }
+    upsertLine(productToLine(product));
+  };
+
+  const addVariant = (variant) => {
+    if (!variantProduct) return;
+    const displayName = `${variantProduct.name} (${variant.label})`;
+    upsertLine({
+      cartKey: `${variantProduct.id}:${variant.id}`,
+      productId: variantProduct.id,
+      variantId: variant.id,
+      variantName: variant.label,
+      productName: displayName,
+      displayName,
+      categoryName: variantProduct.categoryName || variantProduct.category?.name || null,
+      isPackagedGood: Boolean(variantProduct.isPackagedGood || variantProduct.is_packaged_good || variantProduct.is_packaged),
+      quantity: 1,
+      unitPrice: toNumber(variant.price),
+      taxRate: toNumber(variantProduct.taxRate || variantProduct.tax_rate),
+      unitOfMeasure: variantProduct.uomName || variantProduct.uom?.name || variantProduct.unitOfMeasure || 'units',
+    });
+    setVariantProduct(null);
   };
 
   const updateQty = (cartKey, delta) => {
@@ -446,15 +528,25 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
               {loading ? (
                 <EmptyState>Loading products...</EmptyState>
               ) : filteredProducts.length ? (
-                filteredProducts.map((product) => (
-                  <ProductButton key={product.id} type="button" onClick={() => addProduct(product)}>
-                    <div>
-                      <strong>{product.name}</strong>
-                      <span>{product.categoryName || 'Menu item'}</span>
-                    </div>
-                    <strong>₹{Number(product.price || 0).toFixed(2)}</strong>
-                  </ProductButton>
-                ))
+                filteredProducts.map((product) => {
+                  const hasOptions = product.hasVariants || product.variantCount > 0;
+                  return (
+                    <ProductButton key={product.id} type="button" onClick={() => addProduct(product)}>
+                      <div>
+                        <strong>{product.name}</strong>
+                        <span>{product.categoryName || 'Menu item'}</span>
+                      </div>
+                      {hasOptions ? (
+                        <ProductAction>
+                          <small>Options available</small>
+                          <FaChevronRight />
+                        </ProductAction>
+                      ) : (
+                        <strong>₹{Number(product.price || 0).toFixed(2)}</strong>
+                      )}
+                    </ProductButton>
+                  );
+                })
               ) : (
                 <EmptyState>No products found</EmptyState>
               )}
@@ -493,6 +585,16 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           </SaveButton>
         </Footer>
       </Panel>
+      {variantLoading && <LoadingBubble onMouseDown={(event) => event.stopPropagation()}>Loading item options...</LoadingBubble>}
+      {variantProduct && (
+        <div onMouseDown={(event) => event.stopPropagation()}>
+          <VariantSelector
+            product={variantProduct}
+            onClose={() => setVariantProduct(null)}
+            onSelect={addVariant}
+          />
+        </div>
+      )}
     </Overlay>
   );
 }

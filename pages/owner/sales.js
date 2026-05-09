@@ -51,6 +51,31 @@ const HeaderActions = styled.div`
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+
+  @media (max-width: 780px) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+`;
+
+const SalesHeader = styled(POSHeader)`
+  gap: 16px;
+  flex-wrap: wrap;
+
+  @media (max-width: 780px) {
+    align-items: flex-start;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+`;
+
+const SalesHeaderTitle = styled(HeaderTitle)`
+  min-width: 0;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    font-size: 20px;
+  }
 `;
 
 const SectionHeader = styled.div`
@@ -64,6 +89,8 @@ const SectionHeader = styled.div`
   @media (max-width: 720px) {
     align-items: flex-start;
     flex-direction: column;
+    padding: 0 16px;
+    margin-bottom: 18px;
   }
 `;
 
@@ -81,6 +108,11 @@ const StatsRow = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    gap: 8px;
+  }
 `;
 
 const StatPill = styled.div`
@@ -90,6 +122,11 @@ const StatPill = styled.div`
   font-size: 13px;
   font-weight: 800;
   color: ${props => props.$color || (props.$tone === 'green' ? '#16a34a' : props.$tone === 'orange' ? '#ea580c' : '#475569')};
+
+  @media (max-width: 520px) {
+    flex: 1 1 140px;
+    text-align: center;
+  }
 `;
 
 const LegendRow = styled.div`
@@ -97,6 +134,10 @@ const LegendRow = styled.div`
   flex-wrap: wrap;
   gap: 10px;
   padding: 0 24px 20px;
+
+  @media (max-width: 720px) {
+    padding: 0 16px 16px;
+  }
 `;
 
 const LegendItem = styled.div`
@@ -121,6 +162,16 @@ const Grid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 20px;
   padding: 0 24px 24px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    padding: 0 16px 90px;
+  }
+
+  @media (max-width: 380px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const List = styled.div`
@@ -128,6 +179,10 @@ const List = styled.div`
   flex-direction: column;
   gap: 12px;
   padding: 0 24px 24px;
+
+  @media (max-width: 720px) {
+    padding: 0 16px 90px;
+  }
 `;
 
 const TableCard = styled.button`
@@ -145,11 +200,22 @@ const TableCard = styled.button`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   text-align: center;
   font: inherit;
+  min-width: 0;
 
   &:hover {
     transform: translateY(-6px);
     box-shadow: 0 18px 24px -12px rgba(15, 23, 42, 0.18);
     border-color: ${props => normalizeTableStatus(props.$status) === 'AVAILABLE' ? '#94a3b8' : tableStatusMeta(props.$status).border};
+  }
+
+  @media (max-width: 720px) {
+    border-radius: 18px;
+    padding: 18px 14px;
+    gap: 12px;
+
+    &:hover {
+      transform: none;
+    }
   }
 `;
 
@@ -159,6 +225,11 @@ const TableRow = styled(TableCard)`
   justify-content: space-between;
   text-align: left;
   padding: 18px 20px;
+
+  @media (max-width: 520px) {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
 `;
 
 const TableIcon = styled.div`
@@ -173,6 +244,13 @@ const TableIcon = styled.div`
   font-size: 26px;
   font-weight: 900;
   flex: 0 0 auto;
+
+  @media (max-width: 520px) {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    font-size: 22px;
+  }
 `;
 
 const StatusPill = styled.div`
@@ -197,6 +275,7 @@ const TableNumber = styled.div`
   font-size: 18px;
   font-weight: 800;
   color: inherit;
+  overflow-wrap: anywhere;
 `;
 
 const TableCapacity = styled.div`
@@ -240,15 +319,26 @@ const CounterToggleBtn = styled.button`
   }
 
   @media (max-width: 720px) {
-    right: 20px;
-    bottom: 20px;
+    right: 16px;
+    bottom: 16px;
     padding: 14px 20px;
+    border-radius: 18px;
+  }
+
+  @media (max-width: 420px) {
+    left: 16px;
+    right: 16px;
+    justify-content: center;
   }
 `;
 
 const HistoryShell = styled.section`
   padding: 0 24px 96px;
   animation: ${fadeIn} 0.25s ease-out;
+
+  @media (max-width: 720px) {
+    padding: 0 16px 96px;
+  }
 `;
 
 const HistoryToolbar = styled.div`
@@ -266,6 +356,7 @@ const HistoryToolbar = styled.div`
   @media (max-width: 720px) {
     align-items: flex-start;
     flex-direction: column;
+    padding: 14px;
   }
 `;
 
@@ -309,6 +400,10 @@ const HistoryGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const OrderCard = styled.article`
@@ -321,12 +416,17 @@ const OrderCard = styled.article`
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 `;
 
 const OrderTop = styled.div`
   display: flex;
   justify-content: space-between;
   gap: 12px;
+
+  @media (max-width: 420px) {
+    flex-direction: column;
+  }
 `;
 
 const OrderNo = styled.div`
@@ -334,6 +434,7 @@ const OrderNo = styled.div`
   font-size: 13px;
   font-weight: 900;
   color: #0f172a;
+  overflow-wrap: anywhere;
 `;
 
 const OrderSub = styled.div`
@@ -348,6 +449,10 @@ const OrderAmount = styled.div`
   font-weight: 900;
   color: #0f172a;
   text-align: right;
+
+  @media (max-width: 420px) {
+    text-align: left;
+  }
 `;
 
 const OrderBadges = styled.div`
@@ -369,6 +474,10 @@ const OrderInfo = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const InfoPill = styled.div`
@@ -390,6 +499,7 @@ const InfoPill = styled.div`
     color: #334155;
     font-size: 12px;
     font-weight: 800;
+    overflow-wrap: anywhere;
   }
 `;
 
@@ -397,6 +507,10 @@ const OrderActions = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const OrderItemsList = styled.div`
@@ -513,6 +627,12 @@ const Toast = styled.div`
   gap: 10px;
   font-size: 13px;
   font-weight: 800;
+
+  @media (max-width: 520px) {
+    width: calc(100% - 32px);
+    justify-content: center;
+    text-align: center;
+  }
 `;
 
 const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
@@ -1111,10 +1231,10 @@ export default function Sales() {
   return (
     <DashboardLayout title="Sales">
       <PageContainer>
-        <POSHeader>
-          <HeaderTitle>
+        <SalesHeader>
+          <SalesHeaderTitle>
             <FaCashRegister color="#ea580c" /> POS Terminal
-          </HeaderTitle>
+          </SalesHeaderTitle>
           <HeaderActions>
             {activeView === 'tables' && (
               <>
@@ -1145,7 +1265,7 @@ export default function Sales() {
               </ModeSwitchBtn>
             </ModeSwitchGroup>
           </HeaderActions>
-        </POSHeader>
+        </SalesHeader>
 
         {activeView === 'tables' ? (
           <>

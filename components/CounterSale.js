@@ -3,7 +3,7 @@ import styled, { keyframes } from 'styled-components';
 import api from '../utils/api';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
-  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage
+  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
@@ -26,19 +26,34 @@ const ModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
+
+  @media (max-width: 640px) {
+    padding: 0;
+  }
 `;
 
 const ModalContent = styled.div`
   background: #f8fafc;
   width: 100%;
-  max-width: 1400px;
-  height: 95vh;
+  max-width: 1500px;
+  height: min(95dvh, 980px);
   border-radius: 32px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   animation: ${fadeIn} 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+
+  @media (max-width: 900px) {
+    height: calc(100dvh - 24px);
+    border-radius: 24px;
+  }
+
+  @media (max-width: 640px) {
+    height: 100dvh;
+    border-radius: 0;
+  }
 `;
 
 const CounterHeader = styled.header`
@@ -48,12 +63,23 @@ const CounterHeader = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  @media (max-width: 720px) {
+    padding: 16px;
+  }
 `;
 
 const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
   gap: 20px;
+  min-width: 0;
+
+  @media (max-width: 520px) {
+    gap: 12px;
+  }
 `;
 
 const BackBtn = styled.button`
@@ -74,6 +100,7 @@ const BackBtn = styled.button`
 const TitleGroup = styled.div`
   display: flex;
   flex-direction: column;
+  min-width: 0;
 `;
 
 const Title = styled.h1`
@@ -81,6 +108,11 @@ const Title = styled.h1`
   font-size: 24px;
   font-weight: 800;
   color: #0f172a;
+  overflow-wrap: anywhere;
+
+  @media (max-width: 520px) {
+    font-size: 21px;
+  }
 `;
 
 const Subtitle = styled.span`
@@ -93,6 +125,12 @@ const MainLayout = styled.main`
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
+
+  @media (max-width: 900px) {
+    display: block;
+    overflow-y: auto;
+  }
 `;
 
 const CatalogSection = styled.section`
@@ -102,15 +140,61 @@ const CatalogSection = styled.section`
   overflow: hidden;
   padding: 24px;
   gap: 24px;
+  min-width: 0;
+
+  @media (max-width: 900px) {
+    min-height: 100%;
+    overflow: visible;
+    padding: 18px 18px 96px;
+    gap: 16px;
+  }
+
+  @media (max-width: 520px) {
+    padding: 14px 12px 96px;
+  }
 `;
 
 const CartSection = styled.aside`
-  width: 450px;
+  width: clamp(360px, 30vw, 460px);
   background: white;
   border-left: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   box-shadow: -10px 0 30px rgba(0,0,0,0.02);
+  min-height: 0;
+
+  @media (max-width: 900px) {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: min(76dvh, 640px);
+    border-left: 0;
+    border-top: 1px solid #e2e8f0;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -24px 50px rgba(15, 23, 42, 0.24);
+    transform: translateY(${props => props.$mobileOpen ? '0' : '110%'});
+    transition: transform 0.25s ease;
+    z-index: 60;
+  }
+`;
+
+const HeaderModeSwitch = styled.div`
+  display: flex;
+  gap: 12px;
+  background: #f1f5f9;
+  padding: 6px;
+  border-radius: 16px;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    gap: 8px;
+
+    button {
+      flex: 1;
+    }
+  }
 `;
 
 const SearchBar = styled.div`
@@ -129,6 +213,11 @@ const SearchInput = styled.input`
   outline: none;
   transition: all 0.3s;
   &:focus { border-color: ${props => props.$themeColor || '#ea580c'}; box-shadow: 0 0 0 4px ${props => props.$themeColor}15; }
+
+  @media (max-width: 520px) {
+    padding: 14px 16px 14px 48px;
+    border-radius: 16px;
+  }
 `;
 
 const SearchIcon = styled.div`
@@ -187,6 +276,25 @@ const ProductGrid = styled.div`
   gap: 20px;
   overflow-y: auto;
   padding-bottom: 20px;
+  min-height: 0;
+
+  @media (max-width: 1120px) {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+  }
+
+  @media (max-width: 900px) {
+    overflow: visible;
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const StandardWorkspace = styled.div`
@@ -212,9 +320,14 @@ const StandardResults = styled.div`
   margin-top: 14px;
   max-height: 260px;
   overflow-y: auto;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
 `;
 
-const StandardProductButton = styled.button`
+const StandardProductButton = styled.div`
   border: 1px solid #e2e8f0;
   background: #fff;
   border-radius: 16px;
@@ -226,11 +339,17 @@ const StandardProductButton = styled.button`
   gap: 12px;
   text-align: left;
   transition: all 0.2s;
+  min-width: 0;
 
   &:hover {
     border-color: ${props => props.$themeColor};
     box-shadow: 0 10px 20px ${props => props.$themeColor}18;
     transform: translateY(-1px);
+  }
+
+  @media (max-width: 520px) {
+    align-items: stretch;
+    flex-direction: column;
   }
 `;
 
@@ -274,6 +393,10 @@ const StandardCurrentOrder = styled.div`
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+
+  @media (max-width: 900px) {
+    min-height: 360px;
+  }
 `;
 
 const StandardOrderHeader = styled.div`
@@ -304,6 +427,11 @@ const StandardOrderRow = styled.div`
   background: #f8fafc;
   border-radius: 16px;
   border: 1px solid #edf2f7;
+
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 `;
 
 const SearchHint = styled.div`
@@ -316,7 +444,7 @@ const SearchHint = styled.div`
   text-align: center;
 `;
 
-const ProductCard = styled.button`
+const ProductCard = styled.div`
   background: white;
   border-radius: 24px;
   border: 2px solid ${props => props.$inCart ? props.$themeColor : '#f1f5f9'};
@@ -329,7 +457,16 @@ const ProductCard = styled.button`
   text-align: left;
   overflow: hidden;
   font: inherit;
+  min-width: 0;
   &:hover { transform: translateY(-6px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.1); border-color: ${props => props.$themeColor}40; }
+
+  @media (max-width: 640px) {
+    border-radius: 18px;
+
+    &:hover {
+      transform: none;
+    }
+  }
 `;
 
 const ProdImg = styled.div`
@@ -343,12 +480,21 @@ const ProdImg = styled.div`
   justify-content: center;
   color: #cbd5e1;
   font-size: 34px;
+
+  @media (max-width: 520px) {
+    height: 112px;
+  }
 `;
 
 const ProductBody = styled.div`
   padding: 16px;
   display: grid;
   gap: 10px;
+  min-width: 0;
+
+  @media (max-width: 520px) {
+    padding: 12px;
+  }
 `;
 
 const VegBadge = styled.div`
@@ -388,12 +534,24 @@ const ProdName = styled.div`
   line-height: 1.4;
   height: 42px;
   overflow: hidden;
+  overflow-wrap: anywhere;
+
+  @media (max-width: 520px) {
+    font-size: 14px;
+    height: 40px;
+  }
 `;
 
 const ProdPriceRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+
+  @media (max-width: 520px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 const ProdPrice = styled.div`
@@ -416,6 +574,68 @@ const AddBtn = styled.div`
   font-size: 13px;
   font-weight: 900;
   transition: all 0.2s;
+  white-space: nowrap;
+
+  @media (max-width: 520px) {
+    width: 100%;
+  }
+`;
+
+const ProductStepper = styled.div`
+  min-height: 40px;
+  min-width: 118px;
+  border-radius: 14px;
+  border: 1px solid ${props => props.$themeColor};
+  background: white;
+  color: #0f172a;
+  display: grid;
+  grid-template-columns: 38px 1fr 38px;
+  overflow: hidden;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    min-width: 0;
+  }
+`;
+
+const ProductQtyBtn = styled.button`
+  border: 0;
+  background: ${props => props.$themeColor}12;
+  color: ${props => props.$themeColor};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+
+const ProductQtyValue = styled.div`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  border-left: 1px solid ${props => props.$themeColor}25;
+  border-right: 1px solid ${props => props.$themeColor}25;
+  font-weight: 900;
+`;
+
+const VariantCount = styled.span`
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: ${props => props.$themeColor};
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
 `;
 
 const CartHeader = styled.div`
@@ -425,6 +645,11 @@ const CartHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+
+  @media (max-width: 900px) {
+    padding: 18px 20px;
+  }
 `;
 
 const CartBody = styled.div`
@@ -434,6 +659,10 @@ const CartBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  @media (max-width: 900px) {
+    max-height: 38dvh;
+  }
 `;
 
 const CartFooter = styled.div`
@@ -443,6 +672,10 @@ const CartFooter = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  @media (max-width: 900px) {
+    padding: 18px 20px;
+  }
 `;
 
 const SummaryRow = styled.div`
@@ -508,6 +741,7 @@ const QtyGroup = styled.div`
   background: #f8fafc;
   padding: 4px 8px;
   border-radius: 10px;
+  flex: 0 0 auto;
 `;
 
 const QtyBtn = styled.button`
@@ -522,6 +756,61 @@ const QtyBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
+`;
+
+const CartCloseBtn = styled.button`
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  @media (max-width: 900px) {
+    display: inline-flex;
+  }
+`;
+
+const MobileCartBackdrop = styled.div`
+  display: none;
+
+  @media (max-width: 900px) {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.38);
+    z-index: 50;
+  }
+`;
+
+const MobileCartToggle = styled.button`
+  display: none;
+
+  @media (max-width: 900px) {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 45;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: min(360px, calc(100% - 28px));
+    min-height: 56px;
+    border: 0;
+    border-radius: 999px;
+    background: ${props => props.$themeColor};
+    color: white;
+    box-shadow: 0 18px 36px ${props => props.$themeColor}35;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 900;
+  }
 `;
 
 const OfflineNotice = styled.div`
@@ -552,6 +841,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
   const [config, setConfig] = useState(null);
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const searchRef = useRef(null);
   const isStandardUi = interfaceMode === 'standard';
 
@@ -598,6 +888,40 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
 
   const cartKeyFor = useCallback((item) => String(item.cartKey || `${item.productId || item.id}:${item.variantId || 'base'}`), []);
 
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, item) => sum + Number(item.qty || 0), 0),
+    [cart]
+  );
+
+  const cartCountLabel = `${cartItemCount} Item${cartItemCount === 1 ? '' : 's'}`;
+
+  const hasVariantOptions = useCallback((product) => (
+    Boolean(product?.hasVariants) || Number(product?.variantCount || 0) > 0
+  ), []);
+
+  const productCartLines = useCallback((product) => {
+    const productId = String(product?.id || product?.productId || '');
+    if (!productId) return [];
+    return cart.filter((item) => String(item.productId || item.id) === productId);
+  }, [cart]);
+
+  const productCartQuantity = useCallback((product) => (
+    productCartLines(product).reduce((sum, item) => sum + Number(item.qty || 0), 0)
+  ), [productCartLines]);
+
+  const baseProductCartLine = useCallback((product) => (
+    productCartLines(product).find((item) => !item.variantId)
+  ), [productCartLines]);
+
+  const variantQuantityMap = useCallback((product) => (
+    productCartLines(product).reduce((acc, item) => {
+      if (item.variantId) {
+        acc[String(item.variantId)] = Number(item.qty || 0);
+      }
+      return acc;
+    }, {})
+  ), [productCartLines]);
+
   const isNonVegProduct = useCallback((product) => {
     const type = String(product?.productType || product?.product_type || '').toUpperCase();
     return type.includes('NON') || type.includes('MEAT') || type.includes('CHICKEN') || type.includes('FISH');
@@ -621,16 +945,17 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
 
   const addPreparedToCart = (product) => {
     setCart(prev => {
+      const quantity = Math.max(1, Number(product.qty || 1));
       const prepared = {
         ...product,
         productId: product.productId || product.id,
         cartKey: cartKeyFor(product),
         displayName: product.displayName || product.name,
-        qty: product.qty || 1,
+        qty: quantity,
       };
       const key = cartKeyFor(prepared);
       const exists = prev.find(item => cartKeyFor(item) === key);
-      if (exists) return prev.map(item => cartKeyFor(item) === key ? { ...item, qty: item.qty + 1 } : item);
+      if (exists) return prev.map(item => cartKeyFor(item) === key ? { ...item, qty: Number(item.qty || 0) + quantity } : item);
       return [...prev, prepared];
     });
   };
@@ -653,7 +978,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
   };
 
   const addToCart = async (p) => {
-    if (p.hasVariants || p.variantCount > 0) {
+    if (hasVariantOptions(p)) {
       await openVariantSelector(p);
       return;
     }
@@ -677,11 +1002,52 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
     setVariantProduct(null);
   };
 
+  const syncVariantCart = (selectedVariants) => {
+    if (!variantProduct) return;
+    const productId = String(variantProduct.id);
+    const nextVariantLines = (selectedVariants || [])
+      .map((variant) => {
+        const quantity = Math.max(0, Number(variant.quantity || 0));
+        if (!quantity) return null;
+        const displayName = `${variantProduct.name} (${variant.label})`;
+        return {
+          ...variantProduct,
+          id: variantProduct.id,
+          productId: variantProduct.id,
+          variantId: variant.id,
+          variantName: variant.label,
+          name: displayName,
+          displayName,
+          price: variant.price,
+          qty: quantity,
+          cartKey: `${variantProduct.id}:${variant.id}`,
+        };
+      })
+      .filter(Boolean);
+
+    setCart(prev => [
+      ...prev.filter(item => !(String(item.productId || item.id) === productId && item.variantId)),
+      ...nextVariantLines,
+    ]);
+    setVariantProduct(null);
+  };
+
   const updateQty = (key, delta) => {
     setCart(prev => prev.map(item => {
-      if (cartKeyFor(item) === String(key)) return { ...item, qty: Math.max(1, item.qty + delta) };
+      if (cartKeyFor(item) === String(key)) return { ...item, qty: Math.max(0, Number(item.qty || 0) + delta) };
       return item;
     }).filter(item => item.qty > 0));
+  };
+
+  const decrementProduct = (event, product) => {
+    event.stopPropagation();
+    const line = baseProductCartLine(product);
+    if (line) updateQty(cartKeyFor(line), -1);
+  };
+
+  const incrementProduct = (event, product) => {
+    event.stopPropagation();
+    addPreparedToCart({ ...product, cartKey: `${product.id}:base`, productId: product.id, displayName: product.name });
   };
 
   const visibleProducts = useMemo(() => {
@@ -711,6 +1077,17 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
     setSearch('');
     searchRef.current?.focus();
   };
+
+  const currentVariantQuantities = useMemo(
+    () => variantProduct ? variantQuantityMap(variantProduct) : {},
+    [variantProduct, variantQuantityMap]
+  );
+
+  useEffect(() => {
+    if (cart.length === 0) {
+      setMobileCartOpen(false);
+    }
+  }, [cart.length]);
 
   const totals = useMemo(() => {
     if (!config) return { subtotal: 0, tax: 0, total: 0 };
@@ -863,7 +1240,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
             </TitleGroup>
           </HeaderLeft>
 
-          <div style={{ display: 'flex', gap: '12px', background: '#f1f5f9', padding: '6px', borderRadius: '16px' }}>
+          <HeaderModeSwitch>
             <CatBtn 
               $active={orderMode === 'kitchen'} 
               $themeColor="#f97316" 
@@ -880,7 +1257,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
             >
               <FaWallet style={{ marginRight: '8px' }}/> Settle
             </CatBtn>
-          </div>
+          </HeaderModeSwitch>
         </CounterHeader>
 
         <MainLayout>
@@ -905,15 +1282,52 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
                 <StandardSearchPanel>
                   {standardMatches.length > 0 ? (
                     <StandardResults>
-                      {standardMatches.map(p => (
-                          <StandardProductButton key={p.id} $themeColor={THEME.main} onClick={() => addFromStandardSearch(p)}>
-                          <StandardProductMeta>
-                            <strong>{p.name}</strong>
-                            <span>{p.categoryName || 'Menu item'} • {p.hasVariants || p.variantCount > 0 ? 'Options available' : `₹${Number(p.price || 0).toFixed(2)}`}</span>
-                          </StandardProductMeta>
-                          <StandardAddIcon $themeColor={THEME.main}>{p.hasVariants || p.variantCount > 0 ? <FaChevronRight /> : <FaPlus />}</StandardAddIcon>
-                        </StandardProductButton>
-                      ))}
+                      {standardMatches.map(p => {
+                        const hasOptions = hasVariantOptions(p);
+                        const quantity = productCartQuantity(p);
+                        return (
+                          <StandardProductButton
+                            key={p.id}
+                            role="button"
+                            tabIndex={0}
+                            $themeColor={THEME.main}
+                            onClick={() => addFromStandardSearch(p)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                addFromStandardSearch(p);
+                              }
+                            }}
+                          >
+                            <StandardProductMeta>
+                              <strong>{p.name}</strong>
+                              <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options available' : `₹${Number(p.price || 0).toFixed(2)}`}</span>
+                            </StandardProductMeta>
+                            {hasOptions ? (
+                              <AddBtn $themeColor={THEME.main} $outline>
+                                {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
+                                Options <FaChevronRight />
+                              </AddBtn>
+                            ) : quantity > 0 ? (
+                              <ProductStepper
+                                $themeColor={THEME.main}
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                              >
+                                <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => decrementProduct(event, p)}>
+                                  <FaMinus />
+                                </ProductQtyBtn>
+                                <ProductQtyValue $themeColor={THEME.main}>{quantity}</ProductQtyValue>
+                                <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => incrementProduct(event, p)}>
+                                  <FaPlus />
+                                </ProductQtyBtn>
+                              </ProductStepper>
+                            ) : (
+                              <StandardAddIcon $themeColor={THEME.main}><FaPlus /></StandardAddIcon>
+                            )}
+                          </StandardProductButton>
+                        );
+                      })}
                     </StandardResults>
                   ) : (
                     <SearchHint>
@@ -985,11 +1399,24 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
 
                 <ProductGrid>
                   {visibleProducts.map(p => {
-                  const inCart = cart.find(item => String(item.productId || item.id) === String(p.id));
-                  const hasOptions = p.hasVariants || p.variantCount > 0;
+                  const quantity = productCartQuantity(p);
+                  const hasOptions = hasVariantOptions(p);
                   const nonVeg = isNonVegProduct(p);
                   return (
-                    <ProductCard key={p.id} type="button" $themeColor={THEME.main} $inCart={!!inCart} onClick={() => addToCart(p)}>
+                    <ProductCard
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      $themeColor={THEME.main}
+                      $inCart={quantity > 0}
+                      onClick={() => addToCart(p)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          addToCart(p);
+                        }
+                      }}
+                    >
                       <ProdImg style={p.imageUrl ? { backgroundImage: `url(${p.imageUrl})` } : undefined}>
                         {!p.imageUrl && <FaImage />}
                         <VegBadge $nonVeg={nonVeg}>{nonVeg ? <FaFire /> : <FaLeaf />}</VegBadge>
@@ -999,9 +1426,30 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
                         <CategoryTag>{p.categoryName || 'Menu item'}</CategoryTag>
                         <ProdPriceRow>
                           <ProdPrice $themeColor={THEME.main}>₹{Number(p.price || 0).toFixed(2)}{hasOptions ? '+' : ''}</ProdPrice>
-                          <AddBtn $themeColor={THEME.main} $outline={hasOptions}>
-                            {hasOptions ? <>View Options <FaChevronRight /></> : <><FaPlus /> Add</>}
-                          </AddBtn>
+                          {hasOptions ? (
+                            <AddBtn $themeColor={THEME.main} $outline>
+                              {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
+                              View Options <FaChevronRight />
+                            </AddBtn>
+                          ) : quantity > 0 ? (
+                            <ProductStepper
+                              $themeColor={THEME.main}
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => decrementProduct(event, p)}>
+                                <FaMinus />
+                              </ProductQtyBtn>
+                              <ProductQtyValue $themeColor={THEME.main}>{quantity}</ProductQtyValue>
+                              <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => incrementProduct(event, p)}>
+                                <FaPlus />
+                              </ProductQtyBtn>
+                            </ProductStepper>
+                          ) : (
+                            <AddBtn $themeColor={THEME.main}>
+                              <FaPlus /> Add
+                            </AddBtn>
+                          )}
                         </ProdPriceRow>
                       </ProductBody>
                     </ProductCard>
@@ -1012,10 +1460,16 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
             )}
           </CatalogSection>
 
-          <CartSection>
+          {mobileCartOpen && <MobileCartBackdrop onClick={() => setMobileCartOpen(false)} />}
+          <CartSection $mobileOpen={mobileCartOpen}>
             <CartHeader>
-              <Title style={{ fontSize: '18px' }}>Your Cart</Title>
-              <Subtitle style={{ color: THEME.main, fontWeight: 800 }}>{cart.length} Items</Subtitle>
+              <div>
+                <Title style={{ fontSize: '18px' }}>Your Cart</Title>
+                <Subtitle style={{ color: THEME.main, fontWeight: 800 }}>{cartCountLabel}</Subtitle>
+              </div>
+              <CartCloseBtn type="button" onClick={() => setMobileCartOpen(false)} aria-label="Close cart">
+                <FaTimes />
+              </CartCloseBtn>
             </CartHeader>
 
             <CartBody>
@@ -1032,7 +1486,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
                   <CartItemCard key={cartKeyFor(item)}>
                     <CartItemInfo>
                       <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
-                      <div style={{ color: THEME.main, fontWeight: 800 }}>₹{(item.price * item.qty).toFixed(2)}</div>
+                      <div style={{ color: THEME.main, fontWeight: 800 }}>₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)}</div>
                     </CartItemInfo>
                     <QtyGroup>
                       <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus/></QtyBtn>
@@ -1067,6 +1521,15 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
               </PayBtn>
             </CartFooter>
           </CartSection>
+          {cart.length > 0 && (
+            <MobileCartToggle
+              type="button"
+              $themeColor={THEME.main}
+              onClick={() => setMobileCartOpen(true)}
+            >
+              <FaShoppingBag /> View Cart <span>|</span> {cartCountLabel} <span>|</span> ₹{Number(totals.total_amount || 0).toFixed(2)}
+            </MobileCartToggle>
+          )}
           </>
           )}
         </MainLayout>
@@ -1076,6 +1539,9 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
             product={variantProduct}
             onClose={() => setVariantProduct(null)}
             onSelect={addVariantToCart}
+            quantityMode
+            initialQuantities={currentVariantQuantities}
+            onSelectMany={syncVariantCart}
           />
         )}
       </ModalContent>

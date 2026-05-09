@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { FaCheckCircle, FaTimes, FaUtensils } from 'react-icons/fa';
+import { FaCheckCircle, FaMinus, FaPlus, FaTimes, FaUtensils } from 'react-icons/fa';
 
 const Overlay = styled.div`
   position: fixed;
@@ -12,17 +12,28 @@ const Overlay = styled.div`
   padding: 20px;
   background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 640px) {
+    align-items: flex-end;
+    padding: 0;
+  }
 `;
 
 const Card = styled.div`
   width: min(620px, 100%);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
   background: white;
   border-radius: 24px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   overflow: hidden;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 24px 24px 0 0;
+  }
 `;
 
 const Header = styled.div`
@@ -32,6 +43,10 @@ const Header = styled.div`
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
+
+  @media (max-width: 520px) {
+    padding: 20px;
+  }
 
   h2 {
     margin: 0;
@@ -50,6 +65,12 @@ const Header = styled.div`
     font-size: 12px;
     font-weight: 900;
   }
+
+  @media (max-width: 520px) {
+    h2 {
+      font-size: 21px;
+    }
+  }
 `;
 
 const CloseButton = styled.button`
@@ -65,9 +86,13 @@ const OptionList = styled.div`
   overflow-y: auto;
   display: grid;
   gap: 12px;
+
+  @media (max-width: 520px) {
+    padding: 18px 16px;
+  }
 `;
 
-const OptionButton = styled.button`
+const OptionButton = styled.div`
   border: 2px solid ${props => props.$active ? '#f97316' : '#e2e8f0'};
   background: ${props => props.$active ? '#fff7ed' : 'white'};
   border-radius: 18px;
@@ -78,11 +103,13 @@ const OptionButton = styled.button`
   align-items: center;
   cursor: pointer;
   text-align: left;
+  min-width: 0;
 
   strong {
     color: #0f172a;
     font-size: 17px;
     font-weight: 900;
+    overflow-wrap: anywhere;
   }
 
   span {
@@ -92,11 +119,23 @@ const OptionButton = styled.button`
     font-size: 14px;
     font-weight: 800;
   }
+
+  @media (max-width: 520px) {
+    padding: 16px;
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 const Footer = styled.div`
   padding: 18px 28px 24px;
   border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 14px;
+
+  @media (max-width: 520px) {
+    padding: 16px;
+  }
 `;
 
 const AddButton = styled.button`
@@ -121,6 +160,82 @@ const Empty = styled.div`
   text-align: center;
   color: #64748b;
   font-weight: 800;
+`;
+
+const OptionMeta = styled.div`
+  min-width: 0;
+`;
+
+const QuantityControls = styled.div`
+  display: inline-grid;
+  grid-template-columns: 42px minmax(42px, auto) 42px;
+  align-items: center;
+  justify-content: end;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid #fed7aa;
+  overflow: hidden;
+  background: white;
+  color: #0f172a;
+  flex: 0 0 auto;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    grid-template-columns: 48px 1fr 48px;
+  }
+`;
+
+const QuantityButton = styled.button`
+  height: 44px;
+  border: 0;
+  background: #fff7ed;
+  color: #f97316;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+
+  &:disabled {
+    color: #cbd5e1;
+    background: #f8fafc;
+    cursor: not-allowed;
+  }
+`;
+
+const QuantityValue = styled.div`
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #fed7aa;
+  border-right: 1px solid #fed7aa;
+  font-weight: 900;
+  min-width: 42px;
+`;
+
+const SummaryBox = styled.div`
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+
+  span {
+    color: #475569;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  strong {
+    color: #f97316;
+    font-size: 22px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
 `;
 
 function buildVariantOptions(product) {
@@ -155,10 +270,83 @@ function buildVariantOptions(product) {
   });
 }
 
-export default function VariantSelector({ product, onClose, onSelect }) {
+function normalizeQuantities(source, options) {
+  const next = {};
+  options.forEach((option) => {
+    const raw = source?.[option.id] ?? source?.[String(option.id)] ?? 0;
+    const value = Number(raw || 0);
+    if (Number.isFinite(value) && value > 0) {
+      next[String(option.id)] = value;
+    }
+  });
+  return next;
+}
+
+export default function VariantSelector({
+  product,
+  onClose,
+  onSelect,
+  quantityMode = false,
+  initialQuantities = {},
+  onSelectMany,
+}) {
   const [selectedId, setSelectedId] = useState('');
+  const [quantities, setQuantities] = useState({});
   const options = useMemo(() => buildVariantOptions(product), [product]);
   const selected = options.find((option) => String(option.id) === String(selectedId));
+  const initialQuantityMap = useMemo(
+    () => normalizeQuantities(initialQuantities, options),
+    [initialQuantities, options]
+  );
+  const initialTotalQty = useMemo(
+    () => Object.values(initialQuantityMap).reduce((sum, value) => sum + Number(value || 0), 0),
+    [initialQuantityMap]
+  );
+  const selectedOptions = useMemo(
+    () => options
+      .map((option) => ({ ...option, quantity: Number(quantities[String(option.id)] || 0) }))
+      .filter((option) => option.quantity > 0),
+    [options, quantities]
+  );
+  const totalQty = useMemo(
+    () => selectedOptions.reduce((sum, option) => sum + option.quantity, 0),
+    [selectedOptions]
+  );
+  const totalAmount = useMemo(
+    () => selectedOptions.reduce((sum, option) => sum + Number(option.price || 0) * option.quantity, 0),
+    [selectedOptions]
+  );
+
+  useEffect(() => {
+    if (quantityMode) {
+      setQuantities(initialQuantityMap);
+      return;
+    }
+    setQuantities({});
+    setSelectedId('');
+  }, [initialQuantityMap, quantityMode]);
+
+  const updateQuantity = (optionId, delta) => {
+    setQuantities((current) => {
+      const key = String(optionId);
+      const currentQty = Number(current[key] || 0);
+      const nextQty = Math.max(0, currentQty + delta);
+      if (nextQty <= 0) {
+        const rest = { ...current };
+        delete rest[key];
+        return rest;
+      }
+      return { ...current, [key]: nextQty };
+    });
+  };
+
+  const selectQuantityOption = (optionId) => {
+    setQuantities((current) => {
+      const key = String(optionId);
+      if (Number(current[key] || 0) > 0) return current;
+      return { ...current, [key]: 1 };
+    });
+  };
 
   if (!product) return null;
 
@@ -177,32 +365,73 @@ export default function VariantSelector({ product, onClose, onSelect }) {
 
         {options.length ? (
           <OptionList>
-            {options.map((option) => (
-              <OptionButton
-                key={option.id}
-                type="button"
-                $active={String(selectedId) === String(option.id)}
-                onClick={() => setSelectedId(option.id)}
-              >
-                <div>
-                  <strong>{option.label}</strong>
-                  <span>₹{Number(option.price || 0).toFixed(2)}</span>
-                </div>
-                {String(selectedId) === String(option.id) && <FaCheckCircle color="#f97316" />}
-              </OptionButton>
-            ))}
+            {options.map((option) => {
+              const optionKey = String(option.id);
+              const quantity = Number(quantities[optionKey] || 0);
+              const active = quantityMode ? quantity > 0 : String(selectedId) === optionKey;
+              return (
+                <OptionButton
+                  key={option.id}
+                  role="button"
+                  tabIndex={0}
+                  $active={active}
+                  onClick={() => quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id);
+                    }
+                  }}
+                >
+                  <OptionMeta>
+                    <strong>{option.label}</strong>
+                    <span>₹{Number(option.price || 0).toFixed(2)}</span>
+                  </OptionMeta>
+                  {quantityMode ? (
+                    <QuantityControls
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <QuantityButton type="button" disabled={quantity <= 0} onClick={() => updateQuantity(option.id, -1)}>
+                        <FaMinus />
+                      </QuantityButton>
+                      <QuantityValue>{quantity}</QuantityValue>
+                      <QuantityButton type="button" onClick={() => updateQuantity(option.id, 1)}>
+                        <FaPlus />
+                      </QuantityButton>
+                    </QuantityControls>
+                  ) : (
+                    active && <FaCheckCircle color="#f97316" />
+                  )}
+                </OptionButton>
+              );
+            })}
           </OptionList>
         ) : (
           <Empty>No options are configured for this item.</Empty>
         )}
 
         <Footer>
+          {quantityMode && (
+            <SummaryBox>
+              <span>{totalQty} item{totalQty === 1 ? '' : 's'} selected</span>
+              <strong>₹{totalAmount.toFixed(2)}</strong>
+            </SummaryBox>
+          )}
           <AddButton
             type="button"
-            disabled={!selected}
-            onClick={() => selected && onSelect?.(selected)}
+            disabled={quantityMode ? (!totalQty && !initialTotalQty) : !selected}
+            onClick={() => {
+              if (quantityMode) {
+                onSelectMany?.(selectedOptions);
+                return;
+              }
+              if (selected) onSelect?.(selected);
+            }}
           >
-            Add To Cart
+            {quantityMode
+              ? totalQty > 0 ? `Update Cart (${totalQty})` : 'Clear From Cart'
+              : 'Add To Cart'}
           </AddButton>
         </Footer>
       </Card>
