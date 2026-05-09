@@ -1065,7 +1065,19 @@ export default function Sales() {
   const handleBillOrder = async (order) => {
     if (!order) return;
     if (order?.offline) {
-      await handlePrintOrder(order, 'bill');
+      // Optimistically mark offline order as BILLED so table turns green immediately
+      const billedOffline = { ...order, orderStatus: 'BILLED', order_status: 'BILLED' };
+      setOrders((current) => current.map((item) => {
+        const itemId = item?.id || item?.offlineOperationId || item?.orderNo;
+        const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
+        return itemId === orderId ? { ...item, ...billedOffline } : item;
+      }));
+      setQueuedOrders((current) => current.map((item) => {
+        const itemId = item?.id || item?.offlineOperationId || item?.orderNo;
+        const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
+        return itemId === orderId ? { ...item, ...billedOffline } : item;
+      }));
+      await handlePrintOrder(billedOffline, 'bill');
       setPopoverTable(null);
       return;
     }
@@ -1113,6 +1125,10 @@ export default function Sales() {
     try {
       const { data } = await api.post(`/api/v1/orders/${paymentOrder.id}/settle`, payload);
       const settledOrder = data.data || paymentOrder;
+      // Immediately update local state so table reverts to AVAILABLE
+      setOrders((current) => current.map((item) =>
+        item.id === settledOrder.id ? { ...item, ...settledOrder } : item
+      ));
       showToast('Order settled successfully');
       setPaymentOrder(null);
       await handlePrintOrder(settledOrder, 'bill');
@@ -1136,6 +1152,10 @@ export default function Sales() {
     setActionBusy('cancel');
     try {
       await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: 'Cancelled from POS table popup' });
+      // Immediately mark cancelled so table reverts to AVAILABLE
+      setOrders((current) => current.map((item) =>
+        item.id === order.id ? { ...item, orderStatus: 'CANCELLED', order_status: 'CANCELLED' } : item
+      ));
       showToast('Order cancelled');
       setPopoverTable(null);
       refreshSalesState();
@@ -1160,6 +1180,12 @@ export default function Sales() {
         tableId: targetTableId,
         tableNumber: target?.tableNumber,
       });
+      // Immediately update order's table assignment so both tables recolor
+      setOrders((current) => current.map((item) =>
+        item.id === popoverOrder.id
+          ? { ...item, tableId: targetTableId, tableNumber: target?.tableNumber }
+          : item
+      ));
       showToast(`Order moved to Table ${target?.tableNumber || ''}`.trim());
       setPopoverTable(null);
       refreshSalesState();

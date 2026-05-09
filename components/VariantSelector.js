@@ -282,12 +282,14 @@ function normalizeQuantities(source, options) {
   return next;
 }
 
+const EMPTY_QUANTITIES = {};
+
 export default function VariantSelector({
   product,
   onClose,
   onSelect,
   quantityMode = false,
-  initialQuantities = {},
+  initialQuantities = EMPTY_QUANTITIES,
   onSelectMany,
 }) {
   const [selectedId, setSelectedId] = useState('');
@@ -322,7 +324,7 @@ export default function VariantSelector({
       setQuantities(initialQuantityMap);
       return;
     }
-    setQuantities({});
+    setQuantities(EMPTY_QUANTITIES);
     setSelectedId('');
   }, [initialQuantityMap, quantityMode]);
 
