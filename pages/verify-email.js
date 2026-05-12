@@ -197,7 +197,7 @@ export default function VerifyEmailPage() {
                   </button>
 
                   <div className="resend-container">
-                    <p>Didn't receive the code?</p>
+                    <p>Didn&apos;t receive the code?</p>
                     <button 
                       type="button" 
                       onClick={handleResend} 

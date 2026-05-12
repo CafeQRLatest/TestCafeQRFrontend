@@ -18,7 +18,6 @@ export default function Home() {
     <>
     <Head>
         <title>Cafe QR | The Modern POS Ecosystem</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     </Head>
     <div className="landing-page" style={{ backgroundColor: '#f8fafc' }}>
       {/* Background Ambience */}
@@ -229,28 +228,29 @@ export default function Home() {
           margin: 0;
           padding: 0;
           width: 100%;
-          height: 100%;
-          overflow: hidden !important; /* Kill global scrollbars */
+          min-height: 100%;
+          overflow-x: clip !important;
+          overflow-y: auto !important;
           background: #f8fafc !important; /* Light BG */
           font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
         }
 
         .landing-page {
-          height: 100vh; /* Fill window */
+          min-height: 100dvh;
           width: 100%;
           position: relative;
           display: flex;
           flex-direction: column;
           color: #1e293b; /* Dark Text */
           overflow-y: auto; /* The ONE valid scrollbar */
-          overflow-x: hidden;
+          overflow-x: clip;
           -webkit-overflow-scrolling: touch; /* Smooth iOS scroll */
         }
 
         .ambient-light {
           position: absolute;
-          width: 800px;
-          height: 800px;
+          width: clamp(280px, 62vw, 800px);
+          height: clamp(280px, 62vw, 800px);
           border-radius: 50%;
           filter: blur(140px);
           opacity: 0.15;
@@ -296,13 +296,13 @@ export default function Home() {
         .hero {
           position: relative;
           z-index: 1;
-          min-height: 100vh;
+          min-height: 100dvh;
           width: 100%;
           max-width: 1400px;
           margin: 0 auto;
           display: flex;
           justify-content: center;
-          padding: 40px 32px 120px; /* Added large bottom buffer */
+          padding: clamp(28px, 5vw, 40px) clamp(16px, 3vw, 32px) clamp(72px, 8vw, 120px);
           box-sizing: border-box;
           gap: 40px;
         }
@@ -335,7 +335,7 @@ export default function Home() {
         .badge-dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e; }
 
         .hero-title {
-          font-size: 64px;
+          font-size: clamp(38px, 6vw, 64px);
           line-height: 1.1;
           font-weight: 800;
           margin-bottom: 24px;
@@ -461,8 +461,9 @@ export default function Home() {
         }
         .phone-container {
           position: relative;
-          width: 320px;
-          height: 650px;
+          width: min(320px, calc(100vw - 48px));
+          height: min(650px, calc(100dvh - 96px));
+          min-height: 520px;
           transform-style: preserve-3d;
           animation: float 8s ease-in-out infinite;
         }
@@ -497,7 +498,8 @@ export default function Home() {
         .search-icon { font-size: 14px; opacity: 0.5; color: #a1a1aa; }
         .search-placeholder { font-size: 13px; color: #a1a1aa; }
         
-        .pos-cats { display: flex; gap: 8px; overflow-x: hidden; padding-bottom: 4px; }
+        .pos-cats { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+        .pos-cats::-webkit-scrollbar { display: none; }
         .pos-cat { padding: 6px 14px; border-radius: 20px; background: #27272a; color: #a1a1aa; font-size: 12px; font-weight: 500; white-space: nowrap; }
         .pos-cat.active { background: #f97316; color: white; box-shadow: 0 4px 10px rgba(249, 115, 22, 0.2); }
         
@@ -625,8 +627,9 @@ export default function Home() {
           }
           
           .phone-container { 
-            width: 300px; 
-            height: 600px; 
+            width: min(300px, calc(100vw - 48px));
+            height: min(600px, calc(100dvh - 96px));
+            min-height: 500px;
             transform: scale(0.9);
             margin: 0 auto;
           }
@@ -651,8 +654,8 @@ export default function Home() {
         }
         
         @media (max-width: 480px) {
-          .hero { padding: 40px 20px 60px; gap: 30px; }
-          .hero-title { font-size: 40px; margin-bottom: 16px; }
+          .hero { padding: 32px 16px 56px; gap: 30px; }
+          .hero-title { font-size: clamp(34px, 11vw, 40px); margin-bottom: 16px; letter-spacing: -1px; }
           .hero-sub { font-size: 16px; margin-bottom: 32px; }
           .large-hero-btn { padding: 16px 32px; font-size: 18px; }
           

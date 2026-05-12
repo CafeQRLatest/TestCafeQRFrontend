@@ -232,7 +232,8 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           background: #f8fafc; 
           margin: 0; 
           font-family: 'Plus Jakarta Sans', sans-serif; 
-          overflow-x: hidden;
+          min-width: 320px;
+          overflow-x: clip;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
           font-size: 13px;
@@ -240,7 +241,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         /* The Mesh Gradient Background Container */
         .dashboard-wrapper {
-          min-height: 100vh;
+          min-height: 100dvh;
           background: 
             radial-gradient(at 0% 0%, rgba(249, 115, 22, 0.05) 0px, transparent 50%),
             radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
@@ -316,7 +317,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       <style jsx>{`
         .layout-grid {
           display: flex;
-          min-height: 100vh;
+          min-height: 100dvh;
+          width: 100%;
+          min-width: 0;
         }
 
         .sidebar-desktop {
@@ -335,23 +338,26 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           flex: 1;
           min-width: 0; /* Important for flex child items to not overflow */
           background: #f8fafc;
+          width: 100%;
         }
 
         .dashboard-header {
-           height: 60px;
+           min-height: 60px;
            background: rgba(255, 255, 255, 0.75);
            backdrop-filter: blur(20px) saturate(180%);
            -webkit-backdrop-filter: blur(20px) saturate(180%);
            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
            position: sticky; top: 0; z-index: 40;
-           padding: 0 40px;
+           padding: 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-right, 0px)) 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-left, 0px));
            box-shadow: 
              0 1px 3px 0 rgba(0, 0, 0, 0.02),
              0 4px 12px -4px rgba(0, 0, 0, 0.03);
         }
         .header-inner {
-           height: 100%;
+           min-height: 60px;
            display: flex; justify-content: space-between; align-items: center;
+           gap: 12px;
+           min-width: 0;
         }
 
         .hamburger-btn {
@@ -363,9 +369,10 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         }
         .hamburger-btn:hover { border-color: #f97316; color: #f97316; box-shadow: 0 8px 20px -8px rgba(249, 115, 22, 0.3); }
 
-        .dashboard-wrapper { min-height: 100vh; position: relative; }
+        .dashboard-wrapper { min-height: 100dvh; position: relative; }
         
-        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; }
+        .header-text { min-width: 0; }
         
         .header-text h1 { 
           font-size: 18px; 
@@ -376,9 +383,12 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right { display: flex; align-items: center; gap: clamp(8px, 1.6vw, 16px); flex: 0 0 auto; }
         
         .icon-btn, .ctrl-btn {
            width: 38px; height: 38px; border-radius: 12px;
@@ -432,7 +442,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         .user-dropdown {
            position: absolute; top: calc(100% + 12px); right: 0;
-           width: 240px; background: white; border-radius: 16px;
+           width: min(260px, calc(100vw - 24px)); background: white; border-radius: 16px;
            border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
            padding: 8px; z-index: 100; animation: slideIn 0.2s ease-out;
         }
@@ -476,14 +486,22 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         .dropdown-item.logout { color: #ef4444; }
         .dropdown-item.logout:hover { background: #fef2f2; }
 
-        .content-area { padding: ${noSidebar ? '0' : '24px'}; }
+        .content-area {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          padding: ${noSidebar ? '0' : 'clamp(12px, 2.2vw, 24px)'};
+          padding-bottom: ${noSidebar ? '0' : 'calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-bottom, 0px))'};
+        }
 
         /* Mobile Sidebar Drawer */
         .mobile-sidebar {
           position: fixed; left: 0; top: 0; bottom: 0;
-          width: 280px; background: white; z-index: 1000;
+          width: min(320px, 86vw); background: white; z-index: 1000;
           transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
           box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         .mobile-sidebar.open { transform: translateX(0); }
         .mobile-sidebar-backdrop {
@@ -497,8 +515,24 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           .sidebar-desktop { display: none; }
           .hamburger-btn { display: flex; }
           .mobile-hide { display: none; }
-          .dashboard-header { padding: 0 20px; }
-          .content-area { padding: 24px; }
+          .dashboard-header { padding: 0 max(14px, env(safe-area-inset-right, 0px)) 0 max(14px, env(safe-area-inset-left, 0px)); }
+          .content-area { padding: 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+        }
+
+        @media (max-width: 640px) {
+          .dashboard-header { min-height: 58px; }
+          .header-inner { min-height: 58px; }
+          .header-text h1 { font-size: 16px; max-width: 46vw; }
+          .icon-btn, .ctrl-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .user-info-brief { display: none; }
+          .avatar-btn { padding: 4px; border-radius: 12px; }
+          .avatar { width: 30px; height: 30px; border-radius: 9px; }
+          .content-area { padding: 12px; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+        }
+
+        @media (max-width: 380px) {
+          .header-text h1 { max-width: 38vw; }
+          .icon-btn { display: none; }
         }
       `}</style>
     </div>

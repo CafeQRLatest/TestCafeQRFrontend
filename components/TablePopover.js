@@ -23,17 +23,29 @@ const Overlay = styled.div`
   padding: 20px;
   background: rgba(15, 23, 42, 0.48);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 640px) {
+    align-items: flex-end;
+    padding: 0;
+  }
 `;
 
 const Card = styled.div`
   width: min(456px, 100%);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: white;
   border-radius: 24px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   padding: 24px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    border-radius: 24px 24px 0 0;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const Header = styled.div`
@@ -44,11 +56,14 @@ const Header = styled.div`
 `;
 
 const Title = styled.div`
+  min-width: 0;
+
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: 26px;
+    font-size: clamp(22px, 6vw, 26px);
     font-weight: 900;
+    overflow-wrap: anywhere;
   }
 
   span {
@@ -113,6 +128,17 @@ const InfoLine = styled.div`
     color: #0f172a;
     font-weight: 900;
     text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 420px) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+
+    strong {
+      text-align: left;
+    }
   }
 `;
 
@@ -131,6 +157,10 @@ const ActionGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+
+  @media (max-width: 380px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const ActionButton = styled.button`
@@ -149,6 +179,8 @@ const ActionButton = styled.button`
   justify-content: center;
   gap: 9px;
   text-transform: uppercase;
+  min-width: 0;
+  overflow-wrap: anywhere;
 
   &:disabled {
     opacity: 0.55;

@@ -274,7 +274,7 @@ function AdjustmentContent() {
                  {showSuggestions && (
                    <div className="suggestions-popover">
                      {filteredSuggestions.length === 0 ? (
-                       <div className="no-sug">No products found matching "{productSearch}"</div>
+                        <div className="no-sug">No products found matching &quot;{productSearch}&quot;</div>
                      ) : (
                        filteredSuggestions.map(p => (
                          <div key={p.id} className="sug-item" onClick={() => addProductToManifest(p)}>

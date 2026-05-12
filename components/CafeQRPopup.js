@@ -21,7 +21,7 @@ export default function CafeQRPopup({
 
   return (
     <div className="cafeqr-popup-overlay" onClick={handleOverlayClick}>
-      <div className="cafeqr-popup-content" style={{ maxWidth }}>
+      <div className="cafeqr-popup-content" style={{ '--popup-max-width': maxWidth }}>
         <div className="cafeqr-popup-header">
           <div className="header-left">
             {Icon && <div className="header-icon"><Icon /></div>}
@@ -66,16 +66,17 @@ export default function CafeQRPopup({
           align-items: center;
           justify-content: center;
           z-index: 2000;
+          padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
           /* No animation as per user request */
         }
 
         .cafeqr-popup-content {
           background: white;
-          width: 95%;
+          width: min(100%, var(--popup-max-width));
           border-radius: 16px;
           display: flex;
           flex-direction: column;
-          max-height: 90vh;
+          max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
           overflow: hidden;
           box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
           border: 1px solid #e2e8f0;
@@ -95,6 +96,7 @@ export default function CafeQRPopup({
           display: flex;
           align-items: center;
           gap: 16px;
+          min-width: 0;
         }
 
         .header-icon {
@@ -114,6 +116,7 @@ export default function CafeQRPopup({
           font-size: 18px;
           font-weight: 800;
           color: #0f172a;
+          overflow-wrap: anywhere;
         }
 
         .close-btn {
@@ -148,6 +151,7 @@ export default function CafeQRPopup({
           justify-content: flex-end;
           gap: 12px;
           background: #fff;
+          padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
         }
 
         .popup-btn-secondary {
@@ -191,11 +195,14 @@ export default function CafeQRPopup({
         }
 
         @media (max-width: 600px) {
+          .cafeqr-popup-overlay {
+            align-items: flex-end;
+            padding: 0;
+          }
           .cafeqr-popup-content {
             width: 100%;
-            height: 100%;
-            max-height: 100vh;
-            border-radius: 0;
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+            border-radius: 22px 22px 0 0;
           }
           .cafeqr-popup-header {
             padding: 16px 20px;
@@ -210,10 +217,15 @@ export default function CafeQRPopup({
           }
           .cafeqr-popup-footer {
             padding: 16px 20px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            display: grid;
+            grid-template-columns: 1fr;
           }
           .popup-btn-primary, .popup-btn-secondary {
             padding: 10px 16px;
             font-size: 13px;
+            width: 100%;
+            justify-content: center;
           }
         }
       `}</style>

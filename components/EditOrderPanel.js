@@ -15,17 +15,28 @@ const Overlay = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
+
+  @media (max-width: 760px) {
+    align-items: flex-end;
+    padding: 0;
+  }
 `;
 
 const Panel = styled.div`
   width: min(980px, 100%);
-  height: min(760px, calc(100vh - 40px));
+  height: min(760px, calc(100dvh - 40px));
   background: #f8fafc;
   border-radius: 24px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   display: grid;
   grid-template-rows: auto 1fr auto;
   overflow: hidden;
+
+  @media (max-width: 760px) {
+    width: 100%;
+    height: calc(100dvh - env(safe-area-inset-top, 0px));
+    border-radius: 24px 24px 0 0;
+  }
 `;
 
 const Header = styled.div`
@@ -36,12 +47,14 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+  min-width: 0;
 
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: 22px;
+    font-size: clamp(20px, 5.8vw, 22px);
     font-weight: 900;
+    overflow-wrap: anywhere;
   }
 
   span {
@@ -71,6 +84,7 @@ const Body = styled.div`
   @media (max-width: 760px) {
     grid-template-columns: 1fr;
     overflow-y: auto;
+    padding: 14px;
   }
 `;
 
@@ -138,6 +152,7 @@ const ProductButton = styled.button`
   justify-content: space-between;
   gap: 12px;
   text-align: left;
+  min-width: 0;
 
   strong {
     display: block;
@@ -175,6 +190,11 @@ const LineRow = styled.div`
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   background: #f8fafc;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
 `;
 
 const LineInfo = styled.div`
@@ -205,6 +225,11 @@ const QtyGroup = styled.div`
   border-radius: 12px;
   background: white;
   border: 1px solid #e2e8f0;
+
+  @media (max-width: 520px) {
+    justify-content: space-between;
+    width: 100%;
+  }
 `;
 
 const IconButton = styled.button`
@@ -229,12 +254,19 @@ const Footer = styled.div`
   gap: 16px;
   align-items: center;
   flex-wrap: wrap;
+
+  @media (max-width: 520px) {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const Total = styled.div`
   color: #0f172a;
   font-size: 18px;
   font-weight: 900;
+  overflow-wrap: anywhere;
 `;
 
 const SaveButton = styled.button`
@@ -250,6 +282,11 @@ const SaveButton = styled.button`
   align-items: center;
   font-size: 14px;
   font-weight: 900;
+
+  @media (max-width: 520px) {
+    width: 100%;
+    justify-content: center;
+  }
 
   &:disabled {
     opacity: 0.55;

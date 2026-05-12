@@ -12,16 +12,28 @@ const Overlay = styled.div`
   padding: 20px;
   background: rgba(15, 23, 42, 0.48);
   backdrop-filter: blur(10px);
+
+  @media (max-width: 640px) {
+    align-items: flex-end;
+    padding: 0;
+  }
 `;
 
 const Card = styled.div`
   width: min(432px, 100%);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: white;
   border-radius: 24px;
   padding: 24px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+
+  @media (max-width: 640px) {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    border-radius: 24px 24px 0 0;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  }
 `;
 
 const Header = styled.div`
@@ -33,8 +45,9 @@ const Header = styled.div`
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: 22px;
+    font-size: clamp(20px, 5.6vw, 22px);
     font-weight: 900;
+    overflow-wrap: anywhere;
   }
 
   span {
@@ -73,9 +86,10 @@ const TotalBanner = styled.div`
   strong {
     display: block;
     margin-top: 8px;
-    font-size: 38px;
+    font-size: clamp(30px, 10vw, 38px);
     line-height: 1;
     font-weight: 900;
+    overflow-wrap: anywhere;
   }
 `;
 
@@ -105,7 +119,7 @@ const Row = styled.div`
 const FieldGrid = styled.div`
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 10px;
 `;
 
@@ -131,7 +145,7 @@ const Field = styled.label`
 
 const MethodGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 10px;
   margin-top: 16px;
 `;
@@ -155,6 +169,10 @@ const Actions = styled.div`
   grid-template-columns: 1fr 1.3fr;
   gap: 12px;
   margin-top: 20px;
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Button = styled.button`
@@ -166,6 +184,10 @@ const Button = styled.button`
   color: ${props => props.$primary ? 'white' : '#475569'};
   font-size: 15px;
   font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 
   &:disabled {
     opacity: 0.55;

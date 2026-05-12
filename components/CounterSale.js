@@ -180,6 +180,11 @@ const CartSection = styled.aside`
     transition: transform 0.25s ease;
     z-index: 60;
   }
+
+  @media (max-width: 520px) {
+    max-height: calc(82dvh - env(safe-area-inset-bottom, 0px));
+    border-radius: 20px 20px 0 0;
+  }
 `;
 
 const HeaderModeSwitch = styled.div`
@@ -665,6 +670,11 @@ const CartBody = styled.div`
   @media (max-width: 900px) {
     max-height: 38dvh;
   }
+
+  @media (max-width: 520px) {
+    padding: 14px;
+    max-height: 42dvh;
+  }
 `;
 
 const CartFooter = styled.div`
@@ -676,7 +686,11 @@ const CartFooter = styled.div`
   gap: 16px;
 
   @media (max-width: 900px) {
-    padding: 18px 20px;
+    padding: 18px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 520px) {
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -727,6 +741,11 @@ const CartItemCard = styled.div`
   border-radius: 16px;
   border: 1px solid #f1f5f9;
   background: white;
+
+  @media (max-width: 420px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 const CartItemInfo = styled.div`
@@ -734,6 +753,7 @@ const CartItemInfo = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 `;
 
 const QtyGroup = styled.div`
@@ -795,7 +815,7 @@ const MobileCartToggle = styled.button`
   @media (max-width: 900px) {
     position: absolute;
     left: 50%;
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     z-index: 45;
     display: inline-flex;
@@ -835,11 +855,17 @@ const CustomerPickerArea = styled.div`
   position: relative;
   z-index: 10;
   min-width: 250px;
+
+  @media (max-width: 720px) {
+    width: 100%;
+    min-width: 0;
+  }
 `;
 
 const CustomerInputWrap = styled.div`
   display: flex;
   align-items: center;
+  min-width: 0;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   border-radius: 12px;

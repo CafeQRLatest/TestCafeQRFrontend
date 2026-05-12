@@ -72,6 +72,7 @@ export default function GlobalUI() {
           pointer-events: auto;
           min-width: 280px;
           max-width: 400px;
+          overflow-wrap: anywhere;
         }
 
         @keyframes slideInRight {
@@ -113,6 +114,7 @@ export default function GlobalUI() {
           background: white;
           width: 100%;
           max-width: 360px;
+          max-height: calc(100dvh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
           border-radius: 20px;
           position: relative;
           overflow: hidden;
@@ -144,6 +146,7 @@ export default function GlobalUI() {
           font-weight: 800; 
           color: #0f172a; 
           letter-spacing: -0.3px;
+          overflow-wrap: anywhere;
         }
 
         .modal-body p { 
@@ -210,6 +213,41 @@ export default function GlobalUI() {
           font-size: 10px;
         }
         .modal-close-x:hover { background: #f1f5f9; color: #ef4444; }
+
+        @media (max-width: 640px) {
+          .global-toast-container {
+            top: auto;
+            right: 12px;
+            left: 12px;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+          }
+
+          .custom-toast {
+            width: 100%;
+            min-width: 0;
+            max-width: none;
+          }
+
+          .modal-overlay {
+            align-items: flex-end;
+            padding: 0;
+          }
+
+          .modal-box {
+            max-width: none;
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+            border-radius: 22px 22px 0 0;
+          }
+
+          .modal-body {
+            padding: 28px 20px 20px;
+          }
+
+          .modal-footer {
+            grid-template-columns: 1fr;
+            padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px));
+          }
+        }
       `}</style>
     </>
   );

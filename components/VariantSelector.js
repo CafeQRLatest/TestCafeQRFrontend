@@ -31,7 +31,7 @@ const Card = styled.div`
 
   @media (max-width: 640px) {
     width: 100%;
-    max-height: 92dvh;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
     border-radius: 24px 24px 0 0;
   }
 `;
@@ -53,6 +53,10 @@ const Header = styled.div`
     color: #0f172a;
     font-size: 24px;
     font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    overflow-wrap: anywhere;
   }
 
   span {
@@ -134,7 +138,7 @@ const Footer = styled.div`
   gap: 14px;
 
   @media (max-width: 520px) {
-    padding: 16px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -235,6 +239,15 @@ const SummaryBox = styled.div`
     font-size: 22px;
     font-weight: 900;
     white-space: nowrap;
+  }
+
+  @media (max-width: 420px) {
+    align-items: stretch;
+    flex-direction: column;
+
+    strong {
+      white-space: normal;
+    }
   }
 `;
 

@@ -13,7 +13,7 @@ export const PageContainer = styled.div`
   font-family: 'Outfit', 'DM Sans', 'Inter', sans-serif;
   background-color: #f8fafc;
   animation: ${fadeIn} 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
-  overflow-x: hidden;
+  overflow-x: clip;
   display: flex;
   flex-direction: column;
 `;
@@ -28,6 +28,15 @@ export const POSHeader = styled.div`
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   margin-bottom: 24px;
   border-radius: 0 0 24px 24px;
+  gap: 16px;
+  min-width: 0;
+
+  @media (max-width: 720px) {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+    border-radius: 0 0 18px 18px;
+  }
 `;
 
 export const HeaderTitle = styled.h1`
@@ -38,6 +47,12 @@ export const HeaderTitle = styled.h1`
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  @media (max-width: 520px) {
+    font-size: 20px;
+  }
 `;
 
 export const MainLayout = styled.div`
@@ -46,9 +61,15 @@ export const MainLayout = styled.div`
   align-items: flex-start;
   width: 100%;
   padding: 0 24px;
+  min-width: 0;
 
   @media (max-width: 1200px) {
     flex-direction: column;
+  }
+
+  @media (max-width: 720px) {
+    padding: 0 14px;
+    gap: 16px;
   }
 `;
 
@@ -57,6 +78,8 @@ export const MenuSection = styled.div`
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
+  width: 100%;
 `;
 
 export const CartSidebar = styled.div`
@@ -66,7 +89,7 @@ export const CartSidebar = styled.div`
   box-shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
+  height: calc(100dvh - 120px);
   position: sticky;
   top: 24px;
   overflow: hidden;
@@ -86,6 +109,14 @@ export const TopBar = styled.div`
   padding: 16px 24px;
   border-radius: 24px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  min-width: 0;
+
+  @media (max-width: 640px) {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px;
+    border-radius: 18px;
+  }
 `;
 
 export const SearchInput = styled.input`
@@ -135,8 +166,12 @@ export const CategoryPill = styled.button`
 
 export const ProductGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
   gap: 16px;
+
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 export const ProductCard = styled.div`
@@ -147,6 +182,7 @@ export const ProductCard = styled.div`
   transition: all 0.3s;
   cursor: pointer;
   box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  min-width: 0;
 
   &:hover {
     transform: translateY(-4px);
@@ -175,12 +211,19 @@ export const ProductName = styled.div`
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 `;
 
 export const ProductPriceRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+
+  @media (max-width: 420px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 export const ProductPrice = styled.div`
@@ -217,6 +260,13 @@ export const CartHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  min-width: 0;
+
+  @media (max-width: 420px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 export const CartTitle = styled.h2`
@@ -252,6 +302,7 @@ export const CartItemInfo = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 `;
 
 export const CartItemName = styled.span`
@@ -273,6 +324,7 @@ export const QtyControls = styled.div`
   background: #f1f5f9;
   padding: 4px 6px;
   border-radius: 12px;
+  flex: 0 0 auto;
 `;
 
 export const QtyBtn = styled.button`
@@ -339,6 +391,7 @@ export const ActionButtonGroup = styled.div`
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 `;
 
 export const ActionBtn = styled.button`
@@ -366,8 +419,12 @@ export const ActionBtn = styled.button`
 /* Table Mode Styles */
 export const TableGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
   gap: 20px;
+
+  @media (max-width: 360px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 export const TableCard = styled.div`
@@ -422,6 +479,8 @@ export const ModeSwitchGroup = styled.div`
   padding: 6px;
   border-radius: 16px;
   gap: 4px;
+  max-width: 100%;
+  overflow-x: auto;
 `;
 
 export const ModeSwitchBtn = styled.button`
@@ -439,4 +498,5 @@ export const ModeSwitchBtn = styled.button`
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 `;

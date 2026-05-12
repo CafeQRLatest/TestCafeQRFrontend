@@ -45,7 +45,7 @@ const SubscriptionGate = ({ children }) => {
 
   if (loading || (!isReady && isAuthenticated) || shouldBlock) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
         <div className="spinner"></div>
         <style jsx>{`
           .spinner {
