@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CafeQR</string>
-    <string name="title_activity_main">CafeQR</string>
-    <string name="package_name">com.cafeqr.app</string>
-    <string name="custom_url_scheme">com.cafeqr.app</string>
+    <string name="app_name">CafeQR POS 2.0</string>
+    <string name="title_activity_main">CafeQR POS 2.0</string>
+    <string name="package_name">com.cafeqr.app.v2</string>
+    <string name="custom_url_scheme">com.cafeqr.app.v2</string>
 </resources>
