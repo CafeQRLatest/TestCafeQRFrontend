@@ -177,15 +177,27 @@ const Select = styled.select`
   font-weight: 800;
 `;
 
+const BlockedNotice = styled.div`
+  grid-column: 1 / -1;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+  color: #c2410c;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+`;
+
 function statusPalette(status) {
   const normalized = String(status || 'AVAILABLE').toUpperCase();
-  if (normalized === 'OCCUPIED' || normalized === 'KITCHEN' || normalized === 'CONFIRMED') {
+  if (normalized === 'OCCUPIED' || normalized === 'KITCHEN' || normalized === 'CONFIRMED' || normalized === 'DRAFT') {
     return { label: 'OCCUPIED', bg: '#fee2e2', color: '#dc2626' };
   }
   if (normalized === 'BILLED') return { label: 'BILLED', bg: '#dcfce7', color: '#059669' };
   if (normalized === 'RESERVED') return { label: 'RESERVED', bg: '#dbeafe', color: '#2563eb' };
   if (normalized === 'CLEANING') return { label: 'CLEANING', bg: '#fef3c7', color: '#d97706' };
-  if (normalized === 'MAINTENANCE') return { label: 'MAINTENANCE', bg: '#e2e8f0', color: '#475569' };
+  if (normalized === 'MAINTENANCE') return { label: 'HOLD', bg: '#e2e8f0', color: '#475569' };
   return { label: 'AVAILABLE', bg: '#f8fafc', color: '#64748b' };
 }
 
@@ -193,6 +205,8 @@ export default function TablePopover({
   table,
   order,
   availableTables = [],
+  canStartOrder = true,
+  blockedMessage = '',
   busy = false,
   onClose,
   onStartOrder,
@@ -206,7 +220,7 @@ export default function TablePopover({
 }) {
   const [showMove, setShowMove] = useState(false);
   const [targetTableId, setTargetTableId] = useState('');
-  const status = useMemo(() => statusPalette(order?.orderStatus || table?.status), [order, table]);
+  const status = useMemo(() => statusPalette(order?.orderStatus || order?.order_status || table?.status), [order, table]);
   const hasOrder = Boolean(order);
 
   if (!table) return null;
@@ -299,7 +313,18 @@ export default function TablePopover({
           </>
         ) : (
           <ActionGrid>
-            <WideButton type="button" $bg="#f97316" $color="white" disabled={busy} onClick={() => onStartOrder?.(table)}>
+            {!canStartOrder && (
+              <BlockedNotice>
+                {blockedMessage || `Table is currently ${status.label}. Change it to Available before placing an order.`}
+              </BlockedNotice>
+            )}
+            <WideButton
+              type="button"
+              $bg="#f97316"
+              $color="white"
+              disabled={busy || !canStartOrder}
+              onClick={() => canStartOrder && onStartOrder?.(table)}
+            >
               <FaReceipt /> Start Order
             </WideButton>
             <WideButton type="button" $bg="#f8fafc" $color="#475569" disabled={busy} onClick={() => onEditTable?.(table)}>

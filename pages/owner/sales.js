@@ -23,12 +23,12 @@ import { enqueueCloudPrintJob, fetchCloudPrintJobs, isPrintStationEnabled, markC
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 
 const TABLE_STATUS_META = {
-  AVAILABLE: { bg: '#ffffff', fg: '#0f172a', border: '#e2e8f0', soft: '#f8fafc', accent: '#64748b' },
-  OCCUPIED: { bg: '#ef4444', fg: '#ffffff', border: '#dc2626', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
-  BILLED: { bg: '#10b981', fg: '#ffffff', border: '#059669', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
-  RESERVED: { bg: '#3b82f6', fg: '#ffffff', border: '#2563eb', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
-  CLEANING: { bg: '#f59e0b', fg: '#111827', border: '#d97706', soft: 'rgba(255,255,255,0.24)', accent: '#111827' },
-  MAINTENANCE: { bg: '#64748b', fg: '#ffffff', border: '#475569', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
+  AVAILABLE: { label: 'AVAILABLE', bg: '#ffffff', fg: '#0f172a', border: '#e2e8f0', soft: '#f8fafc', accent: '#64748b' },
+  OCCUPIED: { label: 'OCCUPIED', bg: '#ef4444', fg: '#ffffff', border: '#dc2626', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
+  BILLED: { label: 'BILLED', bg: '#10b981', fg: '#ffffff', border: '#059669', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
+  RESERVED: { label: 'RESERVED', bg: '#3b82f6', fg: '#ffffff', border: '#2563eb', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
+  CLEANING: { label: 'CLEANING', bg: '#f59e0b', fg: '#111827', border: '#d97706', soft: 'rgba(255,255,255,0.24)', accent: '#111827' },
+  MAINTENANCE: { label: 'HOLD', bg: '#64748b', fg: '#ffffff', border: '#475569', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
 };
 
 function normalizeTableStatus(status) {
@@ -40,6 +40,28 @@ function normalizeTableStatus(status) {
 
 function tableStatusMeta(status) {
   return TABLE_STATUS_META[normalizeTableStatus(status)];
+}
+
+function resolveTableOrderState(table, activeOrder) {
+  const orderStatus = String(activeOrder?.orderStatus || activeOrder?.order_status || '').toUpperCase();
+  let status = normalizeTableStatus(table?.status);
+
+  if (orderStatus === 'BILLED') {
+    status = 'BILLED';
+  } else if (activeOrder && isOpenOrder(activeOrder)) {
+    status = 'OCCUPIED';
+  }
+
+  const label = tableStatusMeta(status).label;
+  const canStartOrder = !activeOrder && status === 'AVAILABLE';
+  return {
+    status,
+    label,
+    canStartOrder,
+    blockedMessage: canStartOrder
+      ? ''
+      : `Table ${table?.tableNumber || ''} is currently ${label}. Change it to Available before placing an order.`.trim(),
+  };
 }
 
 const fadeIn = keyframes`
@@ -944,10 +966,25 @@ export default function Sales() {
   }, [activeOrderByTable]);
 
   const popoverOrder = useMemo(() => getActiveOrderForTable(popoverTable), [getActiveOrderForTable, popoverTable]);
+  const popoverTableState = useMemo(
+    () => resolveTableOrderState(popoverTable, popoverOrder),
+    [popoverOrder, popoverTable]
+  );
 
   const availableMoveTables = useMemo(() => (
-    tables.filter((table) => table.id !== popoverTable?.id && normalizeTableStatus(table.status) === 'AVAILABLE')
-  ), [popoverTable, tables]);
+    tables.filter((table) => {
+      if (table.id === popoverTable?.id) return false;
+      return resolveTableOrderState(table, getActiveOrderForTable(table)).canStartOrder;
+    })
+  ), [getActiveOrderForTable, popoverTable, tables]);
+
+  const tableStatusCounts = useMemo(() => (
+    tables.reduce((counts, table) => {
+      const status = resolveTableOrderState(table, getActiveOrderForTable(table)).status;
+      counts[status] = (counts[status] || 0) + 1;
+      return counts;
+    }, {})
+  ), [getActiveOrderForTable, tables]);
 
   const displayOrders = useMemo(() => {
     return mergeOrdersWithQueued(orders, queuedOrders)
@@ -1061,6 +1098,11 @@ export default function Sales() {
   }, [loadOfflineOrderState, printKind, printOrder]);
 
   const handleOpenTableOrder = (table) => {
+    const tableState = resolveTableOrderState(table, getActiveOrderForTable(table));
+    if (!tableState.canStartOrder) {
+      showToast(tableState.blockedMessage, 'error');
+      return;
+    }
     setPopoverTable(null);
     setSelectedTable(table);
   };
@@ -1233,16 +1275,10 @@ export default function Sales() {
     }
   };
 
-  const resolveTableDisplayStatus = (table, activeOrder) => {
-    const orderStatus = String(activeOrder?.orderStatus || activeOrder?.order_status || '').toUpperCase();
-    if (orderStatus === 'BILLED') return 'BILLED';
-    if (activeOrder && isOpenOrder(activeOrder)) return 'OCCUPIED';
-    return normalizeTableStatus(table?.status);
-  };
-
   const renderTable = (table, asRow = false) => {
     const activeOrder = getActiveOrderForTable(table);
-    const displayStatus = resolveTableDisplayStatus(table, activeOrder);
+    const tableState = resolveTableOrderState(table, activeOrder);
+    const displayStatus = tableState.status;
     const Card = asRow ? TableRow : TableCard;
     return (
       <Card key={table.id} $status={displayStatus} onClick={() => setPopoverTable(table)}>
@@ -1252,7 +1288,7 @@ export default function Sales() {
           <TableCapacity>{table.seatingCapacity} Seats • {table.section || 'Indoor'}</TableCapacity>
           {activeOrder && <ActiveOrderHint>{statusText(activeOrder)} • {money(orderTotal(activeOrder))}</ActiveOrderHint>}
         </TableMeta>
-        <StatusPill $status={displayStatus}>{displayStatus.replace('_', ' ')}</StatusPill>
+        <StatusPill $status={displayStatus}>{tableState.label}</StatusPill>
       </Card>
     );
   };
@@ -1303,9 +1339,11 @@ export default function Sales() {
                 <FaUtensils color="#94a3b8" /> Table Management
               </SectionTitle>
               <StatsRow>
-                <StatPill $bg="#fee2e2" $color="#dc2626">Occupied: {tables.filter(t => normalizeTableStatus(t.status) === 'OCCUPIED').length}</StatPill>
-                <StatPill $bg="#dcfce7" $color="#059669">Billed: {tables.filter(t => normalizeTableStatus(t.status) === 'BILLED').length}</StatPill>
-                <StatPill>Available: {tables.filter(t => normalizeTableStatus(t.status) === 'AVAILABLE').length}</StatPill>
+                <StatPill $bg="#fee2e2" $color="#dc2626">Occupied: {tableStatusCounts.OCCUPIED || 0}</StatPill>
+                <StatPill $bg="#dbeafe" $color="#2563eb">Reserved: {tableStatusCounts.RESERVED || 0}</StatPill>
+                <StatPill $bg="#e2e8f0" $color="#475569">Hold: {tableStatusCounts.MAINTENANCE || 0}</StatPill>
+                <StatPill $bg="#dcfce7" $color="#059669">Billed: {tableStatusCounts.BILLED || 0}</StatPill>
+                <StatPill>Available: {tableStatusCounts.AVAILABLE || 0}</StatPill>
                 <StatPill>Open Orders: {displayOrders.filter(isOpenOrder).length}</StatPill>
               </StatsRow>
             </SectionHeader>
@@ -1314,7 +1352,7 @@ export default function Sales() {
               {Object.entries(TABLE_STATUS_META).map(([status, meta]) => (
                 <LegendItem key={status}>
                   <LegendDot $color={meta.bg} $border={meta.border} />
-                  {status.charAt(0) + status.slice(1).toLowerCase()}
+                  {meta.label.charAt(0) + meta.label.slice(1).toLowerCase()}
                 </LegendItem>
               ))}
             </LegendRow>
@@ -1372,6 +1410,8 @@ export default function Sales() {
             table={popoverTable}
             order={popoverOrder}
             availableTables={availableMoveTables}
+            canStartOrder={popoverTableState.canStartOrder}
+            blockedMessage={popoverTableState.blockedMessage}
             busy={Boolean(actionBusy)}
             onClose={() => setPopoverTable(null)}
             onStartOrder={handleOpenTableOrder}
