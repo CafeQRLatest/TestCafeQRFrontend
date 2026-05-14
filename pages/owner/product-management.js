@@ -319,6 +319,12 @@ function ProductManagementContent() {
 
   const handleSaveProduct = async (e) => {
     if (e) e.preventDefault();
+
+    if (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '') {
+      notify('error', 'Sale Price is required');
+      return;
+    }
+
     setSaving(true);
     try {
       const isNew = !selectedProduct.id;
@@ -451,11 +457,11 @@ function ProductManagementContent() {
     (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase())))
   );
   const categoryOptions = selectedProduct?.category?.id
-    ? normalizeById(categories, selectedProduct.category)
-    : categories;
+    ? normalizeById(categories.filter(c => c.isActive !== false), selectedProduct.category)
+    : categories.filter(c => c.isActive !== false);
   const uomOptions = selectedProduct?.uom?.id
-    ? normalizeById(uoms, selectedProduct.uom)
-    : uoms;
+    ? normalizeById(uoms.filter(u => u.isActive !== false), selectedProduct.uom)
+    : uoms.filter(u => u.isActive !== false);
 
   return (
     <DashboardLayout title="Product Management" showBack={true}>
@@ -775,7 +781,7 @@ function ProductManagementContent() {
                  <div className="erp-section" style={{ marginTop: '16px' }}>
                     <div className="section-title"><FaClock /> Pricing & Tax</div>
                     <div className="input-row">
-                       <div className="input-group"><label>Sale Price</label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
+                       <div className="input-group"><label>Sale Price <span style={{color: 'red'}}>*</span></label><input type="number" step="0.01" required value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
                        <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <label style={{ margin: 0 }}>Packaged Good</label>
                           <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
@@ -826,19 +832,27 @@ function ProductManagementContent() {
                        <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
                     </div>
                  </div>
+                       </div>
+                       <div className="input-group"><label>Min Stock Level</label><input type="number" value={selectedProduct.minStockLevel || 0} onChange={e => setSelectedProduct({...selectedProduct, minStockLevel: parseInt(e.target.value)})} /></div>
+                    </div>
+                    <div className="input-group" style={{ marginTop: '16px' }}>
+                       <label>Barcode</label>
+                       <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
+                    </div>
+                 </div>
                </>)}
 
                {formTab === 'variants' && (<>
                  <div className="erp-section">
                     <div className="section-title"><FaSlidersH /> Variant Mappings</div>
                     <p className="section-desc">Manage customization groups for this product.</p>
-                    
                      <div className="mapping-selector" style={{ marginBottom: '16px' }}>
                         <label>Add Variant Group</label>
                         <div style={{ display: 'flex', gap: '8px' }}>
                            <NiceSelect 
                              placeholder="Search variant group to add..."
                              options={variantGroups
+                               .filter(g => g.isActive !== false)
                                .filter(g => !(selectedProduct.variantMappings || []).some(m => m.variantGroup?.id === g.id))
                                .map(g => ({ value: g.id, label: g.name }))}
                              value=""
