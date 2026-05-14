@@ -108,6 +108,12 @@ const OptionButton = styled.div`
   cursor: pointer;
   text-align: left;
   min-width: 0;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: ${props => props.$active ? '#f97316' : '#cbd5e1'};
+    transform: translateY(-1px);
+  }
 
   strong {
     color: #0f172a;
@@ -251,6 +257,46 @@ const SummaryBox = styled.div`
   }
 `;
 
+const SectionHeader = styled.div`
+  margin: 12px 0 4px;
+  padding: 0 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #f1f5f9;
+  }
+`;
+
+const UpsellList = styled.div`
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+`;
+
+const UpsellButton = styled(OptionButton)`
+  padding: 12px 16px;
+  border-radius: 14px;
+  border-width: 1px;
+
+  strong {
+    font-size: 15px;
+  }
+
+  span {
+    font-size: 13px;
+  }
+`;
+
 function buildVariantOptions(product) {
   const basePrice = Number(product?.price || 0);
   const pricings = Array.isArray(product?.variantPricings) ? product.variantPricings : [];
@@ -307,7 +353,11 @@ export default function VariantSelector({
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [quantities, setQuantities] = useState({});
+  const [selectedUpsells, setSelectedUpsells] = useState([]);
+
   const options = useMemo(() => buildVariantOptions(product), [product]);
+  const upsells = useMemo(() => (product?.upsells || []).filter(u => u.isActive !== false), [product]);
+
   const selected = options.find((option) => String(option.id) === String(selectedId));
   const initialQuantityMap = useMemo(
     () => normalizeQuantities(initialQuantities, options),
@@ -327,10 +377,11 @@ export default function VariantSelector({
     () => selectedOptions.reduce((sum, option) => sum + option.quantity, 0),
     [selectedOptions]
   );
-  const totalAmount = useMemo(
-    () => selectedOptions.reduce((sum, option) => sum + Number(option.price || 0) * option.quantity, 0),
-    [selectedOptions]
-  );
+  const totalAmount = useMemo(() => {
+    const variantsTotal = selectedOptions.reduce((sum, option) => sum + Number(option.price || 0) * option.quantity, 0);
+    const upsellsTotal = selectedUpsells.reduce((sum, u) => sum + Number(u.upsellProduct?.price || 0), 0);
+    return variantsTotal + upsellsTotal;
+  }, [selectedOptions, selectedUpsells]);
 
   useEffect(() => {
     if (quantityMode) {
@@ -363,6 +414,14 @@ export default function VariantSelector({
     });
   };
 
+  const toggleUpsell = (upsell) => {
+    setSelectedUpsells(prev => {
+      const exists = prev.find(u => u.id === upsell.id);
+      if (exists) return prev.filter(u => u.id !== upsell.id);
+      return [...prev, upsell];
+    });
+  };
+
   if (!product) return null;
 
   return (
@@ -378,53 +437,84 @@ export default function VariantSelector({
           </CloseButton>
         </Header>
 
-        {options.length ? (
-          <OptionList>
-            {options.map((option) => {
-              const optionKey = String(option.id);
-              const quantity = Number(quantities[optionKey] || 0);
-              const active = quantityMode ? quantity > 0 : String(selectedId) === optionKey;
-              return (
-                <OptionButton
-                  key={option.id}
-                  role="button"
-                  tabIndex={0}
-                  $active={active}
-                  onClick={() => quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id);
-                    }
-                  }}
-                >
-                  <OptionMeta>
-                    <strong>{option.label}</strong>
-                    <span>₹{Number(option.price || 0).toFixed(2)}</span>
-                  </OptionMeta>
-                  {quantityMode ? (
-                    <QuantityControls
-                      onClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
+        <OptionList>
+          {options.length > 0 && (
+            <>
+              <SectionHeader>Variants / Options</SectionHeader>
+              <div style={{ display: 'grid', gap: '12px' }}>
+                {options.map((option) => {
+                  const optionKey = String(option.id);
+                  const quantity = Number(quantities[optionKey] || 0);
+                  const active = quantityMode ? quantity > 0 : String(selectedId) === optionKey;
+                  return (
+                    <OptionButton
+                      key={option.id}
+                      role="button"
+                      tabIndex={0}
+                      $active={active}
+                      onClick={() => quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id);
+                        }
+                      }}
                     >
-                      <QuantityButton type="button" disabled={quantity <= 0} onClick={() => updateQuantity(option.id, -1)}>
-                        <FaMinus />
-                      </QuantityButton>
-                      <QuantityValue>{quantity}</QuantityValue>
-                      <QuantityButton type="button" onClick={() => updateQuantity(option.id, 1)}>
-                        <FaPlus />
-                      </QuantityButton>
-                    </QuantityControls>
-                  ) : (
-                    active && <FaCheckCircle color="#f97316" />
-                  )}
-                </OptionButton>
-              );
-            })}
-          </OptionList>
-        ) : (
-          <Empty>No options are configured for this item.</Empty>
-        )}
+                      <OptionMeta>
+                        <strong>{option.label}</strong>
+                        <span>₹{Number(option.price || 0).toFixed(2)}</span>
+                      </OptionMeta>
+                      {quantityMode ? (
+                        <QuantityControls
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <QuantityButton type="button" disabled={quantity <= 0} onClick={() => updateQuantity(option.id, -1)}>
+                            <FaMinus />
+                          </QuantityButton>
+                          <QuantityValue>{quantity}</QuantityValue>
+                          <QuantityButton type="button" onClick={() => updateQuantity(option.id, 1)}>
+                            <FaPlus />
+                          </QuantityButton>
+                        </QuantityControls>
+                      ) : (
+                        active && <FaCheckCircle color="#f97316" />
+                      )}
+                    </OptionButton>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {upsells.length > 0 && (
+            <>
+              <SectionHeader>Suggested Add-ons</SectionHeader>
+              <UpsellList>
+                {upsells.map((u) => {
+                  const active = selectedUpsells.some(s => s.id === u.id);
+                  return (
+                    <UpsellButton
+                      key={u.id}
+                      $active={active}
+                      onClick={() => toggleUpsell(u)}
+                    >
+                      <OptionMeta>
+                        <strong>{u.upsellProduct?.name}</strong>
+                        <span>₹{Number(u.upsellProduct?.price || 0).toFixed(2)}</span>
+                      </OptionMeta>
+                      {active && <FaCheckCircle color="#f97316" />}
+                    </UpsellButton>
+                  );
+                })}
+              </UpsellList>
+            </>
+          )}
+
+          {!options.length && !upsells.length && (
+            <Empty>No options are configured for this item.</Empty>
+          )}
+        </OptionList>
 
         <Footer>
           {quantityMode && (
@@ -437,16 +527,29 @@ export default function VariantSelector({
             type="button"
             disabled={quantityMode ? (!totalQty && !initialTotalQty) : !selected}
             onClick={() => {
+              const itemsToAdd = selectedUpsells.map(u => ({
+                ...u.upsellProduct,
+                productId: u.upsellProduct.id,
+                cartKey: `${u.upsellProduct.id}:base`,
+                displayName: u.upsellProduct.name,
+                qty: 1
+              }));
+
               if (quantityMode) {
-                onSelectMany?.(selectedOptions);
+                onSelectMany?.(selectedOptions, itemsToAdd);
                 return;
               }
-              if (selected) onSelect?.(selected);
+              if (selected) {
+                onSelect?.(selected, itemsToAdd);
+              } else if (itemsToAdd.length > 0 && !options.length) {
+                // If only upsells were selected for a product with no variants
+                onSelect?.(null, itemsToAdd);
+              }
             }}
           >
             {quantityMode
-              ? totalQty > 0 ? `Update Cart (${totalQty})` : 'Clear From Cart'
-              : 'Add To Cart'}
+              ? (totalQty > 0 || selectedUpsells.length > 0) ? `Update Cart (${totalQty + selectedUpsells.length})` : 'Clear From Cart'
+              : (selected || selectedUpsells.length > 0) ? 'Add To Cart' : 'Select Options'}
           </AddButton>
         </Footer>
       </Card>

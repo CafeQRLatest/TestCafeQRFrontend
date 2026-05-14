@@ -1049,8 +1049,8 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
 
   const cartCountLabel = `${cartItemCount} Item${cartItemCount === 1 ? '' : 's'}`;
 
-  const hasVariantOptions = useCallback((product) => (
-    Boolean(product?.hasVariants) || Number(product?.variantCount || 0) > 0
+  const hasExtendedOptions = useCallback((product) => (
+    Boolean(product?.hasVariants) || Number(product?.variantCount || 0) > 0 || Boolean(product?.hasUpsells)
   ), []);
 
   const productCartLines = useCallback((product) => {
@@ -1132,31 +1132,38 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
   };
 
   const addToCart = async (p) => {
-    if (hasVariantOptions(p)) {
+    if (hasExtendedOptions(p)) {
       await openVariantSelector(p);
       return;
     }
     addPreparedToCart({ ...p, cartKey: `${p.id}:base`, productId: p.id, displayName: p.name });
   };
 
-  const addVariantToCart = (variant) => {
+  const addVariantToCart = (variant, additionalItems = []) => {
     if (!variantProduct) return;
-    const displayName = `${variantProduct.name} (${variant.label})`;
-    addPreparedToCart({
-      ...variantProduct,
-      id: variantProduct.id,
-      productId: variantProduct.id,
-      variantId: variant.id,
-      variantName: variant.label,
-      name: displayName,
-      displayName,
-      price: variant.price,
-      cartKey: `${variantProduct.id}:${variant.id}`,
-    });
+    if (variant) {
+      const displayName = `${variantProduct.name} (${variant.label})`;
+      addPreparedToCart({
+        ...variantProduct,
+        id: variantProduct.id,
+        productId: variantProduct.id,
+        variantId: variant.id,
+        variantName: variant.label,
+        name: displayName,
+        displayName,
+        price: variant.price,
+        cartKey: `${variantProduct.id}:${variant.id}`,
+      });
+    }
+
+    if (additionalItems && additionalItems.length > 0) {
+      additionalItems.forEach(item => addPreparedToCart(item));
+    }
+
     setVariantProduct(null);
   };
 
-  const syncVariantCart = (selectedVariants) => {
+  const syncVariantCart = (selectedVariants, additionalItems = []) => {
     if (!variantProduct) return;
     const productId = String(variantProduct.id);
     const nextVariantLines = (selectedVariants || [])
@@ -1183,6 +1190,11 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
       ...prev.filter(item => !(String(item.productId || item.id) === productId && item.variantId)),
       ...nextVariantLines,
     ]);
+
+    if (additionalItems && additionalItems.length > 0) {
+      additionalItems.forEach(item => addPreparedToCart(item));
+    }
+
     setVariantProduct(null);
   };
 
@@ -1579,7 +1591,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
                   {standardMatches.length > 0 ? (
                     <StandardResults>
                       {standardMatches.map(p => {
-                        const hasOptions = hasVariantOptions(p);
+                        const hasOptions = hasExtendedOptions(p);
                         const quantity = productCartQuantity(p);
                         return (
                           <StandardProductButton
@@ -1696,7 +1708,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
                 <ProductGrid>
                   {visibleProducts.map(p => {
                   const quantity = productCartQuantity(p);
-                  const hasOptions = hasVariantOptions(p);
+                  const hasOptions = hasExtendedOptions(p);
                   const nonVeg = isNonVegProduct(p);
                   return (
                     <ProductCard
