@@ -1339,15 +1339,19 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
       const customerSelections = buildCustomerSelections();
       const primaryCustomer = customerSelections[0] || null;
 
+      const knownOffline = isKnownOffline();
+      const mainOfflineDevice = isMainOfflineBillingDevice();
+      const isOfflineFinal = knownOffline && orderMode === 'settle' && mainOfflineDevice;
+
       const payload = {
         orderType: 'SALE',
-        orderSource: 'ONLINE',
+        orderSource: knownOffline ? 'OFFLINE' : 'ONLINE',
         fulfillmentType: initialTable ? 'DINE_IN' : 'TAKEAWAY', // Align with enum: DINE_IN, TAKEAWAY, DELIVERY
         tableNumber: initialTable ? initialTable.tableNumber : null,
         tableId: initialTable ? initialTable.id : null,
-        orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : 'COMPLETED',
-        paymentStatus: orderMode === 'kitchen' ? 'PENDING' : 'PAID',
-        reference: 'CASH', // Using reference as the payment method column
+        orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : (isOfflineFinal ? 'COMPLETED' : 'BILLED'),
+        paymentStatus: orderMode === 'kitchen' ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING'),
+        ...(isOfflineFinal ? { reference: 'CASH' } : {}),
         customerId: primaryCustomer?.id || null,
         customerIds: customerSelections.length > 0 ? customerSelections : null,
         grandTotal: Number(totals.total_amount.toFixed(2)),
@@ -1355,13 +1359,6 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
         totalAmount: Number(totals.total_inc_tax.toFixed(2)),
         lines: processedLines
       };
-
-      const knownOffline = isKnownOffline();
-      const mainOfflineDevice = isMainOfflineBillingDevice();
-
-      if (knownOffline) {
-        payload.orderSource = 'OFFLINE';
-      }
 
       if (knownOffline && orderMode === 'settle' && !mainOfflineDevice) {
         throw new Error('Final offline billing is available only on the main billing device. This device can create provisional kitchen orders while offline.');
@@ -1405,7 +1402,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
           syncStatus: offlineAccepted ? 'QUEUED' : savedOrder?.syncStatus,
         };
 
-        onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : 'bill');
+        onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : (isOfflineFinal ? 'bill' : 'settle'));
         rememberTrending(cart);
         setCart([]);
         if (onBack) onBack();

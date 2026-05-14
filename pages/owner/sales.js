@@ -1017,7 +1017,8 @@ export default function Sales() {
     if (order?.offline) {
       if (isMainOfflineBillingDevice()) {
         setPrintOrder(order);
-        setPrintKind(kind);
+        // If it's a final offline sale, treat as bill so it prints locally.
+        setPrintKind(kind === 'settle' ? 'bill' : kind);
       }
       setQueuedOrders((current) => mergeOrdersWithQueued(current, [order]));
       loadOfflineOrderState();
@@ -1029,6 +1030,11 @@ export default function Sales() {
       return;
     }
 
+    if (kind === 'settle') {
+      setPaymentOrder(order);
+      return; // PaymentDialog will handle the rest
+    }
+
     // Online order: if this device is a print station, print immediately locally
     if (isPrintStationEnabled()) {
       setPrintOrder(order);
@@ -1038,6 +1044,7 @@ export default function Sales() {
       showToast(
         kind === 'kot'
           ? 'KOT created. Main print station will print when online.'
+
           : 'Bill created. Main print station will print when online.'
       );
     }
