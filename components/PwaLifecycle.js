@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
-import { bootstrapOfflineData, registerOfflineSyncListeners } from '../utils/offlineSync';
+import { refreshOfflineChanges, registerOfflineSyncListeners } from '../utils/offlineSync';
 import { isKnownOffline } from '../utils/networkState';
 
 const PUBLIC_ROUTE_PREFIXES = [
@@ -90,7 +90,7 @@ export default function PwaLifecycle() {
 
     const cleanupSync = registerOfflineSyncListeners();
     if (!isKnownOffline()) {
-      bootstrapOfflineData().catch((error) => {
+      refreshOfflineChanges().catch((error) => {
         if (error?.response?.status === 401 || error?.response?.status === 403) {
           return;
         }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import styled, { keyframes } from 'styled-components';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import DashboardLayout from '../../components/DashboardLayout';
 import {
   FaUtensils, FaShoppingBag, FaHistory, FaTh, FaList, FaCashRegister,
@@ -420,6 +420,70 @@ const RefreshButton = styled.button`
   }
 `;
 
+const HistoryControls = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+
+  @media (max-width: 720px) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+`;
+
+const HistoryField = styled.label`
+  display: grid;
+  gap: 5px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+
+  input {
+    min-height: 42px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0 10px;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  @media (max-width: 520px) {
+    width: 100%;
+  }
+`;
+
+const HistoryActionButton = styled.button`
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: ${props => props.$primary ? '#f97316' : '#f8fafc'};
+  color: ${props => props.$primary ? 'white' : '#475569'};
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+`;
+
+const HistoryPager = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+`;
+
 const HistoryGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -732,6 +796,28 @@ function quantityText(value) {
   return Number.isInteger(qty) ? String(qty) : qty.toFixed(2);
 }
 
+function toDateTimeInputValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function defaultHistoryRange(timezone) {
+  const now = getBusinessNow(timezone);
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(now);
+  to.setHours(23, 59, 59, 999);
+  return {
+    from: toDateTimeInputValue(from),
+    to: toDateTimeInputValue(to),
+  };
+}
+
+function localInputToIso(value) {
+  if (!value) return undefined;
+  const date = new Date(`${value}:00`);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 function orderTime(order) {
   const raw = order?.orderDate || order?.order_date || order?.createdAt || order?.created_at;
   const date = raw ? new Date(raw) : new Date();
@@ -782,7 +868,10 @@ function customerLabel(order) {
 export default function Sales() {
   const { timezone } = useAuth();
   const [tables, setTables] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const [floorOrders, setFloorOrders] = useState([]);
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
+  const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange(timezone));
   const [queuedOrders, setQueuedOrders] = useState([]);
   const [printJobsByOrder, setPrintJobsByOrder] = useState({});
   const [loading, setLoading] = useState(true);
@@ -801,11 +890,18 @@ export default function Sales() {
   const [toast, setToast] = useState(null);
   const tablesInFlightRef = useRef(false);
   const ordersInFlightRef = useRef(false);
+  const historyInFlightRef = useRef(false);
+  const historyFiltersTouchedRef = useRef(false);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
     window.setTimeout(() => setToast(null), 3000);
   }, []);
+
+  useEffect(() => {
+    if (historyFiltersTouchedRef.current) return;
+    setHistoryFilters(defaultHistoryRange(timezone));
+  }, [timezone]);
 
   const loadOfflineOrderState = useCallback(async () => {
     try {
@@ -843,23 +939,56 @@ export default function Sales() {
   const fetchOrders = useCallback(async () => {
     if (ordersInFlightRef.current) return;
     ordersInFlightRef.current = true;
-    setOrdersLoading(true);
     try {
-      const res = await api.get('/api/v1/orders/type/SALE');
-      setOrders(res.data.data || []);
+      const res = await api.get('/api/v1/orders/sales/live');
+      setFloorOrders(res.data.data || []);
     } catch (e) {
       if (e?.code === 'OFFLINE_CACHE_MISS') {
         showToast('Open order history once online to prepare offline data.', 'error');
       } else if (!isKnownOffline() && e?.message !== 'Network Error') {
-        console.error('Failed to fetch sale orders', e);
-        showToast('Failed to load order history', 'error');
+        console.error('Failed to fetch live sale orders', e);
+        showToast('Failed to load active orders', 'error');
       }
     } finally {
       await loadOfflineOrderState();
       ordersInFlightRef.current = false;
-      setOrdersLoading(false);
     }
   }, [loadOfflineOrderState, showToast]);
+
+  const fetchHistoryOrders = useCallback(async (page = 0, filters = historyFilters) => {
+    if (historyInFlightRef.current) return;
+    historyInFlightRef.current = true;
+    setOrdersLoading(true);
+    try {
+      const res = await api.get('/api/v1/orders/history', {
+        params: {
+          type: 'SALE',
+          fromDate: localInputToIso(filters.from),
+          toDate: localInputToIso(filters.to),
+          page,
+          size: historyPage.size || 20,
+        },
+      });
+      const payload = res.data.data || {};
+      setHistoryOrders(payload.content || []);
+      setHistoryPage({
+        number: payload.number || 0,
+        size: payload.size || historyPage.size || 20,
+        totalPages: payload.totalPages || 0,
+        totalElements: payload.totalElements || 0,
+      });
+    } catch (e) {
+      if (e?.code === 'OFFLINE_CACHE_MISS') {
+        showToast('Open order history once online to prepare offline data.', 'error');
+      } else if (!isKnownOffline() && e?.message !== 'Network Error') {
+        console.error('Failed to fetch order history', e);
+        showToast(e?.response?.data?.message || 'Failed to load order history', 'error');
+      }
+    } finally {
+      historyInFlightRef.current = false;
+      setOrdersLoading(false);
+    }
+  }, [historyFilters, historyPage.size, showToast]);
 
   useEffect(() => {
     fetchTables();
@@ -872,6 +1001,7 @@ export default function Sales() {
     const startPolling = () => {
       if (intervalId || isKnownOffline()) return;
       intervalId = setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         if (isKnownOffline()) return;
         fetchTables();
         fetchOrders();
@@ -886,6 +1016,7 @@ export default function Sales() {
     };
 
     const runRefresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
       if (isKnownOffline()) {
         stopPolling();
         return;
@@ -924,6 +1055,12 @@ export default function Sales() {
       loadOfflineOrderState();
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        runRefresh();
+      }
+    };
+
     startPolling();
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -931,6 +1068,7 @@ export default function Sales() {
     window.addEventListener('cafeqr-sync-queue-changed', handleQueueChanged);
     window.addEventListener('cafeqr-print-jobs-changed', handleQueueChanged);
     window.addEventListener('cafeqr-sync-complete', runRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       stopPolling();
@@ -941,6 +1079,7 @@ export default function Sales() {
       window.removeEventListener('cafeqr-sync-queue-changed', handleQueueChanged);
       window.removeEventListener('cafeqr-print-jobs-changed', handleQueueChanged);
       window.removeEventListener('cafeqr-sync-complete', runRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchTables, fetchOrders, loadOfflineOrderState]);
 
@@ -966,12 +1105,12 @@ export default function Sales() {
 
   const activeOrderByTable = useMemo(() => {
     const map = new Map();
-    mergeOrdersWithQueued(orders, queuedOrders).filter(isOpenOrder).forEach(order => {
+    mergeOrdersWithQueued(floorOrders, queuedOrders).filter(isOpenOrder).forEach(order => {
       const key = String(order.tableId || order.table_id || order.tableNumber || order.table_number || '');
       if (key && !map.has(key)) map.set(key, order);
     });
     return map;
-  }, [orders, queuedOrders]);
+  }, [floorOrders, queuedOrders]);
 
   const getActiveOrderForTable = useCallback((table) => {
     if (!table) return null;
@@ -999,13 +1138,18 @@ export default function Sales() {
     }, {})
   ), [getActiveOrderForTable, tables]);
 
-  const displayOrders = useMemo(() => {
-    return mergeOrdersWithQueued(orders, queuedOrders)
+  const floorDisplayOrders = useMemo(() => {
+    return mergeOrdersWithQueued(floorOrders, queuedOrders)
       .map((order) => attachPrintJobs(order, printJobsByOrder));
-  }, [orders, queuedOrders, printJobsByOrder]);
+  }, [floorOrders, queuedOrders, printJobsByOrder]);
+
+  const historyDisplayOrders = useMemo(() => {
+    return mergeOrdersWithQueued(historyOrders, queuedOrders)
+      .map((order) => attachPrintJobs(order, printJobsByOrder));
+  }, [historyOrders, queuedOrders, printJobsByOrder]);
 
   const handleOrderCreated = useCallback((order, kind) => {
-    setOrders((current) => {
+    setFloorOrders((current) => {
       const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
       const filtered = current.filter((item) => {
         const itemId = item?.id || item?.offlineOperationId || item?.orderNo;
@@ -1063,8 +1207,11 @@ export default function Sales() {
   const refreshSalesState = useCallback(() => {
     fetchOrders();
     fetchTables();
+    if (activeView === 'history') {
+      fetchHistoryOrders(historyPage.number || 0);
+    }
     loadOfflineOrderState();
-  }, [fetchOrders, fetchTables, loadOfflineOrderState]);
+  }, [activeView, fetchHistoryOrders, fetchOrders, fetchTables, historyPage.number, loadOfflineOrderState]);
 
   const loadFullOrder = async (orderId) => {
     const { data } = await api.get(`/api/v1/orders/${orderId}`);
@@ -1132,7 +1279,7 @@ export default function Sales() {
     if (order?.offline) {
       // Optimistically mark offline order as BILLED so table turns green immediately
       const billedOffline = { ...order, orderStatus: 'BILLED', order_status: 'BILLED' };
-      setOrders((current) => current.map((item) => {
+      setFloorOrders((current) => current.map((item) => {
         const itemId = item?.id || item?.offlineOperationId || item?.orderNo;
         const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
         return itemId === orderId ? { ...item, ...billedOffline } : item;
@@ -1151,7 +1298,7 @@ export default function Sales() {
     try {
       const { data } = await api.post(`/api/v1/orders/${order.id}/bill`);
       const billedOrder = data.data || order;
-      setOrders((current) => current.map((item) => item.id === billedOrder.id ? { ...item, ...billedOrder } : item));
+      setFloorOrders((current) => current.map((item) => item.id === billedOrder.id ? { ...item, ...billedOrder } : item));
       showToast('Bill generated for the table');
       setPopoverTable(null);
       await handlePrintOrder(billedOrder, 'bill');
@@ -1191,7 +1338,7 @@ export default function Sales() {
       const { data } = await api.post(`/api/v1/orders/${paymentOrder.id}/settle`, payload);
       const settledOrder = data.data || paymentOrder;
       // Immediately update local state so table reverts to AVAILABLE
-      setOrders((current) => current.map((item) =>
+      setFloorOrders((current) => current.map((item) =>
         item.id === settledOrder.id ? { ...item, ...settledOrder } : item
       ));
       showToast('Order settled successfully');
@@ -1218,7 +1365,7 @@ export default function Sales() {
     try {
       await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: 'Cancelled from POS table popup' });
       // Immediately mark cancelled so table reverts to AVAILABLE
-      setOrders((current) => current.map((item) =>
+      setFloorOrders((current) => current.map((item) =>
         item.id === order.id ? { ...item, orderStatus: 'CANCELLED', order_status: 'CANCELLED' } : item
       ));
       showToast('Order cancelled');
@@ -1246,7 +1393,7 @@ export default function Sales() {
         tableNumber: target?.tableNumber,
       });
       // Immediately update order's table assignment so both tables recolor
-      setOrders((current) => current.map((item) =>
+      setFloorOrders((current) => current.map((item) =>
         item.id === popoverOrder.id
           ? { ...item, tableId: targetTableId, tableNumber: target?.tableNumber }
           : item
@@ -1277,7 +1424,7 @@ export default function Sales() {
     try {
       const { data } = await api.put(`/api/v1/orders/${editingOrder.id}`, payload);
       const savedOrder = data.data || payload;
-      setOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id)]);
+      setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id)]);
       showToast('Order updated');
       setEditingOrder(null);
       refreshSalesState();
@@ -1345,7 +1492,7 @@ export default function Sales() {
               <ModeSwitchBtn $active={activeView === 'tables'} onClick={() => setActiveView('tables')}>
                 <FaUtensils /> Tables
               </ModeSwitchBtn>
-              <ModeSwitchBtn $active={activeView === 'history'} onClick={() => { setActiveView('history'); fetchOrders(); }}>
+              <ModeSwitchBtn $active={activeView === 'history'} onClick={() => { setActiveView('history'); fetchHistoryOrders(0); }}>
                 <FaHistory /> Order History
               </ModeSwitchBtn>
             </ModeSwitchGroup>
@@ -1364,7 +1511,7 @@ export default function Sales() {
                 <StatPill $bg="#e2e8f0" $color="#475569">Hold: {tableStatusCounts.MAINTENANCE || 0}</StatPill>
                 <StatPill $bg="#dcfce7" $color="#059669">Billed: {tableStatusCounts.BILLED || 0}</StatPill>
                 <StatPill>Available: {tableStatusCounts.AVAILABLE || 0}</StatPill>
-                <StatPill>Open Orders: {displayOrders.filter(isOpenOrder).length}</StatPill>
+                <StatPill>Open Orders: {floorDisplayOrders.filter(isOpenOrder).length}</StatPill>
               </StatsRow>
             </SectionHeader>
 
@@ -1397,10 +1544,18 @@ export default function Sales() {
           </>
         ) : (
           <OrderHistory
-            orders={displayOrders}
+            orders={historyDisplayOrders}
+            page={historyPage}
+            filters={historyFilters}
             loading={ordersLoading}
             timezone={timezone}
-            onRefresh={fetchOrders}
+            onRefresh={() => fetchHistoryOrders(historyPage.number || 0)}
+            onPageChange={(page) => fetchHistoryOrders(page)}
+            onFilterChange={(nextFilters) => {
+              historyFiltersTouchedRef.current = true;
+              setHistoryFilters(nextFilters);
+            }}
+            onApplyFilters={() => fetchHistoryOrders(0)}
             onPrint={handlePrintOrder}
             onSettle={handleSettleOrder}
           />
@@ -1486,17 +1641,54 @@ export default function Sales() {
   );
 }
 
-function OrderHistory({ orders, loading, timezone, onRefresh, onPrint, onSettle }) {
+function OrderHistory({
+  orders,
+  page,
+  filters,
+  loading,
+  timezone,
+  onRefresh,
+  onPageChange,
+  onFilterChange,
+  onApplyFilters,
+  onPrint,
+  onSettle,
+}) {
+  const pageNumber = page?.number || 0;
+  const totalPages = page?.totalPages || 0;
+  const totalElements = page?.totalElements ?? orders.length;
+
   return (
     <HistoryShell>
       <HistoryToolbar>
         <HistoryTitle>
           <strong>Order History</strong>
-          <span>{orders.length} sale order{orders.length === 1 ? '' : 's'} across KOT and settled bills</span>
+          <span>{totalElements} sale order{totalElements === 1 ? '' : 's'} in the selected range</span>
         </HistoryTitle>
-        <RefreshButton onClick={onRefresh} disabled={loading} title="Refresh orders">
-          <FaSync className={loading ? 'spin' : ''} />
-        </RefreshButton>
+        <HistoryControls>
+          <HistoryField>
+            From
+            <input
+              type="datetime-local"
+              value={filters.from}
+              onChange={(event) => onFilterChange({ ...filters, from: event.target.value })}
+            />
+          </HistoryField>
+          <HistoryField>
+            To
+            <input
+              type="datetime-local"
+              value={filters.to}
+              onChange={(event) => onFilterChange({ ...filters, to: event.target.value })}
+            />
+          </HistoryField>
+          <HistoryActionButton type="button" $primary onClick={onApplyFilters} disabled={loading}>
+            Apply
+          </HistoryActionButton>
+          <RefreshButton onClick={onRefresh} disabled={loading} title="Refresh orders">
+            <FaSync className={loading ? 'spin' : ''} />
+          </RefreshButton>
+        </HistoryControls>
       </HistoryToolbar>
 
       {orders.length === 0 ? (
@@ -1616,6 +1808,24 @@ function OrderHistory({ orders, loading, timezone, onRefresh, onPrint, onSettle 
           })}
         </HistoryGrid>
       )}
+
+      <HistoryPager>
+        <HistoryActionButton
+          type="button"
+          disabled={loading || pageNumber <= 0}
+          onClick={() => onPageChange(Math.max(0, pageNumber - 1))}
+        >
+          Previous
+        </HistoryActionButton>
+        <span>Page {totalPages ? pageNumber + 1 : 0} of {totalPages}</span>
+        <HistoryActionButton
+          type="button"
+          disabled={loading || !totalPages || pageNumber >= totalPages - 1}
+          onClick={() => onPageChange(pageNumber + 1)}
+        >
+          Next
+        </HistoryActionButton>
+      </HistoryPager>
 
       <style jsx>{`
         .spin { animation: spin 0.9s linear infinite; }

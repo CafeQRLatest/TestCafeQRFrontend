@@ -2,6 +2,7 @@ import api from './api';
 import Cookies from 'js-cookie';
 import {
   cacheApiResponse,
+  getSyncMetadata,
   getQueuedOperations,
   markOperationFailed,
   markOperationConflict,
@@ -28,6 +29,10 @@ function emitSyncEvent(name, detail = {}) {
 
 function isOnline() {
   return !isKnownOffline();
+}
+
+function isPageVisible() {
+  return typeof document === 'undefined' || document.visibilityState === 'visible';
 }
 
 function unwrapData(response) {
@@ -71,9 +76,47 @@ async function seedBootstrapApiCaches(data) {
     seedApiCache('/api/v1/products/uoms', uoms),
     seedApiCache('/api/v1/products/variants/groups', variantGroups),
     seedApiCache('/api/v1/tables/active', tables),
+    seedApiCache('/api/v1/orders/sales/live', saleOrders),
     seedApiCache('/api/v1/orders/type/SALE', saleOrders),
     seedApiCache('/api/v1/configurations', data.configuration || null),
   ]);
+}
+
+async function applyOfflineSnapshot(data, options = {}) {
+  if (!data) {
+    return null;
+  }
+
+  const products = data.products || [];
+  const categories = data.categories || [];
+  const uoms = data.uoms || [];
+  const variantGroups = data.variantGroups || [];
+  const tables = data.tables || [];
+  const orders = data.orders || [];
+
+  await Promise.all([
+    upsertEntities('products', products),
+    upsertEntities('categories', categories),
+    upsertEntities('uoms', uoms),
+    upsertEntities('variantGroups', variantGroups),
+    upsertEntities('tables', tables),
+    upsertEntities('orders', orders),
+    seedBootstrapApiCaches({
+      products,
+      categories,
+      uoms,
+      variantGroups,
+      tables,
+      orders,
+      configuration: data.configuration || null,
+    }),
+    setSyncMetadata('lastChangeCursor', data.serverTime || new Date().toISOString()),
+    options.bootstrap
+      ? setSyncMetadata('lastBootstrapAt', data.serverTime || new Date().toISOString())
+      : Promise.resolve(),
+  ]);
+
+  return data;
 }
 
 export async function bootstrapOfflineData(options = {}) {
@@ -95,19 +138,36 @@ export async function bootstrapOfflineData(options = {}) {
     return null;
   }
 
-  await Promise.all([
-    upsertEntities('products', data.products || []),
-    upsertEntities('categories', data.categories || []),
-    upsertEntities('uoms', data.uoms || []),
-    upsertEntities('variantGroups', data.variantGroups || []),
-    upsertEntities('tables', data.tables || []),
-    upsertEntities('orders', data.orders || []),
-    seedBootstrapApiCaches(data),
-    setSyncMetadata('lastBootstrapAt', data.serverTime || new Date().toISOString()),
-    setSyncMetadata('lastChangeCursor', data.serverTime || new Date().toISOString()),
-  ]);
+  return applyOfflineSnapshot(data, { bootstrap: true });
+}
 
-  return data;
+export async function refreshOfflineChanges(options = {}) {
+  const forceProbe = Boolean(options.forceProbe);
+  if (!forceProbe && !isOnline()) {
+    return null;
+  }
+
+  const since = await getSyncMetadata('lastChangeCursor');
+  if (!since) {
+    return bootstrapOfflineData(options);
+  }
+
+  const response = await api.get('/api/v1/sync/changes', {
+    params: { since },
+    skipOfflineCache: true,
+    skipOfflineQueue: true,
+    skipAuthRedirect: true,
+    backgroundSync: true,
+    allowOfflineProbe: forceProbe,
+  });
+  const data = unwrapData(response);
+  const snapshot = data?.snapshot || data;
+
+  if (!snapshot) {
+    return null;
+  }
+
+  return applyOfflineSnapshot(snapshot);
 }
 
 export async function syncQueuedOperations() {
@@ -223,10 +283,10 @@ export async function reconnectAndSync() {
 
   reconnectInFlight = (async () => {
     try {
-      const bootstrap = await bootstrapOfflineData({ forceProbe: true });
+      const changes = await refreshOfflineChanges({ forceProbe: true });
       markConnectionOnline();
       const syncResult = await syncQueuedOperations();
-      return { bootstrapped: Boolean(bootstrap), sync: syncResult };
+      return { changed: Boolean(changes), sync: syncResult };
     } catch (error) {
       if (error?.response) {
         markConnectionOnline();
@@ -258,6 +318,7 @@ export function registerOfflineSyncListeners() {
   let intervalId = null;
 
   const run = () => {
+    if (!isPageVisible()) return;
     if (!isOnline()) return;
     syncQueuedOperations()
       .then((result) => {
@@ -278,6 +339,7 @@ export function registerOfflineSyncListeners() {
   };
 
   const probeThenRun = () => {
+    if (!isPageVisible()) return Promise.resolve({ skipped: true, hidden: true });
     return reconnectAndSync()
       .then((result) => {
         if (result?.skipped) return;
@@ -328,6 +390,10 @@ export function registerOfflineSyncListeners() {
   // Adaptive interval: backs off when failures stack up (max 5 min)
   const BASE_INTERVAL = 60000;
   const tick = () => {
+    if (!isPageVisible()) {
+      intervalId = window.setTimeout(tick, BASE_INTERVAL);
+      return;
+    }
     if (isOnline()) {
       run();
     } else if (canAttemptNetworkProbe()) {
