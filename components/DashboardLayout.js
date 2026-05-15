@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
-  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown,
+  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle
@@ -557,6 +557,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Configurations":    <FaCog />,
     "Inventory":        <FaBoxes />,
     "Stock":            <FaBoxes />,
+    "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,
@@ -670,6 +671,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Configurations":    <FaCog />,
     "Inventory":        <FaBoxes />,
     "Stock":            <FaBoxes />,
+    "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,

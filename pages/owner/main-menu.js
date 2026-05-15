@@ -9,6 +9,7 @@ import {
   FaBuilding,
   FaBoxes,
   FaBookOpen,
+  FaBalanceScale,
   FaCashRegister,
   FaFileInvoice
 } from 'react-icons/fa';
@@ -51,6 +52,7 @@ function MainMenuContent() {
     "Billing & Reports":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Reports & Billing":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Stock":            { icon: <FaBoxes />,       color: "#ea580c" },
+    "Accounting":       { icon: <FaBalanceScale />, color: "#0f766e" },
     "Table Management": { icon: <FaChair />,       color: "#f97316" },
     "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
   };
