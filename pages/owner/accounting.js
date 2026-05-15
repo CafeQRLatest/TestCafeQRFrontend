@@ -295,12 +295,12 @@ function AccountingContent() {
             <strong>{journals.length}</strong>
           </div>
           <div className="summary-tile" style={{borderLeft:'4px solid #3b82f6'}}>
-            <span>📈 Money In</span>
-            <strong style={{color:'#10b981'}}>₹{money(trialBalance.reduce((sum, row) => sum + numberValue(row.debit), 0))}</strong>
+            <span>📈 Sales Revenue</span>
+            <strong style={{color:'#3b82f6'}}>₹{money(accounts.filter(a=>a.accountType==='INCOME').reduce((s,a)=>s+numberValue(a.currentBalance),0))}</strong>
           </div>
           <div className="summary-tile" style={{borderLeft:'4px solid #ef4444'}}>
-            <span>📉 Money Out</span>
-            <strong style={{color:'#ef4444'}}>₹{money(trialBalance.reduce((sum, row) => sum + numberValue(row.credit), 0))}</strong>
+            <span>📉 Expenses</span>
+            <strong style={{color:'#ef4444'}}>₹{money(accounts.filter(a=>a.accountType==='EXPENSE').reduce((s,a)=>s+numberValue(a.currentBalance),0))}</strong>
           </div>
         </section>
 
