@@ -68,6 +68,8 @@ function AccountingContent() {
   const [accounts, setAccounts] = useState([]);
   const [journals, setJournals] = useState([]);
   const [trialBalance, setTrialBalance] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [reconciliation, setReconciliation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
   const [postingJournal, setPostingJournal] = useState(false);
@@ -75,6 +77,8 @@ function AccountingContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [period, setPeriod] = useState(defaultAccountingPeriod);
   const [appliedPeriod, setAppliedPeriod] = useState(defaultAccountingPeriod);
+  const [sortBy, setSortBy] = useState('entryDate');
+  const [sortDir, setSortDir] = useState('DESC');
   const [accountForm, setAccountForm] = useState(blankAccount);
   const [journalForm, setJournalForm] = useState({
     entryDate: defaultJournalDate(),
@@ -87,37 +91,43 @@ function AccountingContent() {
     setLoading(true);
     try {
       const periodParams = { from: effectivePeriod.from, to: effectivePeriod.to };
-      const [accountResp, journalResp, trialResp] = await Promise.all([
-        api.get('/api/v1/accounting/accounts'),
-        api.get('/api/v1/accounting/journals', { params: periodParams }),
+      const journalParams = { ...periodParams, sortBy, sortDir };
+      const [accountResp, summaryResp, reconciliationResp, journalResp, trialResp] = await Promise.allSettled([
+        api.get('/api/v1/accounting/accounts', { params: periodParams }),
+        api.get('/api/v1/accounting/summary', { params: periodParams }),
+        api.get('/api/v1/accounting/reconciliation', { params: periodParams }),
+        api.get('/api/v1/accounting/journals', { params: journalParams }),
         api.get('/api/v1/accounting/trial-balance', { params: periodParams })
       ]);
-      if (accountResp.data.success) setAccounts(accountResp.data.data || []);
-      if (journalResp.data.success) setJournals(journalResp.data.data || []);
-      if (trialResp.data.success) setTrialBalance(trialResp.data.data || []);
+      if (accountResp.status === 'fulfilled' && accountResp.value.data.success) setAccounts(accountResp.value.data.data || []);
+      if (summaryResp.status === 'fulfilled' && summaryResp.value.data.success) setSummary(summaryResp.value.data.data || null);
+      if (reconciliationResp.status === 'fulfilled' && reconciliationResp.value.data.success) setReconciliation(reconciliationResp.value.data.data || null);
+      if (journalResp.status === 'fulfilled' && journalResp.value.data.success) setJournals(journalResp.value.data.data || []);
+      if (trialResp.status === 'fulfilled' && trialResp.value.data.success) setTrialBalance(trialResp.value.data.data || []);
+
+      const failed = [accountResp, summaryResp, reconciliationResp, journalResp, trialResp].find(result => result.status === 'rejected');
+      if (failed) {
+        notify('error', failed.reason?.response?.data?.message || 'Some accounting data could not be loaded');
+      }
     } catch (err) {
       notify('error', err.response?.data?.message || 'Failed to load accounting data');
     } finally {
       setLoading(false);
     }
-  }, [appliedPeriod, notify]);
+  }, [appliedPeriod, notify, sortBy, sortDir]);
 
   const handleSyncPastData = async () => {
     setSyncing(true);
     try {
-      const now = new Date();
-      const from = new Date(now.getFullYear(), 0, 1); // Jan 1 of this year
-      from.setMinutes(from.getMinutes() - from.getTimezoneOffset());
-      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       const resp = await api.post('/api/v1/accounting/backfill', {
-        from: from.toISOString().slice(0, 19),
-        to: now.toISOString().slice(0, 19),
-        sourceTypes: ['INVOICE', 'PAYMENT', 'COGS', 'STOCK'],
+        from: appliedPeriod.from,
+        to: appliedPeriod.to,
+        sourceTypes: ['INVOICE', 'PAYMENT', 'COGS', 'STOCK', 'EXPENSE', 'PURCHASE'],
         dryRun: false
       });
       if (resp.data.success) {
         const d = resp.data.data;
-        notify('success', `Sync complete! ${d.posted || 0} entries added, ${d.skipped || 0} already synced.`);
+        notify('success', `Sync complete: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`);
         await fetchAccountingData();
       }
     } catch (err) {
@@ -145,11 +155,7 @@ function AccountingContent() {
   }, [accounts, searchTerm]);
 
   const sortedJournals = useMemo(() => {
-    return [...journals].sort((a, b) => {
-      const dateA = a.entryDate ? new Date(a.entryDate).getTime() : 0;
-      const dateB = b.entryDate ? new Date(b.entryDate).getTime() : 0;
-      return dateB - dateA; // Descending order (newest first)
-    });
+    return journals;
   }, [journals]);
 
   const accountOptions = useMemo(() => {
@@ -173,6 +179,33 @@ function AccountingContent() {
       return acc;
     }, { debit: 0, credit: 0 });
   }, [journalForm.lines]);
+
+  const summaryValue = useCallback((key) => numberValue(summary?.[key]), [summary]);
+
+  const journalDisplay = useCallback((entry) => {
+    const source = String(entry.sourceType || '').toUpperCase();
+    const documentNo = entry.entryNo || '-';
+    const amount = numberValue(entry.totalDebit);
+    if (source.includes('PAYMENT')) {
+      return {
+        type: source.includes('OUTBOUND') ? 'Payment Out' : 'Payment In',
+        documentNo,
+        received: source.includes('OUTBOUND') ? 0 : amount,
+        paid: source.includes('OUTBOUND') ? amount : 0,
+        adjustment: 0
+      };
+    }
+    if (source.includes('INVOICE') || source.includes('BILL') || source.includes('RECEIPT')) {
+      return { type: source.includes('VENDOR') || source.includes('EXPENSE') ? 'Bill / Expense' : 'Sale Invoice', documentNo, received: 0, paid: 0, adjustment: amount };
+    }
+    if (source.includes('COGS') || source.includes('STOCK')) {
+      return { type: 'Inventory', documentNo, received: 0, paid: 0, adjustment: amount };
+    }
+    if (source.includes('REV')) {
+      return { type: 'Reversal', documentNo, received: 0, paid: 0, adjustment: amount };
+    }
+    return { type: 'Journal', documentNo, received: 0, paid: 0, adjustment: amount };
+  }, []);
 
   const handleCreateAccount = async event => {
     event.preventDefault();
@@ -203,13 +236,13 @@ function AccountingContent() {
   };
 
   const handleResyncAll = async () => {
-    if (!window.confirm('This will delete all auto-generated accounting entries and rebuild them from scratch based on your past sales and payments.\n\nContinue?')) return;
+    if (!window.confirm('This safely rebuilds auto-posted accounting entries only. Manual journals will be preserved.\n\nContinue?')) return;
     setSyncing(true);
     try {
       const resp = await api.post('/api/v1/accounting/resync-all');
       if (resp.data.success) {
         const d = resp.data.data;
-        notify('success', `Done! Rebuilt accounting from scratch. ${d.posted || 0} entries added.`);
+        notify('success', `Done: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`);
         await fetchAccountingData();
       }
     } catch (err) {
@@ -312,20 +345,36 @@ function AccountingContent() {
       <div className="accounting-page">
         <section className="summary-grid">
           <div className="summary-tile" style={{borderLeft:'4px solid #10b981'}}>
-            <span>💰 Cash & Bank</span>
-            <strong>₹{money(accounts.filter(a=>a.cashAccount||a.bankAccount).reduce((s,a)=>s+numberValue(a.currentBalance),0))}</strong>
+            <span>💰 Gross Sales</span>
+            <strong>₹{money(summaryValue('grossSales'))}</strong>
           </div>
           <div className="summary-tile" style={{borderLeft:'4px solid #6366f1'}}>
-            <span>📋 Transactions</span>
-            <strong>{journals.length}</strong>
+            <span>🏷️ Discounts</span>
+            <strong>₹{money(summaryValue('discounts'))}</strong>
           </div>
           <div className="summary-tile" style={{borderLeft:'4px solid #3b82f6'}}>
-            <span>📈 Sales Revenue</span>
-            <strong style={{color:'#3b82f6'}}>₹{money(accounts.filter(a=>a.accountType==='INCOME').reduce((s,a)=>s+numberValue(a.currentBalance),0))}</strong>
+            <span>📈 Net Sales</span>
+            <strong style={{color:'#3b82f6'}}>₹{money(summaryValue('netSales'))}</strong>
           </div>
           <div className="summary-tile" style={{borderLeft:'4px solid #ef4444'}}>
-            <span>📉 Expenses</span>
-            <strong style={{color:'#ef4444'}}>₹{money(accounts.filter(a=>a.accountType==='EXPENSE').reduce((s,a)=>s+numberValue(a.currentBalance),0))}</strong>
+            <span>🧾 Billed Total</span>
+            <strong>₹{money(summaryValue('billedTotal'))}</strong>
+          </div>
+          <div className="summary-tile" style={{borderLeft:'4px solid #06b6d4'}}>
+            <span>💳 Payment Collected</span>
+            <strong>₹{money(summaryValue('paymentCollected'))}</strong>
+          </div>
+          <div className="summary-tile" style={{borderLeft:'4px solid #f97316'}}>
+            <span>🧮 Output Tax</span>
+            <strong>₹{money(summaryValue('outputTax'))}</strong>
+          </div>
+          <div className="summary-tile" style={{borderLeft:'4px solid #ef4444'}}>
+            <span>📉 Expenses + COGS</span>
+            <strong style={{color:'#ef4444'}}>₹{money(summaryValue('expenses') + summaryValue('cogsPurchases'))}</strong>
+          </div>
+          <div className="summary-tile" style={{borderLeft:`4px solid ${summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}`}}>
+            <span>✅ Profit</span>
+            <strong style={{color: summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}}>₹{money(summaryValue('profit'))}</strong>
           </div>
         </section>
 
@@ -337,10 +386,10 @@ function AccountingContent() {
             </div>
             <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
               <button className="primary-button" onClick={handleSyncPastData} disabled={syncing} title="Sync all past sales, expenses & payments into accounting">
-                <FaSync style={syncing ? {animation:'spin 1s linear infinite'} : {}} /> {syncing ? 'Syncing...' : '🔄 Sync Past Sales'}
+                <FaSync style={syncing ? {animation:'spin 1s linear infinite'} : {}} /> {syncing ? 'Syncing...' : 'Sync Selected Period'}
               </button>
-              <button className="secondary-button" onClick={handleResyncAll} disabled={syncing} title="Delete all accounting entries and rebuild from scratch" style={{fontSize:'10px',padding:'6px 10px',borderColor:'#ef4444',color:'#ef4444'}}>
-                🔧 Fix Old Data
+              <button className="secondary-button" onClick={handleResyncAll} disabled={syncing} title="Rebuild only auto-posted accounting entries. Manual journals stay untouched." style={{fontSize:'10px',padding:'6px 10px',borderColor:'#ef4444',color:'#ef4444'}}>
+                Fix Auto Entries
               </button>
               <button className="icon-button" onClick={() => fetchAccountingData()} title="Refresh">
                 <FaRedo />
@@ -355,26 +404,46 @@ function AccountingContent() {
             <button className={activeTab === 'trial' ? 'active' : ''} onClick={() => setActiveTab('trial')}><FaChartPie /> Balance Summary</button>
           </div>
 
-          {(activeTab === 'journals' || activeTab === 'trial') && (
-            <div className="period-toolbar">
-              <label>
-                From
-                <input
-                  type="datetime-local"
-                  value={period.from}
-                  onChange={e => setPeriod(current => ({ ...current, from: e.target.value }))}
-                />
-              </label>
-              <label>
-                To
-                <input
-                  type="datetime-local"
-                  value={period.to}
-                  onChange={e => setPeriod(current => ({ ...current, to: e.target.value }))}
-                />
-              </label>
-              <button type="button" className="primary-button" onClick={handleApplyPeriod}>Show</button>
-              <button type="button" className="secondary-button" onClick={() => fetchAccountingData()}><FaRedo /> Refresh</button>
+          <div className="period-toolbar">
+            <label>
+              From
+              <input
+                type="datetime-local"
+                value={period.from}
+                onChange={e => setPeriod(current => ({ ...current, from: e.target.value }))}
+              />
+            </label>
+            <label>
+              To
+              <input
+                type="datetime-local"
+                value={period.to}
+                onChange={e => setPeriod(current => ({ ...current, to: e.target.value }))}
+              />
+            </label>
+            <label className="small-control">
+              Sort by
+              <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                <option value="entryDate">Date</option>
+                <option value="entryNo">Entry #</option>
+                <option value="totalDebit">Amount</option>
+                <option value="createdAt">Created</option>
+              </select>
+            </label>
+            <label className="small-control">
+              Direction
+              <select value={sortDir} onChange={e => setSortDir(e.target.value)}>
+                <option value="DESC">Newest / High first</option>
+                <option value="ASC">Oldest / Low first</option>
+              </select>
+            </label>
+            <button type="button" className="primary-button" onClick={handleApplyPeriod}>Apply</button>
+            <button type="button" className="secondary-button" onClick={() => fetchAccountingData()}><FaRedo /> Refresh</button>
+          </div>
+
+          {reconciliation?.outOfSync && (
+            <div className="recon-warning">
+              {reconciliation.warnings?.join(' ')} Use Sync Selected Period if these are expected old records.
             </div>
           )}
 
@@ -426,19 +495,22 @@ function AccountingContent() {
                 </div>
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>#</th><th>Account Name</th><th>Type</th><th>Amount (₹)</th><th>Status</th></tr></thead>
+                    <thead><tr><th>#</th><th>Account Name</th><th>Type</th><th className="amount">Opening</th><th className="amount">In</th><th className="amount">Out</th><th className="amount">Closing</th><th>Status</th></tr></thead>
                     <tbody>
                       {filteredAccounts.map(account => (
                         <tr key={account.id}>
                           <td className="mono">{account.code}</td>
                           <td>{account.name}</td>
                           <td><span style={{color: TYPE_COLORS[account.accountType] || '#64748b', fontWeight:800, fontSize:'11px'}}>{TYPE_LABELS[account.accountType] || account.accountType}</span></td>
-                          <td className="amount">₹{money(account.currentBalance)}</td>
+                          <td className="amount">₹{money(account.periodOpening)}</td>
+                          <td className="amount" style={{color:'#10b981'}}>₹{money(account.periodDebit)}</td>
+                          <td className="amount" style={{color:'#ef4444'}}>₹{money(account.periodCredit)}</td>
+                          <td className="amount">₹{money(account.periodClosing)}</td>
                           <td><span className={`status ${account.isActive === 'Y' ? 'active' : 'inactive'}`}>{account.isActive === 'Y' ? 'Active' : 'Inactive'}</span></td>
                         </tr>
                       ))}
                       {filteredAccounts.length === 0 && (
-                        <tr><td colSpan={5} className="empty-cell">No accounts found.</td></tr>
+                        <tr><td colSpan={8} className="empty-cell">No accounts found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -494,20 +566,25 @@ function AccountingContent() {
               <h3>📋 Recent Transactions</h3>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Entry #</th><th>Date</th><th>What For</th><th>Money In</th><th>Money Out</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th></tr></thead>
                   <tbody>
-                    {sortedJournals.map(entry => (
-                      <tr key={entry.id}>
-                        <td className="mono">{entry.entryNo}</td>
-                        <td>{entry.entryDate?.replace('T', ' ').slice(0, 16)}</td>
-                        <td>{entry.description || '-'}</td>
-                        <td className="amount" style={{color:'#10b981'}}>₹{money(entry.totalDebit)}</td>
-                        <td className="amount" style={{color:'#ef4444'}}>₹{money(entry.totalCredit)}</td>
-                        <td><span className="status active">{entry.status}</span></td>
-                      </tr>
-                    ))}
+                    {sortedJournals.map(entry => {
+                      const view = journalDisplay(entry);
+                      return (
+                        <tr key={entry.id}>
+                          <td><span className="type-pill">{view.type}</span></td>
+                          <td className="mono">{view.documentNo}</td>
+                          <td>{entry.entryDate?.replace('T', ' ').slice(0, 16)}</td>
+                          <td>{entry.description || '-'}</td>
+                          <td className="amount" style={{color:'#10b981'}}>{view.received ? `₹${money(view.received)}` : '-'}</td>
+                          <td className="amount" style={{color:'#ef4444'}}>{view.paid ? `₹${money(view.paid)}` : '-'}</td>
+                          <td className="amount">{view.adjustment ? `₹${money(view.adjustment)}` : '-'}</td>
+                          <td><span className="status active">{entry.status}</span></td>
+                        </tr>
+                      );
+                    })}
                     {journals.length === 0 && (
-                      <tr><td colSpan={6} className="empty-cell">No journal entries in the current range.</td></tr>
+                      <tr><td colSpan={8} className="empty-cell">No transactions in the selected range.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -560,7 +637,9 @@ function AccountingContent() {
         .tab-row button.active { background: #fff; color: #f97316; border-color: #fed7aa; box-shadow: 0 1px 3px rgba(15,23,42,0.06); }
         .period-toolbar { display: flex; align-items: end; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #eef2f7; background: #fff; flex-wrap: wrap; }
         .period-toolbar label { min-width: 220px; }
+        .period-toolbar label.small-control { min-width: 160px; }
         .period-toolbar .primary-button, .period-toolbar .secondary-button { min-width: 96px; }
+        .recon-warning { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 12px; font-weight: 800; }
         .split-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; padding: 16px; }
         .panel { padding: 16px; background: #fff; }
         .split-layout .panel { border: 1px solid #eef2f7; border-radius: 8px; }
@@ -589,6 +668,7 @@ function AccountingContent() {
         .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 900; }
         .status.active { background: #ecfdf5; color: #047857; }
         .status.inactive { background: #fef2f2; color: #b91c1c; }
+        .type-pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:900; white-space:nowrap; }
         .empty-cell { text-align: center; color: #94a3b8; padding: 36px 16px; }
         .journal-meta { grid-template-columns: 240px 1fr; margin-bottom: 14px; }
         .journal-lines { border: 1px solid #eef2f7; border-radius: 8px; overflow: hidden; }

@@ -137,13 +137,20 @@ export default function Reports() {
   // ─── RENDER HELPERS ─────────────────────────────────────────────────
   const renderSummary = () => {
     if (!summary) return <div className="rpt-empty">No data for selected range</div>;
+    const billedTotal = Number(summary.grandTotal || 0);
+    const discounts = Number(summary.totalDiscount || 0);
+    const tax = Number(summary.totalTax || 0);
+    const grossSales = billedTotal + discounts - tax;
+    const netSales = grossSales - discounts;
     const cards = [
-      { label: 'Total Revenue', val: `${SYM}${fmt(summary.grandTotal)}`, color: '#10b981', bg: '#ecfdf5' },
+      { label: 'Billed Total', val: `${SYM}${fmt(billedTotal)}`, color: '#10b981', bg: '#ecfdf5' },
+      { label: 'Gross Sales', val: `${SYM}${fmt(grossSales)}`, color: '#0ea5e9', bg: '#f0f9ff' },
+      { label: 'Net Sales', val: `${SYM}${fmt(netSales)}`, color: '#16a34a', bg: '#f0fdf4' },
       { label: 'Total Orders', val: summary.totalOrders, color: '#3b82f6', bg: '#eff6ff' },
       { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff' },
       { label: 'Items Sold', val: summary.itemsSold, color: '#f97316', bg: '#fff7ed' },
-      { label: 'Total Tax', val: `${SYM}${fmt(summary.totalTax)}`, color: '#ef4444', bg: '#fef2f2' },
-      { label: 'Discounts', val: `${SYM}${fmt(summary.totalDiscount)}`, color: '#ec4899', bg: '#fdf2f8' },
+      { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2' },
+      { label: 'Discounts', val: `${SYM}${fmt(discounts)}`, color: '#ec4899', bg: '#fdf2f8' },
     ];
     return (
       <div className="rpt-kpi-grid">
@@ -339,22 +346,28 @@ export default function Reports() {
     if (!pnl) return <div className="rpt-empty">No P&L data</div>;
     const rows = [
       { label: 'Gross Sales', val: pnl.grossSales, color: '#10b981', type: '+' },
-      { label: 'Total Tax Collected', val: pnl.totalTax, color: '#6366f1', type: 'i' },
-      { label: 'Total Expenses', val: pnl.totalExpenses, color: '#ef4444', type: '-' },
+      { label: 'Discounts', val: pnl.discounts, color: '#ec4899', type: '-' },
+      { label: 'Net Sales', val: pnl.netSales, color: '#0ea5e9', type: '=' },
+      { label: 'Output Tax', val: pnl.totalTax, color: '#6366f1', type: 'i' },
+      { label: 'COGS / Purchases', val: pnl.cogsPurchases, color: '#f97316', type: '-' },
+      { label: 'Operating Expenses', val: pnl.operatingExpenses, color: '#ef4444', type: '-' },
       { label: 'Net Profit', val: pnl.netProfit, color: '#0ea5e9', type: '=' },
-      { label: 'Credit Outstanding', val: pnl.creditOutstanding, color: '#f59e0b', type: '-' },
+      { label: 'Receivable Balance', val: pnl.creditOutstanding, color: '#f59e0b', type: 'i' },
       { label: 'Net Cash Profit', val: pnl.netCashProfit, color: Number(pnl.netCashProfit) >= 0 ? '#10b981' : '#ef4444', type: '=' },
     ];
     return (
-      <div className="rpt-pnl-grid">
-        {rows.map((r, i) => (
-          <div key={i} className="rpt-pnl-row" style={{ borderLeft: `4px solid ${r.color}` }}>
-            <span className="rpt-pnl-type" style={{color: r.color}}>{r.type}</span>
-            <span className="rpt-pnl-label">{r.label}</span>
-            <span className="rpt-pnl-val" style={{color: r.color}}>{SYM}{fmt(r.val)}</span>
-          </div>
-        ))}
-      </div>
+      <>
+        <div className="rpt-note">Profit & Loss is calculated from accounting journals, so expenses, purchases, COGS, inventory adjustments, and reversals are included.</div>
+        <div className="rpt-pnl-grid">
+          {rows.map((r, i) => (
+            <div key={i} className="rpt-pnl-row" style={{ borderLeft: `4px solid ${r.color}` }}>
+              <span className="rpt-pnl-type" style={{color: r.color}}>{r.type}</span>
+              <span className="rpt-pnl-label">{r.label}</span>
+              <span className="rpt-pnl-val" style={{color: r.color}}>{SYM}{fmt(r.val)}</span>
+            </div>
+          ))}
+        </div>
+      </>
     );
   };
 
@@ -465,6 +478,7 @@ export default function Reports() {
         .rpt-pay-bar{height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden}
         .rpt-pay-bar>div{height:100%;background:linear-gradient(90deg,#f97316,#fb923c);border-radius:3px;transition:width .6s}
         .rpt-pnl-grid{display:flex;flex-direction:column;gap:12px}
+        .rpt-note{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:12px;font-weight:700}
         .rpt-pnl-row{background:#fff;padding:20px 24px;border-radius:16px;border:1px solid #f1f5f9;display:flex;align-items:center;gap:16px}
         .rpt-pnl-type{font-size:18px;font-weight:900;width:30px;text-align:center}
         .rpt-pnl-label{flex:1;font-size:14px;font-weight:700;color:#475569}

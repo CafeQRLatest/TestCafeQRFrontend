@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
@@ -81,36 +81,42 @@ export default function Expenses() {
     return role.includes('SUPER_ADMIN') || role.includes('ADMIN');
   }, [userRole]);
 
-  const loadData = async (silent = false) => {
+  const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       console.log('Loading expenses | filterStatus:', filterStatus);
       
-      const [catRes, expRes, orgRes] = await Promise.all([
+      const [catRes, expRes, orgRes] = await Promise.allSettled([
         api.get('/api/v1/expense-categories'),
         api.get('/api/v1/expenses', { params: { status: filterStatus } }),
         isSuperAdmin ? api.get('/api/v1/organizations') : Promise.resolve({ data: { success: true, data: [] } })
       ]);
       
-      if (catRes.data.success) setCategories(catRes.data.data || []);
-      if (expRes.data.success) {
-        const responseData = expRes.data.data;
+      if (catRes.status === 'fulfilled' && catRes.value.data.success) {
+        setCategories(catRes.value.data.data || []);
+      } else if (!silent) {
+        notify('error', catRes.reason?.response?.data?.message || 'Expense categories could not be loaded');
+      }
+      if (expRes.status === 'fulfilled' && expRes.value.data.success) {
+        const responseData = expRes.value.data.data;
         const data = Array.isArray(responseData) ? responseData : (responseData?.content || []);
         console.log(`Received ${data.length} records from API`);
         setExpenses(data.sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate)));
+      } else {
+        throw expRes.reason || new Error('Expenses could not be loaded');
       }
-      if (orgRes.data.success) setBranches(orgRes.data.data || []);
+      if (orgRes.status === 'fulfilled' && orgRes.value.data.success) setBranches(orgRes.value.data.data || []);
     } catch (e) { 
       console.error('Expense Load Error:', e);
       notify('error', 'Failed to load expense data');
     } finally { 
       setLoading(false); 
     }
-  };
+  }, [filterStatus, isSuperAdmin, notify]);
 
   useEffect(() => { 
     if (userRole) loadData(); 
-  }, [userRole, filterStatus]);
+  }, [userRole, loadData]);
 
   // Client-side filtering by date range, category, branch, and payment method
   const filtered = useMemo(() => {
