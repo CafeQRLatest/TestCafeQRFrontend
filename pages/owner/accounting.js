@@ -195,17 +195,17 @@ function AccountingContent() {
   };
 
   const handleResyncAll = async () => {
-    if (!window.confirm('⚠️ This will DELETE all accounting entries and rebuild from scratch.\n\nUse this only to fix wrong data. Continue?')) return;
+    if (!window.confirm('This will fix invoices where discounts were applied after billing.\n\nContinue?')) return;
     setSyncing(true);
     try {
       const resp = await api.post('/api/v1/accounting/resync-all');
       if (resp.data.success) {
         const d = resp.data.data;
-        notify('success', `Rebuild complete! ${d.reversed || 0} old entries removed, ${d.posted || 0} new entries created.`);
+        notify('success', `Done! Scanned ${d.scanned || 0} invoices, fixed ${d.posted || 0} with wrong amounts.`);
         await fetchAccountingData();
       }
     } catch (err) {
-      notify('error', err.response?.data?.message || 'Rebuild failed');
+      notify('error', err.response?.data?.message || 'Fix failed. Please try again.');
     } finally {
       setSyncing(false);
     }
