@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
-import SubscriptionGate from '../components/SubscriptionGate';
 
 import {
   FaBookOpen,
@@ -33,11 +32,7 @@ function formatCurrency(n) {
 }
 
 export default function DashboardPage() {
-  return (
-    <SubscriptionGate>
-      <DashboardOverview />
-    </SubscriptionGate>
-  );
+  return <DashboardOverview />;
 }
 
 function DashboardOverview() {

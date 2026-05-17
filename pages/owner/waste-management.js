@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatTzDate } from '../../utils/timezoneUtils';
 import { FaTrash, FaPlus, FaEdit, FaTimes, FaRecycle, FaChartPie, FaList, FaCog, FaCheck, FaLeaf, FaChevronDown } from 'react-icons/fa';
 
 const REASONS = ['Spillage','Burnt / Overcooked','Expired / Spoiled','Customer Return','Over-preparation','Theft / Loss','Other'];
@@ -55,6 +57,7 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
 }
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function WasteManagement() {
+  const { timezone } = useAuth();
   const [tab, setTab] = useState('log');
   const [logs, setLogs] = useState([]);
   const [cats, setCats] = useState([]);
@@ -142,7 +145,6 @@ export default function WasteManagement() {
   const catOptions = cats.map(c => ({ value: c.id, label: c.name }));
   const reasonFilter = [{ value:'ALL', label:'All Reasons' }, ...REASONS.map(r => ({ value:r, label:`${REASON_META[r]?.emoji} ${r}` }))];
   const CSS = `
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     * { box-sizing: border-box; }
     .wm { font-family:'Inter',sans-serif; background:#f7f8fa; min-height:100vh; padding:28px 24px; }
     .wm-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; gap:12px; flex-wrap:wrap; }
@@ -297,7 +299,7 @@ export default function WasteManagement() {
                         <td>{l.quantity} {l.unitOfMeasure}</td>
                         <td style={{color:'#6b7280'}}>₹{fmt(l.unitCost)}</td>
                         <td><span className="wm-cost">₹{fmt(l.totalCost)}</span></td>
-                        <td style={{color:'#9ca3af',fontSize:'12px'}}>{l.wasteDate ? new Date(l.wasteDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'}</td>
+                        <td style={{color:'#9ca3af',fontSize:'12px'}}>{formatTzDate(l.wasteDate, timezone, { format: 'date' })}</td>
                         <td><div className="wm-acts">
                           <button className="wm-ic-btn ed" onClick={()=>openForm(l)}><FaEdit/></button>
                           <button className="wm-ic-btn dl" onClick={()=>deleteLog(l.id)}><FaTrash/></button>

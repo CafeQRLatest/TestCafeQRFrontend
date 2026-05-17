@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
+import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaExchangeAlt, FaTrash, FaSearch, FaSave,
   FaWarehouse, FaMapMarkerAlt, FaPlus, FaMinus,
@@ -19,6 +20,7 @@ export default function StockTransfersPage() {
 }
 
 function TransferContent() {
+  const { timezone } = useAuth();
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [sourceStock, setSourceStock] = useState({});
@@ -508,7 +510,7 @@ function TransferContent() {
                       <div key={d.id} className="draft-tile" onClick={() => loadDraft(d)}>
                         <div className="tile-main">
                           <span className="tile-id">{d.transferNumber}</span>
-                          <span className="tile-date">{new Date(d.transferDate).toLocaleDateString()}</span>
+                          <span className="tile-date">{formatTzDate(d.transferDate, timezone, { format: 'date' })}</span>
                         </div>
                         <div className="tile-route">
                           {warehouses.find(w => w.id === d.sourceWarehouseId)?.name || 'N/A'} &rarr; {warehouses.find(w => w.id === d.destWarehouseId)?.name || 'N/A'}

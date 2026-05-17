@@ -11,7 +11,7 @@ export function calculateOrderTotals(
   profile = {}
 ) {
   const gstEnabled = !!profile?.gst_enabled;
-  const baseRate = Number(profile?.default_tax_rate ?? 5);
+  const baseRate = Number(profile?.default_tax_rate ?? 0);
   const pricesIncludeTax = gstEnabled ? !!profile?.prices_include_tax : false;
 
   /* ------------------------------------------------------------------

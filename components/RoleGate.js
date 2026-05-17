@@ -27,7 +27,7 @@ export default function RoleGate({ children, allowedRoles }) {
       <div className="gate-loading">
         <style jsx>{`
           .gate-loading {
-            height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;

@@ -29,6 +29,7 @@ export default function QRMenuPage() {
   const [toast, setToast] = useState(null); // { msg, type: 'success' | 'error' }
   
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState('cash');
 
   useEffect(() => {
     if (clientId && tableId) {
@@ -45,6 +46,12 @@ export default function QRMenuPage() {
       loadData(cust);
     }
   }, [clientId, orgId, tableId]);
+
+  useEffect(() => {
+    if (tableInfo?.onlinePaymentEnabled === false) {
+      setSelectedPayment('cash');
+    }
+  }, [tableInfo?.onlinePaymentEnabled]);
 
   const loadData = async (activeCustomer) => {
     try {
@@ -157,16 +164,38 @@ export default function QRMenuPage() {
     setCart({}); // clear cart on logout
   };
 
-  const placeOrder = async () => {
+  const loadRazorpayCheckout = () => new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve(true);
+    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(true), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay checkout')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error('Failed to load Razorpay checkout'));
+    document.body.appendChild(script);
+  });
+
+  const submitOrder = async (paymentDetails = {}, manageLoading = true) => {
     if (cartCount === 0) return;
-    setAuthLoading(true);
+    if (manageLoading) setAuthLoading(true);
     try {
       const payload = {
         tableId: tableId,
         tableNumber: tableInfo?.tableNumber || 'QR',
         customerId: customer?.customerId,
+        paymentStatus: paymentDetails.paymentStatus || 'PENDING',
+        paymentMethod: paymentDetails.paymentMethod || 'CASH',
+        razorpayPaymentId: paymentDetails.razorpayPaymentId,
+        razorpayOrderId: paymentDetails.razorpayOrderId,
         items: cartItems.map(i => ({
           productId: i.id,
+          name: i.name,
+          category: i.category,
           quantity: i.quantity,
           price: i.price
         }))
@@ -178,9 +207,92 @@ export default function QRMenuPage() {
         setOrderSuccess(res.data.data);
       }
     } catch (e) {
-      alert('Failed to place order. Please call a waiter.');
+      if (manageLoading) alert('Failed to place order. Please call a waiter.');
+      throw e;
+    } finally {
+      if (manageLoading) setAuthLoading(false);
     }
-    setAuthLoading(false);
+  };
+
+  const handleOnlinePayment = async () => {
+    if (cartCount === 0) return;
+    setAuthLoading(true);
+    try {
+      await loadRazorpayCheckout();
+      const orderResponse = await api.post('/api/v1/public/payments/create-order', {
+        amount: cartTotal,
+        currency: 'INR',
+        receipt: `qr_${Date.now()}`,
+        customerName: customer?.name,
+        customerEmail: customer?.email,
+        customerPhone: customer?.phone,
+        metadata: {
+          purpose: 'qr_order',
+          client_id: clientId,
+          org_id: orgId || 'null',
+          table_id: tableId,
+          table_number: tableInfo?.tableNumber || 'QR'
+        }
+      });
+
+      const payment = orderResponse.data?.data;
+      if (!payment?.orderId || !payment?.keyId) {
+        throw new Error('Unable to start online payment');
+      }
+
+      await new Promise((resolve, reject) => {
+        const checkout = new window.Razorpay({
+          key: payment.keyId,
+          amount: payment.amount,
+          currency: payment.currency || 'INR',
+          name: tableInfo?.restaurantName || 'Restaurant',
+          description: `Table ${tableInfo?.tableNumber || 'QR'} Order`,
+          order_id: payment.orderId,
+          prefill: {
+            name: customer?.name || '',
+            email: customer?.email || '',
+            contact: customer?.phone || ''
+          },
+          theme: { color: brandColor },
+          handler: async (response) => {
+            try {
+              await api.post('/api/v1/public/payments/verify', {
+                razorpayOrderId: response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature
+              });
+
+              await submitOrder({
+                paymentStatus: 'PAID',
+                paymentMethod: 'RAZORPAY',
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpayOrderId: response.razorpay_order_id
+              }, false);
+              resolve(true);
+            } catch (err) {
+              reject(err);
+            }
+          },
+          modal: {
+            ondismiss: () => resolve(false)
+          }
+        });
+        checkout.open();
+      });
+    } catch (e) {
+      console.error(e);
+      showToast(e.response?.data?.message || e.message || 'Online payment failed', 'error');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const placeOrder = async () => {
+    if (selectedPayment === 'online') {
+      await handleOnlinePayment();
+      return;
+    }
+    await submitOrder({ paymentStatus: 'PENDING', paymentMethod: 'CASH' });
   };
 
   // --- RENDERING SCREENS ---
@@ -191,7 +303,7 @@ export default function QRMenuPage() {
         <div className="spinner"></div>
         <p>Loading Experience...</p>
         <style jsx>{`
-          .qr-loader { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: 'Inter', sans-serif; }
+          .qr-loader { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: 'Inter', sans-serif; padding: 24px; }
           .spinner { width: 50px; height: 50px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--brand-color); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 24px; }
           @keyframes spin { to { transform: rotate(360deg); } }
         `}</style>
@@ -206,7 +318,7 @@ export default function QRMenuPage() {
         <h2>{tableInfo.error}</h2>
         <p>Please scan a valid table QR code from your table.</p>
         <style jsx>{`
-          .qr-error-screen { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: 'Inter', sans-serif; text-align: center; padding: 20px; }
+          .qr-error-screen { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: white; font-family: 'Inter', sans-serif; text-align: center; padding: 20px; }
           .err-icon { font-size: 64px; margin-bottom: 24px; color: #ef4444; filter: drop-shadow(0 0 20px rgba(239,68,68,0.4)); }
           h2 { margin: 0 0 12px 0; font-weight: 800; font-size: 24px; }
           p { color: #94a3b8; }
@@ -218,6 +330,7 @@ export default function QRMenuPage() {
   // STRICT LOGIN SCREEN
   const brandColor = tableInfo?.brandColor || '#f97316';
   const restName = tableInfo?.restaurantName || '';
+  const onlinePaymentEnabled = !!tableInfo?.onlinePaymentEnabled;
 
   // Add opacity to the brand color for glowing elements (hex to rgba approximation)
   const brandGlow = brandColor + '30'; // 20% opacity hex
@@ -235,7 +348,7 @@ export default function QRMenuPage() {
         </button>
         <style jsx>{`
           .error-screen { 
-            height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
             padding: 40px; text-align: center; background: #f8fafc;
           }
           .err-icon { font-size: 64px; margin-bottom: 24px; color: #f59e0b; }
@@ -251,7 +364,6 @@ export default function QRMenuPage() {
       <div className="auth-wrapper" style={{ '--brand-color': brandColor, '--brand-glow': brandGlow, '--brand-bg': brandBg }}>
         <Head>
           <title>Welcome - {restName}</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
         </Head>
         
         {/* Ambient Aurora Background */}
@@ -338,10 +450,10 @@ export default function QRMenuPage() {
 
         <style jsx>{`
           .auth-wrapper {
-            position: relative; min-height: 100vh; background: #f8fafc;
+            position: relative; min-height: 100dvh; background: #f8fafc;
             display: flex; align-items: center; justify-content: center;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow: hidden; padding: 24px;
+            overflow-x: clip; overflow-y: auto; padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
           }
 
           /* Ambient Aurora Background */
@@ -359,16 +471,16 @@ export default function QRMenuPage() {
           }
 
           .auth-container {
-            position: relative; z-index: 10; width: 100%; max-width: 400px;
-            display: flex; flex-direction: column; gap: 40px;
+            position: relative; z-index: 10; width: 100%; max-width: min(400px, 100%);
+            display: flex; flex-direction: column; gap: clamp(24px, 5dvh, 40px);
             animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1);
           }
           @keyframes slideUpFade { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 
           /* Elegant Header */
-          .auth-header { text-align: center; display: flex; flex-direction: column; align-items: center; margin-top: 20px; }
+          .auth-header { text-align: center; display: flex; flex-direction: column; align-items: center; margin-top: clamp(0px, 3dvh, 20px); min-width: 0; }
           .logo-wrap {
-            width: 120px; height: 120px; border-radius: 32px; background: #ffffff;
+            width: clamp(86px, 28vw, 120px); height: clamp(86px, 28vw, 120px); border-radius: clamp(22px, 7vw, 32px); background: #ffffff;
             box-shadow: 0 20px 40px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,1);
             display: flex; align-items: center; justify-content: center; margin-bottom: 24px;
             border: 2px solid var(--brand-color); overflow: hidden;
@@ -378,8 +490,8 @@ export default function QRMenuPage() {
           .brand-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 10px; }
           .brand-logo-fallback { font-size: 56px; font-weight: 800; color: var(--brand-color); }
           
-          .welcome-title { margin: 0; font-size: 36px; font-weight: 900; color: #0f172a; letter-spacing: -1.5px; transition: color 0.3s; }
-          .welcome-subtitle { margin: 8px 0 0 0; font-size: 16px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; }
+          .welcome-title { margin: 0; font-size: clamp(26px, 8vw, 36px); font-weight: 900; color: #0f172a; letter-spacing: -1px; transition: color 0.3s; overflow-wrap: anywhere; }
+          .welcome-subtitle { margin: 8px 0 0 0; font-size: clamp(12px, 3.8vw, 16px); color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; overflow-wrap: anywhere; }
 
           /* Unified Glass Form */
           .auth-form-area { width: 100%; }
@@ -392,13 +504,13 @@ export default function QRMenuPage() {
             overflow: hidden;
           }
           
-          .uf-row { display: flex; align-items: center; padding: 18px 24px; background: transparent; transition: background 0.2s; }
+          .uf-row { display: flex; align-items: center; padding: 18px clamp(16px, 5vw, 24px); background: transparent; transition: background 0.2s; min-width: 0; }
           .uf-row:focus-within { background: #ffffff; }
           .uf-icon { display: flex; color: #94a3b8; margin-right: 16px; transition: color 0.2s; }
           .uf-row:focus-within .uf-icon { color: var(--brand-color); }
           
           .uf-row input {
-            flex: 1; border: none; background: transparent; outline: none;
+            flex: 1; min-width: 0; border: none; background: transparent; outline: none;
             font-size: 16px; font-weight: 600; color: #0f172a; padding: 0;
           }
           .uf-row input::placeholder { color: #cbd5e1; font-weight: 500; }
@@ -411,9 +523,9 @@ export default function QRMenuPage() {
           .otp-card { padding: 8px; }
           .otp-input {
             width: 100%; border: none; background: transparent; outline: none; text-align: center;
-            font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: 12px; padding: 16px 0;
+            font-size: clamp(22px, 8vw, 28px); font-weight: 800; color: #0f172a; letter-spacing: clamp(5px, 2.4vw, 12px); padding: 16px 0;
           }
-          .otp-input::placeholder { color: #cbd5e1; font-weight: 600; letter-spacing: 12px; }
+          .otp-input::placeholder { color: #cbd5e1; font-weight: 600; letter-spacing: clamp(5px, 2.4vw, 12px); }
 
           /* Premium Button */
           .premium-btn {
@@ -447,7 +559,6 @@ export default function QRMenuPage() {
       <div className="qr-content-wrapper">
       <Head>
         <title>Menu - Table {tableInfo?.tableNumber}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
       </Head>
 
       {/* Premium Glass Header */}
@@ -605,9 +716,30 @@ export default function QRMenuPage() {
               <span>Grand Total</span>
               <span>₹{cartTotal.toFixed(2)}</span>
             </div>
-            
+
+            {onlinePaymentEnabled && (
+              <div className="payment-choice">
+                <button
+                  className={`pay-option ${selectedPayment === 'cash' ? 'active' : ''}`}
+                  onClick={() => setSelectedPayment('cash')}
+                  type="button"
+                >
+                  <FaUser />
+                  <span>Pay at Counter</span>
+                </button>
+                <button
+                  className={`pay-option ${selectedPayment === 'online' ? 'active' : ''}`}
+                  onClick={() => setSelectedPayment('online')}
+                  type="button"
+                >
+                  <FaMobileAlt />
+                  <span>Pay Online</span>
+                </button>
+              </div>
+            )}
+             
             <button className="cd-checkout-btn" onClick={placeOrder} disabled={authLoading}>
-              {authLoading ? 'Confirming...' : 'Confirm Order to Kitchen'}
+              {authLoading ? 'Confirming...' : selectedPayment === 'online' ? `Pay ₹${cartTotal.toFixed(2)}` : 'Confirm Order to Kitchen'}
             </button>
           </div>
         </div>
@@ -641,7 +773,7 @@ export default function QRMenuPage() {
       <style jsx>{`
         :global(body) { margin: 0; padding: 0; background: #0f172a; }
         .qr-container {
-          min-height: 100vh;
+          min-height: 100dvh;
           width: 100%;
           background: #0f172a; /* Match the side color for a seamless look */
           font-family: 'Inter', sans-serif;
@@ -652,9 +784,9 @@ export default function QRMenuPage() {
         
         .qr-content-wrapper {
           width: 100%;
-          max-width: 500px; /* Default for mobile */
+          max-width: min(100%, 500px); /* Default for mobile */
           background: #ffffff;
-          min-height: 100vh;
+          min-height: 100dvh;
           margin: 0 auto;
           position: relative;
           display: flex;
@@ -663,7 +795,7 @@ export default function QRMenuPage() {
         }
 
         @media (min-width: 768px) {
-          .qr-content-wrapper { max-width: 90%; }
+          .qr-content-wrapper { max-width: min(90%, 1100px); }
         }
         @media (min-width: 1200px) {
           .qr-content-wrapper { max-width: 1200px; }
@@ -678,16 +810,16 @@ export default function QRMenuPage() {
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           border-bottom: 1px solid rgba(0,0,0,0.05);
-          padding: 16px 20px 0;
+          padding: calc(16px + env(safe-area-inset-top, 0px)) clamp(12px, 4vw, 20px) 0;
         }
-        .qh-top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .qh-brand { display: flex; align-items: center; gap: 14px; }
+        .qh-top-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; min-width: 0; }
+        .qh-brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
         .qh-logo-wrap { width: 44px; height: 44px; border-radius: 12px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05); flex-shrink: 0; }
         .qh-logo-img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
         .qh-logo-fallback { font-size: 20px; font-weight: 800; color: var(--brand-color); }
-        .qh-greeting { display: flex; flex-direction: column; }
+        .qh-greeting { display: flex; flex-direction: column; min-width: 0; }
         .greet-text { font-size: 11px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1; margin-bottom: 2px; }
-        .greet-name { font-size: 17px; font-weight: 900; color: #0f172a; line-height: 1; }
+        .greet-name { font-size: 17px; font-weight: 900; color: #0f172a; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .qh-logout { background: #ffffff; border: 1px solid #f1f5f9; width: 40px; height: 40px; border-radius: 12px; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
         .qh-logout:active { background: #fef2f2; color: #ef4444; border-color: #fee2e2; }
 
@@ -703,8 +835,8 @@ export default function QRMenuPage() {
         .cat-tab.active::after { content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 24px; height: 3px; background: var(--brand-color); border-radius: 3px; }
 
         /* Main Menu Content */
-        .qr-main { padding: 8px; width: 100%; }
-        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; width: 100%; }
+        .qr-main { padding: clamp(8px, 3vw, 32px); width: 100%; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr)); gap: 10px; width: 100%; }
         
         @media (min-width: 768px) {
           .qr-main { padding: 32px; }
@@ -721,7 +853,7 @@ export default function QRMenuPage() {
         }
 
         /* DYNAMIC PRODUCT CARDS */
-        .prod-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); position: relative; transition: transform 0.2s; border: 1px solid rgba(0,0,0,0.02); }
+        .prod-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); position: relative; transition: transform 0.2s; border: 1px solid rgba(0,0,0,0.02); min-width: 0; }
         .prod-card:active { transform: scale(0.98); }
 
         .diet-indicator { position: absolute; top: 16px; left: 16px; width: 16px; height: 16px; border-radius: 4px; border: 2px solid; background: white; display: flex; align-items: center; justify-content: center; z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -741,12 +873,12 @@ export default function QRMenuPage() {
         .prod-card.no-image:has(.diet-indicator.veg) { border-left-color: #10b981; }
         .prod-card.no-image:has(.diet-indicator.non-veg) { border-left-color: #ef4444; }
         .prod-card.no-image .diet-indicator { display: none; /* hidden because left border indicates it */ }
-        .prod-card.no-image .pc-content { padding: 20px; width: 100%; }
+        .prod-card.no-image .pc-content { padding: 20px; width: 100%; min-width: 0; }
         .pc-price-text { font-weight: 800; color: var(--brand-color); font-size: 18px; margin-top: 4px; display: block; }
 
         .pc-content { padding: 8px; display: flex; flex-direction: column; flex: 1; }
         .pc-info { display: flex; justify-content: space-between; align-items: flex-start; }
-        .pc-title { margin: 0; font-size: 12px; font-weight: 800; color: #0f172a; line-height: 1.1; }
+        .pc-title { margin: 0; font-size: 12px; font-weight: 800; color: #0f172a; line-height: 1.1; overflow-wrap: anywhere; }
         .pc-desc { margin: 3px 0 0 0; font-size: 9px; color: #64748b; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; min-height: 22px; }
         
         .pc-actions { display: flex; justify-content: flex-end; align-items: center; margin-top: 6px; }
@@ -767,15 +899,15 @@ export default function QRMenuPage() {
         .empty-state p { margin: 0; color: #64748b; font-size: 14px; }
 
         .floating-cart-wrapper { 
-          position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); 
-          width: 90%; max-width: 500px; z-index: 10000; 
+          position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
+          width: min(92%, 500px); z-index: 10000;
           transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .floating-cart-wrapper.cart-hidden-state { transform: translate(-50%, 200px); opacity: 0; pointer-events: none; }
         
         .floating-cart-btn { 
           width: 100%; background: var(--brand-color); color: white; border: none; 
-          border-radius: 100px; padding: 16px 24px; display: flex; justify-content: space-between; 
+          border-radius: 100px; padding: 16px clamp(16px, 4vw, 24px); display: flex; justify-content: space-between;
           align-items: center; cursor: pointer; 
           box-shadow: 0 15px 40px var(--brand-glow);
           border: 1px solid rgba(255,255,255,0.1);
@@ -798,12 +930,12 @@ export default function QRMenuPage() {
         /* Cart Drawer (Bottom Sheet / Side Panel) */
         .cart-drawer-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.3s; display: flex; align-items: flex-end; }
         .cart-drawer-overlay.open { opacity: 1; pointer-events: auto; }
-        .cart-drawer { width: 100%; max-height: 85vh; background: white; border-radius: 32px 32px 0 0; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 1, 0.2, 1); box-shadow: 0 -20px 40px rgba(0,0,0,0.1); }
+        .cart-drawer { width: 100%; max-height: min(86dvh, 720px); background: white; border-radius: 28px 28px 0 0; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.2, 1, 0.2, 1); box-shadow: 0 -20px 40px rgba(0,0,0,0.1); }
         .cart-drawer-overlay.open .cart-drawer { transform: translateY(0); }
         
         @media (min-width: 768px) {
           .cart-drawer-overlay { align-items: stretch; justify-content: flex-end; }
-          .cart-drawer { width: 450px; max-height: 100vh; height: 100vh; border-radius: 32px 0 0 32px; transform: translateX(100%); }
+          .cart-drawer { width: min(450px, 100vw); max-height: 100dvh; height: 100dvh; border-radius: 32px 0 0 32px; transform: translateX(100%); }
           .cart-drawer-overlay.open .cart-drawer { transform: translateX(0); }
           .cd-drag-handle { display: none; }
           .cd-items { padding: 32px; }
@@ -811,20 +943,23 @@ export default function QRMenuPage() {
         }
         
         .cd-drag-handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 4px; margin: 12px auto 0; }
-        .cd-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+        .cd-header { padding: 20px clamp(16px, 5vw, 24px); display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #f1f5f9; }
         .cd-header h2 { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; }
         .cd-close { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         
-        .cd-items { padding: 20px 24px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
-        .cd-item { display: flex; justify-content: space-between; align-items: center; }
-        .cdi-info { display: flex; flex-direction: column; }
-        .cdi-name { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+        .cd-items { padding: 20px clamp(16px, 5vw, 24px); overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+        .cd-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
+        .cdi-info { display: flex; flex-direction: column; min-width: 0; }
+        .cdi-name { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px; overflow-wrap: anywhere; }
         .cdi-price { font-size: 14px; font-weight: 600; color: #64748b; }
         
-        .cd-footer { padding: 24px; background: #f8fafc; border-top: 1px solid #f1f5f9; border-radius: 0 0 0 0; padding-bottom: env(safe-area-inset-bottom, 24px); }
+        .cd-footer { padding: 24px clamp(16px, 5vw, 24px); background: #f8fafc; border-top: 1px solid #f1f5f9; border-radius: 0 0 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
         .cd-bill-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; color: #64748b; font-weight: 600; }
         .cd-bill-row.total { margin-top: 16px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 24px; }
-        
+        .payment-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .pay-option { border: 1px solid #e2e8f0; background: white; color: #64748b; border-radius: 16px; padding: 12px 10px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 800; cursor: pointer; }
+        .pay-option.active { border-color: var(--brand-color); background: var(--brand-bg); color: var(--brand-color); box-shadow: 0 8px 18px var(--brand-glow); }
+         
         .cd-checkout-btn { width: 100%; padding: 18px; border-radius: 20px; border: none; background: var(--brand-color); color: white; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 25px var(--brand-glow); transition: 0.2s; }
         .cd-checkout-btn:active { transform: scale(0.98); }
         .cd-checkout-btn:disabled { opacity: 0.7; }
@@ -848,17 +983,23 @@ export default function QRMenuPage() {
 
         /* Custom Toast Notification */
         .toast-msg {
-          position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+          position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
           background: #1e293b; color: white; padding: 14px 24px; border-radius: 16px;
           display: flex; align-items: center; gap: 12px; z-index: 1000;
           box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: toastPop .3s ease-out;
-          cursor: pointer; min-width: 280px; font-weight: 600; font-size: 14px;
+          cursor: pointer; min-width: min(280px, calc(100vw - 32px)); max-width: calc(100vw - 32px); font-weight: 600; font-size: 14px;
         }
         .toast-msg.error { background: #ef4444; }
         .toast-msg.success { background: #10b981; }
         @keyframes toastPop {
           from { transform: translate(-50%, 20px); opacity: 0; }
           to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @media (max-width: 360px) {
+          .menu-grid { grid-template-columns: 1fr; }
+          .payment-choice { grid-template-columns: 1fr; }
+          .fcb-label { display: none; }
+          .floating-cart-btn { border-radius: 18px; }
         }
       `}</style>
       </div> {/* End qr-content-wrapper */}

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
-import SubscriptionGate from '../../components/SubscriptionGate';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
 import { 
@@ -10,16 +9,13 @@ import {
   FaBuilding,
   FaBoxes,
   FaBookOpen,
+  FaBalanceScale,
   FaCashRegister,
   FaFileInvoice
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
-  return (
-    <SubscriptionGate>
-      <MainMenuContent />
-    </SubscriptionGate>
-  );
+  return <MainMenuContent />;
 }
 
 function MainMenuContent() {
@@ -56,6 +52,7 @@ function MainMenuContent() {
     "Billing & Reports":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Reports & Billing":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Stock":            { icon: <FaBoxes />,       color: "#ea580c" },
+    "Accounting":       { icon: <FaBalanceScale />, color: "#0f766e" },
     "Table Management": { icon: <FaChair />,       color: "#f97316" },
     "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
   };

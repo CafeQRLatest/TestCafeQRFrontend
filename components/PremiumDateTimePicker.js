@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaCalendarAlt, FaClock, FaChevronLeft, FaChevronRight, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
+import { getBusinessNow as getBizNow } from '../utils/timezoneUtils';
 
 export default function PremiumDateTimePicker({ value, onChange, themeColor = '#f97316', disabled = false }) {
   const { timezone } = useAuth();
@@ -11,28 +12,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
   const wrapperRef = useRef(null);
 
   // Helper to get time in business timezone
-  const getBusinessNow = () => {
-    const now = new Date();
-    if (!timezone) return now;
-
-    try {
-      // Extract offset from format "UTC+5:30 (India)" or "UTC-4:00"
-      const match = timezone.match(/UTC([+-])(\d+):(\d+)/);
-      if (match) {
-        const sign = match[1] === '+' ? 1 : -1;
-        const hours = parseInt(match[2]);
-        const mins = parseInt(match[3]);
-        const targetOffset = sign * (hours * 60 + mins);
-        
-        // Local offset in minutes (e.g. IST is -330)
-        const localOffset = -now.getTimezoneOffset();
-        const diff = targetOffset - localOffset;
-        
-        return new Date(now.getTime() + diff * 60000);
-      }
-    } catch (e) { console.error("Tz parse error", e); }
-    return now;
-  };
+  const getBusinessNow = () => getBizNow(timezone);
 
   const getLocalISO = (date) => {
     const year = date.getFullYear();

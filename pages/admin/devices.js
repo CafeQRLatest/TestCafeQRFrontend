@@ -6,7 +6,7 @@ import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { 
   FaPowerOff, FaSave, FaTag, FaMicrochip, FaSearch, FaPlus, FaChevronRight,
-  FaPrint, FaBarcode, FaTabletAlt, FaLaptop, FaTools
+  FaPrint, FaBarcode, FaTabletAlt, FaLaptop, FaTools, FaCheckCircle, FaExclamationCircle
 } from 'react-icons/fa';
 
 /**

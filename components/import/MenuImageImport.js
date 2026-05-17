@@ -1,9 +1,88 @@
 import React, { useState, useRef } from 'react';
-import { FaImage, FaMagic, FaCheckCircle, FaExclamationCircle, FaTrash } from 'react-icons/fa';
+import { FaImage, FaMagic, FaCheckCircle, FaExclamationCircle, FaTrash, FaLayerGroup } from 'react-icons/fa';
 import api from '../../utils/api';
 import CafeQRPopup from '../CafeQRPopup';
 
-export default function MenuImageImport({ onClose, onImported }) {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const cleanText = (value, fallback = '') => String(value ?? fallback).trim();
+const keyFor = (value) => cleanText(value).toLowerCase();
+const toMoney = (value) => {
+  const number = Number.parseFloat(value);
+  return Number.isFinite(number) ? number : 0;
+};
+const getRequestErrorMessage = (err, fallback = 'Request failed') => {
+  const data = err?.response?.data;
+  const message = data?.message || data?.error || err?.message || fallback;
+  return data?.errorReference ? `${message} (ref ${data.errorReference})` : message;
+};
+const getAiParseEndpoint = () => {
+  const configuredEndpoint = cleanText(process.env.NEXT_PUBLIC_AI_PARSE_URL);
+  if (configuredEndpoint) return configuredEndpoint;
+
+  const isNativeShell = typeof window !== 'undefined'
+    && window.Capacitor?.isNativePlatform?.();
+
+  if (isNativeShell) {
+    return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-menu';
+  }
+
+  return '/api/ai/parse-menu';
+};
+
+const normalizeImportedVariants = (variants) => {
+  if (!Array.isArray(variants)) return [];
+
+  return variants
+    .map((variant) => {
+      const template = cleanText(
+        variant?.template || variant?.name || variant?.group || variant?.variantGroup,
+        'Options'
+      ) || 'Options';
+      const optionSeen = new Set();
+      const options = (Array.isArray(variant?.options) ? variant.options : [])
+        .map((option) => {
+          const name = cleanText(
+            option?.name || option?.option || option?.label || option?.size || option?.portion || option?.type
+          );
+          const price = toMoney(option?.price ?? option?.amount ?? option?.rate);
+          return { name, price };
+        })
+        .filter((option) => {
+          if (!option.name) return false;
+          const optionKey = keyFor(option.name);
+          if (optionSeen.has(optionKey)) return false;
+          optionSeen.add(optionKey);
+          return true;
+        });
+
+      return {
+        template,
+        required: variant?.required !== false,
+        options,
+      };
+    })
+    .filter((variant) => variant.options.length > 0);
+};
+
+const normalizeImportedItem = (item) => {
+  const variants = normalizeImportedVariants(item?.variants);
+  const variantPrices = variants
+    .flatMap((variant) => variant.options.map((option) => toMoney(option.price)))
+    .filter((price) => price > 0);
+  const parsedPrice = toMoney(item?.price);
+
+  return {
+    name: cleanText(item?.name),
+    category: cleanText(item?.category, 'General') || 'General',
+    price: parsedPrice || (variantPrices.length ? Math.min(...variantPrices) : 0),
+    description: cleanText(item?.description),
+    veg: Boolean(item?.veg),
+    variants,
+    selected: true,
+  };
+};
+
+export default function MenuImageImport({ onClose, onImported, existingItems = [] }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
@@ -52,20 +131,165 @@ export default function MenuImageImport({ onClose, onImported }) {
     setError(null);
     try {
       const base64 = await compressImage(file);
-      const res = await fetch('/api/ai/parse-menu', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64 })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to parse menu');
-      
-      setItems(data.items.map(it => ({ ...it, selected: true })));
+      let data = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const res = await fetch(getAiParseEndpoint(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64 })
+        });
+
+        data = await res.json().catch(() => ({}));
+        if (res.ok) break;
+
+        if ((res.status === 503 || res.status === 504) && attempt === 1) {
+          await sleep(2500);
+          continue;
+        }
+
+        throw new Error(data.details || data.message || 'Failed to parse menu');
+      }
+
+      const existingNames = new Set(
+        (existingItems || [])
+          .map((item) => keyFor(item?.name))
+          .filter(Boolean)
+      );
+      const processedItems = (data.items || [])
+        .map(normalizeImportedItem)
+        .filter((it) => it.name)
+        .map((it) => {
+          const isDupe = existingNames.has(keyFor(it.name));
+          return { ...it, isDupe, selected: !isDupe };
+        });
+
+      setItems(processedItems);
       setStep('review');
     } catch (err) {
       setError(err.message);
       setStep('upload');
     }
+  };
+
+  const loadVariantGroupsWithOptions = async () => {
+    let groups = [];
+    try {
+      const resp = await api.get('/api/v1/products/variants/groups');
+      groups = resp.data?.data || [];
+    } catch (err) {
+      throw new Error(getRequestErrorMessage(err, 'Failed to load variant groups'));
+    }
+
+    return Promise.all(groups.map(async (group) => {
+      if (Array.isArray(group.options)) {
+        return group;
+      }
+
+      try {
+        const optionsResp = await api.get(`/api/v1/products/variants/groups/${group.id}/options`);
+        return { ...group, options: optionsResp.data?.data || group.options || [] };
+      } catch {
+        return { ...group, options: group.options || [] };
+      }
+    }));
+  };
+
+  const ensureVariantGroup = async (cache, variant) => {
+    const groupKey = keyFor(variant.template);
+    const existingIndex = cache.findIndex((group) => keyFor(group.name) === groupKey);
+
+    if (existingIndex === -1) {
+      const createResp = await api.post('/api/v1/products/variants/groups', {
+        name: variant.template,
+        isActive: true,
+        options: variant.options.map((option) => ({
+          name: option.name,
+          additionalPrice: 0,
+          isActive: true,
+        })),
+      });
+
+      const created = createResp.data?.data;
+      if (!created?.id) throw new Error(`Variant group "${variant.template}" could not be created.`);
+
+      let createdOptions = created.options || [];
+      if (!Array.isArray(created.options) || !createdOptions.length) {
+        const optionsResp = await api.get(`/api/v1/products/variants/groups/${created.id}/options`);
+        createdOptions = optionsResp.data?.data || [];
+      }
+
+      const hydrated = { ...created, options: createdOptions };
+      cache.push(hydrated);
+      return hydrated;
+    }
+
+    const group = { ...cache[existingIndex], options: cache[existingIndex].options || [] };
+    const optionKeys = new Set(group.options.map((option) => keyFor(option.name)));
+    const missingOptions = variant.options.filter((option) => !optionKeys.has(keyFor(option.name)));
+
+    for (const option of missingOptions) {
+      const optionResp = await api.post('/api/v1/products/variants/options', {
+        name: option.name,
+        additionalPrice: 0,
+        isActive: true,
+        groupId: group.id,
+        group: { id: group.id },
+      });
+      if (optionResp.data?.data?.id) {
+        group.options.push(optionResp.data.data);
+      }
+    }
+
+    cache[existingIndex] = group;
+    return group;
+  };
+
+  const buildProductPayload = async (selectedItems) => {
+    const variantCache = await loadVariantGroupsWithOptions();
+    const payload = [];
+
+    for (const item of selectedItems) {
+      const variants = normalizeImportedVariants(item.variants);
+      const variantMappings = [];
+      const variantPricings = [];
+
+      for (const variant of variants) {
+        const group = await ensureVariantGroup(variantCache, variant);
+        const optionsByName = new Map((group.options || []).map((option) => [keyFor(option.name), option]));
+
+        variantMappings.push({
+          variantGroup: { id: group.id },
+          isRequired: variant.required !== false,
+        });
+
+        variant.options.forEach((option) => {
+          const resolvedOption = optionsByName.get(keyFor(option.name));
+          if (!resolvedOption?.id) return;
+          variantPricings.push({
+            variantOption: { id: resolvedOption.id },
+            overridePrice: toMoney(option.price),
+            isAvailable: true,
+          });
+        });
+      }
+
+      payload.push({
+        name: cleanText(item.name),
+        price: toMoney(item.price),
+        description: cleanText(item.description),
+        category: { name: cleanText(item.category, 'General') || 'General' },
+        productType: item.veg ? 'VEG' : 'NON_VEG',
+        isAvailable: true,
+        isActive: true,
+        isIngredient: false,
+        isPackagedGood: false,
+        isVariant: variants.length > 0,
+        variantMappings,
+        variantPricings,
+      });
+    }
+
+    return payload;
   };
 
   const handleImport = async () => {
@@ -74,14 +298,7 @@ export default function MenuImageImport({ onClose, onImported }) {
 
     setStep('importing');
     try {
-      const payload = selectedItems.map(it => ({
-        name: it.name,
-        price: it.price,
-        description: it.description,
-        category: { name: it.category || 'General' },
-        available: true,
-        active: true
-      }));
+      const payload = await buildProductPayload(selectedItems);
 
       const res = await api.post('/api/v1/products/bulk', payload);
       if (res.data.success) {
@@ -91,7 +308,7 @@ export default function MenuImageImport({ onClose, onImported }) {
         throw new Error(res.data.message || 'Failed to import products');
       }
     } catch (err) {
-      setError(err.message);
+      setError(getRequestErrorMessage(err, 'Failed to import products'));
       setStep('review');
     }
   };
@@ -108,10 +325,54 @@ export default function MenuImageImport({ onClose, onImported }) {
     setItems(updated);
   };
 
+  const updateVariantField = (itemIdx, variantIdx, field, value) => {
+    const updated = [...items];
+    const variants = [...(updated[itemIdx].variants || [])];
+    variants[variantIdx] = { ...variants[variantIdx], [field]: value };
+    updated[itemIdx] = { ...updated[itemIdx], variants };
+    setItems(updated);
+  };
+
+  const updateVariantOption = (itemIdx, variantIdx, optionIdx, field, value) => {
+    const updated = [...items];
+    const variants = [...(updated[itemIdx].variants || [])];
+    const options = [...(variants[variantIdx].options || [])];
+    options[optionIdx] = {
+      ...options[optionIdx],
+      [field]: field === 'price' ? toMoney(value) : value,
+    };
+    variants[variantIdx] = { ...variants[variantIdx], options };
+    updated[itemIdx] = { ...updated[itemIdx], variants };
+    setItems(updated);
+  };
+
+  const removeVariantOption = (itemIdx, variantIdx, optionIdx) => {
+    const updated = [...items];
+    const variants = [...(updated[itemIdx].variants || [])];
+    const options = (variants[variantIdx].options || []).filter((_, index) => index !== optionIdx);
+    variants[variantIdx] = { ...variants[variantIdx], options };
+    updated[itemIdx] = {
+      ...updated[itemIdx],
+      variants: variants.filter((variant) => variant.options.length > 0),
+    };
+    setItems(updated);
+  };
+
   const getSaveLabel = () => {
     if (step === 'upload') return 'Start AI Analysis';
     if (step === 'review') return `Complete Import (${items.filter(it => it.selected).length})`;
     return 'Save';
+  };
+
+  const baseInputStyle = {
+    color: '#0f172a',
+    WebkitTextFillColor: '#0f172a',
+    caretColor: '#f97316',
+  };
+  const categoryInputStyle = {
+    color: '#f97316',
+    WebkitTextFillColor: '#f97316',
+    caretColor: '#f97316',
   };
 
   return (
@@ -176,13 +437,16 @@ export default function MenuImageImport({ onClose, onImported }) {
                         value={it.name} 
                         onChange={(e) => updateItemField(idx, 'name', e.target.value)} 
                         placeholder="Item Name" 
+                        style={baseInputStyle}
                       />
+                      {it.isDupe && <span className="duplicate-badge">Duplicate</span>}
                       <div className="price-input-wrap">
                         <span>₹</span>
                         <input 
                           type="number" 
                           value={it.price} 
                           onChange={(e) => updateItemField(idx, 'price', e.target.value)} 
+                          style={baseInputStyle}
                         />
                       </div>
                     </div>
@@ -192,14 +456,75 @@ export default function MenuImageImport({ onClose, onImported }) {
                         value={it.category} 
                         onChange={(e) => updateItemField(idx, 'category', e.target.value)} 
                         placeholder="Category" 
+                        style={categoryInputStyle}
                       />
                       <input 
                         className="desc-input" 
                         value={it.description} 
                         onChange={(e) => updateItemField(idx, 'description', e.target.value)} 
                         placeholder="Description (Optional)" 
+                        style={baseInputStyle}
                       />
                     </div>
+                    {it.variants?.length > 0 && (
+                      <div className="variant-section">
+                        <div className="variant-title">
+                          <FaLayerGroup />
+                          <span>{it.variants.length} variant group{it.variants.length > 1 ? 's' : ''}</span>
+                        </div>
+                        {it.variants.map((variant, variantIdx) => (
+                          <div className="variant-card" key={`${idx}-${variantIdx}`}>
+                            <div className="variant-card-head">
+                              <input
+                                className="variant-template-input"
+                                value={variant.template}
+                                onChange={(e) => updateVariantField(idx, variantIdx, 'template', e.target.value)}
+                                placeholder="Variant group, e.g. Size"
+                                style={baseInputStyle}
+                              />
+                              <label className="required-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={variant.required !== false}
+                                  onChange={(e) => updateVariantField(idx, variantIdx, 'required', e.target.checked)}
+                                />
+                                Required
+                              </label>
+                            </div>
+                            <div className="variant-options">
+                              <div className="variant-options-head">
+                                <span>Option</span>
+                                <span>Price</span>
+                              </div>
+                              {variant.options.map((option, optionIdx) => (
+                                <div className="variant-option-row" key={`${idx}-${variantIdx}-${optionIdx}`}>
+                                  <input
+                                    className="variant-option-name"
+                                    value={option.name}
+                                    onChange={(e) => updateVariantOption(idx, variantIdx, optionIdx, 'name', e.target.value)}
+                                    placeholder="Option name"
+                                    style={baseInputStyle}
+                                  />
+                                  <div className="variant-price-wrap">
+                                    <span>₹</span>
+                                    <input
+                                      type="number"
+                                      value={option.price}
+                                      onChange={(e) => updateVariantOption(idx, variantIdx, optionIdx, 'price', e.target.value)}
+                                      placeholder="0"
+                                      style={baseInputStyle}
+                                    />
+                                  </div>
+                                  <button className="variant-option-delete" onClick={() => removeVariantOption(idx, variantIdx, optionIdx)}>
+                                    <FaTrash />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button className="item-delete" onClick={() => {
                       const updated = items.filter((_, i) => i !== idx);
@@ -257,24 +582,62 @@ export default function MenuImageImport({ onClose, onImported }) {
         .checked { color: #f97316; font-size: 20px; }
         .unchecked { width: 20px; height: 20px; border: 2px solid #cbd5e1; border-radius: 50%; }
         
-        .item-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .item-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
         .field-row { display: flex; gap: 12px; }
         .field-row.secondary { gap: 8px; }
-        .name-input { flex: 1; font-weight: 700; border: none; outline: none; padding: 4px 8px; border-radius: 6px; font-size: 15px; background: #f8fafc; }
+        .review-item input {
+          color: #0f172a !important;
+          -webkit-text-fill-color: #0f172a;
+          opacity: 1;
+        }
+        .review-item input::placeholder {
+          color: #94a3b8;
+          -webkit-text-fill-color: #94a3b8;
+          opacity: 1;
+        }
+        .name-input { flex: 1; font-weight: 800; border: 1px solid #e2e8f0; outline: none; padding: 8px 10px; border-radius: 8px; font-size: 15px; background: #ffffff; min-width: 0; }
         .name-input:focus { background: white; box-shadow: 0 0 0 2px #fff7ed; }
-        .price-input-wrap { display: flex; align-items: center; gap: 4px; background: #f8fafc; padding: 4px 8px; border-radius: 6px; width: 100px; }
-        .price-input-wrap span { font-weight: 700; color: #94a3b8; }
-        .price-input-wrap input { border: none; background: none; font-weight: 700; font-size: 14px; width: 100%; outline: none; }
+        .duplicate-badge { align-self: center; border: 1px solid #fde68a; background: #fffbeb; color: #b45309; border-radius: 999px; padding: 5px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+        .price-input-wrap { display: flex; align-items: center; gap: 4px; background: #ffffff; padding: 8px 10px; border-radius: 8px; width: 120px; border: 1px solid #e2e8f0; }
+        .price-input-wrap span { font-weight: 800; color: #64748b; }
+        .price-input-wrap input { border: none; background: none; font-weight: 800; font-size: 14px; width: 100%; outline: none; }
         
-        .cat-input, .desc-input { border: 1px solid transparent; background: #f8fafc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; outline: none; }
+        .cat-input, .desc-input { border: 1px solid #e2e8f0; background: #ffffff; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; outline: none; }
         .cat-input { width: 140px; color: #f97316; }
-        .desc-input { flex: 1; color: #64748b; }
+        .cat-input:not(:focus) { -webkit-text-fill-color: #f97316; }
+        .desc-input { flex: 1; color: #334155; min-width: 0; }
         .cat-input:focus, .desc-input:focus { border-color: #e2e8f0; background: white; }
+
+        .variant-section { margin-top: 6px; padding: 12px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; }
+        .variant-title { display: flex; align-items: center; gap: 8px; color: #475569; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+        .variant-title svg { color: #f97316; }
+        .variant-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .variant-card-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+        .variant-template-input { border: 1px solid #e2e8f0; background: #ffffff; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 800; outline: none; }
+        .required-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #64748b; white-space: nowrap; }
+        .required-toggle input { accent-color: #f97316; }
+        .variant-options { display: flex; flex-direction: column; gap: 8px; }
+        .variant-options-head { display: grid; grid-template-columns: minmax(0, 1fr) 110px 32px; gap: 8px; color: #94a3b8; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 2px; }
+        .variant-option-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 32px; gap: 8px; align-items: center; }
+        .variant-option-name { border: 1px solid #e2e8f0; background: #ffffff; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 700; outline: none; min-width: 0; }
+        .variant-price-wrap { display: flex; align-items: center; gap: 4px; border: 1px solid #e2e8f0; background: #ffffff; border-radius: 8px; padding: 8px 10px; }
+        .variant-price-wrap span { color: #64748b; font-weight: 800; font-size: 12px; }
+        .variant-price-wrap input { border: none; outline: none; width: 100%; background: transparent; font-size: 12px; font-weight: 800; }
+        .variant-option-delete { width: 32px; height: 32px; border: none; border-radius: 8px; background: #f8fafc; color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .variant-option-delete:hover { background: #fef2f2; color: #ef4444; }
 
         .item-delete { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 8px; font-size: 14px; border-radius: 8px; }
         .item-delete:hover { color: #ef4444; background: #fef2f2; }
 
         .import-error { background: #fef2f2; color: #b91c1c; padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        @media (max-width: 640px) {
+          .review-item { gap: 10px; padding: 12px; }
+          .field-row, .field-row.secondary, .variant-card-head, .variant-option-row, .variant-options-head { grid-template-columns: 1fr; display: grid; }
+          .price-input-wrap, .cat-input { width: 100%; }
+          .variant-options-head { display: none; }
+          .variant-option-row { position: relative; padding-right: 40px; }
+          .variant-option-delete { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+        }
       `}</style>
     </CafeQRPopup>
   );

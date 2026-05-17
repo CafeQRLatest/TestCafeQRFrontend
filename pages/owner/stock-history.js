@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import api from '../../utils/api';
+import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaHistory, FaWarehouse, FaSearch, FaArrowRight, FaArrowLeft, FaTags, FaClock
 } from 'react-icons/fa';
@@ -17,6 +18,7 @@ export default function StockHistoryPage() {
 }
 
 function StockHistoryContent() {
+  const { timezone } = useAuth();
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [ledgers, setLedgers] = useState([]);
@@ -135,8 +137,8 @@ function StockHistoryContent() {
               label: 'Date / Time',
               render: (lg) => (
                 <div className="dt-cell">
-                  <span className="d">{new Date(lg.transactionDate).toLocaleDateString()}</span>
-                  <span className="t">{new Date(lg.transactionDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  <span className="d">{formatTzDate(lg.transactionDate, timezone, { format: 'date' })}</span>
+                  <span className="t">{formatTzDate(lg.transactionDate, timezone, { format: 'time' })}</span>
                 </div>
               )
             },

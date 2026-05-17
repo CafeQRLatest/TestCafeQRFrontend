@@ -1,8 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import DashboardLayout from '../../components/DashboardLayout';
-import { FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaShieldAlt, FaMoneyBillWave, FaTags, FaWarehouse } from 'react-icons/fa';
-import api from '../../utils/api';
+import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaWarehouse } from 'react-icons/fa';
 
 export default function OrganizationPage() {
   return (
@@ -67,6 +66,13 @@ function OrganizationContent() {
       description: 'Sales & Purchase Pricing with Versioning', 
       icon: <FaTags />, 
       color: "#f97316" 
+    },
+    {
+      name: 'Accounting Foundation',
+      url: '/owner/accounting',
+      description: 'Chart of Accounts, Journals & Ledgers',
+      icon: <FaBalanceScale />,
+      color: "#0f766e"
     }
   ];
 

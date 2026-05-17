@@ -126,7 +126,7 @@ export default function MenuExcelImport({ onClose, onImported }) {
             <div className="drop-zone" onClick={() => fileInputRef.current.click()}>
               <FaUpload className="drop-icon" />
               <p>Click to upload Excel (.xlsx, .xls) or CSV file</p>
-              <span>Ensure headers like "Name", "Price", and "Category" are present</span>
+              <span>Ensure headers like &quot;Name&quot;, &quot;Price&quot;, and &quot;Category&quot; are present</span>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".xlsx,.xls,.csv" hidden />
             </div>
           </div>

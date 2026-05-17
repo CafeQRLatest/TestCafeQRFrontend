@@ -3,6 +3,8 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ReportTable from '../../components/ReportTable';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaClipboardList, FaSearch, FaCalendarAlt, FaCheckCircle,
   FaClock, FaBalanceScale, FaExclamationTriangle,
@@ -18,6 +20,7 @@ export default function StockAdjustmentReportsPage() {
 }
 
 function AdjustmentReportContent() {
+  const { timezone } = useAuth();
   const [adjustments, setAdjustments] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,8 +132,8 @@ function AdjustmentReportContent() {
       key: 'adjustmentDate', label: 'Date',
       render: (row) => (
         <div className="dt-cell">
-          <span className="d">{new Date(row.adjustmentDate).toLocaleDateString()}</span>
-          <span className="t">{new Date(row.adjustmentDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          <span className="d">{formatTzDate(row.adjustmentDate, timezone, { format: 'date' })}</span>
+          <span className="t">{formatTzDate(row.adjustmentDate, timezone, { format: 'time' })}</span>
         </div>
       )
     },

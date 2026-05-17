@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { printUniversal } from '../utils/printGateway';
 import api from '../utils/api';
 import { 
-  FaPrint, FaWifi, FaBluetooth, FaUsb, 
+  FaPrint, FaBluetooth,
   FaWindows, FaAndroid, FaRoute, FaCheckCircle, 
-  FaExclamationCircle, FaTrash, FaPlus, FaTools,
+  FaExclamationCircle, FaTrash, FaPlus,
   FaSignal, FaNetworkWired, FaCog
 } from 'react-icons/fa';
 
@@ -21,12 +22,28 @@ function writeJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function readLocal(key) {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) || '' : '';
+  } catch {
+    return '';
+  }
+}
+
 function uniq(arr) {
   return Array.from(new Set((arr || []).map(s => String(s || '').trim()).filter(Boolean)));
 }
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+function isNativeAndroid() {
+  try {
+    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+  } catch {
+    return false;
+  }
 }
 
 export default function PrinterSetupCard({ restaurantId, config, onConfigChange }) {
@@ -97,6 +114,14 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
 
   const [categories, setCategories] = useState([]);
   const [msg, setMsg] = useState('');
+  const [androidBillPrinter, setAndroidBillPrinter] = useState(() => ({
+    address: readLocal('BT_PRINTER_ADDR'),
+    name: readLocal('BT_PRINTER_NAME_HINT'),
+  }));
+  const [androidKotPrinter, setAndroidKotPrinter] = useState(() => ({
+    address: readLocal('BT_PRINTER_ADDR_KOT'),
+    name: readLocal('BT_PRINTER_NAME_HINT_KOT'),
+  }));
   const WIN_HELPER_URL = '/desktop/Windows/CafeQR-PrintHub-Win.zip';
 
   const canEditRouting = routingEnabled; // simple switch; you can relax this later
@@ -114,6 +139,89 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
     // You can allow any installed printer; not just kotPrinters.
     return printers;
   }, [printers]);
+
+  const publishPrintStationChange = () => {
+    try {
+      window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
+    } catch {
+      // ignore
+    }
+  };
+
+  const refreshAndroidPrinterState = () => {
+    setAndroidBillPrinter({
+      address: localStorage.getItem('BT_PRINTER_ADDR') || '',
+      name: localStorage.getItem('BT_PRINTER_NAME_HINT') || '',
+    });
+    setAndroidKotPrinter({
+      address: localStorage.getItem('BT_PRINTER_ADDR_KOT') || '',
+      name: localStorage.getItem('BT_PRINTER_NAME_HINT_KOT') || '',
+    });
+  };
+
+  const enableAndroidPrintStation = () => {
+    localStorage.setItem('PRINTER_MODE', 'bt-android');
+    localStorage.setItem('PRINTER_READY', '1');
+    localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+    publishPrintStationChange();
+  };
+
+  const hasNonAndroidPrintConfig = () => Boolean(
+    localStorage.getItem('PRINT_WIN_URL') ||
+    localStorage.getItem('PRINT_WIN_LIST_URL') ||
+    localStorage.getItem('PRINT_WIN_PRINTER_NAME') ||
+    localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') ||
+    localStorage.getItem('PRINT_WIN_PRINTER_NAMES_BILL') ||
+    localStorage.getItem('PRINT_WIN_PRINTER_NAMES_KOT') ||
+    localStorage.getItem('PRINT_RELAY_URL') ||
+    localStorage.getItem('PRINTER_IP') ||
+    uniq(readJson('PRINT_NET_TARGET_IDS_BILL', [])).length ||
+    uniq(readJson('PRINT_NET_TARGET_IDS_KOT', [])).length
+  );
+
+  const getDevicePrinter = async () => {
+    if (!isNativeAndroid()) {
+      throw new Error('Open this page inside the CafeQR Android app to pair Bluetooth printers.');
+    }
+    const plugin = window.Capacitor?.Plugins?.DevicePrinter;
+    if (!plugin) {
+      throw new Error('Android printer plugin is unavailable in this APK.');
+    }
+    await plugin.ensurePermissions();
+    return plugin;
+  };
+
+  const pairAndroidPrinter = async (kind) => {
+    const label = kind === 'kot' ? 'KOT' : 'Final/Bill';
+    try {
+      const DevicePrinter = await getDevicePrinter();
+      const pick = await DevicePrinter.pickPrinter();
+      const address = pick?.address || '';
+      if (!address) throw new Error('No printer selected');
+
+      const pair = await DevicePrinter.pairDevice({ address });
+      if (pair?.paired === false) {
+        throw new Error('Bluetooth pairing did not complete');
+      }
+
+      const name = pick?.name || '';
+      if (kind === 'kot') {
+        localStorage.setItem('BT_PRINTER_ADDR_KOT', address);
+        if (name) localStorage.setItem('BT_PRINTER_NAME_HINT_KOT', name);
+        writeJson('BT_PRINTER_ADDRS_KOT', [address]);
+      } else {
+        localStorage.setItem('BT_PRINTER_ADDR', address);
+        if (name) localStorage.setItem('BT_PRINTER_NAME_HINT', name);
+        writeJson('BT_PRINTER_ADDRS_BILL', [address]);
+      }
+
+      enableAndroidPrintStation();
+      refreshAndroidPrinterState();
+      setMsg(`✓ ${label} printer paired${name ? `: ${name}` : ''}`);
+    } catch (e) {
+      setMsg(`✗ ${label} pairing failed: ${e?.message || String(e)}`);
+    }
+  };
 
   // ---------- load printers ----------
   const detectPrinters = async () => {
@@ -139,12 +247,12 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
     }
   };
 
-  // ---------- load categories (from Spring Boot api) ----------
+  // ---------- load product categories for KOT routing ----------
   const loadCategories = async () => {
     try {
-      const res = await api.get('/api/v1/categories');
-      // Assume the data structure returns an array of categories
-      const cats = uniq((res.data || []).map(r => r?.name));
+      const res = await api.get('/api/v1/products/categories');
+      const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+      const cats = uniq(rows.map(r => r?.name));
       setCategories(cats);
     } catch {
       setCategories([]);
@@ -173,6 +281,8 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
       localStorage.removeItem('PRINT_WIN_PRINTER_NAME_KOT');
       localStorage.removeItem('PRINT_WIN_PRINTER_NAMES_BILL');
       localStorage.removeItem('PRINT_WIN_PRINTER_NAMES_KOT');
+      localStorage.removeItem('CAFEQR_PRINT_STATION_ENABLED');
+      localStorage.removeItem('CAFEQR_MAIN_OFFLINE_DEVICE');
 
       setMsg('✓ Bluetooth/Serial saved for silent printing');
     } catch {
@@ -198,6 +308,8 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
         localStorage.removeItem('PRINT_WIN_PRINTER_NAME_KOT');
         localStorage.removeItem('PRINT_WIN_PRINTER_NAMES_BILL');
         localStorage.removeItem('PRINT_WIN_PRINTER_NAMES_KOT');
+        localStorage.removeItem('CAFEQR_PRINT_STATION_ENABLED');
+        localStorage.removeItem('CAFEQR_MAIN_OFFLINE_DEVICE');
 
         setMsg('✓ USB printer saved for silent printing');
         return;
@@ -218,6 +330,16 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
     localStorage.removeItem('BT_PRINTER_ADDRS_BILL');
     localStorage.removeItem('BT_PRINTER_ADDRS_KOT');
 
+    if (!hasNonAndroidPrintConfig()) {
+      if (localStorage.getItem('PRINTER_MODE') === 'bt-android') {
+        localStorage.removeItem('PRINTER_MODE');
+      }
+      localStorage.removeItem('PRINTER_READY');
+      localStorage.removeItem('CAFEQR_PRINT_STATION_ENABLED');
+    }
+
+    refreshAndroidPrinterState();
+    publishPrintStationChange();
     setMsg('Saved Bluetooth printers cleared. Next Android bill/KOT print will ask you to select again.');
   };
 
@@ -278,6 +400,8 @@ function saveNetworkPrinters() {
     localStorage.setItem('PRINTER_MODE', 'winspool');
     localStorage.setItem('PRINTER_READY', '1');
     localStorage.setItem('PRINT_WIN_AUTOCUT', autoCut ? '1' : '0');
+    localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+    localStorage.setItem('CAFEQR_MAIN_OFFLINE_DEVICE', '1');
 
     persistPaperSettings();
 
@@ -313,6 +437,10 @@ function saveNetworkPrinters() {
         winPrinterNames: billPrinters, // NEW: print to all selected bill printers
       });
 
+      if (res?.via === 'android-pos') {
+        enableAndroidPrintStation();
+        refreshAndroidPrinterState();
+      }
       setMsg(`✓ Bill test via ${res?.via || 'unknown'}`);
     } catch (e) {
       setMsg(`✗ Bill test failed: ${e?.message || String(e)}`);
@@ -328,6 +456,10 @@ function saveNetworkPrinters() {
         jobKind: 'kot',
         winPrinterNames: kotPrinters, // NEW: print to all selected KOT printers
       });
+      if (res?.via === 'android-pos') {
+        enableAndroidPrintStation();
+        refreshAndroidPrinterState();
+      }
       setMsg(`✓ KOT test via ${res?.via || 'unknown'}`);
     } catch (e) {
       setMsg(`✗ KOT test failed: ${e?.message || String(e)}`);
@@ -532,22 +664,52 @@ function saveNetworkPrinters() {
               <FaAndroid className="title-icon" />
               <div>
                 <h4>Native Android Integration</h4>
-                <p>Settings for the CafeQR App or mobile browser users.</p>
+                <p>Pair local Bluetooth printers for automatic KOT and final bill printing.</p>
               </div>
             </div>
 
-            <div className="android-options-grid">
-               <div className="option-card" onClick={() => { localStorage.setItem('PRINTER_MODE', 'bt-android'); setMsg('✓ Android Mode Enabled'); }}>
-                  <FaBluetooth className="opt-icon" />
-                  <h5>External App Link</h5>
-                  <p>Forward prints to Thermer or RawBT apps.</p>
-                  <div className="badge">PWA Recommended</div>
-               </div>
-               <div className="option-card warning" onClick={forgetBtPrinter}>
-                  <FaTrash className="opt-icon" />
-                  <h5>Reset Pairings</h5>
-                  <p>Forget saved Bluetooth Bill/KOT targets.</p>
-               </div>
+            <div className="android-printer-grid">
+              <div className="android-printer-panel">
+                <div className="android-printer-head">
+                  <FaPrint className="android-printer-icon" />
+                  <div>
+                    <h5>Final/Bill Printer</h5>
+                    <p>{androidBillPrinter.address ? (androidBillPrinter.name || androidBillPrinter.address) : 'No printer paired'}</p>
+                  </div>
+                </div>
+                <div className="android-action-row">
+                  <button onClick={() => pairAndroidPrinter('bill')} className="btn-secondary">
+                    <FaBluetooth /> Pair Final/Bill Printer
+                  </button>
+                  <button onClick={testBillPrinter} className="btn-outline">
+                    <FaPrint /> Test Final/Bill Print
+                  </button>
+                </div>
+              </div>
+
+              <div className="android-printer-panel">
+                <div className="android-printer-head">
+                  <FaBluetooth className="android-printer-icon" />
+                  <div>
+                    <h5>KOT Printer</h5>
+                    <p>{androidKotPrinter.address ? (androidKotPrinter.name || androidKotPrinter.address) : 'No printer paired'}</p>
+                  </div>
+                </div>
+                <div className="android-action-row">
+                  <button onClick={() => pairAndroidPrinter('kot')} className="btn-secondary">
+                    <FaBluetooth /> Pair KOT Printer
+                  </button>
+                  <button onClick={testKotPrinter} className="btn-outline">
+                    <FaPlus /> Test KOT Print
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="action-row-end">
+              <button onClick={forgetBtPrinter} className="btn-outline danger">
+                <FaTrash /> Clear Stored Bluetooth Printers
+              </button>
             </div>
           </div>
         )}
@@ -714,8 +876,17 @@ function saveNetworkPrinters() {
         .btn-primary.mini { padding: 8px 14px; font-size: 12.5px; }
         .btn-secondary { background: white; color: #334155; border: 1.5px solid #e2e8f0; padding: 10px 14px; border-radius: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
         .btn-outline { background: transparent; color: #64748b; border: 1.5px solid #e2e8f0; padding: 10px 14px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 12.5px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-outline.danger { color: #ef4444; border-color: #fecaca; flex: initial; }
         .btn-icon-del { background: #fef2f2; border: none; color: #ef4444; width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink: 0;}
         .btn-icon-del:hover { background: #ef4444; color: white; }
+        .android-printer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 720px) { .android-printer-grid { grid-template-columns: 1fr; } }
+        .android-printer-panel { border: 1.5px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+        .android-printer-head { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+        .android-printer-icon { color: #f97316; font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+        .android-printer-head h5 { margin: 0; color: #0f172a; font-size: 14px; font-weight: 800; }
+        .android-printer-head p { margin: 4px 0 0; color: #64748b; font-size: 12.5px; font-weight: 600; word-break: break-word; }
+        .android-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
         .routing-toggle-banner { background: #fffcf5; border: 1.5px solid #fde68a; padding: 14px; border-radius: 12px; }
         .checkbox-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; }
         .check-info { display: flex; flex-direction: column; }

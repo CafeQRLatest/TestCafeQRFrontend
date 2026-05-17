@@ -5,7 +5,7 @@
   "start_url": "/owner/orders?utm_source=app",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#f97316",
   "orientation": "portrait-primary",
   "icons": [
     {

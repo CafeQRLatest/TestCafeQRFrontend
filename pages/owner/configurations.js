@@ -44,7 +44,8 @@ const MODULES = [
   { key: 'pm_production',       icon: <FaIndustry />,    title: 'Production',        desc: 'Manufacturing pipeline',                    color: '#64748b' },
   { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316', 
     children: [
-      { key: 'pm_allow_multi_customer', title: 'Multi-Customer Orders', desc: 'Split bills across multiple diners' }
+      { key: 'pm_allow_multi_customer', title: 'Multi-Customer Orders', desc: 'Attach multiple customers to a single order' },
+      { key: 'pm_customer_age', title: 'Customer Age Field', desc: 'Capture customer age during order creation' }
     ] 
   },
   { key: 'pm_loyalty',          icon: <FaTags />,        title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#ef4444' },
@@ -88,6 +89,7 @@ function ConfigurationsContent() {
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_production: false, pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_online_delivery: false, pm_allow_multi_customer: false,
+    pm_customer_age: false,
     
     tax_enabled: false,
     tax_label_global: 'GST',
@@ -182,6 +184,7 @@ function ConfigurationsContent() {
             pm_production: !!d.productionEnabled, pm_customers: !!d.customersEnabled,
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: !!d.allowMultipleCustomersPerOrder,
+            pm_customer_age: !!d.customerAgeEnabled,
             
             tax_enabled: !!d.taxEnabled, 
             tax_label_global: d.taxLabelGlobal || 'GST',
@@ -256,6 +259,7 @@ function ConfigurationsContent() {
         productionEnabled: config.pm_production, customersEnabled: config.pm_customers,
         loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
         onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: config.pm_allow_multi_customer,
+        customerAgeEnabled: config.pm_customer_age,
         
         taxEnabled: config.tax_enabled, 
         taxLabelGlobal: config.tax_label_global,

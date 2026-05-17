@@ -1,0 +1,1 @@
+export { printUniversal } from './printGateway';

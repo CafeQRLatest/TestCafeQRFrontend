@@ -5,11 +5,12 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
-  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown,
+  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle
 } from 'react-icons/fa';
+import SyncStatusBar from './SyncStatusBar';
 
 /**
  * DashboardLayout Component
@@ -34,6 +35,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   }, [isAuthenticated]);
 
   const fetchConfig = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       const resp = await api.get('/api/v1/configurations');
       if (resp.data.success) setConfig(resp.data.data);
@@ -41,6 +43,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   };
 
   const fetchMenus = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       setFetchingMenus(true);
       const resp = await api.get('/api/v1/users/menus');
@@ -48,7 +51,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         setAssignedMenus(resp.data.data || []);
       }
     } catch (err) {
-      console.error("Failed to fetch sidebar menus:", err);
+      if (err?.message !== 'Network Error') {
+        console.error("Failed to fetch sidebar menus:", err);
+      }
     } finally {
       setFetchingMenus(false);
     }
@@ -223,13 +228,12 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       )}
 
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
         body { 
           background: #f8fafc; 
           margin: 0; 
           font-family: 'Plus Jakarta Sans', sans-serif; 
-          overflow-x: hidden;
+          min-width: 320px;
+          overflow-x: clip;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
           font-size: 13px;
@@ -237,7 +241,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         /* The Mesh Gradient Background Container */
         .dashboard-wrapper {
-          min-height: 100vh;
+          min-height: 100dvh;
           background: 
             radial-gradient(at 0% 0%, rgba(249, 115, 22, 0.05) 0px, transparent 50%),
             radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
@@ -313,7 +317,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       <style jsx>{`
         .layout-grid {
           display: flex;
-          min-height: 100vh;
+          min-height: 100dvh;
+          width: 100%;
+          min-width: 0;
         }
 
         .sidebar-desktop {
@@ -332,23 +338,26 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           flex: 1;
           min-width: 0; /* Important for flex child items to not overflow */
           background: #f8fafc;
+          width: 100%;
         }
 
         .dashboard-header {
-           height: 60px;
+           min-height: 60px;
            background: rgba(255, 255, 255, 0.75);
            backdrop-filter: blur(20px) saturate(180%);
            -webkit-backdrop-filter: blur(20px) saturate(180%);
            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
            position: sticky; top: 0; z-index: 40;
-           padding: 0 40px;
+           padding: 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-right, 0px)) 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-left, 0px));
            box-shadow: 
              0 1px 3px 0 rgba(0, 0, 0, 0.02),
              0 4px 12px -4px rgba(0, 0, 0, 0.03);
         }
         .header-inner {
-           height: 100%;
+           min-height: 60px;
            display: flex; justify-content: space-between; align-items: center;
+           gap: 12px;
+           min-width: 0;
         }
 
         .hamburger-btn {
@@ -360,9 +369,10 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         }
         .hamburger-btn:hover { border-color: #f97316; color: #f97316; box-shadow: 0 8px 20px -8px rgba(249, 115, 22, 0.3); }
 
-        .dashboard-wrapper { min-height: 100vh; position: relative; }
+        .dashboard-wrapper { min-height: 100dvh; position: relative; }
         
-        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; }
+        .header-text { min-width: 0; }
         
         .header-text h1 { 
           font-size: 18px; 
@@ -373,9 +383,12 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right { display: flex; align-items: center; gap: clamp(8px, 1.6vw, 16px); flex: 0 0 auto; }
         
         .icon-btn, .ctrl-btn {
            width: 38px; height: 38px; border-radius: 12px;
@@ -429,7 +442,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         .user-dropdown {
            position: absolute; top: calc(100% + 12px); right: 0;
-           width: 240px; background: white; border-radius: 16px;
+           width: min(260px, calc(100vw - 24px)); background: white; border-radius: 16px;
            border: 1px solid #e2e8f0; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
            padding: 8px; z-index: 100; animation: slideIn 0.2s ease-out;
         }
@@ -473,14 +486,22 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         .dropdown-item.logout { color: #ef4444; }
         .dropdown-item.logout:hover { background: #fef2f2; }
 
-        .content-area { padding: ${noSidebar ? '0' : '24px'}; }
+        .content-area {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          padding: ${noSidebar ? '0' : 'clamp(12px, 2.2vw, 24px)'};
+          padding-bottom: ${noSidebar ? '0' : 'calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-bottom, 0px))'};
+        }
 
         /* Mobile Sidebar Drawer */
         .mobile-sidebar {
           position: fixed; left: 0; top: 0; bottom: 0;
-          width: 280px; background: white; z-index: 1000;
+          width: min(320px, 86vw); background: white; z-index: 1000;
           transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
           box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         .mobile-sidebar.open { transform: translateX(0); }
         .mobile-sidebar-backdrop {
@@ -494,8 +515,24 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           .sidebar-desktop { display: none; }
           .hamburger-btn { display: flex; }
           .mobile-hide { display: none; }
-          .dashboard-header { padding: 0 20px; }
-          .content-area { padding: 24px; }
+          .dashboard-header { padding: 0 max(14px, env(safe-area-inset-right, 0px)) 0 max(14px, env(safe-area-inset-left, 0px)); }
+          .content-area { padding: 16px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+        }
+
+        @media (max-width: 640px) {
+          .dashboard-header { min-height: 58px; }
+          .header-inner { min-height: 58px; }
+          .header-text h1 { font-size: 16px; max-width: 46vw; }
+          .icon-btn, .ctrl-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .user-info-brief { display: none; }
+          .avatar-btn { padding: 4px; border-radius: 12px; }
+          .avatar { width: 30px; height: 30px; border-radius: 9px; }
+          .content-area { padding: 12px; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+        }
+
+        @media (max-width: 380px) {
+          .header-text h1 { max-width: 38vw; }
+          .icon-btn { display: none; }
         }
       `}</style>
     </div>
@@ -520,6 +557,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Configurations":    <FaCog />,
     "Inventory":        <FaBoxes />,
     "Stock":            <FaBoxes />,
+    "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,
@@ -584,6 +622,12 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
             );
           })}
           
+          <div className="sidebar-section-title">{!collapsed ? "Reports" : ""}</div>
+          <Link href="/owner/reports" className={`sidebar-link ${router.pathname === '/owner/reports' ? 'active' : ''}`} title={collapsed ? "Reports & Billing" : ""}>
+             <div className="sidebar-icon"><FaChartBar /></div>
+             {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>Reports & Billing</span>}
+          </Link>
+
           <div className="sidebar-section-title">{!collapsed ? "System" : ""}</div>
           <Link href="/owner/configurations" className={`sidebar-link ${router.pathname === '/owner/configurations' ? 'active' : ''}`} title={collapsed ? "System Configurations" : ""}>
              <div className="sidebar-icon"><FaCog /></div>
@@ -594,11 +638,12 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
              {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>Document Sequences</span>}
           </Link>
       </div>
-      
-      <div style={{ padding: '24px', borderTop: '1px solid #f1f5f9' }}>
-         {!collapsed && (
-           <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Café QR v1.2</div>
-         )}
+
+      <div style={{ flexShrink: 0 }}>
+        <SyncStatusBar collapsed={collapsed} />
+        {!collapsed && (
+          <div style={{ padding: '12px 24px', fontSize: '11px', color: '#94a3b8', fontWeight: 800, textAlign: 'center' }}>Café QR v1.2</div>
+        )}
       </div>
 
       <style jsx>{`
@@ -626,6 +671,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Configurations":    <FaCog />,
     "Inventory":        <FaBoxes />,
     "Stock":            <FaBoxes />,
+    "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,
@@ -666,6 +712,12 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
              );
           })}
           
+          <div className="sidebar-section-title">Reports</div>
+          <Link href="/owner/reports" onClick={onNavigate} className={`sidebar-link ${router.pathname === '/owner/reports' ? 'active' : ''}`}>
+             <div className="sidebar-icon"><FaChartBar /></div>
+             <span>Reports & Billing</span>
+          </Link>
+
           <div className="sidebar-section-title">System</div>
           <Link href="/owner/configurations" onClick={onNavigate} className={`sidebar-link ${router.pathname === '/owner/configurations' ? 'active' : ''}`}>
              <div className="sidebar-icon"><FaCog /></div>

@@ -113,7 +113,7 @@ export default function LoginPage() {
             </button>
 
             <div className="signup-link">
-              <p>Don't have an account? <Link href="/signup">Sign Up</Link></p>
+              <p>Don&apos;t have an account? <Link href="/signup">Sign Up</Link></p>
             </div>
 
             <div className="copyright-footer">
@@ -124,7 +124,6 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { background: #f8fafc; margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; color: #1e293b; }
       `}</style>
 

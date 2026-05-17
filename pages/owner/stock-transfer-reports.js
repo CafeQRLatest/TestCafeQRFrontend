@@ -3,6 +3,8 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ReportTable from '../../components/ReportTable';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
+import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaFileAlt, FaSearch, FaTruck, FaCalendarAlt, FaCheckCircle,
   FaClock, FaExchangeAlt, FaTimesCircle
@@ -17,6 +19,7 @@ export default function StockTransferReportsPage() {
 }
 
 function TransferReportContent() {
+  const { timezone } = useAuth();
   const [transfers, setTransfers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,8 +104,8 @@ function TransferReportContent() {
       key: 'transferDate', label: 'Date',
       render: (row) => (
         <div className="dt-cell">
-          <span className="d">{new Date(row.transferDate).toLocaleDateString()}</span>
-          <span className="t">{new Date(row.transferDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          <span className="d">{formatTzDate(row.transferDate, timezone, { format: 'date' })}</span>
+          <span className="t">{formatTzDate(row.transferDate, timezone, { format: 'time' })}</span>
         </div>
       )
     },

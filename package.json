@@ -5,11 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:native": "node scripts/build-native.mjs",
+    "cap:sync:android": "npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "measure:api": "node scripts/measure-api-payloads.mjs",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@capacitor/core": "^8.3.0",
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "axios": "^1.13.6",
     "js-cookie": "^3.0.5",
     "jwt-decode": "^4.0.0",
@@ -17,9 +22,11 @@
     "react": "^18",
     "react-dom": "^18",
     "react-icons": "^5.5.0",
+    "styled-components": "^6.4.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.32",
     "postcss": "^8",

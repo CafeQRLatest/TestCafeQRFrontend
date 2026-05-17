@@ -1,71 +1,111 @@
-//public/service-worker.js
+const CACHE_VERSION = 'v7';
+const APP_SHELL_CACHE = `cafeqr-shell-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `cafeqr-runtime-${CACHE_VERSION}`;
+const OFFLINE_FALLBACK_URL = '/offline.html';
 
-const CACHE_NAME = 'cafeqr-cache-v2'; // Use latest cache version
-const urlsToCache = [
+const APP_SHELL_URLS = [
   '/',
-  '/favicon.ico',
+  '/owner/sales',
+  '/owner/product-management',
+  '/owner/table-management',
+  '/owner/configurations',
   '/manifest.json',
+  '/favicon.ico',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  '/styles/globals.css',
-  '/styles/responsive.css',
-  '/styles/theme.css',
-  '/index.html',
-  // Add other assets or routes you want to cache here
+  OFFLINE_FALLBACK_URL,
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Install');
-  self.skipWaiting(); // Activate worker immediately after installation
+  self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Caching app shell and content');
-        return cache.addAll(urlsToCache);
-      })
-      .catch((err) => {
-        console.error('[Service Worker] Cache addAll failed:', err);
-      })
+    caches.open(APP_SHELL_CACHE).then((cache) => (
+      Promise.allSettled(APP_SHELL_URLS.map((url) => cache.add(url)))
+    ))
   );
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activate');
   event.waitUntil(
     (async () => {
-      await self.clients.claim();
       const cacheNames = await caches.keys();
       await Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Removing old cache:', cache);
-            return caches.delete(cache);
-          }
-        })
+        cacheNames
+          .filter((name) => name.startsWith('cafeqr-') && ![APP_SHELL_CACHE, RUNTIME_CACHE].includes(name))
+          .map((name) => caches.delete(name))
       );
+      await self.clients.claim();
     })()
   );
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+function shouldBypass(request) {
+  const url = new URL(request.url);
+  return request.method !== 'GET'
+    || url.pathname.endsWith('.mp3')
+    || url.pathname.startsWith('/api/')
+    || url.pathname.startsWith('/_next/webpack-hmr')
+    || url.pathname.startsWith('/.well-known/');
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+    return caches.match(OFFLINE_FALLBACK_URL);
+  }
+}
+
 self.addEventListener('fetch', (event) => {
-  // Bypass cache for audio files (like .mp3)
-  if (event.request.url.endsWith('.mp3')) {
-    event.respondWith(fetch(event.request));
+  const { request } = event;
+  if (shouldBypass(request)) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).catch(() => {
-        // Network failed - respond with empty or fallback response
-        return new Response('', {
-          status: 503,
-          statusText: 'Service Unavailable',
-        });
-      });
-    })
-  );
+  const url = new URL(request.url);
+
+  if (request.mode === 'navigate') {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  if (url.pathname.startsWith('/_next/static/')
+      || url.pathname.startsWith('/icons/')
+      || url.pathname.endsWith('.css')
+      || url.pathname.endsWith('.js')
+      || url.pathname.endsWith('.woff2')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  event.respondWith(networkFirst(request));
 });
