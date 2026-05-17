@@ -305,12 +305,23 @@ function AccountingContent() {
     try {
       const resp = await api.post('/api/v1/accounting/resync-all');
       if (resp.data.success) {
-        const d = resp.data.data;
-        notify('success', `Done: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`);
+        const d = resp.data.data || {};
+        const failures = Array.isArray(d.failures) ? d.failures.filter(Boolean) : [];
+        const summary = `Done: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`;
+        if ((d.failed || 0) > 0) {
+          const preview = failures.slice(0, 3).join('; ');
+          notify('warning', preview ? `${summary} Check: ${preview}` : summary);
+        } else {
+          notify('success', summary);
+        }
         await fetchAccountingData();
       }
     } catch (err) {
-      notify('error', err.response?.data?.message || 'Fix failed. Please try again.');
+      if (err.response?.status === 409) {
+        notify('error', 'Auto-entry rebuild could not clear old accounting links yet. Refresh and try again after the latest backend deploy.');
+      } else {
+        notify('error', err.response?.data?.message || 'Fix failed. Please try again.');
+      }
     } finally {
       setSyncing(false);
     }
