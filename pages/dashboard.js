@@ -36,7 +36,7 @@ export default function DashboardPage() {
 }
 
 function DashboardOverview() {
-  const { logout, subscriptionExpiryDate } = useAuth();
+  const { logout, subscriptionExpiryDate, orgId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [stats, setStats] = useState({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 });
@@ -48,7 +48,9 @@ function DashboardOverview() {
   useEffect(() => {
     fetchDashboardData();
     fetchMenus();
-    
+  }, [orgId]);
+
+  useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };

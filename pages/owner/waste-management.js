@@ -57,7 +57,7 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
 }
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function WasteManagement() {
-  const { timezone } = useAuth();
+  const { timezone, orgId } = useAuth();
   const [tab, setTab] = useState('log');
   const [logs, setLogs] = useState([]);
   const [cats, setCats] = useState([]);
@@ -83,14 +83,14 @@ export default function WasteManagement() {
       setCats(catsR.data.data || []);
     } catch { showToast('Failed to load','error'); }
     finally { setLoading(false); }
-  }, []);
+  }, [orgId]);
 
   const loadAnalytics = useCallback(async () => {
     try {
       const r = await api.get(`/api/v1/waste/analytics?start=${dateRange.start}T00:00:00&end=${dateRange.end}T23:59:59`);
       setAnalytics(r.data.data);
     } catch(e) { console.error(e); }
-  }, [dateRange]);
+  }, [dateRange, orgId]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if(tab==='analytics') loadAnalytics(); }, [tab, loadAnalytics]);

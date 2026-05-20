@@ -18,7 +18,7 @@ const PAY_METHODS = [
 ];
 
 export default function Expenses() {
-  const { timezone, userRole } = useAuth();
+  const { timezone, userRole, orgId } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +112,7 @@ export default function Expenses() {
     } finally { 
       setLoading(false); 
     }
-  }, [filterStatus, isSuperAdmin, notify]);
+  }, [filterStatus, isSuperAdmin, notify, orgId]);
 
   useEffect(() => { 
     if (userRole) loadData(); 
@@ -138,7 +138,7 @@ export default function Expenses() {
     setFDate(getLocalDate(now));
     setFTime(now.toTimeString().slice(0,5));
     setFCatId(''); setFAmount(''); setFDesc(''); setFMethod('CASH');
-    setFBranchId('');
+    setFBranchId(orgId || '');
     setShowForm(true);
   };
 
