@@ -29,38 +29,38 @@ import api from '../utils/api';
 function formatCurrency(n) {
   const num = Number(n || 0);
   return `₹${num.toFixed(2)}`;
+
+import {
+  FaBookOpen,
+  FaCashRegister,
+  FaFileInvoice,
+  FaTimes,
+  FaExclamationTriangle,
+  FaArrowRight,
+  FaShoppingBag,
+  FaChartLine,
+  FaWallet,
+  FaBoxOpen,
+  FaSignOutAlt,
+  FaExpand,
+  FaCompress,
+  FaHdd,
+  FaShieldAlt,
+  FaBuilding,
+  FaUsers,
+  FaLock
+} from 'react-icons/fa';
+import DashboardLayout from '../components/DashboardLayout';
+import api from '../utils/api';
+
+function formatCurrency(n) {
+  const num = Number(n || 0);
+  return `₹${num.toFixed(2)}`;
 }
 
 export default function DashboardPage() {
   return <DashboardOverview />;
 }
-
-function DashboardOverview() {
-  const { logout, subscriptionExpiryDate } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState('');
-  const [stats, setStats] = useState({ liveOrders: 0, revenueToday: 0, avgTicket: 0, outOfStock: 0 });
-  const [orders, setOrders] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [menus, setMenus] = useState([]);
-
-  useEffect(() => {
-    fetchDashboardData();
-    fetchMenus();
-    
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
       });
     } else {
       document.exitFullscreen();
