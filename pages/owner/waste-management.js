@@ -36,6 +36,38 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
         </span>
         <FaChevronDown className={`wm-dd-arrow ${open ? 'open' : ''}`} />
       </button>
+      {open && (
+        <div className="wm-dd-menu">
+          {options.map((o, i) => {
+            const val = o.value ?? o;
+            const label = o.label ?? o;
+            const active = val === value;
+            return (
+              <div key={i} className={`wm-dd-item ${active ? 'active' : ''}`}
+                onClick={() => { onChange(val); setOpen(false); }}>
+                {renderOption ? renderOption(o) : label}
+                {active && <FaCheck className="wm-dd-check" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+/* ── Main Page ───────────────────────────────────────────────── */
+export default function WasteManagement() {
+  const { timezone } = useAuth();
+  const [tab, setTab] = useState('log');
+  const [logs, setLogs] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editLog, setEditLog] = useState(null);
+  const [form, setForm] = useState({ productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId:'', wasteDate: new Date().toISOString().slice(0,16) });
+  const [catForm, setCatForm] = useState({ name:'' });
   const [showCatForm, setShowCatForm] = useState(false);
   const [dateRange, setDateRange] = useState({ start: new Date(Date.now()-30*864e5).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) });
   const [search, setSearch] = useState('');
@@ -51,18 +83,32 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
       setCats(catsR.data.data || []);
     } catch { showToast('Failed to load','error'); }
     finally { setLoading(false); }
-  }, [orgId]);
+  }, []);
 
   const loadAnalytics = useCallback(async () => {
     try {
       const r = await api.get(`/api/v1/waste/analytics?start=${dateRange.start}T00:00:00&end=${dateRange.end}T23:59:59`);
       setAnalytics(r.data.data);
     } catch(e) { console.error(e); }
-  }, [dateRange, orgId]);
+  }, [dateRange]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if(tab==='analytics') loadAnalytics(); }, [tab, loadAnalytics]);
 
+  const openForm = (log=null) => {
+    setEditLog(log);
+    setForm(log ? {
+      productName: log.productName||'', wasteReason: log.wasteReason||'Spillage',
+      quantity: String(log.quantity||1), unitOfMeasure: log.unitOfMeasure||'units',
+      unitCost: String(log.unitCost||0), notes: log.notes||'',
+      wasteCategoryId: log.wasteCategoryId||'',
+      wasteDate: log.wasteDate ? log.wasteDate.slice(0,16) : new Date().toISOString().slice(0,16)
+    } : { productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId: cats[0]?.id||'', wasteDate: new Date().toISOString().slice(0,16) });
+    setShowForm(true);
+  };
+
+  const saveLog = async () => {
+    if(!form.productName.trim()) { showToast('Item name required','error'); return; }
     try {
       const payload = { ...form, quantity: parseFloat(form.quantity)||1, unitCost: parseFloat(form.unitCost)||0 };
       editLog ? await api.put(`/api/v1/waste/logs/${editLog.id}`, payload) : await api.post('/api/v1/waste/logs', payload);

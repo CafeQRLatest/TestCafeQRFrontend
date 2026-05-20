@@ -11,18 +11,6 @@ import { FaTrash, FaEdit, FaCog, FaWallet, FaTag, FaFileAlt, FaUndo, FaPlus, FaF
 const PAY_METHODS = [
   { value: 'CASH', label: 'Cash' },
   { value: 'CARD', label: 'Card' },
-import DashboardLayout from '../../components/DashboardLayout';
-import NiceSelect from '../../components/NiceSelect';
-import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
-import { useNotification } from '../../context/NotificationContext';
-import { useAuth } from '../../context/AuthContext';
-import api from '../../utils/api';
-import { formatTzDate } from '../../utils/timezoneUtils';
-import { FaTrash, FaEdit, FaCog, FaWallet, FaTag, FaFileAlt, FaUndo, FaPlus, FaFileExcel, FaFileCsv, FaFilePdf } from 'react-icons/fa';
-
-const PAY_METHODS = [
-  { value: 'CASH', label: 'Cash' },
-  { value: 'CARD', label: 'Card' },
   { value: 'UPI', label: 'UPI' },
   { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
   { value: 'CHEQUE', label: 'Cheque' },
@@ -30,7 +18,7 @@ const PAY_METHODS = [
 ];
 
 export default function Expenses() {
-  const { timezone, userRole, orgId } = useAuth();
+  const { timezone, userRole } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,11 +112,39 @@ export default function Expenses() {
     } finally { 
       setLoading(false); 
     }
-  }, [filterStatus, isSuperAdmin, notify, orgId]);
+  }, [filterStatus, isSuperAdmin, notify]);
 
   useEffect(() => { 
     if (userRole) loadData(); 
   }, [userRole, loadData]);
+
+  // Client-side filtering by date range, category, branch, and payment method
+  const filtered = useMemo(() => {
+    let result = expenses;
+    if (filterCat) result = result.filter(e => String(e.categoryId) === String(filterCat));
+    if (filterBranch) result = result.filter(e => String(e.orgId) === String(filterBranch));
+    if (filterPayMethod) result = result.filter(e => String(e.paymentMethod) === String(filterPayMethod));
+    if (dateFrom) result = result.filter(e => e.expenseDate && e.expenseDate >= `${dateFrom}:00`);
+    if (dateTo)   result = result.filter(e => e.expenseDate && e.expenseDate <= `${dateTo}:59`);
+    return result;
+  }, [expenses, filterCat, filterBranch, filterPayMethod, dateFrom, dateTo]);
+
+  const totalVisible = useMemo(() => filtered.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0), [filtered]);
+  const totalAll = useMemo(() => expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0), [expenses]);
+
+  const openAdd = () => {
+    setEditing(null);
+    const now = getBusinessNow();
+    setFDate(getLocalDate(now));
+    setFTime(now.toTimeString().slice(0,5));
+    setFCatId(''); setFAmount(''); setFDesc(''); setFMethod('CASH');
+    setFBranchId('');
+    setShowForm(true);
+  };
+
+  const openEdit = (exp) => {
+    setEditing(exp);
+    const d = new Date(exp.expenseDate);
     setFDate(getLocalDate(d));
     setFTime(d.toTimeString().slice(0,5));
     setFCatId(exp.categoryId || '');
