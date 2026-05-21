@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaArrowDown, FaArrowUp, FaSync } from 'react-icons/fa';
+import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaArrowDown, FaArrowUp, FaSync, FaExclamationTriangle } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import RoleGate from '../../components/RoleGate';
@@ -97,6 +97,21 @@ function formatPeriodValue(value) {
   });
 }
 
+function formatPostingTime(value) {
+  const parsed = periodDate(value);
+  if (!parsed) return '-';
+  return parsed.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function shortId(value) {
+  return value ? String(value).slice(0, 8) : '-';
+}
+
 export default function AccountingPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
@@ -106,14 +121,17 @@ export default function AccountingPage() {
 }
 
 function AccountingContent() {
-  const { timezone, orgId } = useAuth();
+  const { timezone, userRole } = useAuth();
   const { notify } = useNotification();
+  const canManagePostingErrors = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
   const [activeTab, setActiveTab] = useState('accounts');
   const [accounts, setAccounts] = useState([]);
   const [journals, setJournals] = useState([]);
   const [trialBalance, setTrialBalance] = useState([]);
   const [summary, setSummary] = useState(null);
   const [reconciliation, setReconciliation] = useState(null);
+  const [postingErrors, setPostingErrors] = useState([]);
+  const [retryingPostingId, setRetryingPostingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingAccount, setSavingAccount] = useState(false);
   const [postingJournal, setPostingJournal] = useState(false);
@@ -139,18 +157,31 @@ function AccountingContent() {
     try {
       const periodParams = { from: toInstant(effectivePeriod.from), to: toInstant(effectivePeriod.to) };
       const journalParams = { ...periodParams, sortBy, sortDir };
-      const [accountResp, summaryResp, reconciliationResp, journalResp, trialResp] = await Promise.allSettled([
+      const requests = [
         api.get('/api/v1/accounting/accounts', { params: periodParams }),
         api.get('/api/v1/accounting/summary', { params: periodParams }),
         api.get('/api/v1/accounting/reconciliation', { params: periodParams }),
         api.get('/api/v1/accounting/journals', { params: journalParams }),
         api.get('/api/v1/accounting/trial-balance', { params: periodParams })
-      ]);
+      ];
+      if (canManagePostingErrors) {
+        requests.push(api.get('/api/v1/accounting/posting-errors'));
+      } else {
+        setPostingErrors([]);
+      }
+
+      const [accountResp, summaryResp, reconciliationResp, journalResp, trialResp, postingErrorResp] = await Promise.allSettled(requests);
       if (accountResp.status === 'fulfilled' && accountResp.value.data.success) setAccounts(accountResp.value.data.data || []);
       if (summaryResp.status === 'fulfilled' && summaryResp.value.data.success) setSummary(summaryResp.value.data.data || null);
       if (reconciliationResp.status === 'fulfilled' && reconciliationResp.value.data.success) setReconciliation(reconciliationResp.value.data.data || null);
       if (journalResp.status === 'fulfilled' && journalResp.value.data.success) setJournals(journalResp.value.data.data || []);
       if (trialResp.status === 'fulfilled' && trialResp.value.data.success) setTrialBalance(trialResp.value.data.data || []);
+      if (canManagePostingErrors && postingErrorResp?.status === 'fulfilled' && postingErrorResp.value.data.success) {
+        setPostingErrors(postingErrorResp.value.data.data || []);
+      } else if (canManagePostingErrors && postingErrorResp?.status === 'rejected') {
+        setPostingErrors([]);
+        notify('warning', postingErrorResp.reason?.response?.data?.message || 'Posting failure details could not be loaded');
+      }
 
       const failed = [accountResp, summaryResp, reconciliationResp, journalResp, trialResp].find(result => result.status === 'rejected');
       if (failed) {
@@ -161,7 +192,7 @@ function AccountingContent() {
     } finally {
       setLoading(false);
     }
-  }, [appliedPeriod, notify, sortBy, sortDir, orgId]);
+  }, [appliedPeriod, canManagePostingErrors, notify, sortBy, sortDir]);
 
   const handleSyncPastData = async () => {
     setSyncing(true);
@@ -181,6 +212,22 @@ function AccountingContent() {
       notify('error', err.response?.data?.message || 'Sync failed');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleRetryPosting = async (jobId) => {
+    if (!jobId) return;
+    setRetryingPostingId(jobId);
+    try {
+      const resp = await api.post(`/api/v1/accounting/posting-errors/${jobId}/retry`);
+      if (resp.data.success) {
+        notify('success', 'Posting retry queued');
+        await fetchAccountingData();
+      }
+    } catch (err) {
+      notify('error', err.response?.data?.message || 'Posting retry failed');
+    } finally {
+      setRetryingPostingId(null);
     }
   };
 
@@ -528,6 +575,38 @@ function AccountingContent() {
             <button className={activeTab === 'trial' ? 'active' : ''} onClick={() => setActiveTab('trial')}><FaChartPie /> Balance Summary</button>
           </div>
 
+          {canManagePostingErrors && postingErrors.length > 0 && (
+            <div className="posting-error-panel">
+              <div className="posting-error-heading">
+                <strong><FaExclamationTriangle /> Accounting posting failures</strong>
+                <span>{postingErrors.length} failed {postingErrors.length === 1 ? 'job' : 'jobs'}</span>
+              </div>
+              <div className="posting-error-list">
+                {postingErrors.slice(0, 5).map(job => (
+                  <div className="posting-error-row" key={job.id}>
+                    <div className="posting-error-main">
+                      <span className="posting-source">{job.sourceType || 'SOURCE'} #{shortId(job.sourceId)}</span>
+                      <span className="posting-message">{job.lastError || 'No error detail returned'}</span>
+                    </div>
+                    <div className="posting-error-meta">
+                      <span>{job.attemptCount || 0} attempts</span>
+                      <span>{formatPostingTime(job.updatedAt)}</span>
+                      <button
+                        type="button"
+                        className="posting-retry-button"
+                        onClick={() => handleRetryPosting(job.id)}
+                        disabled={retryingPostingId === job.id || syncing}
+                        title="Retry accounting posting"
+                      >
+                        <FaRedo /> {retryingPostingId === job.id ? 'Retrying...' : 'Retry'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {reconciliation?.outOfSync && (
             <div className="recon-warning">
               {reconciliation.warnings?.join(' ')} Use Sync Selected Period if these are expected old records.
@@ -760,6 +839,19 @@ function AccountingContent() {
         .period-toolbar label { min-width: 220px; }
         .period-toolbar label.small-control { min-width: 160px; }
         .period-toolbar .primary-button, .period-toolbar .secondary-button { min-width: 96px; }
+        .posting-error-panel { margin: 12px 16px 0; border: 1px solid #fecaca; background: #fef2f2; color: #7f1d1d; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .posting-error-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .posting-error-heading strong { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 900; }
+        .posting-error-heading span { font-size: 11px; font-weight: 900; color: #991b1b; }
+        .posting-error-list { display: flex; flex-direction: column; gap: 8px; }
+        .posting-error-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid #fecaca; background: #fff; border-radius: 8px; padding: 10px; }
+        .posting-error-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+        .posting-source { color: #991b1b; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+        .posting-message { color: #7f1d1d; font-size: 12px; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }
+        .posting-error-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; color: #991b1b; font-size: 11px; font-weight: 900; }
+        .posting-retry-button { min-height: 30px; border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #991b1b; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; font-size: 11px; font-weight: 900; cursor: pointer; }
+        .posting-retry-button:hover { background: #fee2e2; }
+        .posting-retry-button:disabled { opacity: .6; cursor: not-allowed; }
         .recon-warning { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 12px; font-weight: 800; }
         .recon-warning.compact { margin: 0; }
         .recon-summary { margin: 12px 16px 0; border: 1px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
@@ -825,6 +917,8 @@ function AccountingContent() {
           .journal-meta, .form-grid { grid-template-columns: 1fr; }
           .panel-toolbar { align-items: stretch; flex-direction: column; }
           .recon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .posting-error-row { grid-template-columns: 1fr; }
+          .posting-error-meta { justify-content: flex-start; }
           .period-toolbar { align-items: stretch; }
           .period-toolbar label, .period-toolbar .primary-button, .period-toolbar .secondary-button { width: 100%; min-width: 0; }
         }

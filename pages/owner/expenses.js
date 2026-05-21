@@ -17,13 +17,17 @@ const PAY_METHODS = [
   { value: 'OTHER', label: 'Other' }
 ];
 
+const SCOPE_ALL = 'ALL';
+const SCOPE_GLOBAL = 'GLOBAL';
+
 export default function Expenses() {
   const { timezone, userRole, orgId } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [formCategories, setFormCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterCat, setFilterCat] = useState('');
-  const [filterBranch, setFilterBranch] = useState('');
+  const [filterBranch, setFilterBranch] = useState(SCOPE_ALL);
   const [filterPayMethod, setFilterPayMethod] = useState('');
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
   const [branches, setBranches] = useState([]);
@@ -81,6 +85,26 @@ export default function Expenses() {
     return role.includes('SUPER_ADMIN') || role.includes('ADMIN');
   }, [userRole]);
 
+  const toScopeParams = useCallback((value) => {
+    if (value === SCOPE_GLOBAL) return { scope: 'GLOBAL' };
+    if (!value || value === SCOPE_ALL) return { scope: 'ALL' };
+    return { scope: 'BRANCH', branchId: value };
+  }, []);
+
+  const toWriteScope = useCallback((value) => {
+    if (value === SCOPE_GLOBAL) return { scope: 'GLOBAL', branchId: null };
+    return { scope: 'BRANCH', branchId: value || null };
+  }, []);
+
+  const loadCategoriesForScope = useCallback(async (scopeValue) => {
+    const res = await api.get('/api/v1/expense-categories', { params: toScopeParams(scopeValue) });
+    if (res.data.success) {
+      setFormCategories(res.data.data || []);
+      return res.data.data || [];
+    }
+    return [];
+  }, [toScopeParams]);
+
   // Convert a local datetime string like '2026-05-21T00:00' to ISO-8601 UTC Instant
   const toInstant = (dtLocal) => {
     if (!dtLocal) return undefined;
@@ -95,16 +119,16 @@ export default function Expenses() {
         fromDate:  toInstant(dateFrom),
         toDate:    toInstant(dateTo),
         categoryId:    filterCat       || undefined,
-        branchId:      filterBranch    || undefined,
         paymentMethod: filterPayMethod || undefined,
         status:        filterStatus    || 'ACTIVE',
         size:       500,  // fetch all records in the period — avoids pagination data loss
         page:       0,
         sort:       'orderDate,desc',
+        ...toScopeParams(isSuperAdmin ? filterBranch : orgId),
       };
 
       const [catRes, expRes, orgRes] = await Promise.allSettled([
-        api.get('/api/v1/expense-categories'),
+        api.get('/api/v1/expense-categories', { params: toScopeParams(isSuperAdmin ? filterBranch : orgId) }),
         api.get('/api/v1/expenses', { params: expParams }),
         isSuperAdmin ? api.get('/api/v1/organizations') : Promise.resolve({ data: { success: true, data: [] } })
       ]);
@@ -130,7 +154,7 @@ export default function Expenses() {
       setLoading(false);
     }
   // Reload whenever any filter changes — all filtering is now server-side
-  }, [dateFrom, dateTo, filterCat, filterBranch, filterPayMethod, filterStatus, isSuperAdmin, notify, orgId]);
+  }, [dateFrom, dateTo, filterCat, filterBranch, filterPayMethod, filterStatus, isSuperAdmin, notify, orgId, toScopeParams]);
 
   useEffect(() => { 
     if (userRole) loadData(); 
@@ -151,7 +175,7 @@ export default function Expenses() {
     setFDate(getLocalDate(now));
     setFTime(now.toTimeString().slice(0,5));
     setFCatId(''); setFAmount(''); setFDesc(''); setFMethod('CASH');
-    setFBranchId(orgId || '');
+    setFBranchId(isSuperAdmin ? (orgId || SCOPE_GLOBAL) : (orgId || ''));
     setShowForm(true);
   };
 
@@ -164,17 +188,26 @@ export default function Expenses() {
     setFAmount(String(exp.amount || ''));
     setFMethod(exp.paymentMethod || 'CASH');
     setFDesc(exp.description || '');
-    setFBranchId(exp.orgId || '');
+    setFBranchId(exp.scope === SCOPE_GLOBAL || !exp.orgId ? SCOPE_GLOBAL : exp.orgId);
     setShowForm(true);
   };
+
+  useEffect(() => {
+    if (showForm && fBranchId) {
+      loadCategoriesForScope(fBranchId).catch(() => {
+        notify('error', 'Expense categories could not be loaded for this scope');
+      });
+    }
+  }, [showForm, fBranchId, loadCategoriesForScope, notify]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!fAmount || parseFloat(fAmount) <= 0) return notify('error', 'Enter a valid amount');
     if (!fCatId) return notify('error', 'Select a category');
-    if (isSuperAdmin && !fBranchId) return notify('error', 'Select a branch');
+    if (isSuperAdmin && (!fBranchId || fBranchId === SCOPE_ALL)) return notify('error', 'Select Organization or a branch');
     setSaving(true);
     try {
+      const scopePayload = toWriteScope(isSuperAdmin ? fBranchId : orgId);
       // Expenses are immutable Order records — only CREATE is allowed
       const payload = {
         categoryId: fCatId,
@@ -182,7 +215,7 @@ export default function Expenses() {
         amount: parseFloat(fAmount),
         description: fDesc || null,
         paymentMethod: fMethod || 'CASH',
-        branchId: isSuperAdmin ? fBranchId : null
+        ...scopePayload
       };
       
       if (editing) {
@@ -206,12 +239,20 @@ export default function Expenses() {
     if (!catName.trim()) return;
     setCatSaving(true);
     try {
-      const res = await api.post('/api/v1/expense-categories', { name: catName.trim(), sortOrder: 99 });
+      const categoryScope = showForm
+        ? fBranchId
+        : (isSuperAdmin ? (filterBranch === SCOPE_ALL ? SCOPE_GLOBAL : filterBranch) : orgId);
+      const res = await api.post('/api/v1/expense-categories', {
+        name: catName.trim(),
+        sortOrder: 99,
+        ...toWriteScope(categoryScope)
+      });
       if (res.data.success) {
         const newCat = res.data.data;
         setCatName('');
         notify('success', 'Category added');
         await loadData(true);
+        if (showForm && fBranchId) await loadCategoriesForScope(fBranchId);
         // Auto-select the new category in the form
         if (newCat && newCat.id) setFCatId(newCat.id);
         // Close manager to return to form
@@ -237,6 +278,7 @@ export default function Expenses() {
           });
           notify('success', `Category ${isY ? 'marked inactive' : 'restored'}`);
           await loadData(true);
+          if (showForm && fBranchId) await loadCategoriesForScope(fBranchId);
         } catch (e) { notify('error', 'Operation failed'); }
       }
     });
@@ -303,6 +345,16 @@ export default function Expenses() {
   };
 
   const sym = '₹';
+  const visibleCategories = showForm ? formCategories : categories;
+  const branchFilterOptions = [
+    { value: SCOPE_ALL, label: 'All Branches' },
+    { value: SCOPE_GLOBAL, label: 'Organization' },
+    ...branches.map(b => ({ value: b.id, label: b.name }))
+  ];
+  const expenseScopeOptions = [
+    { value: SCOPE_GLOBAL, label: 'Organization' },
+    ...branches.map(b => ({ value: b.id, label: b.name }))
+  ];
 
   return (
     <DashboardLayout title="Expenses">
@@ -345,10 +397,10 @@ export default function Expenses() {
               />
 
               <NiceSelect 
-                options={[
-                  { value: '', label: 'All Categories' },
-                  ...categories.map(c => ({ value: c.id, label: c.name }))
-                ]}
+                  options={[
+                    { value: '', label: 'All Categories' },
+                    ...categories.map(c => ({ value: c.id, label: c.name }))
+                  ]}
                 value={filterCat}
                 onChange={setFilterCat}
               />
@@ -358,10 +410,7 @@ export default function Expenses() {
             {isSuperAdmin && (
               <div className="exp-branch-select">
                 <NiceSelect
-                  options={[
-                    { value: '', label: 'All Branches' },
-                    ...branches.map(b => ({ value: b.id, label: b.name }))
-                  ]}
+                  options={branchFilterOptions}
                   value={filterBranch}
                   onChange={setFilterBranch}
                 />
@@ -563,12 +612,15 @@ export default function Expenses() {
 
                 {isSuperAdmin && (
                   <div className="mdl-field">
-                    <label className="mdl-lbl">Branch / Location <span className="req">*</span></label>
+                    <label className="mdl-lbl">Expense Scope <span className="req">*</span></label>
                     <NiceSelect 
                       value={fBranchId} 
-                      onChange={setFBranchId} 
-                      options={branches.map(b => ({ value: b.id, label: b.name }))}
-                      placeholder="Select branch…"
+                      onChange={(value) => {
+                        setFBranchId(value);
+                        setFCatId('');
+                      }} 
+                      options={expenseScopeOptions}
+                      placeholder="Select scope…"
                     />
                   </div>
                 )}
@@ -581,7 +633,7 @@ export default function Expenses() {
                   <NiceSelect 
                     value={fCatId} 
                     onChange={setFCatId} 
-                    options={categories.filter(c => c.active !== false).map(c => ({ value: c.id, label: c.name }))}
+                    options={formCategories.filter(c => c.active !== false).map(c => ({ value: c.id, label: c.name }))}
                     placeholder="Select category…"
                   />
                 </div>
@@ -671,7 +723,7 @@ export default function Expenses() {
               </div>
 
               <div className="cat-list">
-                {categories
+                {visibleCategories
                   .filter(c => (catActiveFilter ? c.active !== false : c.active === false))
                   .map(c => (
                     <div key={c.id} className={`cat-item ${c.active === false ? 'inactive' : ''}`}>
