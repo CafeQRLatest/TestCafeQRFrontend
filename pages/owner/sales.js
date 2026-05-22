@@ -19,6 +19,7 @@ import PaymentDialog from '../../components/PaymentDialog';
 import EditOrderPanel from '../../components/EditOrderPanel';
 import { toDisplayItems } from '../../utils/printUtils';
 import { isKnownOffline } from '../../utils/networkState';
+import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
 import { enqueueCloudPrintJob, fetchCloudPrintJobs, isPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
@@ -1186,6 +1187,25 @@ function SalesContent() {
       .map((order) => attachPrintJobs(order, printJobsByOrder));
   }, [historyOrders, queuedOrders, printJobsByOrder]);
 
+  const publishAccountingRefresh = useCallback((reason, order = null) => {
+    if (isKnownOffline() || order?.offline) return;
+    publishAccountingDataChanged({
+      source: 'sales',
+      reason,
+      orderId: order?.id || null,
+      orderNo: order?.orderNo || order?.order_no || null,
+      orderStatus: order?.orderStatus || order?.order_status || null,
+      paymentStatus: order?.paymentStatus || order?.payment_status || null,
+      orderDate: order?.orderDate || order?.order_date || order?.createdAt || order?.created_at || new Date().toISOString()
+    });
+  }, []);
+
+  const hasAccountingImpact = useCallback((order) => {
+    const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+    const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
+    return ['BILLED', 'COMPLETED', 'CANCELLED'].includes(orderStatus) || paymentStatus === 'PAID';
+  }, []);
+
   const handleOrderCreated = useCallback((order, kind) => {
     setFloorOrders((current) => {
       const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
@@ -1231,12 +1251,16 @@ function SalesContent() {
       );
     }
 
+    if (kind === 'bill' || hasAccountingImpact(order)) {
+      publishAccountingRefresh('order-created', order);
+    }
+
     if (!isKnownOffline()) {
       fetchOrders();
       fetchTables();
       loadOfflineOrderState();
     }
-  }, [fetchOrders, fetchTables, loadOfflineOrderState, showToast]);
+  }, [fetchOrders, fetchTables, hasAccountingImpact, loadOfflineOrderState, publishAccountingRefresh, showToast]);
 
   const handleCounterSale = () => {
     setSelectedTable({ tableNumber: 'COUNTER', id: null });
@@ -1339,6 +1363,7 @@ function SalesContent() {
       setFloorOrders((current) => current.map((item) => item.id === billedOrder.id ? { ...item, ...billedOrder } : item));
       showToast('Bill generated for the table');
       setPopoverTable(null);
+      publishAccountingRefresh('order-billed', billedOrder);
       await handlePrintOrder(billedOrder, 'bill');
       refreshSalesState();
     } catch (e) {
@@ -1381,6 +1406,7 @@ function SalesContent() {
       ));
       showToast('Order settled successfully');
       setPaymentOrder(null);
+      publishAccountingRefresh('order-settled', settledOrder);
       await handlePrintOrder(settledOrder, 'bill');
       refreshSalesState();
     } catch (e) {
@@ -1401,13 +1427,15 @@ function SalesContent() {
 
     setActionBusy('cancel');
     try {
-      await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: 'Cancelled from POS table popup' });
+      const { data } = await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: 'Cancelled from POS table popup' });
+      const cancelledOrder = data.data || { ...order, orderStatus: 'CANCELLED', order_status: 'CANCELLED' };
       // Immediately mark cancelled so table reverts to AVAILABLE
       setFloorOrders((current) => current.map((item) =>
-        item.id === order.id ? { ...item, orderStatus: 'CANCELLED', order_status: 'CANCELLED' } : item
+        item.id === order.id ? { ...item, ...cancelledOrder, orderStatus: 'CANCELLED', order_status: 'CANCELLED' } : item
       ));
       showToast('Order cancelled');
       setPopoverTable(null);
+      publishAccountingRefresh('order-cancelled', cancelledOrder);
       refreshSalesState();
     } catch (e) {
       console.error('Failed to cancel order', e);
@@ -1465,6 +1493,9 @@ function SalesContent() {
       setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id)]);
       showToast('Order updated');
       setEditingOrder(null);
+      if (hasAccountingImpact(savedOrder)) {
+        publishAccountingRefresh('order-updated', savedOrder);
+      }
       refreshSalesState();
     } catch (e) {
       console.error('Failed to update order', e);

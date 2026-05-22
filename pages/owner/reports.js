@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
+import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
 import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
@@ -102,9 +103,34 @@ export default function Reports() {
       console.error('Report load error:', e);
       notify('error', 'Failed to load report data');
     } finally { setLoading(false); }
-  }, [dateFrom, dateTo, invoiceFilter, notify, orgId]);
+  }, [dateFrom, dateTo, invoiceFilter, notify]);
 
-  useEffect(() => { loadTab(tab); }, [tab, loadTab]);
+  useEffect(() => { loadTab(tab); }, [tab, loadTab, orgId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    let timerId = null;
+    const scheduleRefresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (timerId) window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => loadTab(tab), 500);
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh();
+    };
+
+    const unsubscribe = subscribeAccountingDataChanged(scheduleRefresh);
+    window.addEventListener('focus', scheduleRefresh);
+    document.addEventListener('visibilitychange', handleVisible);
+
+    return () => {
+      if (timerId) window.clearTimeout(timerId);
+      unsubscribe?.();
+      window.removeEventListener('focus', scheduleRefresh);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
+  }, [loadTab, tab]);
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtMaybe = (v) => (v === null || v === undefined ? '—' : `${SYM}${fmt(v)}`);

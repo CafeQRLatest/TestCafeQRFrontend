@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
 import { getBusinessNow } from '../../utils/timezoneUtils';
+import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
 
 const ACCOUNT_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
 const TYPE_LABELS = { ASSET: '💰 What You Own', LIABILITY: '📋 What You Owe', EQUITY: '🏦 Business Capital', INCOME: '📈 Money Coming In', EXPENSE: '📉 Money Going Out' };
@@ -233,6 +234,31 @@ function AccountingContent() {
 
   useEffect(() => {
     fetchAccountingData();
+  }, [fetchAccountingData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    let timerId = null;
+    const scheduleRefresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      if (timerId) window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => fetchAccountingData(), 500);
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh();
+    };
+
+    const unsubscribe = subscribeAccountingDataChanged(scheduleRefresh);
+    window.addEventListener('focus', scheduleRefresh);
+    document.addEventListener('visibilitychange', handleVisible);
+
+    return () => {
+      if (timerId) window.clearTimeout(timerId);
+      unsubscribe?.();
+      window.removeEventListener('focus', scheduleRefresh);
+      document.removeEventListener('visibilitychange', handleVisible);
+    };
   }, [fetchAccountingData]);
 
   const displayedAccounts = useMemo(() => {
