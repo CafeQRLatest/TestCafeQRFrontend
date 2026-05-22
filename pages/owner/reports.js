@@ -6,7 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
-import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
+import { publishAccountingDataChanged, subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
 import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
@@ -172,6 +172,12 @@ export default function Reports() {
         try {
           await api.post(`/api/v1/reports/invoices/${invoiceId}/void`, { reason: 'Voided from reports' });
           notify('success', 'Invoice voided');
+          publishAccountingDataChanged({
+            source: 'reports',
+            reason: 'invoice-voided',
+            invoiceId,
+            orderId: inv.orderId || null
+          });
           loadTab('salesInvoices');
         } catch (e) { notify('error', e.response?.data?.message || 'Void failed'); }
       }
