@@ -1356,6 +1356,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
         customerIds: customerSelections.length > 0 ? customerSelections : null,
         grandTotal: Number(totals.total_amount.toFixed(2)),
         totalTaxAmount: Number(totals.total_tax.toFixed(2)),
+        totalDiscountAmount: Number(Number(totals.discount_amount || 0).toFixed(2)),
         totalAmount: Number(totals.total_inc_tax.toFixed(2)),
         lines: processedLines
       };

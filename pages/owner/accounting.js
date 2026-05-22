@@ -206,7 +206,11 @@ function AccountingContent() {
       });
       if (resp.data.success) {
         const d = resp.data.data;
-        notify('success', `Sync complete: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`);
+        const failures = Array.isArray(d.failures) ? d.failures.filter(Boolean) : [];
+        const failurePreview = failures.length
+          ? ` Failed: ${failures.slice(0, 3).join(', ')}${failures.length > 3 ? `, +${failures.length - 3} more` : ''}.`
+          : '';
+        notify((d.failed || 0) > 0 ? 'warning' : 'success', `Sync complete: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.${failurePreview}`);
         await fetchAccountingData();
       }
     } catch (err) {
