@@ -751,6 +751,27 @@ function orderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
 }
 
+function isAllBranchesScope(orgId) {
+  const value = String(orgId || '').trim();
+  return !value || value === '0';
+}
+
+function orderBranchId(order) {
+  return order?.orgId
+    || order?.org_id
+    || order?.branchId
+    || order?.branch_id
+    || order?.organizationId
+    || order?.organization_id
+    || null;
+}
+
+function matchesSelectedBranch(order, selectedOrgId) {
+  if (isAllBranchesScope(selectedOrgId)) return true;
+  const branchId = orderBranchId(order);
+  return Boolean(branchId) && String(branchId) === String(selectedOrgId);
+}
+
 function orderIdentity(order) {
   if (!order) return '';
   if (order.offlineOperationId) return `op:${order.offlineOperationId}`;
@@ -925,6 +946,7 @@ function SalesContent() {
   const ordersInFlightRef = useRef(false);
   const historyInFlightRef = useRef(false);
   const historyFiltersTouchedRef = useRef(false);
+  const historyOrgScopeRef = useRef(orgId);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -1037,6 +1059,13 @@ function SalesContent() {
     setLoading(true);
     setOrdersLoading(false);
   }, [orgId]);
+
+  useEffect(() => {
+    const previousOrgId = historyOrgScopeRef.current;
+    historyOrgScopeRef.current = orgId;
+    if (previousOrgId === orgId || activeView !== 'history') return;
+    fetchHistoryOrders(0);
+  }, [activeView, fetchHistoryOrders, orgId]);
 
   useEffect(() => {
     fetchTables();
@@ -1191,10 +1220,14 @@ function SalesContent() {
       .map((order) => attachPrintJobs(order, printJobsByOrder));
   }, [floorOrders, queuedOrders, printJobsByOrder]);
 
+  const historyQueuedOrders = useMemo(() => (
+    queuedOrders.filter((order) => matchesSelectedBranch(order, orgId))
+  ), [orgId, queuedOrders]);
+
   const historyDisplayOrders = useMemo(() => {
-    return mergeOrdersWithQueued(historyOrders, queuedOrders)
+    return mergeOrdersWithQueued(historyOrders, historyQueuedOrders)
       .map((order) => attachPrintJobs(order, printJobsByOrder));
-  }, [historyOrders, queuedOrders, printJobsByOrder]);
+  }, [historyOrders, historyQueuedOrders, printJobsByOrder]);
 
   const publishAccountingRefresh = useCallback((reason, order = null) => {
     if (isKnownOffline() || order?.offline) return;
