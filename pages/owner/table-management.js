@@ -5,6 +5,7 @@ import NiceSelect from '../../components/NiceSelect';
 import PremiumTimeSelect from '../../components/PremiumTimeSelect';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 import {
   FaChair, FaPlus, FaTimes, FaSearch, FaEdit, FaTrash,
   FaCheckCircle, FaExclamationCircle, FaSave, FaUsers,
@@ -42,7 +43,9 @@ export default function TableManagementPage() {
 }
 
 function TableContent() {
+  const { orgId } = useAuth();
   const [tables, setTables] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -61,6 +64,7 @@ function TableContent() {
   const [inlineAdd, setInlineAdd] = useState(null); // 'floor' | 'section' | 'shape' | null
   const [inlineText, setInlineText] = useState('');
   const [confirmModal, setConfirmModal] = useState(null); // { title, msg, onOk, icon } | null
+  const isAllBranches = !orgId;
 
   // Persist lists on change
   useEffect(() => { saveList(LS_KEYS.floors, floorsList); }, [floorsList]);
@@ -98,6 +102,7 @@ function TableContent() {
 
   const fetchTables = useCallback(async () => {
     try {
+      setLoading(true);
       const r = await api.get('/api/v1/tables/active');
       if (r.data.success) setTables(r.data.data || []);
     } catch {
@@ -108,12 +113,44 @@ function TableContent() {
   }, []);
 
   useEffect(() => {
+    setEditing(null);
+    setReserving(null);
+    setConfirmModal(null);
+    setSearch('');
+    setStatusFilter('ALL');
+    setFloorFilter('ALL');
     fetchTables();
-  }, [fetchTables]);
+  }, [fetchTables, orgId]);
+
+  useEffect(() => {
+    if (!isAllBranches) {
+      setBranches([]);
+      return;
+    }
+
+    let alive = true;
+    api.get('/api/v1/organizations')
+      .then((resp) => {
+        if (alive && resp.data?.success) {
+          setBranches(resp.data.data || []);
+        }
+      })
+      .catch(() => {
+        if (alive) setBranches([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [isAllBranches]);
 
   const handleSave = async () => {
     if (!editing?.tableNumber?.trim()) {
       showToast('Table number is required', 'error');
+      return;
+    }
+    if (isAllBranches && !editing?.orgId) {
+      showToast('Select a branch for this table', 'error');
       return;
     }
     setSaving(true);
@@ -124,12 +161,13 @@ function TableContent() {
         const baseNum = parseInt(editing.tableNumber.replace(/[^0-9]/g, '')) || 1;
         for (let i = 0; i < editing.tableCount; i++) {
           const newNum = prefix ? `${prefix}${baseNum + i}` : `${baseNum + i}`;
-          await api.post('/api/v1/tables', { ...editing, tableNumber: newNum });
+          await api.post('/api/v1/tables', { ...editing, orgId: editing.orgId || orgId, tableNumber: newNum });
         }
         showToast(`${editing.tableCount} tables created!`);
       } else {
         const url = isNew ? '/api/v1/tables' : `/api/v1/tables/${editing.id}`;
-        const r = await (isNew ? api.post(url, editing) : api.put(url, editing));
+        const payload = isNew ? { ...editing, orgId: editing.orgId || orgId } : editing;
+        const r = await (isNew ? api.post(url, payload) : api.put(url, payload));
         if (r.data.success) {
           showToast(isNew ? 'Table created!' : 'Table updated!');
         }
@@ -226,7 +264,8 @@ function TableContent() {
 
   const startNew = () => setEditing({
     tableNumber: '', name: '', seatingCapacity: 4, floor: 'Main', section: '',
-    shape: 'SQUARE', status: 'AVAILABLE', notes: '', displayOrder: 0, isactive: 'Y'
+    shape: 'SQUARE', status: 'AVAILABLE', notes: '', displayOrder: 0, isactive: 'Y',
+    orgId: orgId || ''
   });
 
   const floors = ['ALL', ...new Set([...floorsList, ...tables.map(t => t.floor).filter(Boolean)])];
@@ -475,6 +514,19 @@ function TableContent() {
                   </div>
 
                   <div className="fg-row">
+                    {isAllBranches && !editing.id && (
+                      <div className="fg">
+                        <label>Branch *</label>
+                        <NiceSelect
+                          options={[
+                            { value: '', label: 'Select Branch' },
+                            ...branches.map(branch => ({ value: branch.id, label: branch.name || branch.branchName || 'Branch' }))
+                          ]}
+                          value={editing.orgId || ''}
+                          onChange={v => setEditing({ ...editing, orgId: v })}
+                        />
+                      </div>
+                    )}
                     <div className="fg" style={{ flex: editing.createMultiple ? 1 : 2 }}>
                       <label>{editing.createMultiple ? 'Identifier Prefix *' : 'Table Identifier *'}</label>
                       <input value={editing.tableNumber} onChange={e => setEditing({ ...editing, tableNumber: e.target.value })} placeholder={editing.createMultiple ? 'e.g., T, A, B' : 'e.g., T1, A5, Window-1'} />

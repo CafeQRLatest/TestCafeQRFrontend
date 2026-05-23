@@ -4,7 +4,6 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import DashboardLayout from '../../components/DashboardLayout';
-import BranchRequiredGate from '../../components/BranchRequiredGate';
 import {
   FaUtensils, FaShoppingBag, FaHistory, FaTh, FaList, FaCashRegister,
   FaReceipt, FaPrint, FaSync, FaFire, FaWallet, FaCheck, FaExclamationCircle,
@@ -896,15 +895,11 @@ function paymentMethodLabel(order) {
 }
 
 export default function Sales() {
-  return (
-    <BranchRequiredGate>
-      <SalesContent />
-    </BranchRequiredGate>
-  );
+  return <SalesContent />;
 }
 
 function SalesContent() {
-  const { timezone } = useAuth();
+  const { timezone, orgId } = useAuth();
   const [tables, setTables] = useState([]);
   const [floorOrders, setFloorOrders] = useState([]);
   const [historyOrders, setHistoryOrders] = useState([]);
@@ -1030,6 +1025,20 @@ function SalesContent() {
   }, [historyFilters, historyPage.size, showToast]);
 
   useEffect(() => {
+    setSelectedTable(null);
+    setPopoverTable(null);
+    setPaymentOrder(null);
+    setEditingOrder(null);
+    setPrintOrder(null);
+    setPrintKind('bill');
+    setTables([]);
+    setFloorOrders([]);
+    setHistoryOrders([]);
+    setLoading(true);
+    setOrdersLoading(false);
+  }, [orgId]);
+
+  useEffect(() => {
     fetchTables();
     fetchOrders();
     loadOfflineOrderState();
@@ -1120,7 +1129,7 @@ function SalesContent() {
       window.removeEventListener('cafeqr-sync-complete', runRefresh);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchTables, fetchOrders, loadOfflineOrderState]);
+  }, [fetchTables, fetchOrders, loadOfflineOrderState, orgId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1263,6 +1272,10 @@ function SalesContent() {
   }, [fetchOrders, fetchTables, hasAccountingImpact, loadOfflineOrderState, publishAccountingRefresh, showToast]);
 
   const handleCounterSale = () => {
+    if (!orgId) {
+      showToast('Select a branch before creating a counter sale.', 'error');
+      return;
+    }
     setSelectedTable({ tableNumber: 'COUNTER', id: null });
   };
 

@@ -30,7 +30,7 @@ export default function ProductManagementPage() {
 }
 
 function ProductManagementContent() {
-  const { userRole } = useAuth();
+  const { userRole, orgId } = useAuth();
   const { notify, showConfirm } = useNotification();
   const isMounted = React.useRef(true);
   const [products, setProducts] = useState([]);
@@ -140,9 +140,18 @@ function ProductManagementContent() {
 
   useEffect(() => {
     isMounted.current = true;
+    setSelectedProduct(null);
+    setSelectedCategory(null);
+    setSelectedUom(null);
+    setSelectedVariantGroup(null);
+    setCurrentGroupOptions([]);
+    setSelectedItemIds([]);
+    setViewOnly(false);
+    setLoading(true);
     fetchInitialData();
     return () => { isMounted.current = false; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
 
   const fetchInitialData = async () => {
     try {

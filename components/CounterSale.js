@@ -968,7 +968,7 @@ const RemoveChip = styled.button`
 `;
 
 export default function CounterSale({ onBack, initialTable, onOrderCreated, interfaceMode = 'counter' }) {
-  const { timezone } = useAuth();
+  const { timezone, orgId } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState(['ALL']);
   const [activeCat, setActiveCat] = useState('ALL');
@@ -1000,6 +1000,17 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
     : { main: '#16a34a', dark: '#15803d', soft: '#ecfdf3' };
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError('');
+    setProducts([]);
+    setCategories(['ALL']);
+    setActiveCat('ALL');
+    setVariantProduct(null);
+    setCart([]);
+    setSearch('');
+    setSelectedCustomerId(null);
+    setSelectedCustomers([]);
+    setShowCustomerDropdown(false);
     (async () => {
       try {
         const [pRes, cRes, custRes] = await Promise.all([
@@ -1026,7 +1037,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
         setLoading(false);
       }
     })();
-  }, []);
+  }, [orgId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1345,6 +1356,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
 
       const payload = {
         orderType: 'SALE',
+        ...(orgId ? { orgId } : {}),
         orderSource: knownOffline ? 'OFFLINE' : 'ONLINE',
         fulfillmentType: initialTable ? 'DINE_IN' : 'TAKEAWAY', // Align with enum: DINE_IN, TAKEAWAY, DELIVERY
         tableNumber: initialTable ? initialTable.tableNumber : null,
