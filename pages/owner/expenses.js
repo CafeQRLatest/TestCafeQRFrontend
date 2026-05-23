@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
+import CafeQRPopup from '../../components/CafeQRPopup';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -201,7 +202,7 @@ export default function Expenses() {
   }, [showForm, fBranchId, loadCategoriesForScope, notify]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     if (!fAmount || parseFloat(fAmount) <= 0) return notify('error', 'Enter a valid amount');
     if (!fCatId) return notify('error', 'Select a category');
     if (isSuperAdmin && (!fBranchId || fBranchId === SCOPE_ALL)) return notify('error', 'Select Organization or a branch');
@@ -261,6 +262,8 @@ export default function Expenses() {
     } catch (e) { notify('error', 'Failed to add category'); }
     finally { setCatSaving(false); }
   };
+
+
 
   const toggleCatActive = (cat) => {
     const isY = cat.active === true;
@@ -359,110 +362,70 @@ export default function Expenses() {
   return (
     <DashboardLayout title="Expenses">
       <div className="exp-page">
-        
-        {/* Tier 1: Action Header */}
-        <div className="exp-header">
-          <div className="exp-header-actions">
-            <button className="exp-btn primary" onClick={openAdd}>+ Add Expense</button>
-            <button className="exp-btn ghost btn-cat" onClick={() => setShowCatMgr(true)}><FaCog /> Categories</button>
-            <button className="tbl-exp-btn" onClick={() => exportToExcel(filtered)}><FaFileExcel /> Excel</button>
-            <button className="tbl-exp-btn" onClick={() => exportToCSV(filtered)}><FaFileCsv /> CSV</button>
-          </div>
+
+
+        {/* Action Bar */}
+        <div className="exp-action-bar">
+          <button className="eab-btn primary" onClick={openAdd}><FaPlus /> Add Expense</button>
+          <button className="eab-btn ghost" onClick={() => setShowCatMgr(true)}><FaCog /> Categories</button>
+          <button className="eab-btn export" onClick={() => exportToExcel(filtered)}><FaFileExcel /> Excel</button>
+          <button className="eab-btn export" onClick={() => exportToCSV(filtered)}><FaFileCsv /> CSV</button>
         </div>
 
-        {/* Tier 2: Unified Filter Bar */}
+        {/* Filter Bar — single row */}
         <div className="exp-filter-bar">
-            <div className="exp-filter-grp">
-              <div className="exp-dates">
-                <PremiumDateTimePicker 
-                  value={dateFrom} 
-                  onChange={setDateFrom} 
-                />
-                <span className="date-sep">→</span>
-                <PremiumDateTimePicker 
-                  value={dateTo} 
-                  onChange={setDateTo} 
-                />
-              </div>
-
-              <NiceSelect 
-                value={filterStatus} 
-                onChange={setFilterStatus} 
-                options={[
-                  { value: 'ACTIVE', label: 'Active Records' },
-                  { value: 'VOID', label: 'Voided/History' }
-                ]}
-                placeholder="All Status"
-                icon={<FaCog />}
-              />
-
-              <NiceSelect 
-                  options={[
-                    { value: '', label: 'All Categories' },
-                    ...categories.map(c => ({ value: c.id, label: c.name }))
-                  ]}
-                value={filterCat}
-                onChange={setFilterCat}
-              />
-            </div>
-          
-          <div className="exp-filter-actions">
-            {isSuperAdmin && (
-              <div className="exp-branch-select">
-                <NiceSelect
-                  options={branchFilterOptions}
-                  value={filterBranch}
-                  onChange={setFilterBranch}
-                />
-              </div>
-            )}
-            
-            <div className="exp-pay-select">
-              <NiceSelect
-                options={[
-                  { value: '', label: 'All Payments' },
-                  ...PAY_METHODS
-                ]}
-                value={filterPayMethod}
-                onChange={setFilterPayMethod}
-              />
-            </div>
+          <div className="exp-dates">
+            <PremiumDateTimePicker value={dateFrom} onChange={setDateFrom} />
+            <span className="date-sep">→</span>
+            <PremiumDateTimePicker value={dateTo} onChange={setDateTo} />
           </div>
+          <NiceSelect
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: 'ACTIVE', label: 'Completed' },
+              { value: 'VOID', label: 'Voided' }
+            ]}
+            placeholder="All Status"
+          />
+          <NiceSelect
+            options={[
+              { value: '', label: 'All Categories' },
+              ...categories.map(c => ({ value: c.id, label: c.name }))
+            ]}
+            value={filterCat}
+            onChange={setFilterCat}
+          />
+          <NiceSelect
+            options={[
+              { value: '', label: 'All Payments' },
+              ...PAY_METHODS
+            ]}
+            value={filterPayMethod}
+            onChange={setFilterPayMethod}
+          />
+          {isSuperAdmin && (
+            <NiceSelect
+              options={branchFilterOptions}
+              value={filterBranch}
+              onChange={setFilterBranch}
+            />
+          )}
         </div>
 
-        {/* Tier 3: KPI Summary */}
-        <div className="exp-kpi-row">
-          <div className="exp-kpi-card">
-            <div className="kpi-icon blue"><FaWallet /></div>
-            <div className="kpi-data">
-              <span className="kpi-label">Filtered Total</span>
-              <span className="kpi-val">{sym}{totalVisible.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-          <div className="exp-kpi-card">
-            <div className="kpi-icon orange"><FaTag /></div>
-            <div className="kpi-data">
-              <span className="kpi-label">Period Total</span>
-              <span className="kpi-val">{sym}{totalAll.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-          <div className="exp-kpi-card">
-            <div className="kpi-icon purple"><FaFileAlt /></div>
-            <div className="kpi-data">
-              <span className="kpi-label">Records</span>
-              <span className="kpi-val">{filtered.length}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Table Tier */}
+        {/* ── TABLE / EMPTY ── */}
         {loading ? (
-          <div className="exp-loading">Synchronizing records…</div>
+          <div className="exp-loading">
+            <div className="loading-spinner" />
+            <span>Synchronizing records…</span>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="erp-empty-state">
             <div className="empty-ic"><FaFileAlt /></div>
             <div className="empty-title">No Transaction History</div>
-            <div className="empty-sub">Adjust your filters or try a different search.</div>
+            <div className="empty-sub">Adjust your filters or record your first expense.</div>
+            <button className="exp-btn primary" style={{marginTop:20}} onClick={openAdd}><FaPlus /> Add First Expense</button>
           </div>
         ) : (
           <>
@@ -470,12 +433,13 @@ export default function Expenses() {
                <table className="erp-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '160px' }}>Order No</th>
-                      <th style={{ width: '140px' }}>Timestamp</th>
+                      <th style={{ width: '160px' }}>Expense No</th>
+                      <th style={{ width: '140px' }}>Date</th>
                       <th style={{ width: '150px' }}>Category</th>
                       <th>Notes</th>
-                      <th style={{ width: '120px' }}>Payment</th>
-                      <th className="text-right" style={{ width: '110px' }}>Value</th>
+                      <th style={{ width: '120px' }}>Payment Type</th>
+                      <th style={{ width: '120px' }}>Updated By</th>
+                      <th className="text-right" style={{ width: '110px' }}>Amount</th>
                       <th style={{ width: '100px' }}>Status</th>
                       <th style={{ width: '90px' }}></th>
                     </tr>
@@ -486,12 +450,9 @@ export default function Expenses() {
                       const cat = categories.find(c => String(c.id) === String(r.categoryId));
                       const isVoid = filterStatus === 'VOID';
                       return (
-                        <tr key={r.id} className={isVoid ? 'voided-row' : ''}>
+                        <tr key={r.id} className={`erp-tr${isVoid ? ' voided-row' : ''}`}>
                           <td>
                             <span className="row-docno">{r.referenceNumber || '—'}</span>
-                            <span className={`st-badge ${isVoid ? 'void' : 'active'}`}>
-                              {isVoid ? 'Voided' : 'Active'}
-                            </span>
                           </td>
                           <td>
                             <div className="row-date">
@@ -514,19 +475,24 @@ export default function Expenses() {
                               <span className={`method-tag ${r.paymentMethod?.toLowerCase()}`}>{prettyMethod(r.paymentMethod)}</span>
                             </div>
                           </td>
+                          <td>
+                            <span className="row-ub">
+                              {r.updatedBy ? (r.updatedBy.includes('@') ? r.updatedBy.split('@')[0] : r.updatedBy) : 'SYSTEM'}
+                            </span>
+                          </td>
                           <td className="text-right">
                             <span className="row-amt">{sym}{parseFloat(r.amount).toFixed(2)}</span>
                           </td>
                           <td>
                             <span className={`status-tag ${isVoid ? 'void' : 'active'}`}>
-                              {isVoid ? 'VOIDED' : 'ACTIVE'}
+                              {isVoid ? 'Voided' : 'Completed'}
                             </span>
                           </td>
                           <td>
                             <div className="row-acts">
                               {!isVoid && (
                                 <>
-                                  <button className="ract-btn" onClick={() => openEdit(r)} title="Edit"><FaEdit /></button>
+                                  <button className="ract-btn edit" onClick={() => openEdit(r)} title="Edit"><FaEdit /></button>
                                   <button className="ract-btn danger" onClick={() => handleDelete(r.id)} title="Delete"><FaTrash /></button>
                                 </>
                               )}
@@ -550,7 +516,7 @@ export default function Expenses() {
                       <div className="mc-left">
                         <span className="row-docno">{r.referenceNumber || '—'}</span>
                         <span className={`st-badge ${isVoid ? 'void' : 'active'}`}>
-                          {isVoid ? 'Voided' : 'Active'}
+                          {isVoid ? 'Voided' : 'Completed'}
                         </span>
                         <div className="mc-meta-row" style={{marginTop:8}}>
                           <span className="rd-d">{formatTzDate(d, timezone, { format: 'date', year: undefined })}</span>
@@ -570,9 +536,16 @@ export default function Expenses() {
                       )}
                     </div>
                     <div className="mc-btm">
-                      <div className="mc-pay-pill">
-                        <FaWallet style={{fontSize:8}} />
-                        <span>{prettyMethod(r.paymentMethod)}</span>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div className="mc-pay-pill">
+                          <FaWallet style={{fontSize:8}} />
+                          <span>{prettyMethod(r.paymentMethod)}</span>
+                        </div>
+                        {r.updatedBy && (
+                          <div style={{ fontSize: '9px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', background: '#f1f5f9', padding: '4px 8px', borderRadius: '12px' }}>
+                            <span>By: {r.updatedBy.includes('@') ? r.updatedBy.split('@')[0] : r.updatedBy}</span>
+                          </div>
+                        )}
                       </div>
                       {/* Hide Edit/Delete for voided records — matches desktop behavior */}
                       {!isVoid && (
@@ -591,333 +564,329 @@ export default function Expenses() {
       </div>
 
       {showForm && (
-        <div className="mdl-ov" onClick={() => { setShowForm(false); setEditing(null); }}>
-          <div className="mdl-box" onClick={e => e.stopPropagation()} style={{maxWidth:400}}>
-            <div className="mdl-hdr">
-              <h3 className="mdl-hdr-t">{editing ? 'Modify Transaction' : 'Record New Expense'}</h3>
-              <button className="mdl-hdr-x" onClick={() => { setShowForm(false); setEditing(null); }}>✕</button>
-            </div>
-            <form onSubmit={handleSubmit}>
-              <div className="mdl-body">
-                <div className="mdl-field">
-                  <label className="mdl-lbl">Occurrence Date <span className="req">*</span></label>
-                  <PremiumDateTimePicker 
-                    value={`${fDate}T${fTime}`} 
-                    onChange={val => {
-                      setFDate(val.slice(0, 10));
-                      setFTime(val.slice(11, 16));
-                    }} 
-                  />
-                </div>
-
-                {isSuperAdmin && (
-                  <div className="mdl-field">
-                    <label className="mdl-lbl">Expense Scope <span className="req">*</span></label>
-                    <NiceSelect 
-                      value={fBranchId} 
-                      onChange={(value) => {
-                        setFBranchId(value);
-                        setFCatId('');
-                      }} 
-                      options={expenseScopeOptions}
-                      placeholder="Select scope…"
-                    />
-                  </div>
-                )}
-
-                <div className="mdl-field highlight">
-                  <div className="lbl-row">
-                    <label className="mdl-lbl">Categorization <span className="req">*</span></label>
-                    <button type="button" className="lbl-act" onClick={() => setShowCatMgr(true)}>Manage</button>
-                  </div>
-                  <NiceSelect 
-                    value={fCatId} 
-                    onChange={setFCatId} 
-                    options={formCategories.filter(c => c.active !== false).map(c => ({ value: c.id, label: c.name }))}
-                    placeholder="Select category…"
-                  />
-                </div>
-
-                <div className="mdl-row">
-                  <div className="mdl-field">
-                    <label className="mdl-lbl">Amount <span className="req">*</span></label>
-                    <div className="amt-input-w">
-                      <span className="amt-pre">{sym}</span>
-                      <input 
-                        className="amt-input" 
-                        type="number" 
-                        step="0.01" 
-                        value={fAmount} 
-                        onChange={e => setFAmount(e.target.value)} 
-                        placeholder="0.00" 
-                        required 
-                      />
-                    </div>
-                  </div>
-                  <div className="mdl-field">
-                    <label className="mdl-lbl">Payment Mode <span className="req">*</span></label>
-                    <NiceSelect 
-                      value={fMethod} 
-                      onChange={setFMethod} 
-                      options={PAY_METHODS}
-                    />
-                  </div>
-                </div>
-
-                <div className="mdl-field">
-                  <label className="mdl-lbl">Reference / Notes</label>
-                  <textarea 
-                    className="mdl-txt" 
-                    value={fDesc} 
-                    onChange={e => setFDesc(e.target.value)} 
-                    placeholder="Brief description of the expense…"
-                    rows={2}
-                  />
-                </div>
-              </div>
-              <div className="mdl-ftr">
-                <button type="button" className="mdl-btn ghost" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button>
-                <button type="submit" className="mdl-btn primary" disabled={saving}>
-                  {saving ? 'Processing…' : editing ? 'Save Changes' : 'Confirm Record'}
-                </button>
-              </div>
-            </form>
+        <CafeQRPopup
+          title={editing ? 'Modify Transaction' : 'Record New Expense'}
+          icon={editing ? FaEdit : FaPlus}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+          onCancel={() => { setShowForm(false); setEditing(null); }}
+          onSave={handleSubmit}
+          saveLabel={editing ? 'Save Changes' : 'Complete'}
+          cancelLabel="Cancel"
+          isSaving={saving}
+          maxWidth="440px"
+        >
+          <div className="mdl-field">
+            <label className="mdl-lbl">Expense Date <span className="req">*</span></label>
+            <PremiumDateTimePicker 
+              value={`${fDate}T${fTime}`} 
+              onChange={val => {
+                setFDate(val.slice(0, 10));
+                setFTime(val.slice(11, 16));
+              }} 
+            />
           </div>
-        </div>
+
+          {isSuperAdmin && (
+            <div className="mdl-field">
+              <label className="mdl-lbl">Expense Scope <span className="req">*</span></label>
+              <NiceSelect 
+                value={fBranchId} 
+                onChange={(value) => {
+                  setFBranchId(value);
+                  setFCatId('');
+                }} 
+                options={expenseScopeOptions}
+                placeholder="Select scope…"
+              />
+            </div>
+          )}
+
+          <div className="mdl-field">
+            <div className="lbl-row">
+              <label className="mdl-lbl">Category <span className="req">*</span></label>
+              <button type="button" className="lbl-act" onClick={() => setShowCatMgr(true)}><FaPlus /> New</button>
+            </div>
+            <NiceSelect 
+              value={fCatId} 
+              onChange={setFCatId} 
+              options={formCategories.filter(c => c.active !== false).map(c => ({ value: c.id, label: c.name }))}
+              placeholder="Select category…"
+            />
+          </div>
+
+          <div className="mdl-row">
+            <div className="mdl-field">
+              <label className="mdl-lbl">Amount <span className="req">*</span></label>
+              <div className="amt-input-w">
+                <span className="amt-pre">{sym}</span>
+                <input 
+                  className="amt-input" 
+                  type="number" 
+                  step="0.01" 
+                  value={fAmount} 
+                  onChange={e => setFAmount(e.target.value)} 
+                  placeholder="0.00" 
+                  required 
+                />
+              </div>
+            </div>
+            <div className="mdl-field">
+              <label className="mdl-lbl">Payment Mode <span className="req">*</span></label>
+              <NiceSelect 
+                value={fMethod} 
+                onChange={setFMethod} 
+                options={PAY_METHODS}
+              />
+            </div>
+          </div>
+
+          <div className="mdl-field">
+            <label className="mdl-lbl">Reference / Notes</label>
+            <textarea 
+              className="mdl-txt" 
+              value={fDesc} 
+              onChange={e => setFDesc(e.target.value)} 
+              placeholder="Brief description of the expense…"
+              rows={2}
+            />
+          </div>
+        </CafeQRPopup>
       )}
 
       {showCatMgr && (
-        <div className="mdl-ov" onClick={() => setShowCatMgr(false)}>
-          <div className="mdl-box" onClick={e => e.stopPropagation()} style={{maxWidth:500}}>
-            <div className="mdl-hdr">
-              <h3 className="mdl-hdr-t">Expense Categories</h3>
-              <button className="mdl-hdr-x" onClick={() => setShowCatMgr(false)}>✕</button>
-            </div>
-            <div className="mdl-body">
-              <div className="cat-add-box">
-                <input 
-                  className="cat-add-in" 
-                  value={catName} 
-                  onChange={e => setCatName(e.target.value)} 
-                  placeholder="New category name…" 
-                />
-                <button className="cat-add-btn" onClick={addCategory} disabled={catSaving}>
-                  {catSaving ? '…' : <FaPlus />}
-                </button>
-              </div>
-              <div className="cat-filter-tabs">
-                <button 
-                  type="button" 
-                  className={`cat-tab ${catActiveFilter ? 'on' : ''}`} 
-                  onClick={() => setCatActiveFilter(true)}
-                >
-                  Active
-                </button>
-                <button 
-                  type="button" 
-                  className={`cat-tab ${!catActiveFilter ? 'on' : ''}`} 
-                  onClick={() => setCatActiveFilter(false)}
-                >
-                  Inactive
-                </button>
-              </div>
-
-              <div className="cat-list">
-                {visibleCategories
-                  .filter(c => (catActiveFilter ? c.active !== false : c.active === false))
-                  .map(c => (
-                    <div key={c.id} className={`cat-item ${c.active === false ? 'inactive' : ''}`}>
-                      <span className="cat-n">{c.name}</span>
-                      <button className="cat-tog" onClick={() => toggleCatActive(c)}>
-                        {c.active === false ? 'Restore' : 'Deactivate'}
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </div>
+        <CafeQRPopup
+          title="Expense Categories"
+          icon={FaCog}
+          onClose={() => setShowCatMgr(false)}
+          onCancel={() => setShowCatMgr(false)}
+          cancelLabel="Close"
+          maxWidth="500px"
+        >
+          <div className="cat-add-box">
+            <input 
+              className="cat-add-in" 
+              value={catName} 
+              onChange={e => setCatName(e.target.value)} 
+              placeholder="New category name…" 
+            />
+            <button className="cat-add-btn" onClick={addCategory} disabled={catSaving}>
+              {catSaving ? '…' : <FaPlus />}
+            </button>
           </div>
-        </div>
+          <div className="cat-filter-tabs">
+            <button 
+              type="button" 
+              className={`cat-tab ${catActiveFilter ? 'on' : ''}`} 
+              onClick={() => setCatActiveFilter(true)}
+            >
+              Active
+            </button>
+            <button 
+              type="button" 
+              className={`cat-tab ${!catActiveFilter ? 'on' : ''}`} 
+              onClick={() => setCatActiveFilter(false)}
+            >
+              Inactive
+            </button>
+          </div>
+
+          <div className="cat-list">
+            {visibleCategories
+              .filter(c => (catActiveFilter ? c.active !== false : c.active === false))
+              .map(c => (
+                <div key={c.id} className={`cat-item ${c.active === false ? 'inactive' : ''}`}>
+                  <div className="cat-item-left">
+                    <div className="cat-dot" />
+                    <span className="cat-n">{c.name}</span>
+                  </div>
+                  <button className={`cat-tog ${c.active === false ? 'restore' : 'deactivate'}`} onClick={() => toggleCatActive(c)}>
+                    {c.active === false ? <><FaUndo /> Restore</> : 'Deactivate'}
+                  </button>
+                </div>
+              ))}
+            {visibleCategories.filter(c => catActiveFilter ? c.active !== false : c.active === false).length === 0 && (
+              <div className="cat-empty">No {catActiveFilter ? 'active' : 'inactive'} categories found</div>
+            )}
+          </div>
+        </CafeQRPopup>
       )}
 
       <style jsx global>{`
-        .exp-page { width: 100%; max-width: 100%; position: relative; z-index: 1; box-sizing: border-box; padding: 0 20px; }
-        
-        .exp-header { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 24px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
-        .exp-header-actions { display: flex; align-items: center; gap: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        .exp-page { width: 100%; max-width: 100%; position: relative; box-sizing: border-box; padding: 0 20px 40px; font-family: 'Inter', sans-serif; }
 
-        .exp-filter-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px; background: #fff; padding: 12px 16px; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 2px 10px rgba(0,0,0,0.02); position: relative; z-index: 100; }
-        .exp-filter-grp { display: flex; align-items: center; gap: 16px; }
-        .exp-filter-actions { display: flex; align-items: center; gap: 12px; }
-        .exp-dates { display: flex; align-items: center; gap: 8px; }
-        .exp-dates > :global(.premium-dt-picker) { width: 230px; }
-        .date-sep { color: #cbd5e1; font-weight: 300; flex-shrink: 0; font-size: 18px; }
-        .exp-cat-select { width: 160px; }
-        .exp-pay-select { width: 140px; }
-        .exp-branch-select { width: 160px; }
+        /* ── ACTION BAR ── */
+        .exp-action-bar { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-bottom: 14px; padding-top: 4px; }
+        .eab-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; border: none; font: 600 11px 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap; letter-spacing: 0.1px; }
+        .eab-btn svg { font-size: 11px; }
+        .eab-btn.primary { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; box-shadow: 0 3px 10px rgba(249,115,22,0.3); }
+        .eab-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(249,115,22,0.4); }
+        .eab-btn.ghost { background: #fff; color: #475569; border: 1px solid #e2e8f0; }
+        .eab-btn.ghost:hover { border-color: #f97316; color: #f97316; background: #fff7ed; }
+        .eab-btn.export { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+        .eab-btn.export:hover { background: #f1f5f9; color: #1e293b; border-color: #cbd5e1; }
+
+        .exp-filter-bar { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; margin-bottom: 20px; background: #fff; padding: 8px 12px; border-radius: 14px; border: 1px solid #e8edf5; box-shadow: 0 2px 10px rgba(0,0,0,0.04); position: relative; z-index: 100; }
+        .exp-dates { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .exp-dates > :global(.premium-dt-picker) { width: 235px !important; }
+        .date-sep { color: #cbd5e1; font-weight: 300; flex-shrink: 0; font-size: 16px; }
         
-        .exp-btn{padding:10px 18px;border-radius:12px;border:none;font:700 11px 'Inter', sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.3s;letter-spacing:0.3px}
-        .exp-btn.primary{background:#f97316;color:#fff;box-shadow:0 4px 12px rgba(249,115,22,0.15)}
-        .exp-btn.primary:hover{background:#ea580c;transform:translateY(-1px);box-shadow:0 6px 16px rgba(249,115,22,0.2)}
-        .exp-btn.ghost{background:#fff;color:#64748b;border:1px solid #f1f5f9}
-        .exp-btn.ghost:hover{background:#f8fafc;color:#1e293b;border-color:#cbd5e1}
-        .exp-btn.ghost.btn-cat { border-color: #f97316; }
-        .exp-btn.ghost.btn-cat:hover { background: #fff7ed; border-color: #ea580c; }
-        
-        /* Branded orange borders for all Interactive Selects and Pickers */
-        :global(.nice-select-trigger),
-        :global(.dt-trigger),
-        :global(.premium-dt-picker),
-        :global(.nice-select) {
-            border: 1.5px solid #f97316 !important;
-            border-radius: 12px !important;
-            transition: 0.3s !important;
-            background: #fff !important;
+        /* Make other filters smaller/compact */
+        .exp-filter-bar > :global(.nice-select), 
+        .exp-filter-bar > :global(.nice-select-wrapper) { 
+          flex-shrink: 0; 
+          min-width: 115px !important; 
+          max-width: 135px !important; 
+        }
+        .exp-filter-bar :global(.nice-select-trigger) {
+          padding: 6px 10px !important;
+          height: 36px !important;
+        }
+        .exp-filter-bar :global(.nice-select-trigger span) {
+          font-size: 12px !important;
+          font-weight: 700 !important;
         }
 
-        :global(.nice-select-trigger:hover),
-        :global(.dt-trigger:hover),
-        :global(.premium-dt-picker:hover) {
-            background: #fff7ed !important;
-            border-color: #ea580c !important;
-        }
+        /* ── SELECT / PICKER OVERRIDES ── */
+        :global(.nice-select-trigger), :global(.dt-trigger), :global(.premium-dt-picker), :global(.nice-select) { border: 1.5px solid #e2e8f0 !important; border-radius: 12px !important; transition: 0.25s !important; background: #f8fafc !important; }
+        :global(.nice-select-trigger:hover), :global(.dt-trigger:hover), :global(.premium-dt-picker:hover) { background: #fff7ed !important; border-color: #f97316 !important; }
 
-        .tbl-exp-btn { padding: 10px 16px; border-radius: 12px; border: 1.5px solid #f97316; background: #fff; color: #f97316; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(249,115,22,0.08); }
-        .tbl-exp-btn:hover { background: #fff7ed; color: #ea580c; border-color: #ea580c; transform: translateY(-1px); }
-        .tbl-exp-btn svg { font-size: 14px; }
-
-        .exp-kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .exp-kpi-card { background: #fff; padding: 20px; border-radius: 16px; border: 1px solid #f1f5f9; display: flex; align-items: center; gap: 16px; transition: 0.3s; }
-        .exp-kpi-card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.02); border-color: #e2e8f0; }
-        .kpi-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .kpi-icon.blue { background: #eff6ff; color: #3b82f6; }
-        .kpi-icon.orange { background: #fff7ed; color: #f97316; }
-        .kpi-icon.purple { background: #f5f3ff; color: #8b5cf6; }
-        .kpi-data { display: flex; flex-direction: column; }
-        .kpi-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-        .kpi-val { font-size: 20px; font-weight: 800; color: #1e293b; }
-
-        .erp-table-wrapper { width: 100%; background: #fff; border-radius: 16px; border: 1px solid #f1f5f9; overflow: hidden; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+        /* ── TABLE ── */
+        .erp-table-wrapper { width: 100%; background: #fff; border-radius: 20px; border: 1px solid #f1f5f9; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.04); margin-top: 8px; }
         .erp-table { width: 100%; border-collapse: collapse; }
-        .erp-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #f1f5f9; }
-        .erp-table td { padding: 16px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+        .erp-table thead { background: linear-gradient(180deg, #f8fafc, #f1f5f9); }
+        .erp-table th { padding: 8px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #e8edf5; }
+        .erp-table td { padding: 8px 12px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
         .erp-table tr:last-child td { border-bottom: none; }
-        .erp-tr:hover td { background: #fcfdfe; }
-        .erp-tr { border-left: 4px solid #f97316; }
-        .voided-row td { opacity: 0.5; background: #f8fafc !important; }
+        .erp-tr { transition: background 0.15s; border-left: 3px solid transparent; }
+        .erp-tr:hover td { background: #fafbff; }
+        .erp-tr:hover { border-left-color: #f97316; }
+        .voided-row { opacity: 0.65; background: #fef2f2 !important; border-left: 3px solid #ef4444 !important; }
+        .voided-row td { background: transparent !important; }
+        .voided-row .row-docno { color: #991b1b; }
+        .voided-row .row-amt { color: #94a3b8; }
 
-        .status-tag { font-size: 8px; font-weight: 800; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
-        .status-tag.active { background: #ecfdf5; color: #10b981; border: 1px solid #d1fae5; }
-        .status-tag.void { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
+        .row-docno { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700; color: #475569; letter-spacing: 0.3px; white-space: nowrap; }
+        .row-date { display: flex; flex-direction: column; gap: 2px; }
+        .rd-d { font-size: 11px; font-weight: 700; color: #1e293b; }
+        .rd-t { font-size: 9px; font-weight: 500; color: #94a3b8; }
+        .rc-text { font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+        .row-note { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+        .row-ub { font-size: 11px; font-weight: 600; color: #475569; white-space: nowrap; }
+        .row-amt { font-size: 13.5px; font-weight: 900; color: #dc2626; }
 
-        .method-tag { font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 8px; background: #f1f5f9; color: #475569; text-transform: capitalize; }
-        .method-tag.cash { background: #fff7ed; color: #c2410c; }
-        .method-tag.card { background: #eff6ff; color: #1d4ed8; }
-        .method-tag.upi { background: #fdf2f8; color: #be185d; }
+        .method-tag { font-size: 11px; font-weight: 700; color: #475569; white-space: nowrap; }
+        .method-tag.cash { color: #c2410c; }
+        .method-tag.card { color: #1d4ed8; }
+        .method-tag.upi { color: #a21caf; }
+        .method-tag.bank_transfer { color: #15803d; }
+        .method-tag.cheque { color: #a16207; }
+
+        .status-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; }
+        .status-tag.active { color: #15803d; }
+        .status-tag.void { color: #b91c1c; }
 
         .text-right { text-align: right !important; }
-        .row-docno { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px; letter-spacing: -0.2px; white-space: nowrap; }
-        .rd-d { font-size: 12px; font-weight: 600; color: #1e293b; display: block; }
-        .rd-t { font-size: 10px; font-weight: 500; color: #94a3b8; display: block; margin-top: 2px; }
-        .rc-text { font-size: 10px; font-weight: 600; color: #475569; background: #fcfdfe; padding: 4px 10px; border-radius: 20px; border: 1px solid #f1f5f9; text-transform: uppercase; }
-        .row-note { font-size: 12px; color: #64748b; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .row-pay { font-size: 12px; font-weight: 600; color: #475569; }
-        .row-amt { font-size: 15px; font-weight: 800; color: #ef4444; }
-        
-        .voided-row { background: #fff1f2 !important; border-left: 4px solid #ef4444 !important; }
-        .voided-row .row-docno { color: #b91c1c; background: #fee2e2; border: 1px solid #fecaca; }
-        .voided-row .row-amt { color: #94a3b8; }
-        .st-badge { font-size: 9px; font-weight: 800; padding: 2px 8px; border-radius: 6px; text-transform: uppercase; margin-left: 8px; }
-        .st-badge.active { background: #dcfce7; color: #15803d; }
-        .st-badge.void { background: #fee2e2; color: #b91c1c; }
+        .row-acts { display: flex; gap: 6px; justify-content: flex-end; }
+        .ract-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid #f1f5f9; background: #fff; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 11px; }
+        .ract-btn.edit:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; transform: scale(1.08); }
+        .ract-btn.danger:hover { background: #fef2f2; color: #ef4444; border-color: #fecaca; transform: scale(1.08); }
 
-        /* Premium Mobile Card Design */
-        .mob-list { display: flex; flex-direction: column; gap: 16px; width: 100%; }
-        .mob-card { background: #fff; border-radius: 20px; padding: 20px; border: 1px solid #f1f5f9; box-shadow: 0 10px 30px rgba(0,0,0,0.03); position: relative; overflow: hidden; border-left: 4px solid #f97316; }
-        .mob-card.void { border-left: 4px solid #ef4444; }
-        
-        .mc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .mc-amt-badge { background: #fef2f2; padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.1); }
-        .mc-amt-badge .row-amt { font-size: 16px; margin: 0; }
-        
-        .mc-mid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-        .mc-meta-row { display: flex; align-items: center; gap: 8px; }
-        .mc-note { font-size: 12px; color: #64748b; line-height: 1.5; background: #f8fafc; padding: 10px; border-radius: 12px; border: 1px solid #f1f5f9; }
-        
-        .mc-btm { display: flex; justify-content: space-between; align-items: center; pt: 12px; border-top: 1px solid #f1f5f9; padding-top: 14px; }
-        .mc-pay-pill { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; background: #f1f5f9; padding: 4px 10px; border-radius: 20px; }
-        .mc-acts { display: flex; gap: 10px; }
+        /* ── LOADING & EMPTY ── */
+        .exp-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 80px 20px; color: #94a3b8; font-size: 14px; font-weight: 600; background: #fff; border-radius: 20px; border: 1px solid #f1f5f9; margin-top: 8px; }
+        .loading-spinner { width: 40px; height: 40px; border: 3px solid #f1f5f9; border-top-color: #f97316; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .erp-empty-state { text-align: center; padding: 80px 20px; display: flex; flex-direction: column; align-items: center; background: #fff; border-radius: 20px; border: 1px dashed #e2e8f0; margin-top: 8px; }
+        .empty-ic { font-size: 48px; color: #e2e8f0; margin-bottom: 16px; }
+        .empty-title { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 8px; }
+        .empty-sub { font-size: 13px; color: #94a3b8; }
 
-        .row-acts{display:flex;gap:6px;justify-content:flex-end}
-        .ract-btn{width:34px;height:34px;border-radius:10px;border:1px solid #f1f5f9;background:#fff;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:14px}
-        .ract-btn:hover{background:#f8fafc;color:#1e293b;border-color:#cbd5e1;transform:scale(1.05)}
-        .ract-btn.danger:hover{color:#ef4444;border-color:#fecaca;background:#fef2f2}
+        /* ── MOBILE CARDS ── */
+        .mob-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+        .mob-card { background: #fff; border-radius: 14px; padding: 12px 14px; border: 1px solid #f1f5f9; box-shadow: 0 4px 16px rgba(0,0,0,0.04); border-left: 4px solid #f97316; }
+        .mob-card.void { border-left-color: #ef4444; background: #fff8f8; }
+        .mc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .mc-left { display: flex; flex-direction: column; gap: 4px; }
+        .mc-amt-badge { background: #fef2f2; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.1); }
+        .mc-amt-badge .row-amt { font-size: 14px; }
+        .mc-mid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+        .mc-meta-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .mc-note { font-size: 11px; color: #64748b; line-height: 1.4; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border: 1px solid #f1f5f9; }
+        .mc-btm { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+        .mc-pay-pill { display: flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; background: #f1f5f9; padding: 4px 8px; border-radius: 12px; }
+        .mc-acts { display: flex; gap: 6px; }
 
-        /* Responsive Visibility */
+        /* ── MODAL ── */
+        .mdl-field { display: flex; flex-direction: column; margin-bottom: 16px; }
+        .mdl-field:last-child { margin-bottom: 0; }
+        .mdl-lbl { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+        .mdl-lbl .req { color: #ef4444; }
+        .lbl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .lbl-row .mdl-lbl { margin-bottom: 0; }
+        .lbl-act { border: none; background: none; color: #f97316; font-size: 10px; font-weight: 700; cursor: pointer; padding: 0; display: flex; align-items: center; gap: 4px; }
+        .mdl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+        .amt-input-w { position: relative; display: flex; align-items: center; }
+        .amt-pre { position: absolute; left: 12px; font-weight: 800; color: #94a3b8; font-size: 14px; z-index: 1; }
+        .amt-input { width: 100%; padding: 11px 12px 11px 28px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; font-size: 15px; font-weight: 800; color: #1e293b; outline: none; transition: 0.2s; box-sizing: border-box; }
+        .amt-input:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 4px rgba(249,115,22,0.08); }
+        .amt-input::-webkit-outer-spin-button,
+        .amt-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .amt-input[type=number] { -moz-appearance: textfield; }
+        .mdl-txt { padding: 11px 14px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; font-size: 13px; font-weight: 500; color: #475569; outline: none; transition: 0.2s; resize: none; width: 100%; font-family: inherit; box-sizing: border-box; }
+        .mdl-txt:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 4px rgba(249,115,22,0.08); }
+
+        /* ── CATEGORY MANAGER ── */
+        .cat-add-box { display: flex; gap: 8px; margin-bottom: 14px; }
+        .cat-add-in { flex: 1; padding: 11px 14px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: #f8fafc; font-size: 13px; font-weight: 600; color: #1e293b; outline: none; transition: 0.2s; }
+        .cat-add-in:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 4px rgba(249,115,22,0.08); }
+        .cat-add-btn { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border: none; width: 42px; height: 42px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 4px 12px rgba(249,115,22,0.3); transition: 0.2s; flex-shrink: 0; }
+        .cat-add-btn:hover { transform: scale(1.05); }
+        .cat-filter-tabs { display: flex; gap: 6px; margin-bottom: 14px; padding: 4px; background: #f1f5f9; border-radius: 14px; }
+        .cat-tab { flex: 1; border: none; background: none; padding: 9px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #94a3b8; cursor: pointer; transition: 0.2s; }
+        .cat-tab.on { background: #fff; color: #f97316; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .cat-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+        .cat-list::-webkit-scrollbar { width: 4px; }
+        .cat-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .cat-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1px solid #f1f5f9; transition: 0.2s; }
+        .cat-item:hover { border-color: #e2e8f0; background: #fff; }
+        .cat-item.inactive { opacity: 0.55; }
+        .cat-item-left { display: flex; align-items: center; gap: 10px; }
+        .cat-dot { width: 8px; height: 8px; border-radius: 50%; background: #f97316; flex-shrink: 0; }
+        .cat-item.inactive .cat-dot { background: #94a3b8; }
+        .cat-n { font-size: 12px; font-weight: 700; color: #475569; }
+        .cat-tog { border: none; padding: 5px 12px; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 5px; }
+        .cat-tog.deactivate { background: #fef2f2; color: #dc2626; }
+        .cat-tog.deactivate:hover { background: #fee2e2; }
+        .cat-tog.restore { background: #f0fdf4; color: #16a34a; }
+        .cat-tog.restore:hover { background: #dcfce7; }
+        .cat-empty { text-align: center; padding: 24px; color: #94a3b8; font-size: 12px; font-weight: 600; }
+
+        /* ── RESPONSIVE ── */
         @media (min-width: 769px) { .phn-only { display: none !important; } }
         @media (max-width: 768px) {
-          .exp-page { padding: 0 4px; }
+          .exp-page { padding: 0 12px 24px; }
           .desk-only { display: none !important; }
-          .exp-controls { flex-direction: column; align-items: stretch; gap: 12px; }
-          .exp-dates { width: 100%; flex-direction: column; align-items: stretch; gap: 8px; }
+          .exp-hero { flex-direction: column; align-items: flex-start; gap: 20px; padding: 20px; }
+          .exp-header-actions { width: 100%; flex-wrap: wrap; }
+          .exp-filter-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+          .exp-filter-grp { flex-direction: column; align-items: stretch; }
+          .exp-filter-actions { flex-wrap: wrap; }
+          .exp-dates { flex-direction: column; }
           .exp-dates > :global(.premium-dt-picker) { width: 100% !important; }
-          .exp-to { display: none; }
-          .exp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
-          .exp-btn { width: 100%; justify-content: center; }
-          .exp-kpis { grid-template-columns: 1fr; }
+          .exp-kpi-row { grid-template-columns: 1fr; }
+          .mdl-row { grid-template-columns: 1fr; }
         }
-        /* Modal Design System */
-        .mdl-ov { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
-        .mdl-box { background: #fff; border-radius: 20px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.1); animation: mdl-pop 0.3s ease-out; overflow: hidden; border-top: 4px solid #f97316; }
-        @keyframes mdl-pop { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        .mdl-hdr { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-        .mdl-hdr-t { font-size: 14px; font-weight: 800; color: #1e293b; margin: 0; }
-        .mdl-hdr-x { border: none; background: none; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 4px; }
-        .mdl-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-        .mdl-field { display: flex; flex-direction: column; gap: 6px; }
-        .mdl-lbl { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-        .mdl-lbl .req { color: #ef4444; }
-        .lbl-row { display: flex; justify-content: space-between; align-items: center; }
-        .lbl-act { border: none; background: none; color: #f97316; font-size: 10px; font-weight: 700; cursor: pointer; padding: 0; }
-        .mdl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .amt-input-w { position: relative; display: flex; align-items: center; }
-        .amt-pre { position: absolute; left: 12px; font-weight: 700; color: #94a3b8; font-size: 13px; }
-        .amt-input { width: 100%; padding: 10px 12px 10px 28px; border-radius: 10px; border: 1px solid #f1f5f9; background: #f8fafc; font-size: 14px; font-weight: 700; color: #1e293b; outline: none; transition: 0.2s; }
-        .amt-input:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 3px rgba(249,115,22,0.05); }
-        .mdl-txt { padding: 10px 12px; border-radius: 10px; border: 1px solid #f1f5f9; background: #f8fafc; font-size: 13px; font-weight: 500; color: #475569; outline: none; transition: 0.2s; resize: none; width: 100%; font-family: inherit; }
-        .mdl-txt:focus { border-color: #f97316; background: #fff; }
-        .mdl-ftr { padding: 16px 20px; background: #fcfdfe; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
-        .mdl-btn { padding: 10px 20px; border-radius: 10px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.2s; }
-        .mdl-btn.primary { background: #f97316; color: #fff; box-shadow: 0 4px 12px rgba(249,115,22,0.15); }
-        .mdl-btn.ghost { background: #fff; color: #64748b; border: 1px solid #f1f5f9; }
 
-        .cat-add-box { display: flex; gap: 8px; margin-bottom: 16px; }
-        .cat-add-in { flex: 1; padding: 10px 14px; border-radius: 12px; border: 1px solid #f1f5f9; background: #f8fafc; font-size: 13px; font-weight: 600; color: #1e293b; outline: none; transition: 0.2s; }
-        .cat-add-in:focus { border-color: #f97316; background: #fff; box-shadow: 0 0 0 3px rgba(249,115,22,0.05); }
-        .cat-add-btn { background: #f97316; color: #fff; border: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
-        .cat-list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
-        .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #fcfdfe; border-radius: 10px; border: 1px solid #f8fafc; }
-        .cat-n { font-size: 12px; font-weight: 600; color: #475569; }
-        .cat-tog { border: none; background: none; color: #f97316; font-size: 10px; font-weight: 700; cursor: pointer; }
-
-        .cat-filter-tabs { display: flex; gap: 8px; margin-bottom: 12px; padding: 4px; background: #f1f5f9; border-radius: 12px; }
-        .cat-tab { flex: 1; border: none; background: none; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 700; color: #94a3b8; cursor: pointer; transition: 0.2s; }
-        .cat-tab.on { background: #fff; color: #f97316; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-
-        .print-report-header { display: none; margin-bottom: 24px; border-bottom: 2px solid #1e293b; padding-bottom: 12px; }
-        .prnt-title { font-size: 24px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 1px; }
-        .prnt-meta { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 600; margin-top: 8px; }
-
+        /* ── PRINT ── */
         @media print {
           @page { margin: 1cm; size: auto; }
           :global(body), :global(html) { background: #fff !important; }
-          .print-report-header { display: block !important; }
-          .exp-controls, .exp-kpis, .exp-table-actions, .exp-btn, .ract-btn, .phn-only { display: none !important; }
-          :global(.sidebar), :global(.topbar), :global(.top-bar), :global(.header), :global(nav), :global(.mobile-nav) { display: none !important; }
-          .erp-table-wrapper { width: 100% !important; border: 1.5px solid #000 !important; margin: 0 !important; padding: 0 !important; visibility: visible !important; }
-          .erp-table { width: 100% !important; }
-          .erp-table th { background: #f1f5f9 !important; color: #000 !important; border-bottom: 2.5px solid #000 !important; padding: 12px !important; }
-          .erp-table td { color: #000 !important; border-bottom: 1px solid #eee !important; padding: 10px !important; }
-          :global(.main-content), :global(.dashboard-content), :global(.content) { padding: 0 !important; margin: 0 !important; width: 100% !important; position: absolute; left: 0; top: 0; }
+          .exp-hero, .exp-filter-bar, .exp-kpi-row, .tbl-exp-btn, .ract-btn, .phn-only { display: none !important; }
+          :global(.sidebar), :global(.topbar), :global(.top-bar), :global(.header), :global(nav) { display: none !important; }
+          .erp-table-wrapper { width: 100% !important; border: 1.5px solid #000 !important; box-shadow: none !important; }
+          .erp-table th { background: #f1f5f9 !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+          .erp-table td { color: #000 !important; border-bottom: 1px solid #eee !important; }
         }
       `}</style>
 
