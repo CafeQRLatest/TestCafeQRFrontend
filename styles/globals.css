@@ -584,3 +584,21 @@ h1, h2, h3, h4, .outfit-font {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── PRINT — global document rules ── */
+/* These cannot live in a CSS Module (no local class anchor possible).          */
+/* Component-level print rules (table styles, hidden action bars) remain in     */
+/* Expenses.module.css scoped to their local classes.                           */
+@media print {
+  body,
+  html {
+    background: #fff !important;
+  }
+  .sidebar,
+  .topbar,
+  .top-bar,
+  .header,
+  nav {
+    display: none !important;
+  }
+}

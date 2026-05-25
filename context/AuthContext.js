@@ -69,15 +69,26 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
-    // Auto-fetch timezone and other missing details if authenticated
-    if (storedEmail && !storedTimezone) {
+    // Auto-fetch and sync latest client profile (timezone, currency, country) in the background if authenticated
+    if (storedEmail) {
       api.get('/api/v1/clients/me', { skipAuthRedirect: true }).then(res => {
         if (res.data.success) {
-          const tz = res.data.data.timezone || 'UTC+5:30 (India)';
-          setTimezone(tz);
-          Cookies.set('timezone', tz, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          const clientData = res.data.data || {};
+          
+          if (clientData.timezone) {
+            setTimezone(clientData.timezone);
+            Cookies.set('timezone', clientData.timezone, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          }
+          if (clientData.currency) {
+            setCurrency(clientData.currency);
+            Cookies.set('currency', clientData.currency, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          }
+          if (clientData.country) {
+            setCountry(clientData.country);
+            Cookies.set('country', clientData.country, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          }
         }
-      }).catch(err => console.error("Tz fetch error", err));
+      }).catch(err => console.error("Client profile sync error", err));
     }
     
     setLoading(false);
