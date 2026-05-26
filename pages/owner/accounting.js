@@ -421,11 +421,6 @@ function AccountingContent() {
       notify('error', 'From date must be before to date');
       return;
     }
-    const days = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
-    if (days > 366) {
-      notify('error', 'Accounting date range cannot exceed 366 days');
-      return;
-    }
     const nextPeriod = { ...period };
     setAppliedPeriod(nextPeriod);
     setJournalForm(current => ({

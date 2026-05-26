@@ -19,14 +19,25 @@
 # misc
 .DS_Store
 *.pem
+.idea/
+android/.idea/
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+*_output.txt
+replay_pid*.log
+fix_*.py
 
 # local env files
+.env
+.env.development
+.env.production
+.env.test
 .env*.local
+!.env.example
 
 # vercel
 .vercel

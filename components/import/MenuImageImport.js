@@ -23,7 +23,7 @@ const getAiParseEndpoint = () => {
     && window.Capacitor?.isNativePlatform?.();
 
   if (isNativeShell) {
-    return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-menu';
+    throw new Error('NEXT_PUBLIC_AI_PARSE_URL must point to the hosted Vercel AI parse route for native builds.');
   }
 
   return '/api/ai/parse-menu';

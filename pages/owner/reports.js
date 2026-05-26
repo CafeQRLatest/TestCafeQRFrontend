@@ -101,7 +101,7 @@ export default function Reports() {
       }
     } catch (e) {
       console.error('Report load error:', e);
-      notify('error', 'Failed to load report data');
+      notify('error', e?.response?.data?.message || 'Failed to load report data');
     } finally { setLoading(false); }
   }, [dateFrom, dateTo, invoiceFilter, notify]);
 

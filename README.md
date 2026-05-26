@@ -33,11 +33,22 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Deploy On Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app is deployed as the CafeQR 2.0 frontend on Vercel. The backend is the Render service from `cafeqr-backend`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Add these Vercel environment variables before production deploy:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-render-backend.onrender.com
+GEMINI_API_KEY=key1
+# or
+GEMINI_API_KEYS=key1,key2,key3
+GEMINI_MODELS=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash
+NEXT_PUBLIC_AI_PARSE_URL=https://your-vercel-domain.vercel.app/api/ai/parse-menu
+```
+
+`NEXT_PUBLIC_API_URL` must not end with `/api`; the app already calls paths such as `/api/v1/auth/authenticate`.
 
 ## AI Menu Image Import
 
@@ -61,7 +72,7 @@ Optional settings:
 GEMINI_MODELS=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash
 GEMINI_QUOTA_COOLDOWN_MS=43200000
 GEMINI_AUTH_COOLDOWN_MS=3600000
-NEXT_PUBLIC_AI_PARSE_URL=https://cafe-test-qr-frontend.vercel.app/api/ai/parse-menu
+NEXT_PUBLIC_AI_PARSE_URL=https://your-vercel-domain.vercel.app/api/ai/parse-menu
 ```
 
 `GEMINI_MODELS` is tried from left to right for menu imports. `gemini-2.5-flash-lite` is the best first choice for this hosted image-to-menu task because it is fast and high-throughput; `gemini-2.5-flash` remains the stronger fallback. You can still set `GEMINI_MODEL=gemini-2.5-flash` if you want one preferred model, but `GEMINI_MODELS` gives better failover.
