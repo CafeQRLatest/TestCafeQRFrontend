@@ -21,6 +21,7 @@ export default function MainMenuPage() {
 function MainMenuContent() {
   const { userRole, loading: authLoading, isAuthenticated } = useAuth();
   const [assignedMenus, setAssignedMenus] = useState([]);
+  const [config, setConfig] = useState(null);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
@@ -34,6 +35,10 @@ function MainMenuContent() {
       const resp = await api.get('/api/v1/users/menus');
       if (resp.data.success) {
         setAssignedMenus(resp.data.data || []);
+      }
+      const configResp = await api.get('/api/v1/configurations').catch(() => null);
+      if (configResp?.data?.success) {
+        setConfig(configResp.data.data || null);
       }
     } catch (err) {
       console.error("Failed to fetch dashboard permissions:", err);
@@ -53,12 +58,17 @@ function MainMenuContent() {
     "Reports & Billing":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
     "Stock":            { icon: <FaBoxes />,       color: "#ea580c" },
     "Accounting":       { icon: <FaBalanceScale />, color: "#0f766e" },
+    "Credit Customers": { icon: <FaUsers />,        color: "#14b8a6" },
     "Table Management": { icon: <FaChair />,       color: "#f97316" },
     "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
   };
 
   // Only show PARENT menus and Filter out Point of Sale
-  const parentMenus = assignedMenus.filter(m => (!m.parentId && !m.parent_id) && m.name !== "Point of Sale");
+  const parentMenus = assignedMenus.filter(m => {
+    if (m.parentId || m.parent_id || m.name === "Point of Sale") return false;
+    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
+    return true;
+  });
 
   // Map parent menus to display items
   const filteredItems = parentMenus.map(m => ({

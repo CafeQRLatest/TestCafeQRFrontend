@@ -90,6 +90,7 @@ function ConfigurationsContent() {
     pm_production: false, pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_online_delivery: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
+    credit_allocation_mode: 'OLDEST_FIRST',
     
     tax_enabled: false,
     tax_label_global: 'GST',
@@ -185,6 +186,7 @@ function ConfigurationsContent() {
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: !!d.allowMultipleCustomersPerOrder,
             pm_customer_age: !!d.customerAgeEnabled,
+            credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
             tax_enabled: !!d.taxEnabled, 
             tax_label_global: d.taxLabelGlobal || 'GST',
@@ -255,6 +257,7 @@ function ConfigurationsContent() {
       const payload = {
         onlinePaymentEnabled: config.pm_online_payment, menuImagesEnabled: config.pm_menu_images,
         creditEnabled: config.pm_credit_ledger, tableManagementEnabled: config.pm_table_management,
+        creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: config.pm_inventory,
         productionEnabled: config.pm_production, customersEnabled: config.pm_customers,
         loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
@@ -375,6 +378,28 @@ function ConfigurationsContent() {
                                 </div>
                              </div>
                           ))}
+                       </div>
+                    )}
+
+                    {m.key === 'pm_credit_ledger' && config[m.key] && (
+                       <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+                          <div className="sub-connecting-line"></div>
+                          <div className="sub-box credit-config">
+                            <div className="box-content">
+                              <h3>Payment Allocation</h3>
+                              <p>Choose how credit payments are applied to unpaid invoices</p>
+                            </div>
+                            <div style={{ width: '210px', maxWidth: '100%' }}>
+                              <NiceSelect
+                                value={config.credit_allocation_mode}
+                                onChange={v => set('credit_allocation_mode', v)}
+                                options={[
+                                  { value: 'OLDEST_FIRST', label: 'Oldest First' },
+                                  { value: 'MANUAL', label: 'Manual' },
+                                ]}
+                              />
+                            </div>
+                          </div>
                        </div>
                     )}
                   </div>

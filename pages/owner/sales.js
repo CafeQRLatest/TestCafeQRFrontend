@@ -888,6 +888,15 @@ function isOpenOrder(order) {
   return !['COMPLETED', 'PAID', 'CANCELLED', 'VOID'].includes(status);
 }
 
+function getOrderCreditCustomerId(order) {
+  return order?.creditCustomerId || order?.credit_customer_id || order?.creditCustomer?.id || order?.credit_customer?.id || '';
+}
+
+function isCreditIntendedOrder(order, creditEnabled) {
+  const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
+  return Boolean(creditEnabled && isOpenOrder(order) && getOrderCreditCustomerId(order) && paymentStatus !== 'PAID');
+}
+
 function fulfillmentLabel(order) {
   if (order?.tableNumber || order?.table_number) return `Table ${order.tableNumber || order.table_number}`;
   const fulfillment = String(order?.fulfillmentType || order?.fulfillment_type || '').toUpperCase();
@@ -942,6 +951,8 @@ function SalesContent() {
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
   const [toast, setToast] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [creditCustomers, setCreditCustomers] = useState([]);
   const tablesInFlightRef = useRef(false);
   const ordersInFlightRef = useRef(false);
   const historyInFlightRef = useRef(false);
@@ -1010,6 +1021,33 @@ function SalesContent() {
     }
   }, [loadOfflineOrderState, showToast]);
 
+  const fetchCreditConfig = useCallback(async () => {
+    try {
+      const configRes = await api.get('/api/v1/configurations');
+      const nextConfig = configRes.data?.data || null;
+      setConfig(nextConfig);
+      if (nextConfig?.creditEnabled) {
+        const customersRes = await api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } });
+        setCreditCustomers(customersRes.data?.data || []);
+      } else {
+        setCreditCustomers([]);
+      }
+    } catch (error) {
+      if (!isKnownOffline() && error?.message !== 'Network Error') {
+        console.warn('Failed to load credit configuration', error?.message || error);
+      }
+      setCreditCustomers([]);
+    }
+  }, []);
+
+  const handleCreditCustomerCreated = useCallback((customer) => {
+    if (!customer?.id) return;
+    setCreditCustomers((current) => {
+      const next = [customer, ...current.filter((item) => String(item.id) !== String(customer.id))];
+      return next.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+    });
+  }, []);
+
   const fetchHistoryOrders = useCallback(async (page = 0, filters = historyFilters) => {
     if (historyInFlightRef.current) return;
     historyInFlightRef.current = true;
@@ -1056,6 +1094,7 @@ function SalesContent() {
     setTables([]);
     setFloorOrders([]);
     setHistoryOrders([]);
+    setCreditCustomers([]);
     setLoading(true);
     setOrdersLoading(false);
   }, [orgId]);
@@ -1070,6 +1109,7 @@ function SalesContent() {
   useEffect(() => {
     fetchTables();
     fetchOrders();
+    fetchCreditConfig();
     loadOfflineOrderState();
 
     let intervalId = null;
@@ -1082,6 +1122,7 @@ function SalesContent() {
         if (isKnownOffline()) return;
         fetchTables();
         fetchOrders();
+        fetchCreditConfig();
       }, 10000);
     };
 
@@ -1100,6 +1141,7 @@ function SalesContent() {
       }
       fetchTables();
       fetchOrders();
+      fetchCreditConfig();
       loadOfflineOrderState();
       startPolling();
     };
@@ -1158,7 +1200,7 @@ function SalesContent() {
       window.removeEventListener('cafeqr-sync-complete', runRefresh);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchTables, fetchOrders, loadOfflineOrderState, orgId]);
+  }, [fetchTables, fetchOrders, fetchCreditConfig, loadOfflineOrderState, orgId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1300,9 +1342,10 @@ function SalesContent() {
     if (!isKnownOffline()) {
       fetchOrders();
       fetchTables();
+      fetchCreditConfig();
       loadOfflineOrderState();
     }
-  }, [fetchOrders, fetchTables, hasAccountingImpact, loadOfflineOrderState, publishAccountingRefresh, showToast]);
+  }, [fetchCreditConfig, fetchOrders, fetchTables, hasAccountingImpact, loadOfflineOrderState, publishAccountingRefresh, showToast]);
 
   const handleCounterSale = () => {
     if (!orgId) {
@@ -1436,6 +1479,31 @@ function SalesContent() {
       showToast('This order is queued offline. Settle it after sync completes.', 'error');
       return;
     }
+
+    if (isCreditIntendedOrder(order, config?.creditEnabled)) {
+      const creditCustomerId = getOrderCreditCustomerId(order);
+      setActionBusy('settle');
+      try {
+        const { data } = await api.post(`/api/v1/orders/${order.id}/complete-credit`, { creditCustomerId });
+        const settledOrder = data.data || order;
+        setFloorOrders((current) => current.map((item) =>
+          item.id === settledOrder.id ? { ...item, ...settledOrder } : item
+        ));
+        showToast('Order completed as credit');
+        setPaymentOrder(null);
+        setPopoverTable(null);
+        publishAccountingRefresh('order-credit-completed', settledOrder);
+        await handlePrintOrder(settledOrder, 'bill');
+        refreshSalesState();
+      } catch (e) {
+        console.error('Failed to complete credit order', e);
+        showToast(e.response?.data?.message || 'Failed to complete credit order', 'error');
+      } finally {
+        setActionBusy('');
+      }
+      return;
+    }
+
     setPaymentOrder(order);
     setPopoverTable(null);
   };
@@ -1444,15 +1512,25 @@ function SalesContent() {
     if (!paymentOrder) return;
     setActionBusy('settle');
     try {
-      const { data } = await api.post(`/api/v1/orders/${paymentOrder.id}/settle`, payload);
+      const endpoint = payload?.paymentMethod === 'CREDIT'
+        ? `/api/v1/orders/${paymentOrder.id}/complete-credit`
+        : `/api/v1/orders/${paymentOrder.id}/settle`;
+      const requestPayload = payload?.paymentMethod === 'CREDIT'
+        ? {
+            creditCustomerId: payload.creditCustomerId,
+            discountAmount: payload.discountAmount,
+            roundOffAmount: payload.roundOffAmount,
+          }
+        : payload;
+      const { data } = await api.post(endpoint, requestPayload);
       const settledOrder = data.data || paymentOrder;
       // Immediately update local state so table reverts to AVAILABLE
       setFloorOrders((current) => current.map((item) =>
         item.id === settledOrder.id ? { ...item, ...settledOrder } : item
       ));
-      showToast('Order settled successfully');
+      showToast(payload?.paymentMethod === 'CREDIT' ? 'Order completed as credit' : 'Order settled successfully');
       setPaymentOrder(null);
-      publishAccountingRefresh('order-settled', settledOrder);
+      publishAccountingRefresh(payload?.paymentMethod === 'CREDIT' ? 'order-credit-completed' : 'order-settled', settledOrder);
       await handlePrintOrder(settledOrder, 'bill');
       refreshSalesState();
     } catch (e) {
@@ -1673,6 +1751,7 @@ function SalesContent() {
             onApplyFilters={() => fetchHistoryOrders(0)}
             onPrint={handlePrintOrder}
             onSettle={handleSettleOrder}
+            creditEnabled={Boolean(config?.creditEnabled)}
           />
         )}
 
@@ -1685,6 +1764,7 @@ function SalesContent() {
             initialTable={selectedTable.tableNumber === 'COUNTER' ? null : selectedTable}
             interfaceMode={billingUi}
             onOrderCreated={handleOrderCreated}
+            onCreditCustomerCreated={handleCreditCustomerCreated}
             onBack={() => {
               setSelectedTable(null);
               if (!isKnownOffline()) {
@@ -1703,6 +1783,7 @@ function SalesContent() {
             canStartOrder={popoverTableState.canStartOrder}
             blockedMessage={popoverTableState.blockedMessage}
             busy={Boolean(actionBusy)}
+            creditEnabled={Boolean(config?.creditEnabled)}
             onClose={() => setPopoverTable(null)}
             onStartOrder={handleOpenTableOrder}
             onBill={handleBillOrder}
@@ -1719,8 +1800,11 @@ function SalesContent() {
           <PaymentDialog
             order={paymentOrder}
             loading={actionBusy === 'settle'}
+            creditEnabled={Boolean(config?.creditEnabled)}
+            creditCustomers={creditCustomers}
             onClose={() => setPaymentOrder(null)}
             onConfirm={handleConfirmPayment}
+            onCreditCustomerCreated={handleCreditCustomerCreated}
           />
         )}
 
@@ -1768,6 +1852,7 @@ function OrderHistory({
   onApplyFilters,
   onPrint,
   onSettle,
+  creditEnabled = false,
 }) {
   const pageNumber = page?.number || 0;
   const totalPages = page?.totalPages || 0;
@@ -1841,6 +1926,7 @@ function OrderHistory({
             const billPrintFailed = order.printJobs?.bill?.status === 'FAILED';
             const kotPrintWaiting = ['PENDING', 'CLAIMED', 'RETRY'].includes(order.printJobs?.kot?.status);
             const billPrintWaiting = ['PENDING', 'CLAIMED', 'RETRY'].includes(order.printJobs?.bill?.status);
+            const creditFinish = open && isCreditIntendedOrder(order, creditEnabled);
             return (
               <OrderCard key={renderKey} $tone={orderStatusTone(order)}>
                 <OrderTop>
@@ -1936,7 +2022,7 @@ function OrderHistory({
                   </ActionButton>
                   {open && (
                     <ActionButton type="button" $tone="green" onClick={() => onSettle(order)} style={{ gridColumn: '1 / -1' }}>
-                      <FaWallet /> Settle & Print Bill
+                      {creditFinish ? <><FaReceipt /> Complete Credit</> : <><FaWallet /> Settle & Print Bill</>}
                     </ActionButton>
                   )}
                 </OrderActions>

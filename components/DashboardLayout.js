@@ -561,6 +561,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Stock":            <FaBoxes />,
     "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
+    "Credit Customers": <FaUsers />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
@@ -574,6 +575,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     if (!isParent) return false;
     if (m.name === "Point of Sale") return false;
     if (m.name === "Table Management" && config && config.tableManagementEnabled === false) return false;
+    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
     return true;
   });
 
@@ -675,6 +677,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Stock":            <FaBoxes />,
     "Accounting":       <FaBalanceScale />,
     "Partners":         <FaUserFriends />,
+    "Credit Customers": <FaUsers />,
     "Purchase Orders":  <FaShoppingCart />,
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
@@ -687,6 +690,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     if (!isParent) return false;
     if (m.name === "Point of Sale") return false;
     if (m.name === "Table Management" && config && config.tableManagementEnabled === false) return false;
+    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
     return true;
   });
 

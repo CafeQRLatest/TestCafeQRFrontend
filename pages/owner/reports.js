@@ -10,7 +10,7 @@ import { publishAccountingDataChanged, subscribeAccountingDataChanged } from '..
 import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
-  FaChevronRight, FaBan
+  FaChevronRight, FaBan, FaBook
 } from 'react-icons/fa';
 
 const TABS = [
@@ -22,6 +22,7 @@ const TABS = [
   { key: 'pnl', label: 'Profit & Loss', icon: <FaChartLine /> },
   { key: 'hourly', label: 'Hourly Trends', icon: <FaClock /> },
 ];
+const CREDIT_TAB = { key: 'credit', label: 'Credit Sales', icon: <FaBook /> };
 
 const SYM = '₹';
 
@@ -50,6 +51,8 @@ export default function Reports() {
   const [hourly, setHourly] = useState([]);
   const [invoiceFilter, setInvoiceFilter] = useState('ALL');
   const [expandedTransaction, setExpandedTransaction] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [creditReport, setCreditReport] = useState(null);
 
   const toInstant = (dtLocal) => {
     if (!dtLocal) return undefined;
@@ -68,6 +71,7 @@ export default function Reports() {
         tax: '/api/v1/reports/tax-summary',
         pnl: '/api/v1/reports/profit-loss',
         hourly: '/api/v1/reports/hourly',
+        credit: '/api/v1/credit/report',
       }[t];
       if (!ep) return;
       const p = t === 'salesInvoices' ? { ...params, type: invoiceFilter } : params;
@@ -98,6 +102,7 @@ export default function Reports() {
         else if (t === 'payments') setPayments(d || []);
         else if (t === 'tax') setTaxData(d || []);
         else if (t === 'hourly') setHourly(d || []);
+        else if (t === 'credit') setCreditReport(d || null);
       }
     } catch (e) {
       console.error('Report load error:', e);
@@ -106,6 +111,23 @@ export default function Reports() {
   }, [dateFrom, dateTo, invoiceFilter, notify]);
 
   useEffect(() => { loadTab(tab); }, [tab, loadTab, orgId]);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/api/v1/configurations')
+      .then(res => {
+        if (!active) return;
+        const nextConfig = res.data?.data || null;
+        setConfig(nextConfig);
+        if (tab === 'credit' && !nextConfig?.creditEnabled) {
+          setTab('summary');
+        }
+      })
+      .catch(() => {
+        if (active) setConfig(null);
+      });
+    return () => { active = false; };
+  }, [orgId, tab]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -141,6 +163,7 @@ export default function Reports() {
     String(tx?.orderStatus || '').toUpperCase() === s
   );
   const branchLabel = (tx) => tx?.branchName || tx?.branchCode || (tx?.branchId ? String(tx.branchId).slice(0, 8) : '—');
+  const visibleTabs = useMemo(() => (config?.creditEnabled ? [...TABS, CREDIT_TAB] : TABS), [config]);
 
   const exportCSV = (headers, rows, filename) => {
     if (!rows.length) return notify('error', 'No data to export');
@@ -475,7 +498,75 @@ export default function Reports() {
     );
   };
 
-  const tabContent = { summary: renderSummary, salesInvoices: renderSalesInvoices, items: renderItems, payments: renderPayments, tax: renderTax, pnl: renderPnL, hourly: renderHourly };
+  const renderCredit = () => {
+    if (!creditReport) return <div className="rpt-empty">No credit data for selected range</div>;
+    const cards = [
+      { label: 'Credit Extended', val: `${SYM}${fmt(creditReport.creditExtended)}`, color: '#0f766e', bg: '#ccfbf1' },
+      { label: 'Payments Received', val: `${SYM}${fmt(creditReport.paymentsReceived)}`, color: '#16a34a', bg: '#dcfce7' },
+      { label: 'Outstanding', val: `${SYM}${fmt(creditReport.outstanding)}`, color: '#dc2626', bg: '#fee2e2' },
+      { label: 'Output Tax', val: `${SYM}${fmt(creditReport.outputTax)}`, color: '#6366f1', bg: '#eef2ff' },
+      { label: 'Orders / Customers', val: `${Number(creditReport.orderCount || 0)} / ${Number(creditReport.customerCount || 0)}`, color: '#f97316', bg: '#fff7ed' },
+    ];
+    const orders = creditReport.orders || [];
+    const paymentsRows = creditReport.payments || [];
+    return (
+      <>
+        <div className="rpt-kpi-grid">
+          {cards.map((card) => (
+            <div key={card.label} className="rpt-kpi" style={{ borderLeft: `4px solid ${card.color}` }}>
+              <div className="rpt-kpi-icon" style={{ background: card.bg, color: card.color }}><FaBook /></div>
+              <div className="rpt-kpi-data">
+                <span className="rpt-kpi-label">{card.label}</span>
+                <span className="rpt-kpi-val">{card.val}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rpt-section-title">Credit Orders</div>
+        {orders.length === 0 ? <div className="rpt-empty">No credit orders</div> : (
+          <div className="rpt-tbl-wrap">
+            <table className="rpt-tbl rpt-credit-tbl">
+              <thead><tr><th>Order #</th><th>Invoice</th><th>Customer</th><th>Phone</th><th className="r">Amount</th><th className="r">Tax</th><th className="r">Total</th><th className="r">Due</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody>{orders.map(row => (
+                <tr key={row.invoiceId || row.orderId}>
+                  <td><span className="rpt-mono">{row.orderNo || '—'}</span></td>
+                  <td><span className="rpt-mono">{row.invoiceNo || '—'}</span></td>
+                  <td>{row.customerName || '—'}</td>
+                  <td>{row.customerPhone || '—'}</td>
+                  <td className="r">{SYM}{fmt(row.amount)}</td>
+                  <td className="r">{SYM}{fmt(row.tax)}</td>
+                  <td className="r rpt-amt">{SYM}{fmt(row.total)}</td>
+                  <td className="r">{SYM}{fmt(row.amountDue)}</td>
+                  <td>{formatTzDate(row.date, timezone, { format: 'short' })}</td>
+                  <td><span className={`rpt-st ${String(row.status || 'unknown').toLowerCase()}`}>{row.status || '—'}</span></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+        <div className="rpt-section-title">Payment Transactions</div>
+        {paymentsRows.length === 0 ? <div className="rpt-empty">No credit payments</div> : (
+          <div className="rpt-tbl-wrap">
+            <table className="rpt-tbl">
+              <thead><tr><th>Date</th><th>Customer</th><th>Method</th><th className="r">Amount</th><th>Reference</th><th>Description</th></tr></thead>
+              <tbody>{paymentsRows.map(row => (
+                <tr key={row.paymentId}>
+                  <td>{formatTzDate(row.transactionDate, timezone, { format: 'short' })}</td>
+                  <td>{row.customerName || '—'}</td>
+                  <td><span className="rpt-pill">{row.paymentMethod || '—'}</span></td>
+                  <td className="r rpt-amt">{SYM}{fmt(row.amount)}</td>
+                  <td><span className="rpt-mono">{row.referenceNo || '—'}</span></td>
+                  <td>{row.description || '—'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const tabContent = { summary: renderSummary, salesInvoices: renderSalesInvoices, items: renderItems, payments: renderPayments, tax: renderTax, pnl: renderPnL, hourly: renderHourly, credit: renderCredit };
 
   return (
     <DashboardLayout title="Reports & Billing">
@@ -489,7 +580,7 @@ export default function Reports() {
           <button className="rpt-refresh" onClick={() => loadTab(tab)}>Refresh</button>
         </div>
         <div className="rpt-tabs">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button key={t.key} className={`rpt-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
               {t.icon}<span>{t.label}</span>
             </button>
@@ -563,6 +654,8 @@ export default function Reports() {
         .rpt-pay-meta{font-size:11px;color:#94a3b8;font-weight:600;margin-bottom:12px}
         .rpt-pay-bar{height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden}
         .rpt-pay-bar>div{height:100%;background:linear-gradient(90deg,#f97316,#fb923c);border-radius:3px;transition:width .6s}
+        .rpt-section-title{margin:22px 0 10px;font-size:13px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:.5px}
+        .rpt-credit-tbl{min-width:1180px}
         .rpt-pnl-grid{display:flex;flex-direction:column;gap:12px}
         .rpt-note{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:12px;font-weight:700}
         .rpt-pnl-row{background:#fff;padding:20px 24px;border-radius:16px;border:1px solid #f1f5f9;display:flex;align-items:center;gap:16px}

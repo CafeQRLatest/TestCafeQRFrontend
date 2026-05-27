@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { FaCreditCard, FaExchangeAlt, FaMoneyBillWave, FaPlus, FaTimes, FaTrash, FaWallet } from 'react-icons/fa';
+import { FaBook, FaCreditCard, FaExchangeAlt, FaMoneyBillWave, FaPlus, FaTimes, FaTrash, FaWallet } from 'react-icons/fa';
+import NiceSelect from './NiceSelect';
+import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 
 const Overlay = styled.div`
   position: fixed;
@@ -154,6 +156,51 @@ const SplitPanel = styled.div`
   gap: 10px;
 `;
 
+const CreditPanel = styled.div`
+  margin-top: 16px;
+  border: 1px solid #99f6e4;
+  border-radius: 18px;
+  background: #f0fdfa;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+`;
+
+const CreditLabel = styled.div`
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+`;
+
+const CreditPickerRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+
+  @media (max-width: 420px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const NewCreditButton = styled.button`
+  min-height: 42px;
+  border: 1px solid #99f6e4;
+  border-radius: 13px;
+  background: white;
+  color: #0f766e;
+  padding: 0 13px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+`;
+
 const SplitRow = styled.div`
   display: grid;
   grid-template-columns: minmax(108px, 0.95fr) minmax(96px, 1fr) 42px;
@@ -291,11 +338,13 @@ const createInitialSplits = (payable) => {
   ];
 };
 
-export default function PaymentDialog({ order, loading = false, onClose, onConfirm }) {
+export default function PaymentDialog({ order, loading = false, creditEnabled = false, creditCustomers = [], onClose, onConfirm, onCreditCustomerCreated }) {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [discountAmount, setDiscountAmount] = useState('');
   const [roundOffAmount, setRoundOffAmount] = useState('');
   const [paymentSplits, setPaymentSplits] = useState([]);
+  const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
+  const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
   const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
   const taxAmount = Number(order?.totalTaxAmount ?? order?.total_tax_amount ?? 0);
@@ -309,11 +358,27 @@ export default function PaymentDialog({ order, loading = false, onClose, onConfi
   const hasInvalidSplitRow = paymentSplits.some((split) => !split.paymentMethod || toNumber(split.amount) <= 0);
   const mixedInvalid = paymentMethod === 'MIXED'
     && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01);
+  const creditInvalid = paymentMethod === 'CREDIT' && !creditCustomerId;
+  const creditCustomerOptions = useMemo(
+    () => creditCustomers.map((customer) => ({
+      value: customer.id,
+      label: `${customer.name || 'Credit Customer'}${customer.phone ? ` (${customer.phone})` : ''} - ${money(customer.balance)}`,
+    })),
+    [creditCustomers]
+  );
+
+  const handleCreditCustomerCreated = (customer) => {
+    if (!customer?.id) return;
+    setCreditCustomerId(customer.id);
+    onCreditCustomerCreated?.(customer);
+  };
 
   const chooseMethod = (method) => {
     setPaymentMethod(method);
     if (method === 'MIXED') {
       setPaymentSplits((current) => current.length > 0 ? current : createInitialSplits(payable));
+    } else if (method !== 'MIXED') {
+      setPaymentSplits([]);
     }
   };
 
@@ -337,7 +402,17 @@ export default function PaymentDialog({ order, loading = false, onClose, onConfi
   };
 
   const submit = () => {
-    if (mixedInvalid) return;
+    if (mixedInvalid || creditInvalid) return;
+    if (paymentMethod === 'CREDIT') {
+      onConfirm?.({
+        paymentMethod: 'CREDIT',
+        creditCustomerId,
+        amountPaid: 0,
+        discountAmount: Number(discount.toFixed(2)),
+        roundOffAmount: Number(roundOff.toFixed(2)),
+      });
+      return;
+    }
     const normalizedSplits = paymentMethod === 'MIXED'
       ? paymentSplits.map((split) => ({
           paymentMethod: split.paymentMethod,
@@ -411,7 +486,31 @@ export default function PaymentDialog({ order, loading = false, onClose, onConfi
           <MethodButton type="button" $active={paymentMethod === 'MIXED'} onClick={() => chooseMethod('MIXED')}>
             <FaExchangeAlt /> Mixed
           </MethodButton>
+          {creditEnabled && (
+            <MethodButton type="button" $active={paymentMethod === 'CREDIT'} onClick={() => chooseMethod('CREDIT')}>
+              <FaBook /> Credit
+            </MethodButton>
+          )}
         </MethodGrid>
+
+        {paymentMethod === 'CREDIT' && (
+          <CreditPanel>
+            <CreditLabel>Credit Customer</CreditLabel>
+            <CreditPickerRow>
+              <NiceSelect
+                value={creditCustomerId}
+                onChange={setCreditCustomerId}
+                placeholder="Choose customer..."
+                options={creditCustomerOptions}
+                maxHeight={320}
+                style={{ height: 42, minWidth: 0 }}
+              />
+              <NewCreditButton type="button" onClick={() => setShowNewCreditCustomer(true)}>
+                <FaPlus /> New
+              </NewCreditButton>
+            </CreditPickerRow>
+          </CreditPanel>
+        )}
 
         {paymentMethod === 'MIXED' && (
           <SplitPanel>
@@ -467,15 +566,24 @@ export default function PaymentDialog({ order, loading = false, onClose, onConfi
         {mixedInvalid && (
           <ErrorText>Mixed payment split must be valid and equal {money(payable)}.</ErrorText>
         )}
+        {creditInvalid && (
+          <ErrorText>Choose a credit customer to complete this order as credit.</ErrorText>
+        )}
 
         <Actions>
           <Button type="button" disabled={loading} onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" $primary disabled={loading || mixedInvalid} onClick={submit}>
-            {loading ? 'Settling...' : <><FaWallet /> Settle & Finish</>}
+          <Button type="button" $primary disabled={loading || mixedInvalid || creditInvalid} onClick={submit}>
+            {loading ? 'Settling...' : paymentMethod === 'CREDIT' ? <><FaBook /> Complete as Credit</> : <><FaWallet /> Settle & Finish</>}
           </Button>
         </Actions>
+        <CreditCustomerQuickCreateModal
+          open={showNewCreditCustomer}
+          themeColor="#14b8a6"
+          onClose={() => setShowNewCreditCustomer(false)}
+          onCreated={handleCreditCustomerCreated}
+        />
       </Card>
     </Overlay>
   );

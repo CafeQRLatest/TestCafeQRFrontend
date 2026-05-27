@@ -5,12 +5,14 @@ import { useAuth } from '../context/AuthContext';
 import { formatTzDate } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
-  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers
+  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
 import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../utils/offlineSequences';
 import VariantSelector from './VariantSelector';
+import NiceSelect from './NiceSelect';
+import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI
 const fadeIn = keyframes`
@@ -893,6 +895,70 @@ const CustomerInput = styled.input`
   }
 `;
 
+const CreditPickerRow = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+
+  @media (max-width: 520px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`;
+
+const CreditSelectWrap = styled.div`
+  flex: 1;
+  min-width: 180px;
+`;
+
+const CreditNewButton = styled.button`
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: white;
+  color: #0f766e;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  &:hover {
+    background: #f0fdfa;
+    border-color: #5eead4;
+  }
+`;
+
+const CreditToggleButton = styled.button`
+  height: 44px;
+  border: 1px solid ${props => props.$active ? '#14b8a6' : '#99f6e4'};
+  border-radius: 14px;
+  background: ${props => props.$active ? '#14b8a6' : 'white'};
+  color: ${props => props.$active ? 'white' : '#0f766e'};
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: ${props => props.$active ? '0 10px 24px rgba(20, 184, 166, 0.24)' : 'none'};
+`;
+
+const CreditMeta = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  color: ${props => props.$warn ? '#c2410c' : '#64748b'};
+  padding-left: 4px;
+`;
+
 const CustomerDropdown = styled.div`
   position: absolute;
   top: calc(100% + 4px);
@@ -967,7 +1033,7 @@ const RemoveChip = styled.button`
   &:hover { color: #1e3a8a; }
 `;
 
-export default function CounterSale({ onBack, initialTable, onOrderCreated, interfaceMode = 'counter' }) {
+export default function CounterSale({ onBack, initialTable, onOrderCreated, onCreditCustomerCreated, interfaceMode = 'counter' }) {
   const { timezone, orgId } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState(['ALL']);
@@ -991,12 +1057,16 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [creditCustomers, setCreditCustomers] = useState([]);
+  const [selectedCreditCustomerId, setSelectedCreditCustomerId] = useState('');
+  const [isCreditSale, setIsCreditSale] = useState(false);
+  const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
   const customerInputRef = useRef(null);
   const searchRef = useRef(null);
   const isStandardUi = interfaceMode === 'standard';
 
-  const THEME = orderMode === 'kitchen' 
-    ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' } 
+  const THEME = orderMode === 'kitchen'
+    ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
     : { main: '#16a34a', dark: '#15803d', soft: '#ecfdf3' };
 
   useEffect(() => {
@@ -1011,18 +1081,31 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
     setSelectedCustomerId(null);
     setSelectedCustomers([]);
     setShowCustomerDropdown(false);
+    setSelectedCreditCustomerId('');
+    setIsCreditSale(false);
+    setShowNewCreditCustomer(false);
+    setCreditCustomers([]);
     (async () => {
       try {
-        const [pRes, cRes, custRes] = await Promise.all([
+        const [pRes, cRes, custRes, creditRes] = await Promise.all([
           api.get('/api/v1/products'),
           api.get('/api/v1/configurations'),
-          api.get('/api/v1/purchasing/customers').catch(() => ({ data: { data: [] } }))
+          api.get('/api/v1/purchasing/customers').catch(() => ({ data: { data: [] } })),
+          api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } }).catch(() => ({ data: { data: [] } }))
         ]);
         const pList = pRes.data.data || [];
         setProducts(pList);
-        setConfig(cRes.data.data);
+        const nextConfig = cRes.data.data;
+        setConfig(nextConfig);
+        if (!nextConfig?.creditEnabled) {
+          setIsCreditSale(false);
+          setSelectedCreditCustomerId('');
+        }
         if (custRes?.data?.data) {
           setAllCustomers(custRes.data.data);
+        }
+        if (creditRes?.data?.data) {
+          setCreditCustomers(creditRes.data.data);
         }
         const cats = ['ALL', ...new Set(pList.map(p => p.categoryName).filter(Boolean))];
         setCategories(cats);
@@ -1059,6 +1142,41 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
   );
 
   const cartCountLabel = `${cartItemCount} Item${cartItemCount === 1 ? '' : 's'}`;
+
+  const selectedCreditCustomer = useMemo(
+    () => creditCustomers.find(customer => String(customer.id) === String(selectedCreditCustomerId)) || null,
+    [creditCustomers, selectedCreditCustomerId]
+  );
+
+  const creditCustomerOptions = useMemo(
+    () => creditCustomers.map(customer => ({
+      value: customer.id,
+      label: `${customer.name || 'Credit Customer'}${customer.phone ? ` (${customer.phone})` : ''} - ₹${Number(customer.balance || 0).toFixed(2)}`,
+    })),
+    [creditCustomers]
+  );
+
+  const handleCreditCustomerCreated = useCallback((customer) => {
+    if (!customer?.id) return;
+    setCreditCustomers(current => {
+      const next = [customer, ...current.filter(item => String(item.id) !== String(customer.id))];
+      return next.sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+    });
+    setSelectedCreditCustomerId(customer.id);
+    onCreditCustomerCreated?.(customer);
+  }, [onCreditCustomerCreated]);
+
+  const toggleCreditSale = () => {
+    const next = !isCreditSale;
+    setIsCreditSale(next);
+    if (next) {
+      setSelectedCustomerId(null);
+      setSelectedCustomers([]);
+      setShowCustomerDropdown(false);
+    } else {
+      setSelectedCreditCustomerId('');
+    }
+  };
 
   const hasExtendedOptions = useCallback((product) => (
     Boolean(product?.hasVariants) || Number(product?.variantCount || 0) > 0 || Boolean(product?.hasUpsells)
@@ -1295,6 +1413,14 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
     );
   }, [cart, config, cartKeyFor]);
 
+  const creditLimitWarning = useMemo(() => {
+    if (!selectedCreditCustomer) return '';
+    const limit = Number(selectedCreditCustomer.creditLimit || 0);
+    if (limit <= 0) return '';
+    const projected = Number(selectedCreditCustomer.balance || 0) + Number(totals?.total_amount || 0);
+    return projected > limit ? `Credit limit warning: projected balance ₹${projected.toFixed(2)} exceeds ₹${limit.toFixed(2)}.` : '';
+  }, [selectedCreditCustomer, totals?.total_amount]);
+
   const buildCustomerSelections = () => {
     const selections = [];
     const seen = new Set();
@@ -1347,11 +1473,24 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
           lineTotal: Number(Number(pi.line_total || (unitPrice * Number(pi.quantity || 1))).toFixed(2))
         };
       });
-      const customerSelections = buildCustomerSelections();
+      const customerSelections = isCreditSale && selectedCreditCustomer
+        ? [{
+            id: selectedCreditCustomer.linkedCustomerId || null,
+            name: selectedCreditCustomer.name || null,
+            phone: selectedCreditCustomer.phone || null,
+          }]
+        : buildCustomerSelections();
       const primaryCustomer = customerSelections[0] || null;
 
       const knownOffline = isKnownOffline();
       const mainOfflineDevice = isMainOfflineBillingDevice();
+      if (isCreditSale && knownOffline) {
+        throw new Error('Credit orders are online-only in this release.');
+      }
+      if (isCreditSale && !selectedCreditCustomerId) {
+        throw new Error('Choose a credit customer before completing a credit sale.');
+      }
+      const isCreditFinal = isCreditSale && orderMode === 'settle';
       const isOfflineFinal = knownOffline && orderMode === 'settle' && mainOfflineDevice;
 
       const payload = {
@@ -1361,9 +1500,11 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
         fulfillmentType: initialTable ? 'DINE_IN' : 'TAKEAWAY', // Align with enum: DINE_IN, TAKEAWAY, DELIVERY
         tableNumber: initialTable ? initialTable.tableNumber : null,
         tableId: initialTable ? initialTable.id : null,
-        orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : (isOfflineFinal ? 'COMPLETED' : 'BILLED'),
-        paymentStatus: orderMode === 'kitchen' ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING'),
-        ...(isOfflineFinal ? { reference: 'CASH' } : {}),
+        orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED')),
+        paymentStatus: orderMode === 'kitchen' ? 'PENDING' : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING')),
+        ...(isCreditFinal ? { reference: 'CREDIT' } : (isOfflineFinal ? { reference: 'CASH' } : {})),
+        isCredit: isCreditFinal,
+        creditCustomerId: isCreditSale ? selectedCreditCustomerId || null : null,
         customerId: primaryCustomer?.id || null,
         customerIds: customerSelections.length > 0 ? customerSelections : null,
         grandTotal: Number(totals.total_amount.toFixed(2)),
@@ -1415,7 +1556,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
           syncStatus: offlineAccepted ? 'QUEUED' : savedOrder?.syncStatus,
         };
 
-        onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : (isOfflineFinal ? 'bill' : 'settle'));
+        onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle'));
         rememberTrending(cart);
         setCart([]);
         if (onBack) onBack();
@@ -1502,8 +1643,40 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
               <FaWallet style={{ marginRight: '8px' }}/> Settle
             </CatBtn>
           </HeaderModeSwitch>
+
+          {config?.creditEnabled && (
+            <CreditToggleButton type="button" $active={isCreditSale} onClick={toggleCreditSale}>
+              <FaBook /> Credit Sale
+            </CreditToggleButton>
+          )}
+
+          {config?.creditEnabled && isCreditSale && (
+            <CustomerPickerArea>
+              <CreditPickerRow>
+                <CustomerInputWrap style={{ flex: 1 }}>
+                  <FaBook color="#14b8a6" />
+                  <CreditSelectWrap>
+                    <NiceSelect
+                      value={selectedCreditCustomerId}
+                      onChange={setSelectedCreditCustomerId}
+                      placeholder="Credit customer..."
+                      options={creditCustomerOptions}
+                      maxHeight={320}
+                      style={{ height: 40, minWidth: 0 }}
+                    />
+                  </CreditSelectWrap>
+                </CustomerInputWrap>
+                <CreditNewButton type="button" onClick={() => setShowNewCreditCustomer(true)}>
+                  <FaPlus /> New
+                </CreditNewButton>
+              </CreditPickerRow>
+              <CreditMeta $warn={Boolean(creditLimitWarning)}>
+                {creditLimitWarning || (selectedCreditCustomer ? `Balance ₹${Number(selectedCreditCustomer.balance || 0).toFixed(2)}` : 'Choose a credit customer before submitting.')}
+              </CreditMeta>
+            </CustomerPickerArea>
+          )}
           
-          {config?.customersEnabled && (
+          {config?.customersEnabled && !isCreditSale && (
             <CustomerPickerArea ref={customerInputRef}>
               <CustomerInputWrap>
                 <FaUsers color="#94a3b8" />
@@ -1832,8 +2005,8 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
               >
                 {processing ? 'Processing...' : (
                   <>
-                    {orderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
-                    {orderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
+                    {orderMode === 'kitchen' ? <FaFire/> : isCreditSale ? <FaBook/> : <FaWallet/>}
+                    {orderMode === 'kitchen' ? (isCreditSale ? 'Send Credit to Kitchen' : 'Send to Kitchen') : isCreditSale ? 'Complete Credit' : 'Complete Sale'}
                   </>
                 )}
               </PayBtn>
@@ -1851,6 +2024,12 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, inte
           </>
           )}
         </MainLayout>
+        <CreditCustomerQuickCreateModal
+          open={showNewCreditCustomer}
+          themeColor="#14b8a6"
+          onClose={() => setShowNewCreditCustomer(false)}
+          onCreated={handleCreditCustomerCreated}
+        />
         {variantLoading && <OfflineNotice style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>Loading item options...</OfflineNotice>}
         {variantProduct && (
           <VariantSelector

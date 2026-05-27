@@ -240,6 +240,7 @@ export default function TablePopover({
   canStartOrder = true,
   blockedMessage = '',
   busy = false,
+  creditEnabled = false,
   onClose,
   onStartOrder,
   onBill,
@@ -254,6 +255,16 @@ export default function TablePopover({
   const [targetTableId, setTargetTableId] = useState('');
   const status = useMemo(() => statusPalette(order?.orderStatus || order?.order_status || table?.status), [order, table]);
   const hasOrder = Boolean(order);
+  const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+  const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
+  const creditCustomerId = order?.creditCustomerId || order?.credit_customer_id || order?.creditCustomer?.id || order?.credit_customer?.id;
+  const creditFinish = Boolean(
+    creditEnabled
+    && hasOrder
+    && creditCustomerId
+    && paymentStatus !== 'PAID'
+    && !['COMPLETED', 'PAID', 'CANCELLED', 'VOID'].includes(orderStatus)
+  );
 
   if (!table) return null;
 
@@ -335,8 +346,14 @@ export default function TablePopover({
               <ActionButton type="button" $bg="#fef2f2" $color="#b91c1c" disabled={busy} onClick={() => onCancel?.(order)}>
                 <FaTrash /> Cancel
               </ActionButton>
-              <WideButton type="button" $bg="#fff1f2" $color="#be123c" disabled={busy} onClick={() => onPay?.(order)}>
-                <FaWallet /> Pay & Finish
+              <WideButton
+                type="button"
+                $bg={creditFinish ? '#ecfdf5' : '#fff1f2'}
+                $color={creditFinish ? '#047857' : '#be123c'}
+                disabled={busy}
+                onClick={() => onPay?.(order)}
+              >
+                {creditFinish ? <><FaReceipt /> Finish Credit</> : <><FaWallet /> Pay & Finish</>}
               </WideButton>
               <WideButton type="button" $bg="#f97316" $color="white" disabled={busy} onClick={() => onEditTable?.(table)}>
                 <FaCog /> Edit Table Settings
