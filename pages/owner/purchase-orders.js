@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -80,6 +81,7 @@ function PurchaseContent() {
     removeLine,
     handleSave,
     loadDraft,
+    startFresh,
     vendorOptions,
     warehouseOptions,
     selectedVendor,
@@ -89,8 +91,15 @@ function PurchaseContent() {
     filteredProducts,
     stepOk,
     STATUS_CFG,
-    startFresh
   } = usePurchaseOrders();
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (router.query.view === 'history') {
+      setView('history');
+    }
+  }, [router.query.view, setView]);
 
   // ── Document Viewer Popup ─────────────────────────────────────────────────
   // viewingDoc = { order, type: 'order' | 'invoice' | 'payment' } | null

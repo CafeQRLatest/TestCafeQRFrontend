@@ -132,9 +132,12 @@ function markPrinted(orderId, kind = 'bill') {
 function getOrderTypeLabelLocal(order) {
   if (!order) return '';
   if (order.tableNumber && order.tableNumber !== null) {
-    return `Table ${order.tableNumber}`;
+    return `Dine in (Table ${order.tableNumber})`;
   }
-  if (order.fulfillmentType === 'parcel' || order.fulfillmentType === 'TAKEAWAY') return 'Takeaway';
+  const type = String(order.fulfillmentType || '').toUpperCase();
+  if (type === 'PARCEL' || type === 'TAKEAWAY') return 'Parcel';
+  if (type === 'DELIVERY') return 'Delivery';
+  if (type === 'DINE_IN') return 'Dine in';
   return '';
 }
 

@@ -11,8 +11,8 @@ import CafeQRPopup from '../CafeQRPopup';
  */
 export default function DocumentViewerPopup({
   order,
-  vendors,
-  warehouses,
+  vendors = [],
+  warehouses = [],
   timezone,
   currencySymbol,
   formatTzDate,
@@ -24,17 +24,18 @@ export default function DocumentViewerPopup({
 }) {
   if (!order) return null;
 
-  const vendor    = vendors.find(v => String(v.id) === String(order.vendorId));
-  const warehouse = warehouses.find(w => String(w.id) === String(order.warehouseId));
+  const isSale = order.orderType === 'SALE';
+  const vendor    = !isSale && vendors ? vendors.find(v => String(v.id) === String(order.vendorId)) : null;
+  const warehouse = !isSale && warehouses ? warehouses.find(w => String(w.id) === String(order.warehouseId)) : null;
   const cfg       = STATUS_CFG[order.orderStatus] || STATUS_CFG.DRAFT;
   const isPaid    = order.paymentStatus === 'PAID';
   const fmt       = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
   /* ── header config per docType ─────────────────────────────────────────── */
   const HEADER = {
-    order:   { subtitle: 'Purchase Order', title: order.orderNo   || '—' },
-    invoice: { subtitle: 'Invoice',        title: order.invoiceNo || order.orderNo || '—' },
-    payment: { subtitle: 'Payment',        title: order.paymentNo || order.orderNo || '—' },
+    order:   { subtitle: isSale ? 'Sale Order' : 'Purchase Order', title: order.orderNo || order.order_no || '—' },
+    invoice: { subtitle: 'Invoice',        title: order.invoiceNo || order.invoice_no || order.orderNo || order.order_no || '—' },
+    payment: { subtitle: 'Payment',        title: order.paymentNo || order.orderNo || order.order_no || '—' },
   };
   const hdr = HEADER[docType] || HEADER.order;
 
@@ -55,26 +56,41 @@ export default function DocumentViewerPopup({
     >
       <div className="dv">
 
-        {/* ── supplier · warehouse · date · method ── */}
+        {/* ── supplier/customer · warehouse/table · date · method/terminal ── */}
         <div className="dv-row4">
           <div className="dv-cell">
-            <span className="dv-lbl">Supplier</span>
-            <span className="dv-val">{vendor?.name || '—'}</span>
-            {vendor?.phone && <span className="dv-sub">{vendor.phone}</span>}
-            {vendor?.email && <span className="dv-sub">{vendor.email}</span>}
+            <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
+            <span className="dv-val">{isSale ? (order.customerName || order.customer?.name || '-') : (vendor?.name || '—')}</span>
+            {!isSale && vendor?.phone && <span className="dv-sub">{vendor.phone}</span>}
+            {!isSale && vendor?.email && <span className="dv-sub">{vendor.email}</span>}
+            {isSale && (order.customerPhone || order.customer?.phone) && <span className="dv-sub">{order.customerPhone || order.customer?.phone}</span>}
           </div>
           <div className="dv-cell">
-            <span className="dv-lbl">Warehouse</span>
-            <span className="dv-val">{warehouse?.name || '—'}</span>
+            <span className="dv-lbl">{isSale ? 'Table / Type' : 'Warehouse'}</span>
+            <span className="dv-val">
+              {isSale 
+                ? (order.tableNumber || order.table_number
+                    ? `Dine in (Table ${order.tableNumber || order.table_number})`
+                    : (String(order.fulfillmentType || order.fulfillment_type || '').toUpperCase() === 'TAKEAWAY' 
+                        ? 'Parcel' 
+                        : String(order.fulfillmentType || order.fulfillment_type || '').toUpperCase() === 'DELIVERY'
+                          ? 'Delivery'
+                          : 'Dine in'))
+                : (warehouse?.name || '—')}
+            </span>
           </div>
           <div className="dv-cell">
             <span className="dv-lbl">Date</span>
-            <span className="dv-val">{formatTzDate(order.orderDate, timezone, { format: 'date' })}</span>
-            <span className="dv-sub">{formatTzDate(order.orderDate, timezone, { format: 'time' })}</span>
+            <span className="dv-val">{formatTzDate(order.orderDate || order.order_date || order.createdAt || order.created_at, timezone, { format: 'date' })}</span>
+            <span className="dv-sub">{formatTzDate(order.orderDate || order.order_date || order.createdAt || order.created_at, timezone, { format: 'time' })}</span>
           </div>
           <div className="dv-cell">
-            <span className="dv-lbl">Payment Method</span>
-            <span className="dv-val">{order.paymentMethod || 'Credit'}</span>
+            <span className="dv-lbl">{isSale ? 'Terminal' : 'Payment Method'}</span>
+            <span className="dv-val">
+              {isSale 
+                ? (order.terminalCode || order.terminalName || order.terminal_code || '-') 
+                : (order.paymentMethod || 'Credit')}
+            </span>
           </div>
         </div>
 
@@ -125,18 +141,28 @@ export default function DocumentViewerPopup({
           </div>
 
           <div className="dv-cell">
-            <span className="dv-lbl">Payment</span>
-            {isPaid && order.paymentNo ? (
-              docType === 'payment' ? (
-                /* already viewing payment — show plain */
-                <span className="dv-val dv-mono">{order.paymentNo}</span>
-              ) : (
-                <button className="dv-link" onClick={() => handleLinked('payment')}>
-                  {order.paymentNo}
-                </button>
-              )
+            {docType === 'payment' ? (
+              <>
+                <span className="dv-lbl">Invoice No</span>
+                {order.invoiceNo ? (
+                  <button className="dv-link" onClick={() => handleLinked('invoice')}>
+                    {order.invoiceNo}
+                  </button>
+                ) : (
+                  <span className="dv-nil">—</span>
+                )}
+              </>
             ) : (
-              <span className="dv-muted">Pending</span>
+              <>
+                <span className="dv-lbl">Payment</span>
+                {isPaid && order.paymentNo ? (
+                  <button className="dv-link" onClick={() => handleLinked('payment')}>
+                    {order.paymentNo}
+                  </button>
+                ) : (
+                  <span className="dv-muted">Pending</span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -180,21 +206,24 @@ export default function DocumentViewerPopup({
                   {(order.lines || []).map((l, i) => (
                     <tr key={l.id || i}>
                       <td>
-                        <span className="dv-pname">{l.productName || '—'}</span>
-                        {l.productCode && <span className="dv-pcode">{l.productCode}</span>}
+                        <span className="dv-pname">{l.productName || l.name || '—'}</span>
+                        {(l.productCode || l.product_code) && <span className="dv-pcode">{l.productCode || l.product_code}</span>}
                       </td>
                       <td>
                         {parseFloat(l.quantity || 0)}
                         {l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}
                       </td>
-                      <td>{currencySymbol}{fmt(l.unitPrice)}</td>
-                      <td>{parseFloat(l.taxRate || 0)}%</td>
+                      <td>{currencySymbol}{fmt(l.unitPrice || l.price)}</td>
+                      <td>{parseFloat(l.taxRate || l.tax_rate || 0)}%</td>
                       <td>
-                        {parseFloat(l.discountAmount || 0) > 0
-                          ? <span className="dv-disc">−{currencySymbol}{fmt(l.discountAmount)}</span>
+                        {parseFloat(l.discountAmount || l.discount_amount || 0) > 0
+                          ? <span className="dv-disc">−{currencySymbol}{fmt(l.discountAmount || l.discount_amount)}</span>
                           : '—'}
                       </td>
-                      <td className="dv-line-tot">{currencySymbol}{fmt(l.lineTotal)}</td>
+                      <td className="dv-line-tot">
+                        {currencySymbol}
+                        {fmt(l.lineTotal || l.line_total || ((parseFloat(l.price || l.unitPrice || 0)) * parseFloat(l.quantity || 0)))}
+                      </td>
                     </tr>
                   ))}
                   {(!order.lines || order.lines.length === 0) && (

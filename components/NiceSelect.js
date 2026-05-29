@@ -122,7 +122,7 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
               style={{
                 padding: "10px 16px",
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 600,
                 cursor: "pointer",
                 background: active ? "#fff7ed" : "#fff",
                 color: active ? "#FF7A00" : "#334155",

@@ -731,6 +731,9 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
             quantityMode
             initialQuantities={currentVariantQuantities}
             onSelectMany={syncLines}
+            themeColor="#f97316"
+            themeSoftColor="#fff7ed"
+            themeDarkColor="#ea580c"
           />
         </div>
       )}
