@@ -137,11 +137,11 @@ function getOrderTypeLabel(order) {
   if (!order) return "";
   const tableNumber = pickValue(order, ["table_number", "tableNumber"], null);
   if (tableNumber && tableNumber !== null)
-    return `Table ${tableNumber}`;
+    return `Dine in (Table ${tableNumber})`;
   const type = String(pickValue(order, ["order_type", "orderType", "fulfillment_type", "fulfillmentType"], "")).toLowerCase();
-  if (type === "parcel" || type === "takeaway") return "Takeaway";
-  if (type === "delivery") return "Home Delivery";
-  if (type === "dine_in" || type === "dine-in") return "Dine In";
+  if (type === "parcel" || type === "takeaway") return "Parcel";
+  if (type === "delivery") return "Delivery";
+  if (type === "dine_in" || type === "dine-in") return "Dine in";
   return "";
 }
 

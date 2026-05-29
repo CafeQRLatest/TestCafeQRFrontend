@@ -194,10 +194,11 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
                 <div className="step-val">{displayMin}</div>
                 <button type="button" className="step-btn" onClick={(e) => adjustTime(e, 'm', -1)}><FaChevronDown /></button>
               </div>
-              <div className="ampm-toggle">
-                <button type="button" className={`ampm-p ${!isPM ? 'on' : ''}`} onClick={(e) => toggleAMPM(e)}>AM</button>
-                <button type="button" className={`ampm-p ${isPM ? 'on' : ''}`} onClick={(e) => toggleAMPM(e)}>PM</button>
-              </div>
+            </div>
+
+            <div className="ampm-toggle">
+              <button type="button" className={`ampm-p ${!isPM ? 'on' : ''}`} onClick={(e) => toggleAMPM(e)}>AM</button>
+              <button type="button" className={`ampm-p ${isPM ? 'on' : ''}`} onClick={(e) => toggleAMPM(e)}>PM</button>
             </div>
 
             <button type="button" className="now-btn" onClick={handleSetNow}>Set Now</button>
@@ -262,18 +263,18 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         .day.selected { background: ${themeColor}; color: #fff; font-weight: 600; box-shadow: 0 4px 10px ${themeColor}15; }
         .day.empty { cursor: default; }
 
-        .dt-time-side { width: 110px; padding: 14px; background: #fcfdfe; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .dt-time-side { width: 120px; padding: 14px; background: #fcfdfe; display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .time-box-title { font-size: 8px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
         
-        .time-stepper { display: flex; flex-direction: column; align-items: center; gap: 4px; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid #f1f5f9; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-        .step-col { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
-        .step-btn { border: none; background: none; color: ${themeColor}; cursor: pointer; font-size: 16px; transition: 0.2s; padding: 6px 0; width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.8; }
+        .time-stepper { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 4px; background: #fff; padding: 6px; border-radius: 12px; border: 1px solid #f1f5f9; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+        .step-col { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 36px; }
+        .step-btn { border: none; background: none; color: ${themeColor}; cursor: pointer; font-size: 12px; transition: 0.2s; padding: 2px 0; width: 100%; display: flex; align-items: center; justify-content: center; opacity: 0.8; }
         .step-btn:hover { opacity: 1; transform: scale(1.2); }
         .step-btn:active { transform: scale(0.9); }
-        .step-val { font-size: 18px; font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; margin: -2px 0; }
-        .step-sep { font-size: 12px; font-weight: 800; color: #cbd5e1; margin: -4px 0; }
+        .step-val { font-size: 15px; font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; }
+        .step-sep { font-size: 14px; font-weight: 800; color: #cbd5e1; padding: 0 2px; }
         
-        .ampm-toggle { display: flex; gap: 2px; background: #f1f5f9; padding: 3px; border-radius: 10px; margin-top: 4px; border: 1px solid #f1f5f9; width: 100%; }
+        .ampm-toggle { display: flex; gap: 2px; background: #f1f5f9; padding: 3px; border-radius: 10px; border: 1px solid #f1f5f9; width: 100%; }
         .ampm-p { border: none; background: none; color: #94a3b8; padding: 5px 0; border-radius: 7px; font-size: 9px; font-weight: 700; cursor: pointer; transition: 0.2s; flex: 1; text-align: center; }
         .ampm-p.on { background: #fff; color: ${themeColor}; box-shadow: 0 4px 8px rgba(0,0,0,0.04); }
         

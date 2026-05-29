@@ -52,6 +52,9 @@ export function calculateOrderTotals(
       dVal = Number(item.discount.value || 0);
     }
 
+    // Normalize: accept both 'percent' and 'percentage'
+    if (dType === 'percentage') dType = 'percent';
+
     // Line discount
     let lineDiscBase = 0;
     let lineDiscDisplay = 0; // The "Unit" the user intended (Base for Excl, Face for Incl)
@@ -116,6 +119,9 @@ export function calculateOrderTotals(
     discType = 'amount';
     discVal = orderDiscount;
   }
+
+  // Normalize: UI uses 'percentage', calculation uses 'percent'
+  if (discType === 'percentage') discType = 'percent';
 
   // No longer filtering out packaged items
   const discountableItems = processedItems; 

@@ -110,6 +110,7 @@ function ConfigurationsContent() {
     bill_footer: '',
     pm_pos_product_listing: true,
     pm_discount: true,
+    defaultBillingUiMode: 'standard',
     print_logo_bitmap: null, print_logo_cols: null, print_logo_rows: null,
     
     // Hardware & paper (New)
@@ -203,6 +204,7 @@ function ConfigurationsContent() {
             bill_footer: d.billFooter || '',
             pm_pos_product_listing: d.posProductListingEnabled !== false,
             pm_discount: d.discountEnabled !== false,
+            defaultBillingUiMode: d.defaultBillingUiMode || 'standard',
             print_logo_bitmap: d.printLogoBitmap || null,
             print_logo_cols: d.printLogoCols || null,
             print_logo_rows: d.printLogoRows || null,
@@ -279,6 +281,7 @@ function ConfigurationsContent() {
         billFooter: config.bill_footer || '',
         posProductListingEnabled: config.pm_pos_product_listing,
         discountEnabled: config.pm_discount,
+        defaultBillingUiMode: config.defaultBillingUiMode || 'standard',
         printLogoBitmap: config.print_logo_bitmap,
         printLogoCols: config.print_logo_cols,
         printLogoRows: config.print_logo_rows,
@@ -402,8 +405,35 @@ function ConfigurationsContent() {
                           </div>
                        </div>
                     )}
+
                   </div>
                 ))}
+
+                {/* Default POS UI standalone card */}
+                <div className="module-wrapper is-active no-hover">
+                  <div className="menu-box" style={{ cursor: 'default', padding: '16px', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div className="box-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white' }}>
+                        <FaChair />
+                      </div>
+                      <div className="box-content">
+                        <h3 style={{ fontSize: '14.5px', fontWeight: '800' }}>Default POS UI</h3>
+                        <p style={{ fontSize: '12px' }}>Initial sales view</p>
+                      </div>
+                    </div>
+                    <div style={{ width: '100%' }}>
+                      <NiceSelect
+                        className="small-select"
+                        value={config.defaultBillingUiMode}
+                        onChange={v => set('defaultBillingUiMode', v)}
+                        options={[
+                          { value: 'standard', label: 'Standard UI' },
+                          { value: 'counter', label: 'Counter UI' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -852,11 +882,25 @@ function ConfigurationsContent() {
            position: relative;
         }
         .module-wrapper:hover { border-color: #cbd5e1; box-shadow: 0 12px 28px rgba(0,0,0,0.05); transform: translateY(-2px); }
-        .module-wrapper.is-active {
-           border-color: #fed7aa; 
-           box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
-           background: linear-gradient(180deg, #ffffff 0%, #fffbf5 100%);
-        }
+         .module-wrapper.is-active {
+            border-color: #fed7aa; 
+            box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
+            background: linear-gradient(180deg, #ffffff 0%, #fffbf5 100%);
+         }
+         .module-wrapper.no-hover:hover {
+            transform: none !important;
+            border-color: #fed7aa !important;
+            box-shadow: 0 8px 32px rgba(249,115,22,0.08) !important;
+         }
+         .small-select :global(.nice-select-trigger) {
+            height: 34px !important;
+            padding: 6px 12px !important;
+            border-radius: 8px !important;
+         }
+         .small-select :global(.nice-select-trigger span) {
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+         }
         
         .menu-box {
           padding: 12px;

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useRouter } from 'next/router';
 import styled, { keyframes } from 'styled-components';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import DashboardLayout from '../../components/DashboardLayout';
 import {
-  FaUtensils, FaShoppingBag, FaHistory, FaTh, FaList, FaCashRegister,
-  FaReceipt, FaPrint, FaSync, FaFire, FaWallet, FaCheck, FaExclamationCircle,
-  FaKeyboard, FaSearch
+  FaReceipt, FaPrint, FaCheck, FaExclamationCircle,
+  FaSearch, FaEdit
 } from 'react-icons/fa';
-import { PageContainer, POSHeader, HeaderTitle, ModeSwitchGroup, ModeSwitchBtn } from '../../components/PremiumPOSUI';
+import { PageContainer } from '../../components/PremiumPOSUI';
 import CounterSale from '../../components/CounterSale';
+import OrderTypeSelectorModal from '../../components/OrderTypeSelectorModal';
+import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
+import NiceSelect from '../../components/NiceSelect';
 import KotPrint from '../../components/KotPrint';
 import CloudPrintStation from '../../components/CloudPrintStation';
 import TablePopover from '../../components/TablePopover';
@@ -22,6 +25,7 @@ import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
 import { enqueueCloudPrintJob, fetchCloudPrintJobs, isPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
+import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 
 const TABLE_STATUS_META = {
   AVAILABLE: { label: 'AVAILABLE', bg: '#ffffff', fg: '#0f172a', border: '#e2e8f0', soft: '#f8fafc', accent: '#64748b' },
@@ -70,398 +74,22 @@ const fadeIn = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
-const HeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+// Inline native spinner handles hydration phase beautifully
 
-  @media (max-width: 780px) {
-    width: 100%;
-    justify-content: flex-start;
-  }
-`;
 
-const SalesHeader = styled(POSHeader)`
-  gap: 16px;
-  flex-wrap: wrap;
 
-  @media (max-width: 780px) {
-    align-items: flex-start;
-    padding: 14px 16px;
-    margin-bottom: 18px;
-  }
-`;
-
-const SalesHeaderTitle = styled(HeaderTitle)`
-  min-width: 0;
-
-  @media (max-width: 520px) {
-    width: 100%;
-    font-size: 20px;
-  }
-`;
-
-const SectionHeader = styled.div`
+const TopHeaderBar = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
-  padding: 0 24px;
-
-  @media (max-width: 720px) {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 0 16px;
-    margin-bottom: 18px;
-  }
-`;
-
-const SectionTitle = styled.h2`
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`;
-
-const StatsRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-
-  @media (max-width: 520px) {
-    width: 100%;
-    gap: 8px;
-  }
-`;
-
-const StatPill = styled.div`
-  padding: 8px 14px;
-  background: ${props => props.$bg || (props.$tone === 'green' ? '#f0fdf4' : props.$tone === 'orange' ? '#fff7ed' : '#f1f5f9')};
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 800;
-  color: ${props => props.$color || (props.$tone === 'green' ? '#16a34a' : props.$tone === 'orange' ? '#ea580c' : '#475569')};
-
-  @media (max-width: 520px) {
-    flex: 1 1 140px;
-    text-align: center;
-  }
-`;
-
-const LegendRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 0 24px 20px;
-
-  @media (max-width: 720px) {
-    padding: 0 16px 16px;
-  }
-`;
-
-const LegendItem = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
-`;
-
-const LegendDot = styled.span`
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  background: ${props => props.$color};
-  border: 1px solid ${props => props.$border || props.$color};
-`;
-
-const Grid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 20px;
-  padding: 0 24px 24px;
-
-  @media (max-width: 720px) {
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 12px;
-    padding: 0 16px 90px;
-  }
-
-  @media (max-width: 380px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const List = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 24px 24px;
-
-  @media (max-width: 720px) {
-    padding: 0 16px 90px;
-  }
-`;
-
-const TableCard = styled.button`
-  background: ${props => tableStatusMeta(props.$status).bg};
-  color: ${props => tableStatusMeta(props.$status).fg};
-  border-radius: 24px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 2px solid ${props => tableStatusMeta(props.$status).border};
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  text-align: center;
-  font: inherit;
-  min-width: 0;
-
-  &:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 24px -12px rgba(15, 23, 42, 0.18);
-    border-color: ${props => normalizeTableStatus(props.$status) === 'AVAILABLE' ? '#94a3b8' : tableStatusMeta(props.$status).border};
-  }
-
-  @media (max-width: 720px) {
-    border-radius: 18px;
-    padding: 18px 14px;
-    gap: 12px;
-
-    &:hover {
-      transform: none;
-    }
-  }
-`;
-
-const TableRow = styled(TableCard)`
   width: 100%;
-  flex-direction: row;
-  justify-content: space-between;
-  text-align: left;
-  padding: 18px 20px;
-
-  @media (max-width: 520px) {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
+  margin-bottom: 16px;
 `;
 
-const TableIcon = styled.div`
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
-  background: ${props => tableStatusMeta(props.$status).soft};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${props => tableStatusMeta(props.$status).accent};
-  font-size: 26px;
-  font-weight: 900;
-  flex: 0 0 auto;
-
-  @media (max-width: 520px) {
-    width: 52px;
-    height: 52px;
-    border-radius: 16px;
-    font-size: 22px;
-  }
-`;
-
-const StatusPill = styled.div`
-  padding: 6px 14px;
-  border-radius: 99px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: ${props => normalizeTableStatus(props.$status) === 'AVAILABLE' ? '#f1f5f9' : 'rgba(255,255,255,0.2)'};
-  color: ${props => normalizeTableStatus(props.$status) === 'AVAILABLE' ? '#475569' : tableStatusMeta(props.$status).fg};
-`;
-
-const TableMeta = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-`;
-
-const TableNumber = styled.div`
-  font-size: 18px;
-  font-weight: 800;
-  color: inherit;
-  overflow-wrap: anywhere;
-`;
-
-const TableCapacity = styled.div`
-  font-size: 13px;
-  color: inherit;
-  opacity: 0.75;
-  font-weight: 600;
-`;
-
-const ActiveOrderHint = styled.div`
-  font-size: 12px;
-  font-weight: 800;
-  color: inherit;
-  background: rgba(255,255,255,0.24);
-  padding: 6px 10px;
-  border-radius: 10px;
-`;
-
-const CounterToggleBtn = styled.button`
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  padding: 16px 32px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  color: white;
-  border: none;
-  font-size: 16px;
-  font-weight: 800;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 10px 25px -5px rgba(234, 88, 12, 0.4);
-  transition: all 0.3s;
-  z-index: 100;
-
-  &:hover {
-    transform: translateY(-4px) scale(1.03);
-    box-shadow: 0 18px 28px -10px rgba(234, 88, 12, 0.55);
-  }
-
-  @media (max-width: 720px) {
-    right: 16px;
-    bottom: 16px;
-    padding: 14px 20px;
-    border-radius: 18px;
-  }
-
-  @media (max-width: 420px) {
-    left: 16px;
-    right: 16px;
-    justify-content: center;
-  }
-`;
-
-const HistoryShell = styled.section`
-  padding: 0 24px 96px;
-  animation: ${fadeIn} 0.25s ease-out;
-
-  @media (max-width: 720px) {
-    padding: 0 16px 96px;
-  }
-`;
-
-const HistoryToolbar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 16px 18px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
-
-  @media (max-width: 720px) {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 14px;
-  }
-`;
-
-const HistoryTitle = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  strong {
-    color: #0f172a;
-    font-size: 18px;
-    font-weight: 900;
-  }
-
-  span {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 700;
-  }
-`;
-
-const RefreshButton = styled.button`
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #475569;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: wait;
-  }
-`;
-
-const HistoryControls = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-
-  @media (max-width: 720px) {
-    width: 100%;
-    justify-content: flex-start;
-  }
-`;
-
-const HistoryField = styled.label`
-  display: grid;
-  gap: 5px;
-  flex: ${props => props.$wide ? '1 1 300px' : '0 0 auto'};
-  min-width: ${props => props.$wide ? '260px' : '0'};
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-
-  input {
-    width: 100%;
-    min-height: 42px;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0 10px;
-    color: #0f172a;
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  @media (max-width: 520px) {
-    width: 100%;
-  }
-`;
-
-const HistorySearchInput = styled.div`
+const TopSearchInput = styled.div`
   position: relative;
+  width: 100%;
 
   svg {
     position: absolute;
@@ -474,24 +102,360 @@ const HistorySearchInput = styled.div`
   }
 
   input {
-    padding-left: 34px;
+    width: 100%;
+    height: 38px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 14px;
+    padding-left: 34px !important;
+    color: #1e293b;
+    font-size: 13px;
+    font-weight: 600;
+    background: white;
+    outline: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    transition: all 0.25s ease;
+
+    &:hover {
+      border-color: #f97316;
+    }
+
+    &:focus {
+      border-color: #ea580c;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.08), 0 2px 6px rgba(0,0,0,0.02);
+    }
   }
 `;
 
-const HistoryActionButton = styled.button`
-  min-height: 42px;
+const TopNewOrderBtn = styled.button`
+  height: 38px;
+  padding: 0 20px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: ${props => props.$primary ? '#f97316' : '#f8fafc'};
-  color: ${props => props.$primary ? 'white' : '#475569'};
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 900;
+  border: none;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+  transition: all 0.25s;
+  white-space: nowrap;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const HistoryToolbar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid #f97316;
+  border-radius: 12px;
+  padding: 6px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+
+  @media (max-width: 720px) {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 10px;
+  }
+`;
+
+const FilterWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+
+  /* Dates sub-container */
+  .hist-dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+
+    .premium-dt-picker {
+      width: 220px !important;
+    }
+  }
+
+  .h-filter-sep {
+    font-size: 11px;
+    font-weight: 800;
+    color: #cbd5e1;
+    margin: 0 2px;
+  }
+
+  /* Style triggers inside dates and nice-selects */
+  .dt-trigger,
+  .nice-select-trigger {
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    transition: all 0.15s ease !important;
+    height: 30px !important;
+    line-height: 28px !important;
+    font-size: 11px !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .nice-select-trigger span {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 28px !important;
+    color: #1e293b !important;
+  }
+
+  .dt-trigger:hover,
+  .nice-select-trigger:hover {
+    border-color: #f97316 !important;
+    background: #fff7ed !important;
+  }
+
+  .dt-trigger.active,
+  .dt-trigger:focus,
+  .nice-select-trigger.open,
+  .nice-select-trigger:focus {
+    border-color: #ea580c !important;
+    background: white !important;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.08) !important;
+  }
+
+  /* Force nice select specific constraints */
+  .nice-select,
+  .nice-select-wrapper {
+    flex-shrink: 0;
+    min-width: 115px !important;
+    max-width: 135px !important;
+  }
+
+  @media (max-width: 720px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    .hist-dates {
+      width: 100%;
+      justify-content: space-between;
+
+      .premium-dt-picker {
+        flex: 1;
+        width: auto !important;
+      }
+    }
+
+    .nice-select,
+    .nice-select-wrapper {
+      width: 100% !important;
+      max-width: none !important;
+    }
+  }
+`;
+
+const HistoryShell = styled.section`
+  padding: 0 24px 96px;
+  animation: ${fadeIn} 0.25s ease-out;
+
+  @media (max-width: 720px) {
+    padding: 0 16px 96px;
+  }
+`;
+
+const HistoryTitle = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 900;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+  }
+`;
+
+const RefreshButton = styled.button`
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #f97316;
+    background: #fff7ed;
+    color: #f97316;
+  }
 
   &:disabled {
     opacity: 0.6;
     cursor: wait;
+  }
+`;
+
+const HistoryControls = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+
+  @media (max-width: 720px) {
+    width: 100%;
+    justify-content: flex-start;
+  }
+`;
+
+const HistoryField = styled.label`
+  display: grid;
+  gap: 4px;
+  flex: ${props => props.$wide ? '1 1 240px' : '0 0 auto'};
+  min-width: ${props => props.$wide ? '200px' : '0'};
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  input {
+    width: 100%;
+    height: 30px;
+    min-height: 30px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0 10px;
+    color: #1e293b;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f8fafc;
+    transition: all 0.15s ease;
+
+    &:hover {
+      border-color: #f97316;
+      background: #fff7ed;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #ea580c;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.08);
+    }
+  }
+
+  .premium-dt-picker {
+    width: 220px !important;
+  }
+
+  .premium-dt-picker .dt-trigger {
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    transition: all 0.15s ease !important;
+    height: 30px !important;
+    line-height: 28px !important;
+    font-size: 11px !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100%;
+  }
+
+  .premium-dt-picker .dt-trigger:hover {
+    border-color: #f97316 !important;
+    background: #fff7ed !important;
+  }
+
+  .premium-dt-picker .dt-trigger.active,
+  .premium-dt-picker .dt-trigger:focus-within {
+    border-color: #ea580c !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.08) !important;
+  }
+
+  .premium-dt-picker .dt-input {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+  }
+
+  @media (max-width: 520px) {
+    width: 100%;
+  }
+`;
+
+const HistorySearchInput = styled.div`
+  position: relative;
+
+  svg {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 11px;
+    pointer-events: none;
+  }
+
+  input {
+    padding-left: 28px !important;
+  }
+`;
+
+const HistoryActionButton = styled.button`
+  height: 30px;
+  min-height: 30px;
+  border-radius: 12px;
+  border: none;
+  background: ${props => props.$primary ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : '#f1f5f9'};
+  color: ${props => props.$primary ? 'white' : '#475569'};
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 16px;
+  transition: all 0.25s;
+  box-shadow: ${props => props.$primary ? '0 4px 10px rgba(234, 88, 12, 0.2)' : 'none'};
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: ${props => props.$primary ? '0 6px 14px rgba(234, 88, 12, 0.3)' : 'none'};
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+    transform: none;
   }
 `;
 
@@ -514,6 +478,120 @@ const HistoryGrid = styled.div`
   @media (max-width: 520px) {
     grid-template-columns: 1fr;
   }
+`;
+
+const HistTableWrap = styled.div`
+  width: 100%;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #f1f5f9;
+  overflow-x: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+  margin-top: 8px;
+  margin-bottom: 24px;
+`;
+
+const HistTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+  text-align: left;
+  font-family: inherit;
+
+  thead {
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  }
+
+  th {
+    padding: 8px 12px;
+    font-size: 9px;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid #e8edf5;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f8fafc;
+    color: #334155;
+    font-size: 13px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+`;
+
+const HistRow = styled.tr`
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+
+  &:hover {
+    border-left-color: #f97316;
+    td {
+      background: #fafbff;
+    }
+  }
+`;
+
+const OrderNoLink = styled.code`
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 800;
+  color: #FF7A00;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+`;
+
+const RowDate = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const RdD = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e293b;
+`;
+
+const RdT = styled.span`
+  font-size: 9px;
+  font-weight: 500;
+  color: #94a3b8;
+`;
+
+const ItemsPill = styled.span`
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+`;
+
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+`;
+
+const ActionGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const OrderCard = styled.article`
@@ -679,17 +757,22 @@ const OrderItemsEmpty = styled.div`
 
 const ActionButton = styled.button`
   border: none;
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 8px;
+  padding: 6px 10px;
   cursor: pointer;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   color: ${props => props.$tone === 'green' ? '#15803d' : props.$tone === 'blue' ? '#0369a1' : '#ea580c'};
   background: ${props => props.$tone === 'green' ? '#f0fdf4' : props.$tone === 'blue' ? '#f0f9ff' : '#fff7ed'};
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${props => props.$tone === 'green' ? '#dcfce7' : props.$tone === 'blue' ? '#e0f2fe' : '#ffedd5'};
+  }
 
   &:disabled {
     opacity: 0.6;
@@ -853,6 +936,8 @@ function defaultHistoryRange(timezone) {
     from: toDateTimeInputValue(from),
     to: toDateTimeInputValue(to),
     q: '',
+    status: '',
+    terminalId: '',
   };
 }
 
@@ -898,11 +983,12 @@ function isCreditIntendedOrder(order, creditEnabled) {
 }
 
 function fulfillmentLabel(order) {
-  if (order?.tableNumber || order?.table_number) return `Table ${order.tableNumber || order.table_number}`;
+  if (order?.tableNumber || order?.table_number) return `Dine in (Table ${order.tableNumber || order.table_number})`;
   const fulfillment = String(order?.fulfillmentType || order?.fulfillment_type || '').toUpperCase();
   if (fulfillment === 'DELIVERY') return 'Delivery';
-  if (fulfillment === 'TAKEAWAY') return 'Counter';
-  return fulfillment || 'Counter';
+  if (fulfillment === 'TAKEAWAY') return 'Parcel';
+  if (fulfillment === 'DINE_IN') return 'Dine in';
+  return fulfillment || 'Dine in';
 }
 
 function customerLabel(order) {
@@ -929,30 +1015,88 @@ export default function Sales() {
 }
 
 function SalesContent() {
-  const { timezone, orgId } = useAuth();
+  const router = useRouter();
+  const { timezone, orgId, userRole, switchBranch } = useAuth();
   const [tables, setTables] = useState([]);
   const [floorOrders, setFloorOrders] = useState([]);
   const [historyOrders, setHistoryOrders] = useState([]);
   const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
   const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange(timezone));
+  const [branches, setBranches] = useState([]);
+  const [terminals, setTerminals] = useState([]);
+
+  useEffect(() => {
+    if (userRole === 'SUPER_ADMIN') {
+      api.get('/api/v1/organizations')
+        .then(resp => {
+          if (resp.data.success) {
+            setBranches(resp.data.data || []);
+          }
+        })
+        .catch(err => console.error("Failed to fetch branches in sales page:", err));
+    }
+  }, [userRole]);
+
+  useEffect(() => {
+    api.get('/api/v1/terminals')
+      .then(resp => {
+        if (resp.data.success) {
+          setTerminals(resp.data.data || []);
+        }
+      })
+      .catch(err => console.error("Failed to fetch terminals in sales page:", err));
+  }, []);
+
+  const handleOrgChange = useCallback((val) => {
+    const selectedBranch = branches.find(b => String(b.id) === String(val));
+    if (selectedBranch) {
+      switchBranch(selectedBranch.id, selectedBranch.name);
+    } else {
+      switchBranch(null, null);
+    }
+  }, [branches, switchBranch]);
   const [queuedOrders, setQueuedOrders] = useState([]);
   const [printJobsByOrder, setPrintJobsByOrder] = useState({});
-  const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [config, setConfig] = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
   const [popoverTable, setPopoverTable] = useState(null);
   const [paymentOrder, setPaymentOrder] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
   const [actionBusy, setActionBusy] = useState('');
   const [editSaving, setEditSaving] = useState(false);
-  const [viewMode, setViewMode] = useState('grid');
-  const [activeView, setActiveView] = useState('tables');
+  const [activeView, setActiveView] = useState('order_type');
   const [billingUi, setBillingUi] = useState('standard');
+  const [pendingOrderType, setPendingOrderType] = useState(null); // 'TABLE'|'DINE_IN'|'TAKEAWAY'|'DELIVERY'
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
   const [toast, setToast] = useState(null);
-  const [config, setConfig] = useState(null);
   const [creditCustomers, setCreditCustomers] = useState([]);
+  const [viewingDoc, setViewingDoc] = useState(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const cached = localStorage.getItem('cafeqr_sales_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          setConfig(parsed);
+          setBillingUi(parsed.defaultBillingUiMode || 'standard');
+          if (!parsed.tableManagementEnabled) {
+            setPendingOrderType('DINE_IN');
+            setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'DINE_IN' });
+            setActiveView('billing');
+          } else {
+            setActiveView('order_type');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load cached config", e);
+    }
+  }, []);
   const tablesInFlightRef = useRef(false);
   const ordersInFlightRef = useRef(false);
   const historyInFlightRef = useRef(false);
@@ -963,6 +1107,35 @@ function SalesContent() {
     setToast({ message, type });
     window.setTimeout(() => setToast(null), 3000);
   }, []);
+
+  useEffect(() => {
+    if (config) {
+      // Determine billing UI mode from config
+      const uiMode = config.defaultBillingUiMode || 'standard';
+      setBillingUi(uiMode);
+      // If table management is OFF, the billing screen is the home view.
+      // Skip order-type picker and history — go straight to counter UI.
+      if (!config.tableManagementEnabled) {
+        setActiveView((current) => {
+          if (current === 'order_type' || current === 'history') {
+            setPendingOrderType('DINE_IN');
+            setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'DINE_IN' });
+            return 'billing';
+          }
+          return current;
+        });
+      } else {
+        setActiveView((current) => {
+          if (current === 'billing' && selectedTable?.tableNumber === 'COUNTER') {
+            setPendingOrderType(null);
+            setSelectedTable(null);
+            return 'order_type';
+          }
+          return current;
+        });
+      }
+    }
+  }, [config, selectedTable?.tableNumber]);
 
   useEffect(() => {
     if (historyFiltersTouchedRef.current) return;
@@ -998,7 +1171,6 @@ function SalesContent() {
       }
     } finally {
       tablesInFlightRef.current = false;
-      setLoading(false);
     }
   }, [showToast]);
 
@@ -1025,6 +1197,9 @@ function SalesContent() {
     try {
       const configRes = await api.get('/api/v1/configurations');
       const nextConfig = configRes.data?.data || null;
+      if (nextConfig && typeof window !== 'undefined') {
+        localStorage.setItem('cafeqr_sales_config', JSON.stringify(nextConfig));
+      }
       setConfig(nextConfig);
       if (nextConfig?.creditEnabled) {
         const customersRes = await api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } });
@@ -1037,6 +1212,11 @@ function SalesContent() {
         console.warn('Failed to load credit configuration', error?.message || error);
       }
       setCreditCustomers([]);
+      setConfig((current) => current || {
+        tableManagementEnabled: true,
+        defaultBillingUiMode: 'standard',
+        creditEnabled: false,
+      });
     }
   }, []);
 
@@ -1095,7 +1275,6 @@ function SalesContent() {
     setFloorOrders([]);
     setHistoryOrders([]);
     setCreditCustomers([]);
-    setLoading(true);
     setOrdersLoading(false);
   }, [orgId]);
 
@@ -1105,6 +1284,57 @@ function SalesContent() {
     if (previousOrgId === orgId || activeView !== 'history') return;
     fetchHistoryOrders(0);
   }, [activeView, fetchHistoryOrders, orgId]);
+
+  // ── Browser Back-button interception ──────────────────────────────────────
+  // When the user enters billing or order_type, push a dummy history entry so
+  // the browser Back button doesn't navigate away from the page. On popstate
+  // we handle navigation in-app instead.
+  useEffect(() => {
+    if (!config?.tableManagementEnabled) return;
+    if (activeView === 'billing' || activeView === 'order_type') {
+      // Push a sentinel so the browser has something to "go back" to without
+      // leaving the sales page.
+      window.history.pushState({ cafeqrView: activeView }, '');
+    }
+  }, [activeView, config?.tableManagementEnabled]);
+
+  useEffect(() => {
+    if (!config?.tableManagementEnabled) return;
+
+    const handlePopState = (e) => {
+      // If we popped a sentinel state, intercept and handle in-app.
+      if (e.state?.cafeqrView) {
+        // Re-push so subsequent back presses are also caught.
+        window.history.pushState({ cafeqrView: activeView }, '');
+      }
+
+      if (activeView === 'billing') {
+        if (!isKnownOffline()) {
+          fetchTables();
+          fetchOrders();
+        }
+        setSelectedTable(null);
+        setPendingOrderType(null);
+        setActiveView('order_type');
+      } else if (activeView === 'order_type') {
+        setActiveView('history');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeView, config?.tableManagementEnabled, fetchOrders, fetchTables]);
+  // ──────────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!historyFiltersTouchedRef.current) return;
+    const delayDebounceFn = setTimeout(() => {
+      fetchHistoryOrders(0, historyFilters);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyFilters.q, fetchHistoryOrders]);
 
   useEffect(() => {
     fetchTables();
@@ -1249,27 +1479,32 @@ function SalesContent() {
     })
   ), [getActiveOrderForTable, popoverTable, tables]);
 
-  const tableStatusCounts = useMemo(() => (
-    tables.reduce((counts, table) => {
-      const status = resolveTableOrderState(table, getActiveOrderForTable(table)).status;
-      counts[status] = (counts[status] || 0) + 1;
-      return counts;
-    }, {})
-  ), [getActiveOrderForTable, tables]);
 
-  const floorDisplayOrders = useMemo(() => {
-    return mergeOrdersWithQueued(floorOrders, queuedOrders)
-      .map((order) => attachPrintJobs(order, printJobsByOrder));
-  }, [floorOrders, queuedOrders, printJobsByOrder]);
 
   const historyQueuedOrders = useMemo(() => (
     queuedOrders.filter((order) => matchesSelectedBranch(order, orgId))
   ), [orgId, queuedOrders]);
 
   const historyDisplayOrders = useMemo(() => {
-    return mergeOrdersWithQueued(historyOrders, historyQueuedOrders)
+    let filtered = mergeOrdersWithQueued(historyOrders, historyQueuedOrders)
       .map((order) => attachPrintJobs(order, printJobsByOrder));
-  }, [historyOrders, historyQueuedOrders, printJobsByOrder]);
+
+    if (historyFilters.status) {
+      filtered = filtered.filter(order => {
+        const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+        return orderStatus === historyFilters.status;
+      });
+    }
+
+    if (historyFilters.terminalId) {
+      filtered = filtered.filter(order => {
+        const termId = String(order?.terminalId || order?.terminal_id || '');
+        return termId === historyFilters.terminalId;
+      });
+    }
+
+    return filtered;
+  }, [historyOrders, historyQueuedOrders, printJobsByOrder, historyFilters.status, historyFilters.terminalId]);
 
   const publishAccountingRefresh = useCallback((reason, order = null) => {
     if (isKnownOffline() || order?.offline) return;
@@ -1347,13 +1582,32 @@ function SalesContent() {
     }
   }, [fetchCreditConfig, fetchOrders, fetchTables, hasAccountingImpact, loadOfflineOrderState, publishAccountingRefresh, showToast]);
 
-  const handleCounterSale = () => {
+  const handleNewOrder = () => {
     if (!orgId) {
-      showToast('Select a branch before creating a counter sale.', 'error');
+      showToast('Select a branch before creating a sale.', 'error');
       return;
     }
-    setSelectedTable({ tableNumber: 'COUNTER', id: null });
+    // If table management is OFF, skip the order-type picker and go
+    // directly to the billing screen with DINE_IN as the order type.
+    if (!config?.tableManagementEnabled) {
+      setPendingOrderType('DINE_IN');
+      setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'DINE_IN' });
+      setActiveView('billing');
+      return;
+    }
+    setActiveView('order_type');
   };
+
+  const handleOrderTypeSelected = useCallback(({ orderType, table }) => {
+    setActiveView('billing');
+    setPendingOrderType(orderType);
+    if (orderType === 'TABLE' && table) {
+      setSelectedTable(table);
+    } else {
+      // Non-table order: use a virtual counter table
+      setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType });
+    }
+  }, []);
 
   const refreshSalesState = useCallback(() => {
     fetchOrders();
@@ -1533,6 +1787,16 @@ function SalesContent() {
       publishAccountingRefresh(payload?.paymentMethod === 'CREDIT' ? 'order-credit-completed' : 'order-settled', settledOrder);
       await handlePrintOrder(settledOrder, 'bill');
       refreshSalesState();
+      if (activeView === 'billing') {
+        setSelectedTable(null);
+        setPendingOrderType(null);
+        if (!config?.tableManagementEnabled) {
+          setActiveView('history');
+          fetchHistoryOrders(0);
+        } else {
+          setActiveView('order_type');
+        }
+      }
     } catch (e) {
       console.error('Failed to settle order', e);
       showToast('Failed to settle order', 'error');
@@ -1635,107 +1899,33 @@ function SalesContent() {
     }
   };
 
-  const renderTable = (table, asRow = false) => {
-    const activeOrder = getActiveOrderForTable(table);
-    const tableState = resolveTableOrderState(table, activeOrder);
-    const displayStatus = tableState.status;
-    const Card = asRow ? TableRow : TableCard;
+  if (!isMounted) {
     return (
-      <Card key={table.id} $status={displayStatus} onClick={() => setPopoverTable(table)}>
-        <TableIcon $status={displayStatus}>{table.tableNumber}</TableIcon>
-        <TableMeta>
-          <TableNumber>Table {table.tableNumber}</TableNumber>
-          <TableCapacity>{table.seatingCapacity} Seats • {table.section || 'Indoor'}</TableCapacity>
-          {activeOrder && <ActiveOrderHint>{statusText(activeOrder)} • {money(orderTotal(activeOrder))}</ActiveOrderHint>}
-        </TableMeta>
-        <StatusPill $status={displayStatus}>{tableState.label}</StatusPill>
-      </Card>
+      <DashboardLayout title="Sales">
+        <PageContainer style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid #f1f5f9',
+            borderTop: '4px solid #f97316',
+            borderRadius: '50%',
+            animation: 'spin-loader 0.8s linear infinite'
+          }} />
+          <style>{`
+            @keyframes spin-loader {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </PageContainer>
+      </DashboardLayout>
     );
-  };
+  }
 
   return (
     <DashboardLayout title="Sales">
       <PageContainer>
-        <SalesHeader>
-          <SalesHeaderTitle>
-            <FaCashRegister color="#ea580c" /> POS Terminal
-          </SalesHeaderTitle>
-          <HeaderActions>
-            {activeView === 'tables' && (
-              <>
-                <ModeSwitchGroup>
-                  <ModeSwitchBtn $active={billingUi === 'standard'} onClick={() => setBillingUi('standard')}>
-                    <FaKeyboard /> Standard UI
-                  </ModeSwitchBtn>
-                  <ModeSwitchBtn $active={billingUi === 'counter'} onClick={() => setBillingUi('counter')}>
-                    <FaCashRegister /> Counter UI
-                  </ModeSwitchBtn>
-                </ModeSwitchGroup>
-                <ModeSwitchGroup>
-                  <ModeSwitchBtn $active={viewMode === 'grid'} onClick={() => setViewMode('grid')}>
-                    <FaTh /> Grid
-                  </ModeSwitchBtn>
-                  <ModeSwitchBtn $active={viewMode === 'list'} onClick={() => setViewMode('list')}>
-                    <FaList /> List
-                  </ModeSwitchBtn>
-                </ModeSwitchGroup>
-              </>
-            )}
-            <ModeSwitchGroup>
-              <ModeSwitchBtn $active={activeView === 'tables'} onClick={() => setActiveView('tables')}>
-                <FaUtensils /> Tables
-              </ModeSwitchBtn>
-              <ModeSwitchBtn $active={activeView === 'history'} onClick={() => { setActiveView('history'); fetchHistoryOrders(0); }}>
-                <FaHistory /> Order History
-              </ModeSwitchBtn>
-            </ModeSwitchGroup>
-          </HeaderActions>
-        </SalesHeader>
-
-        {activeView === 'tables' ? (
-          <>
-            <SectionHeader>
-              <SectionTitle>
-                <FaUtensils color="#94a3b8" /> Table Management
-              </SectionTitle>
-              <StatsRow>
-                <StatPill $bg="#fee2e2" $color="#dc2626">Occupied: {tableStatusCounts.OCCUPIED || 0}</StatPill>
-                <StatPill $bg="#dbeafe" $color="#2563eb">Reserved: {tableStatusCounts.RESERVED || 0}</StatPill>
-                <StatPill $bg="#e2e8f0" $color="#475569">Hold: {tableStatusCounts.MAINTENANCE || 0}</StatPill>
-                <StatPill $bg="#dcfce7" $color="#059669">Billed: {tableStatusCounts.BILLED || 0}</StatPill>
-                <StatPill>Available: {tableStatusCounts.AVAILABLE || 0}</StatPill>
-                <StatPill>Open Orders: {floorDisplayOrders.filter(isOpenOrder).length}</StatPill>
-              </StatsRow>
-            </SectionHeader>
-
-            <LegendRow>
-              {Object.entries(TABLE_STATUS_META).map(([status, meta]) => (
-                <LegendItem key={status}>
-                  <LegendDot $color={meta.bg} $border={meta.border} />
-                  {meta.label.charAt(0) + meta.label.slice(1).toLowerCase()}
-                </LegendItem>
-              ))}
-            </LegendRow>
-
-            {loading ? (
-              <HistoryShell>
-                <EmptyState>
-                  <FaUtensils />
-                  <strong>Loading tables</strong>
-                  <span>Preparing the POS floor.</span>
-                </EmptyState>
-              </HistoryShell>
-            ) : viewMode === 'grid' ? (
-              <Grid>
-                {tables.map(table => renderTable(table))}
-              </Grid>
-            ) : (
-              <List>
-                {tables.map(table => renderTable(table, true))}
-              </List>
-            )}
-          </>
-        ) : (
+        {activeView === 'history' && (
           <OrderHistory
             orders={historyDisplayOrders}
             page={historyPage}
@@ -1747,29 +1937,70 @@ function SalesContent() {
             onFilterChange={(nextFilters) => {
               historyFiltersTouchedRef.current = true;
               setHistoryFilters(nextFilters);
+              if (nextFilters.q === historyFilters.q) {
+                fetchHistoryOrders(0, nextFilters);
+              }
             }}
             onApplyFilters={() => fetchHistoryOrders(0)}
             onPrint={handlePrintOrder}
             onSettle={handleSettleOrder}
+            onEdit={handleEditOrder}
             creditEnabled={Boolean(config?.creditEnabled)}
+            onNewOrder={handleNewOrder}
+            orgId={orgId}
+            userRole={userRole}
+            branches={branches}
+            terminals={terminals}
+            onOrgChange={handleOrgChange}
+            isTableConfigOn={Boolean(config?.tableManagementEnabled)}
+            onViewDocument={async (order) => {
+              try {
+                const fullOrder = await loadFullOrder(order.id);
+                setViewingDoc({ order: fullOrder || order, type: 'order' });
+              } catch (err) {
+                setViewingDoc({ order, type: 'order' });
+              }
+            }}
           />
         )}
 
-        <CounterToggleBtn onClick={handleCounterSale}>
-          <FaShoppingBag /> Counter Sale
-        </CounterToggleBtn>
+        {activeView === 'order_type' && (
+          <OrderTypeSelectorModal
+            tables={tables}
+            config={config}
+            onSelect={handleOrderTypeSelected}
+            onHistoryClick={() => {
+              setActiveView('history');
+              fetchHistoryOrders(0);
+            }}
+            onPoHistoryClick={() => {
+              router.push('/owner/purchase-orders?view=history');
+            }}
+            onClose={() => {
+              setActiveView('history');
+            }}
+          />
+        )}
 
-        {selectedTable && (
+        {activeView === 'billing' && selectedTable && (
           <CounterSale
             initialTable={selectedTable.tableNumber === 'COUNTER' ? null : selectedTable}
             interfaceMode={billingUi}
             onOrderCreated={handleOrderCreated}
             onCreditCustomerCreated={handleCreditCustomerCreated}
+            config={config}
+            initialCreditCustomers={creditCustomers}
             onBack={() => {
-              setSelectedTable(null);
               if (!isKnownOffline()) {
                 fetchTables();
                 fetchOrders();
+              }
+              if (!config?.tableManagementEnabled) {
+                router.back();
+              } else {
+                setSelectedTable(null);
+                setPendingOrderType(null);
+                setActiveView('order_type');
               }
             }}
           />
@@ -1800,7 +2031,7 @@ function SalesContent() {
           <PaymentDialog
             order={paymentOrder}
             loading={actionBusy === 'settle'}
-            creditEnabled={Boolean(config?.creditEnabled)}
+            config={config}
             creditCustomers={creditCustomers}
             onClose={() => setPaymentOrder(null)}
             onConfirm={handleConfirmPayment}
@@ -1829,6 +2060,27 @@ function SalesContent() {
 
         <CloudPrintStation onJobsChanged={loadOfflineOrderState} />
 
+        {viewingDoc && (
+          <DocumentViewerPopup
+            order={viewingDoc.order}
+            docType={viewingDoc.type}
+            vendors={[]}
+            warehouses={[]}
+            timezone={timezone}
+            currencySymbol={money(0).replace(/[0-9.,\s]/g, '') || '₹'}
+            formatTzDate={formatTzDate}
+            onClose={() => setViewingDoc(null)}
+            onViewLinked={(order, type) => setViewingDoc({ order, type })}
+            STATUS_CFG={{
+              DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
+              BILLED:    { label: 'Billed',    color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
+              COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+              PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+              CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+            }}
+          />
+        )}
+
         {toast && (
           <Toast $type={toast.type}>
             {toast.type === 'error' ? <FaExclamationCircle /> : <FaCheck />}
@@ -1852,62 +2104,120 @@ function OrderHistory({
   onApplyFilters,
   onPrint,
   onSettle,
+  onEdit,
   creditEnabled = false,
+  onNewOrder,
+  orgId,
+  userRole,
+  branches = [],
+  terminals = [],
+  onOrgChange,
+  isTableConfigOn = false,
+  onViewDocument,
 }) {
   const pageNumber = page?.number || 0;
   const totalPages = page?.totalPages || 0;
   const totalElements = page?.totalElements ?? orders.length;
 
+  const statusBadgeColors = (tone) => {
+    switch (tone) {
+      case 'orange':
+        return { bg: '#fffbeb', color: '#b45309', border: '#fde68a' };
+      case 'blue':
+        return { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' };
+      case 'green':
+        return { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' };
+      case 'red':
+        return { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' };
+      default:
+        return { bg: '#f8fafc', color: '#475569', border: '#e2e8f0' };
+    }
+  };
+
   return (
     <HistoryShell>
+      <TopHeaderBar>
+        <div style={{ flex: '1', maxWidth: '400px' }}>
+          <TopSearchInput>
+            <FaSearch />
+            <input
+              type="search"
+              value={filters.q || ''}
+              placeholder="Search order, invoice, payment, customer, table..."
+              onChange={(event) => onFilterChange({ ...filters, q: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  onApplyFilters();
+                }
+              }}
+            />
+          </TopSearchInput>
+        </div>
+        {onNewOrder && (
+          <TopNewOrderBtn onClick={onNewOrder}>
+            + New Order
+          </TopNewOrderBtn>
+        )}
+      </TopHeaderBar>
+
       <HistoryToolbar>
-        <HistoryTitle>
-          <strong>Order History</strong>
-          <span>{totalElements} sale order{totalElements === 1 ? '' : 's'} in the selected range</span>
-        </HistoryTitle>
-        <HistoryControls>
-          <HistoryField $wide>
-            Search
-            <HistorySearchInput>
-              <FaSearch />
-              <input
-                type="search"
-                value={filters.q || ''}
-                placeholder="Search order, invoice, payment, customer, phone, table"
-                onChange={(event) => onFilterChange({ ...filters, q: event.target.value })}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    onApplyFilters();
-                  }
-                }}
-              />
-            </HistorySearchInput>
-          </HistoryField>
-          <HistoryField>
-            From
-            <input
-              type="datetime-local"
+        <FilterWrapper>
+          {/* Dates container */}
+          <div className="hist-dates">
+            <PremiumDateTimePicker
               value={filters.from}
-              onChange={(event) => onFilterChange({ ...filters, from: event.target.value })}
+              onChange={(val) => onFilterChange({ ...filters, from: val })}
             />
-          </HistoryField>
-          <HistoryField>
-            To
-            <input
-              type="datetime-local"
+            <span className="h-filter-sep">to</span>
+            <PremiumDateTimePicker
               value={filters.to}
-              onChange={(event) => onFilterChange({ ...filters, to: event.target.value })}
+              onChange={(val) => onFilterChange({ ...filters, to: val })}
             />
-          </HistoryField>
-          <HistoryActionButton type="button" $primary onClick={onApplyFilters} disabled={loading}>
-            Apply
-          </HistoryActionButton>
-          <RefreshButton onClick={onRefresh} disabled={loading} title="Refresh orders">
-            <FaSync className={loading ? 'spin' : ''} />
-          </RefreshButton>
-        </HistoryControls>
+          </div>
+
+          {/* Org Selector */}
+          {userRole === 'SUPER_ADMIN' && branches.length > 0 && (
+            <NiceSelect
+              className="nice-select"
+              options={[
+                { value: '', label: 'All Branches' },
+                ...branches.map(b => ({ value: b.id, label: b.name }))
+              ]}
+              value={orgId || ''}
+              onChange={onOrgChange}
+            />
+          )}
+
+          {/* Status Selector */}
+          <NiceSelect
+            className="nice-select"
+            options={[
+              { value: '', label: 'All Status' },
+              { value: 'DRAFT', label: 'Draft' },
+              { value: 'BILLED', label: 'Billed' },
+              { value: 'COMPLETED', label: 'Completed' },
+              { value: 'PAID', label: 'Paid' },
+              { value: 'CANCELLED', label: 'Cancelled' }
+            ]}
+            value={filters.status || ''}
+            onChange={(val) => onFilterChange({ ...filters, status: val })}
+          />
+
+          {/* Terminal Selector */}
+          <NiceSelect
+            className="nice-select"
+            options={[
+              { value: '', label: 'All Terminals' },
+              ...terminals.map(t => ({ value: t.id, label: t.name || t.terminalCode || 'Terminal' }))
+            ]}
+            value={filters.terminalId || ''}
+            onChange={(val) => onFilterChange({ ...filters, terminalId: val })}
+          />
+        </FilterWrapper>
       </HistoryToolbar>
+
+
 
       {orders.length === 0 ? (
         <EmptyState>
@@ -1916,120 +2226,92 @@ function OrderHistory({
           <span>{filters.q?.trim() ? 'Try another search or widen the date range.' : 'New KOT and settled sales will appear here immediately.'}</span>
         </EmptyState>
       ) : (
-        <HistoryGrid>
-          {orders.map(order => {
-            const date = orderTime(order);
-            const open = isOpenOrder(order);
-            const items = toDisplayItems(order);
-            const renderKey = orderIdentity(order) || `order:${date.getTime()}:${order.orderNo || order.order_no || ''}`;
-            const kotPrintFailed = order.printJobs?.kot?.status === 'FAILED';
-            const billPrintFailed = order.printJobs?.bill?.status === 'FAILED';
-            const kotPrintWaiting = ['PENDING', 'CLAIMED', 'RETRY'].includes(order.printJobs?.kot?.status);
-            const billPrintWaiting = ['PENDING', 'CLAIMED', 'RETRY'].includes(order.printJobs?.bill?.status);
-            const creditFinish = open && isCreditIntendedOrder(order, creditEnabled);
-            return (
-              <OrderCard key={renderKey} $tone={orderStatusTone(order)}>
-                <OrderTop>
-                  <div>
-                    <OrderNo>{order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`}</OrderNo>
-                    <OrderSub>{formatTzDate(date, timezone, { format: 'short' })}</OrderSub>
-                  </div>
-                  <OrderAmount>{money(orderTotal(order))}</OrderAmount>
-                </OrderTop>
+        <HistTableWrap>
+          <HistTable>
+            <thead>
+              <tr>
+                <th>Order#</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Type</th>
+                {isTableConfigOn && <th>Table</th>}
+                <th>Items</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'center' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map(order => {
+                const date = orderTime(order);
+                const items = toDisplayItems(order);
+                const renderKey = orderIdentity(order) || `order:${date.getTime()}:${order.orderNo || order.order_no || ''}`;
+                const tone = orderStatusTone(order);
+                const colors = statusBadgeColors(tone);
 
-                {(order.offline || order.syncStatus === 'CONFLICT' || kotPrintFailed || billPrintFailed || kotPrintWaiting || billPrintWaiting) && (
-                  <OrderBadges>
-                    {(order.offline || order.syncStatus === 'QUEUED') && (
-                      <OrderBadge>Sync pending</OrderBadge>
+                return (
+                  <HistRow key={renderKey}>
+                    <td>
+                      <OrderNoLink onClick={() => onViewDocument ? onViewDocument(order) : null}>
+                        {order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`}
+                      </OrderNoLink>
+                    </td>
+                    <td>
+                      <RowDate>
+                        <RdD>
+                          {formatTzDate(date, timezone, { format: 'date', year: undefined })}
+                        </RdD>
+                        <RdT>
+                          {formatTzDate(date, timezone, { format: 'time' })}
+                        </RdT>
+                      </RowDate>
+                    </td>
+                    <td>
+                      <strong>{customerLabel(order)}</strong>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>{fulfillmentLabel(order)}</span>
+                    </td>
+                    {isTableConfigOn && (
+                      <td>
+                        <span style={{ fontWeight: 600, color: '#64748b' }}>
+                          {order.tableNumber || order.table_number || '—'}
+                        </span>
+                      </td>
                     )}
-                    {order.syncStatus === 'CONFLICT' && (
-                      <OrderBadge $tone="red">Sync conflict</OrderBadge>
-                    )}
-                    {kotPrintFailed && (
-                      <OrderBadge $tone="red">KOT print failed</OrderBadge>
-                    )}
-                    {billPrintFailed && (
-                      <OrderBadge $tone="red">Bill print failed</OrderBadge>
-                    )}
-                    {kotPrintWaiting && (
-                      <OrderBadge>KOT waiting for printer</OrderBadge>
-                    )}
-                    {billPrintWaiting && (
-                      <OrderBadge>Bill waiting for printer</OrderBadge>
-                    )}
-                  </OrderBadges>
-                )}
-
-                <OrderInfo>
-                  <InfoPill>
-                    <span>Status</span>
-                    <strong>{statusText(order)}</strong>
-                  </InfoPill>
-                  <InfoPill>
-                    <span>Customer</span>
-                    <strong>{customerLabel(order)}</strong>
-                  </InfoPill>
-                  <InfoPill>
-                    <span>Type</span>
-                    <strong>{fulfillmentLabel(order)}</strong>
-                  </InfoPill>
-                  <InfoPill>
-                    <span>Invoice</span>
-                    <strong>{order.invoiceNo || order.invoice_no || '-'}</strong>
-                  </InfoPill>
-                  <InfoPill>
-                    <span>Payment</span>
-                    <strong>{order.paymentStatus || order.payment_status || '-'}</strong>
-                  </InfoPill>
-                  <InfoPill>
-                    <span>Method</span>
-                    <strong>{paymentMethodLabel(order)}</strong>
-                  </InfoPill>
-                </OrderInfo>
-
-                {items.length ? (
-                  <OrderItemsList>
-                    <OrderItemsTitle>
-                      <span>Item</span>
-                      <span>Qty</span>
-                      <span>Total</span>
-                    </OrderItemsTitle>
-                    {items.map((item, index) => {
-                      const displayName = item.variant_name ? `${item.name} (${item.variant_name})` : item.name;
-                      const parsedLineTotal = Number(item.line_total);
-                      const rowTotal = Number.isFinite(parsedLineTotal)
-                        ? parsedLineTotal
-                        : Number(item.price || 0) * Number(item.quantity || 1);
-                      return (
-                        <OrderItemRow key={`${renderKey}-${item.productId || item.name}-${index}`}>
-                          <span>{displayName}</span>
-                          <strong>{quantityText(item.quantity)} x {money(item.price)}</strong>
-                          <strong>{money(rowTotal)}</strong>
-                        </OrderItemRow>
-                      );
-                    })}
-                  </OrderItemsList>
-                ) : (
-                  <OrderItemsEmpty>No order items found for this order</OrderItemsEmpty>
-                )}
-
-                <OrderActions>
-                  <ActionButton type="button" onClick={() => onPrint(order, 'kot')}>
-                    <FaFire /> KOT
-                  </ActionButton>
-                  <ActionButton type="button" $tone="blue" onClick={() => onPrint(order, 'bill')}>
-                    <FaPrint /> Bill
-                  </ActionButton>
-                  {open && (
-                    <ActionButton type="button" $tone="green" onClick={() => onSettle(order)} style={{ gridColumn: '1 / -1' }}>
-                      {creditFinish ? <><FaReceipt /> Complete Credit</> : <><FaWallet /> Settle & Print Bill</>}
-                    </ActionButton>
-                  )}
-                </OrderActions>
-              </OrderCard>
-            );
-          })}
-        </HistoryGrid>
+                    <td>
+                      <ItemsPill>
+                        {(items || []).length}
+                      </ItemsPill>
+                    </td>
+                    <td>
+                      <strong>{money(orderTotal(order))}</strong>
+                    </td>
+                    <td>
+                      <StatusBadge style={{
+                        background: colors.bg,
+                        color: colors.color,
+                        borderColor: colors.border
+                      }}>
+                        {statusText(order)}
+                      </StatusBadge>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <ActionGroup style={{ justifyContent: 'center' }}>
+                        <ActionButton type="button" onClick={() => onPrint(order, 'bill')} title="Print Bill">
+                          <FaPrint style={{ color: '#f97316', fontSize: 11 }} /> Print Bill
+                        </ActionButton>
+                        <ActionButton type="button" onClick={() => onEdit ? onEdit(order) : null} title="Edit Order">
+                          <FaEdit style={{ color: '#475569', fontSize: 11 }} /> Edit
+                        </ActionButton>
+                      </ActionGroup>
+                    </td>
+                  </HistRow>
+                );
+              })}
+            </tbody>
+          </HistTable>
+        </HistTableWrap>
       )}
 
       <HistoryPager>

@@ -3,6 +3,8 @@ import { FaTimes } from 'react-icons/fa';
 
 export default function CafeQRPopup({ 
   title, 
+  subtitle,
+  badge,
   onClose, 
   onSave, 
   onCancel, 
@@ -11,7 +13,8 @@ export default function CafeQRPopup({
   isSaving = false, 
   children,
   maxWidth = '650px',
-  icon: Icon
+  icon: Icon,
+  hideFooter = false
 }) {
   const handleOverlayClick = (e) => {
     if (e.target.className === 'cafeqr-popup-overlay') {
@@ -25,35 +28,50 @@ export default function CafeQRPopup({
         <div className="cafeqr-popup-header">
           <div className="header-left">
             {Icon && <div className="header-icon"><Icon /></div>}
-            <h3>{title}</h3>
+            <div className="header-title-block">
+              {subtitle && <span className="header-subtitle">{subtitle}</span>}
+              <h3>{title}</h3>
+            </div>
           </div>
-          <button className="close-btn" onClick={onClose} aria-label="Close">
-            <FaTimes />
-          </button>
+          <div className="header-right">
+            {badge && (
+              <span
+                className="header-badge"
+                style={{ color: badge.color, background: badge.bg || `${badge.color}15` }}
+              >
+                {badge.label}
+              </span>
+            )}
+            <button className="close-btn" onClick={onClose} aria-label="Close">
+              <FaTimes />
+            </button>
+          </div>
         </div>
 
         <div className="cafeqr-popup-body">
           {children}
         </div>
 
-        <div className="cafeqr-popup-footer">
-          <button 
-            className="popup-btn-secondary" 
-            onClick={onCancel || onClose} 
-            disabled={isSaving}
-          >
-            {cancelLabel}
-          </button>
-          {onSave && (
+        {!hideFooter && (
+          <div className="cafeqr-popup-footer">
             <button 
-              className="popup-btn-primary" 
-              onClick={onSave} 
+              className="popup-btn-secondary" 
+              onClick={onCancel || onClose} 
               disabled={isSaving}
             >
-              {isSaving ? 'Processing...' : saveLabel}
+              {cancelLabel}
             </button>
-          )}
-        </div>
+            {onSave && (
+              <button 
+                className="popup-btn-primary" 
+                onClick={onSave} 
+                disabled={isSaving}
+              >
+                {isSaving ? 'Processing...' : saveLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <style jsx>{`
@@ -90,6 +108,7 @@ export default function CafeQRPopup({
           align-items: center;
           justify-content: space-between;
           position: relative;
+          gap: 12px;
         }
 
         .header-left {
@@ -97,6 +116,38 @@ export default function CafeQRPopup({
           align-items: center;
           gap: 16px;
           min-width: 0;
+          flex: 1;
+        }
+
+        .header-title-block {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        .header-subtitle {
+          font-size: 10.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          color: #94a3b8;
+        }
+
+        .header-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
+        .header-badge {
+          padding: 3px 11px;
+          border-radius: 100px;
+          font-size: 11.5px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
+          white-space: nowrap;
         }
 
         .header-icon {
