@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { FaCheckCircle, FaMinus, FaPlus, FaTimes, FaUtensils } from 'react-icons/fa';
+import { FaTimes } from 'react-icons/fa';
+
+function stripSymbols(str) {
+  if (!str) return '';
+  return str
+    .replace(/[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 const Overlay = styled.div`
   position: fixed;
@@ -10,8 +18,8 @@ const Overlay = styled.div`
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
 
   @media (max-width: 640px) {
     align-items: flex-end;
@@ -20,39 +28,37 @@ const Overlay = styled.div`
 `;
 
 const Card = styled.div`
-  width: min(620px, 100%);
+  width: min(380px, 100%);
   max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
   background: white;
-  border-radius: 24px;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  border-top: 3px solid ${props => props.$themeColor || '#f97316'};
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
   overflow: hidden;
 
   @media (max-width: 640px) {
     width: 100%;
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
-    border-radius: 24px 24px 0 0;
+    max-height: min(85dvh, calc(100dvh - env(safe-area-inset-top, 0px)));
+    border-radius: 22px 22px 0 0;
   }
 `;
 
 const Header = styled.div`
-  padding: 24px 28px;
+  padding: 16px 20px;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
-
-  @media (max-width: 520px) {
-    padding: 20px;
-  }
+  align-items: center;
 
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: 24px;
-    font-weight: 900;
+    font-size: 16px;
+    font-weight: 800;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -61,115 +67,115 @@ const Header = styled.div`
 
   span {
     display: inline-flex;
-    margin-top: 8px;
-    padding: 6px 10px;
+    margin-top: 4px;
+    padding: 3px 8px;
     border-radius: 999px;
     background: #f1f5f9;
     color: #64748b;
-    font-size: 12px;
-    font-weight: 900;
-  }
-
-  @media (max-width: 520px) {
-    h2 {
-      font-size: 21px;
-    }
+    font-size: 10px;
+    font-weight: 700;
   }
 `;
 
 const CloseButton = styled.button`
-  border: 0;
-  background: transparent;
+  background: none;
+  border: none;
+  font-size: 18px;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 20px;
-`;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 50%;
+  transition: 0.2s;
 
-const OptionList = styled.div`
-  padding: 22px 28px;
-  overflow-y: auto;
-  display: grid;
-  gap: 12px;
-
-  @media (max-width: 520px) {
-    padding: 18px 16px;
+  &:hover {
+    background: #f1f5f9;
+    color: #0f172a;
   }
 `;
 
+const OptionList = styled.div`
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+`;
+
 const OptionButton = styled.div`
-  border: 2px solid ${props => props.$active ? '#f97316' : '#e2e8f0'};
-  background: ${props => props.$active ? '#fff7ed' : 'white'};
-  border-radius: 18px;
-  padding: 18px;
+  border: 1px solid ${props => props.$active ? props.$themeColor : '#cbd5e1'};
+  background: ${props => props.$active ? props.$themeSoftColor : 'white'};
+  border-radius: 8px;
+  padding: 5px 12px;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
   cursor: pointer;
   text-align: left;
   min-width: 0;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 
   &:hover {
-    border-color: ${props => props.$active ? '#f97316' : '#cbd5e1'};
-    transform: translateY(-1px);
+    border-color: ${props => props.$active ? props.$themeColor : '#94a3b8'};
   }
 
   strong {
     color: #0f172a;
-    font-size: 17px;
-    font-weight: 900;
+    font-size: 13px;
+    font-weight: 600;
     overflow-wrap: anywhere;
   }
 
   span {
     display: block;
-    margin-top: 6px;
-    color: #334155;
-    font-size: 14px;
-    font-weight: 800;
-  }
-
-  @media (max-width: 520px) {
-    padding: 16px;
-    align-items: stretch;
-    flex-direction: column;
+    margin-top: 1px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 600;
   }
 `;
 
 const Footer = styled.div`
-  padding: 18px 28px 24px;
+  padding: 12px 20px 16px;
   border-top: 1px solid #e2e8f0;
   display: grid;
-  gap: 14px;
-
-  @media (max-width: 520px) {
-    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-  }
+  gap: 10px;
 `;
 
 const AddButton = styled.button`
   width: 100%;
   border: 0;
-  border-radius: 18px;
-  background: #f97316;
+  border-radius: 12px;
+  background: ${props => props.$themeColor};
   color: white;
-  min-height: 56px;
+  min-height: 44px;
   cursor: pointer;
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px ${props => props.$themeColor}33;
+  transition: all 0.2s ease;
 
   &:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
+    box-shadow: none;
     cursor: not-allowed;
+    transform: none;
+  }
+
+  &:hover:not(:disabled) {
+    background: ${props => props.$themeDarkColor};
+    transform: translateY(-1px);
   }
 `;
 
 const Empty = styled.div`
-  padding: 40px;
+  padding: 30px;
   text-align: center;
   color: #64748b;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
 `;
 
 const OptionMeta = styled.div`
@@ -178,33 +184,29 @@ const OptionMeta = styled.div`
 
 const QuantityControls = styled.div`
   display: inline-grid;
-  grid-template-columns: 42px minmax(42px, auto) 42px;
+  grid-template-columns: 24px minmax(24px, auto) 24px;
   align-items: center;
   justify-content: end;
-  min-height: 44px;
-  border-radius: 14px;
-  border: 1px solid #fed7aa;
+  min-height: 24px;
+  border-radius: 6px;
+  border: 1px solid ${props => props.$themeColor}40;
   overflow: hidden;
   background: white;
   color: #0f172a;
   flex: 0 0 auto;
-
-  @media (max-width: 520px) {
-    width: 100%;
-    grid-template-columns: 48px 1fr 48px;
-  }
 `;
 
 const QuantityButton = styled.button`
-  height: 44px;
+  height: 24px;
   border: 0;
-  background: #fff7ed;
-  color: #f97316;
+  background: ${props => props.$themeSoftColor};
+  color: ${props => props.$themeColor};
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 900;
+  font-weight: 700;
+  font-size: 11px;
 
   &:disabled {
     color: #cbd5e1;
@@ -214,60 +216,52 @@ const QuantityButton = styled.button`
 `;
 
 const QuantityValue = styled.div`
-  height: 44px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-left: 1px solid #fed7aa;
-  border-right: 1px solid #fed7aa;
-  font-weight: 900;
-  min-width: 42px;
+  border-left: 1px solid ${props => props.$themeColor}20;
+  border-right: 1px solid ${props => props.$themeColor}20;
+  font-weight: 700;
+  font-size: 11px;
+  min-width: 24px;
 `;
 
 const SummaryBox = styled.div`
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #f8fafc;
-  padding: 14px 16px;
+  padding: 8px 14px;
   display: flex;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
 
   span {
     color: #475569;
-    font-size: 13px;
-    font-weight: 900;
+    font-size: 11px;
+    font-weight: 700;
   }
 
   strong {
-    color: #f97316;
-    font-size: 22px;
-    font-weight: 900;
+    color: ${props => props.$themeColor};
+    font-size: 15px;
+    font-weight: 800;
     white-space: nowrap;
-  }
-
-  @media (max-width: 420px) {
-    align-items: stretch;
-    flex-direction: column;
-
-    strong {
-      white-space: normal;
-    }
   }
 `;
 
 const SectionHeader = styled.div`
-  margin: 12px 0 4px;
-  padding: 0 4px;
+  margin: 6px 0 2px;
+  padding: 0 2px;
   color: #64748b;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 
   &::after {
     content: '';
@@ -279,21 +273,20 @@ const SectionHeader = styled.div`
 
 const UpsellList = styled.div`
   display: grid;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 6px;
 `;
 
 const UpsellButton = styled(OptionButton)`
-  padding: 12px 16px;
-  border-radius: 14px;
-  border-width: 1px;
+  padding: 5px 12px;
+  border-radius: 8px;
 
   strong {
-    font-size: 15px;
+    font-size: 13px;
   }
 
   span {
-    font-size: 13px;
+    font-size: 11px;
   }
 `;
 
@@ -350,6 +343,9 @@ export default function VariantSelector({
   quantityMode = false,
   initialQuantities = EMPTY_QUANTITIES,
   onSelectMany,
+  themeColor = '#f97316',
+  themeSoftColor = '#fff7ed',
+  themeDarkColor = '#ea580c'
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [quantities, setQuantities] = useState({});
@@ -459,11 +455,13 @@ export default function VariantSelector({
 
   return (
     <Overlay onMouseDown={onClose}>
-      <Card onMouseDown={(event) => event.stopPropagation()}>
+      <Card $themeColor={themeColor} onMouseDown={(event) => event.stopPropagation()}>
         <Header>
           <div>
-            <h2><FaUtensils /> {product.name}</h2>
-            <span>{product.category?.name || product.categoryName || 'Menu Item'}</span>
+            <h2>{stripSymbols(product.name)}</h2>
+            <div>
+              <span>{stripSymbols(product.category?.name || product.categoryName || 'Menu Item')}</span>
+            </div>
           </div>
           <CloseButton type="button" onClick={onClose} aria-label="Close variant selector">
             <FaTimes />
@@ -474,7 +472,7 @@ export default function VariantSelector({
           {options.length > 0 && (
             <>
               <SectionHeader>Variants / Options</SectionHeader>
-              <div style={{ display: 'grid', gap: '12px' }}>
+              <div style={{ display: 'grid', gap: '8px' }}>
                 {options.map((option) => {
                   const optionKey = String(option.id);
                   const quantity = Number(quantities[optionKey] || 0);
@@ -485,6 +483,8 @@ export default function VariantSelector({
                       role="button"
                       tabIndex={0}
                       $active={active}
+                      $themeColor={themeColor}
+                      $themeSoftColor={themeSoftColor}
                       onClick={() => quantityMode ? selectQuantityOption(option.id) : setSelectedId(option.id)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
@@ -494,25 +494,24 @@ export default function VariantSelector({
                       }}
                     >
                       <OptionMeta>
-                        <strong>{option.label}</strong>
+                        <strong>{stripSymbols(option.label)}</strong>
                         <span>₹{Number(option.price || 0).toFixed(2)}</span>
                       </OptionMeta>
                       {quantityMode ? (
                         <QuantityControls
+                          $themeColor={themeColor}
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => event.stopPropagation()}
                         >
-                          <QuantityButton type="button" disabled={quantity <= 0} onClick={() => updateQuantity(option.id, -1)}>
-                            <FaMinus />
+                          <QuantityButton type="button" $themeColor={themeColor} $themeSoftColor={themeSoftColor} disabled={quantity <= 0} onClick={() => updateQuantity(option.id, -1)}>
+                            -
                           </QuantityButton>
-                          <QuantityValue>{quantity}</QuantityValue>
-                          <QuantityButton type="button" onClick={() => updateQuantity(option.id, 1)}>
-                            <FaPlus />
+                          <QuantityValue $themeColor={themeColor}>{quantity}</QuantityValue>
+                          <QuantityButton type="button" $themeColor={themeColor} $themeSoftColor={themeSoftColor} onClick={() => updateQuantity(option.id, 1)}>
+                            +
                           </QuantityButton>
                         </QuantityControls>
-                      ) : (
-                        active && <FaCheckCircle color="#f97316" />
-                      )}
+                      ) : null}
                     </OptionButton>
                   );
                 })}
@@ -531,27 +530,30 @@ export default function VariantSelector({
                     <UpsellButton
                       key={u.id}
                       $active={active}
+                      $themeColor={themeColor}
+                      $themeSoftColor={themeSoftColor}
                       onClick={() => toggleUpsell(u.id)}
                     >
                       <OptionMeta>
-                        <strong>{u.upsellProduct?.name}</strong>
+                        <strong>{stripSymbols(u.upsellProduct?.name)}</strong>
                         <span>₹{Number(u.upsellProduct?.price || 0).toFixed(2)}</span>
                       </OptionMeta>
                       {active ? (
                         <QuantityControls
+                          $themeColor={themeColor}
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => event.stopPropagation()}
                         >
-                          <QuantityButton type="button" onClick={() => updateUpsellQuantity(u.id, -1)}>
-                            <FaMinus />
+                          <QuantityButton type="button" $themeColor={themeColor} $themeSoftColor={themeSoftColor} onClick={() => updateUpsellQuantity(u.id, -1)}>
+                            -
                           </QuantityButton>
-                          <QuantityValue>{quantity}</QuantityValue>
-                          <QuantityButton type="button" onClick={() => updateUpsellQuantity(u.id, 1)}>
-                            <FaPlus />
+                          <QuantityValue $themeColor={themeColor}>{quantity}</QuantityValue>
+                          <QuantityButton type="button" $themeColor={themeColor} $themeSoftColor={themeSoftColor} onClick={() => updateUpsellQuantity(u.id, 1)}>
+                            +
                           </QuantityButton>
                         </QuantityControls>
                       ) : (
-                        <FaPlus color="#cbd5e1" />
+                        <span style={{ fontSize: '16px', fontWeight: '800', color: themeColor }}>+</span>
                       )}
                     </UpsellButton>
                   );
@@ -567,13 +569,16 @@ export default function VariantSelector({
 
         <Footer>
           {quantityMode && (
-            <SummaryBox>
+            <SummaryBox $themeColor={themeColor}>
               <span>{totalQty} item{totalQty === 1 ? '' : 's'} selected</span>
               <strong>₹{totalAmount.toFixed(2)}</strong>
             </SummaryBox>
           )}
           <AddButton
             type="button"
+            $themeColor={themeColor}
+            $themeSoftColor={themeSoftColor}
+            $themeDarkColor={themeDarkColor}
             disabled={quantityMode ? (!totalQty && !totalUpsellQty && !initialTotalQty) : (!selected && !totalUpsellQty)}
             onClick={() => {
               if (quantityMode) {

@@ -63,9 +63,9 @@ function MainMenuContent() {
     "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
   };
 
-  // Only show PARENT menus and Filter out Point of Sale
+  // Only show PARENT menus and Filter out Point of Sale and Offline Sync Center (rendered statically for network resilience)
   const parentMenus = assignedMenus.filter(m => {
-    if (m.parentId || m.parent_id || m.name === "Point of Sale") return false;
+    if (m.parentId || m.parent_id || m.name === "Point of Sale" || m.name === "Offline Sync Center") return false;
     if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
     return true;
   });
@@ -78,6 +78,15 @@ function MainMenuContent() {
     icon: iconMap[m.name]?.icon || <FaBuilding />,
     color: iconMap[m.name]?.color || "#64748b"
   }));
+
+  const displayItems = [...filteredItems];
+  displayItems.push({
+    title: "Offline Sync Center",
+    desc: "Manage offline operations queue, manually trigger synchronizations, and adjust network configuration settings.",
+    href: "/owner/offline-sync",
+    icon: <FaCashRegister />,
+    color: "#f59e0b"
+  });
 
   if (authLoading || fetching) {
     return (
@@ -102,7 +111,7 @@ function MainMenuContent() {
   return (
     <DashboardLayout title="Business Suite">
         <div className="dense-grid">
-           {filteredItems.map((item, idx) => (
+           {displayItems.map((item, idx) => (
              <Link href={item.href} key={idx} className="menu-box">
                 <div className="box-icon" style={{ background: `${item.color}15`, color: item.color }}>
                   {item.icon}

@@ -22,7 +22,7 @@ const Overlay = styled.div`
 `;
 
 const Card = styled.div`
-  width: min(432px, 100%);
+  width: min(380px, 100%);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: white;
@@ -338,20 +338,56 @@ const createInitialSplits = (payable) => {
   ];
 };
 
-export default function PaymentDialog({ order, loading = false, creditEnabled = false, creditCustomers = [], onClose, onConfirm, onCreditCustomerCreated }) {
+export default function PaymentDialog({ 
+  order, 
+  loading = false, 
+  config = null, 
+  creditCustomers = [], 
+  onClose, 
+  onConfirm, 
+  onCreditCustomerCreated 
+}) {
+  const creditEnabled = Boolean(config?.creditEnabled);
+  const roundOffEnabled = Boolean(config?.roundOffEnabled);
+  const roundOffMode = config?.roundOffMode || 'automatic';
+  const roundOffAutoFactor = Number(config?.roundOffAutoFactor ?? 1);
+  const roundOffManualLimit = Number(config?.roundOffManualLimit ?? 10);
+
   const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [discountAmount, setDiscountAmount] = useState('');
-  const [roundOffAmount, setRoundOffAmount] = useState('');
   const [paymentSplits, setPaymentSplits] = useState([]);
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
   const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
   const taxAmount = Number(order?.totalTaxAmount ?? order?.total_tax_amount ?? 0);
-  const discount = toNumber(discountAmount);
-  const roundOff = toNumber(roundOffAmount);
-  const payable = useMemo(() => Math.max(0, baseTotal - discount + roundOff), [baseTotal, discount, roundOff]);
   const subtotal = Math.max(0, baseTotal - taxAmount);
+
+  // Initialize roundOffAmount based on config
+  const [roundOffAmount, setRoundOffAmount] = useState(() => {
+    if (order?.roundOffAmount !== undefined && order?.roundOffAmount !== null) {
+      return String(order.roundOffAmount);
+    }
+    if (order?.round_off_amount !== undefined && order?.round_off_amount !== null) {
+      return String(order.round_off_amount);
+    }
+    if (roundOffEnabled && roundOffMode === 'automatic') {
+      const rounded = Math.round(baseTotal / roundOffAutoFactor) * roundOffAutoFactor;
+      return String(Number((rounded - baseTotal).toFixed(2)));
+    }
+    return '0.00';
+  });
+
+  const roundOff = toNumber(roundOffAmount);
+  const payable = useMemo(() => Math.max(0, baseTotal + roundOff), [baseTotal, roundOff]);
+
+  const isRoundOffValid = useMemo(() => {
+    if (!roundOffEnabled) return true;
+    if (roundOffMode === 'manual') {
+      return Math.abs(roundOff) <= roundOffManualLimit;
+    }
+    return true;
+  }, [roundOffEnabled, roundOffMode, roundOff, roundOffManualLimit]);
+
   const mixedTotal = paymentSplits.reduce((sum, split) => sum + toNumber(split.amount), 0);
   const selectedSplitMethods = paymentSplits.map((split) => split.paymentMethod).filter(Boolean);
   const hasDuplicateSplitMethod = new Set(selectedSplitMethods).size !== selectedSplitMethods.length;
@@ -402,13 +438,13 @@ export default function PaymentDialog({ order, loading = false, creditEnabled = 
   };
 
   const submit = () => {
-    if (mixedInvalid || creditInvalid) return;
+    if (mixedInvalid || creditInvalid || !isRoundOffValid) return;
     if (paymentMethod === 'CREDIT') {
       onConfirm?.({
         paymentMethod: 'CREDIT',
         creditCustomerId,
         amountPaid: 0,
-        discountAmount: Number(discount.toFixed(2)),
+        discountAmount: 0,
         roundOffAmount: Number(roundOff.toFixed(2)),
       });
       return;
@@ -432,7 +468,7 @@ export default function PaymentDialog({ order, loading = false, creditEnabled = 
       cashAmount: paymentMethod === 'MIXED' ? Number(cashAmount.toFixed(2)) : null,
       onlineAmount: paymentMethod === 'MIXED' ? Number(nonCashAmount.toFixed(2)) : null,
       paymentSplits: normalizedSplits,
-      discountAmount: Number(discount.toFixed(2)),
+      discountAmount: 0,
       roundOffAmount: Number(roundOff.toFixed(2)),
     });
   };
@@ -460,19 +496,20 @@ export default function PaymentDialog({ order, loading = false, creditEnabled = 
         <Breakdown>
           <Row><span>Gross Total</span><strong>{money(baseTotal)}</strong></Row>
           <Row><span>Subtotal</span><strong>{money(subtotal)}</strong></Row>
-          <Row><span>Discount</span><strong>{money(discount)}</strong></Row>
           <Row><span>Tax</span><strong>{money(taxAmount)}</strong></Row>
           <Row><span>Round Off</span><strong>{money(roundOff)}</strong></Row>
         </Breakdown>
 
         <FieldGrid>
           <Field>
-            Discount
-            <input type="number" min="0" step="0.01" value={discountAmount} onChange={(event) => setDiscountAmount(event.target.value)} />
-          </Field>
-          <Field>
-            Round Off
-            <input type="number" step="0.01" value={roundOffAmount} onChange={(event) => setRoundOffAmount(event.target.value)} />
+            Round Off {roundOffEnabled && roundOffMode === 'manual' && `(Limit ±₹${roundOffManualLimit})`}
+            <input 
+              type="number" 
+              step="0.01" 
+              disabled={!roundOffEnabled || roundOffMode === 'automatic'} 
+              value={roundOffAmount} 
+              onChange={(event) => setRoundOffAmount(event.target.value)} 
+            />
           </Field>
         </FieldGrid>
 
@@ -569,12 +606,15 @@ export default function PaymentDialog({ order, loading = false, creditEnabled = 
         {creditInvalid && (
           <ErrorText>Choose a credit customer to complete this order as credit.</ErrorText>
         )}
+        {!isRoundOffValid && (
+          <ErrorText>Manual round off must not exceed the limit of ±₹{roundOffManualLimit.toFixed(2)}.</ErrorText>
+        )}
 
         <Actions>
           <Button type="button" disabled={loading} onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" $primary disabled={loading || mixedInvalid || creditInvalid} onClick={submit}>
+          <Button type="button" $primary disabled={loading || mixedInvalid || creditInvalid || !isRoundOffValid} onClick={submit}>
             {loading ? 'Settling...' : paymentMethod === 'CREDIT' ? <><FaBook /> Complete as Credit</> : <><FaWallet /> Settle & Finish</>}
           </Button>
         </Actions>

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatTzDate } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
-  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook
+  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
@@ -13,6 +13,7 @@ import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBill
 import VariantSelector from './VariantSelector';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
+import PremiumDateTimePicker from './PremiumDateTimePicker';
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI
 const fadeIn = keyframes`
@@ -23,73 +24,53 @@ const fadeIn = keyframes`
 const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(8px);
+  background: #f8fafc;
   z-index: 1000;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-
-  @media (max-width: 640px) {
-    padding: 0;
-  }
+  flex-direction: column;
 `;
 
 const ModalContent = styled.div`
   background: #f8fafc;
   width: 100%;
-  max-width: 1500px;
-  height: min(95dvh, 980px);
-  border-radius: 32px;
+  height: 100dvh;
+  border-radius: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  animation: ${fadeIn} 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-
-  @media (max-width: 900px) {
-    height: calc(100dvh - 24px);
-    border-radius: 24px;
-  }
-
-  @media (max-width: 640px) {
-    height: 100dvh;
-    border-radius: 0;
-  }
 `;
 
 const CounterHeader = styled.header`
-  padding: 20px 32px;
+  padding: 8px 24px;
   background: white;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
 
   @media (max-width: 720px) {
-    padding: 16px;
+    padding: 6px 16px;
   }
 `;
 
 const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
   min-width: 0;
 
   @media (max-width: 520px) {
-    gap: 12px;
+    gap: 8px;
   }
 `;
 
 const BackBtn = styled.button`
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: white;
   display: flex;
@@ -103,24 +84,31 @@ const BackBtn = styled.button`
 
 const TitleGroup = styled.div`
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  border-left: 5px solid ${props => props.$accentColor || '#16a34a'};
+  border-radius: 3px;
+  padding: 0 0 0 10px;
   min-width: 0;
+  height: 24px;
 `;
 
 const Title = styled.h1`
   margin: 0;
-  font-size: 24px;
-  font-weight: 800;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
   color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1;
   overflow-wrap: anywhere;
 
   @media (max-width: 520px) {
-    font-size: 21px;
+    font-size: 15px;
   }
 `;
 
 const Subtitle = styled.span`
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
 `;
@@ -191,18 +179,56 @@ const CartSection = styled.aside`
 
 const HeaderModeSwitch = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 4px;
   background: #f1f5f9;
-  padding: 6px;
-  border-radius: 16px;
+  padding: 3px;
+  border-radius: 9px;
+  align-items: center;
+  box-shadow: inset 0 1px 2.5px rgba(15, 23, 42, 0.08);
+  border: 1.5px solid #edf2f7;
 
   @media (max-width: 520px) {
     width: 100%;
-    gap: 8px;
+    gap: 2px;
 
     button {
       flex: 1;
     }
+  }
+`;
+
+const ModeToggleBtn = styled.button`
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid ${props => {
+    if (!props.$active) return 'transparent';
+    return props.$themeColor === '#f97316' ? '#ea580c' : '#15803d';
+  }};
+  background: ${props => {
+    if (!props.$active) return 'transparent';
+    return props.$themeColor === '#f97316' ? '#f97316' : '#16a34a';
+  }};
+  color: ${props => {
+    if (!props.$active) return '#64748b';
+    return 'white';
+  }};
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: -0.015em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: ${props => props.$active ? '0 2px 4px rgba(15, 23, 42, 0.08)' : 'none'};
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: ${props => props.$active ? 'white' : '#0f172a'};
+    background: ${props => {
+      if (props.$active) {
+        return props.$themeColor === '#f97316' ? '#ea580c' : '#15803d';
+      }
+      return 'rgba(15, 23, 42, 0.04)';
+    }};
   }
 `;
 
@@ -211,31 +237,169 @@ const SearchBar = styled.div`
   width: 100%;
 `;
 
+const FloatingSuggestBox = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.04);
+  z-index: 150;
+  overflow: hidden;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+`;
+
+const SuggestList = styled.div`
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const SuggestItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  min-width: 0;
+  gap: 8px;
+
+  &:hover {
+    background: #f8fafc;
+  }
+`;
+
+const SuggestItemMeta = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+
+  strong {
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 600;
+  }
+`;
+
+const SuggestAddIcon = styled.div`
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: ${props => props.$themeColor}12;
+  color: ${props => props.$themeColor};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  flex: 0 0 auto;
+  transition: all 0.2s;
+
+  ${SuggestItem}:hover & {
+    background: ${props => props.$themeColor};
+    color: white;
+  }
+`;
+
+const SuggestAddBtn = styled.button`
+  padding: 2px 8px;
+  font-size: 9px;
+  border-radius: 5px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid ${props => props.$outline ? props.$themeColor : '#e2e8f0'};
+  background: ${props => props.$outline ? 'white' : props.$themeColor};
+  color: ${props => props.$outline ? props.$themeColor : 'white'};
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+`;
+
+const SuggestStepper = styled.div`
+  display: flex;
+  align-items: center;
+  background: #f1f5f9;
+  border-radius: 5px;
+  padding: 1px;
+  height: 20px;
+`;
+
+const SuggestQtyBtn = styled.button`
+  border: 0;
+  background: transparent;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  cursor: pointer;
+  &:hover { background: white; color: #0f172a; }
+`;
+
+const SuggestQtyVal = styled.div`
+  font-weight: 800;
+  font-size: 10px;
+  min-width: 16px;
+  text-align: center;
+  color: #0f172a;
+`;
+
+const NoSuggests = styled.div`
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+`;
+
 const SearchInput = styled.input`
   width: 100%;
-  padding: 16px 20px 16px 56px;
+  padding: 10px 16px 10px 44px;
   background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 20px;
-  font-size: 16px;
+  color: #000000;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  font-size: 14px;
   font-weight: 600;
   outline: none;
-  transition: all 0.3s;
-  &:focus { border-color: ${props => props.$themeColor || '#ea580c'}; box-shadow: 0 0 0 4px ${props => props.$themeColor}15; }
+  transition: all 0.2s;
+  &:focus { border-color: ${props => props.$themeColor || '#ea580c'}; box-shadow: 0 0 0 3px ${props => props.$themeColor}15; }
 
   @media (max-width: 520px) {
-    padding: 14px 16px 14px 48px;
-    border-radius: 16px;
+    padding: 8px 12px 8px 36px;
+    border-radius: 8px;
   }
 `;
 
 const SearchIcon = styled.div`
   position: absolute;
-  left: 20px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   color: #94a3b8;
-  font-size: 20px;
+  font-size: 16px;
 `;
 
 const CategoryScroll = styled.div`
@@ -430,16 +594,17 @@ const StandardOrderList = styled.div`
 const StandardOrderRow = styled.div`
   display: grid;
   grid-template-columns: 1fr auto auto;
-  gap: 14px;
+  gap: 12px;
   align-items: center;
-  padding: 14px;
+  padding: 6px 12px;
   background: #f8fafc;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid #edf2f7;
 
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
     align-items: stretch;
+    padding: 10px 12px;
   }
 `;
 
@@ -706,22 +871,207 @@ const SummaryRow = styled.div`
 
 const PayBtn = styled.button`
   width: 100%;
-  padding: 20px;
-  border-radius: 20px;
+  padding: 14px 20px;
+  border-radius: 12px;
   background: linear-gradient(135deg, ${props => props.$color} 0%, ${props => props.$colorDark} 100%);
   color: white;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   border: none;
   cursor: pointer;
   box-shadow: 0 10px 25px -5px ${props => props.$color}40;
-  transition: all 0.3s;
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 8px;
+  transition: transform 0.1s, box-shadow 0.1s;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px -5px ${props => props.$color}50;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    background: #cbd5e1;
+    color: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const DiscountBtn = styled.button`
+  width: 100%;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px dashed #cbd5e1;
+  background: white;
+  color: #475569;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+`;
+
+const ModalBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const DiscountModalContent = styled.div`
+  background: white;
+  width: min(480px, 94vw);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ${fadeIn} 0.2s ease-out;
+`;
+
+const DiscountModalHeader = styled.div`
+  padding: 16px 20px;
+  border-bottom: 1px solid #edf2f7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    font-family: 'Outfit', sans-serif;
+  }
+`;
+
+const DiscountTabHeader = styled.div`
+  display: flex;
+  background: #f8fafc;
+  border-bottom: 1px solid #edf2f7;
+  padding: 0 16px;
+`;
+
+const DiscountTabButton = styled.button`
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  color: ${props => props.$active ? props.$themeColor : '#64748b'};
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  font-family: 'Outfit', sans-serif;
+  &:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    border-radius: 99px;
+    background: ${props => props.$active ? props.$themeColor : 'transparent'};
+    transition: all 0.2s;
+  }
+`;
+
+const DiscountModalBody = styled.div`
+  padding: 16px 20px;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const DiscountModalFooter = styled.div`
+  padding: 16px 20px;
+  border-top: 1px solid #edf2f7;
+  display: flex;
   gap: 10px;
-  &:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px ${props => props.$color}60; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+`;
+
+const DiscountRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #edf2f7;
+`;
+
+const DiscountRowInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  span {
+    display: block;
+    font-weight: 700;
+    font-size: 13px;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  small {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+  }
+`;
+
+const DiscountInputWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2px;
+  height: 32px;
+  &:focus-within {
+    border-color: ${props => props.$themeColor};
+  }
+`;
+
+const DiscUnitToggle = styled.button`
+  border: none;
+  background: ${props => props.$active ? props.$themeColor : 'transparent'};
+  color: ${props => props.$active ? 'white' : '#64748b'};
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  &:hover {
+    background: ${props => props.$active ? props.$themeColor : '#f1f5f9'};
+  }
 `;
 
 const EmptyCart = styled.div`
@@ -738,15 +1088,16 @@ const EmptyCart = styled.div`
 
 const CartItemCard = styled.div`
   display: flex;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
   border: 1px solid #f1f5f9;
   background: white;
 
   @media (max-width: 420px) {
     align-items: stretch;
     flex-direction: column;
+    padding: 10px 12px;
   }
 `;
 
@@ -754,24 +1105,24 @@ const CartItemInfo = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 `;
 
 const QtyGroup = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   background: #f8fafc;
-  padding: 4px 8px;
-  border-radius: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
   flex: 0 0 auto;
 `;
 
 const QtyBtn = styled.button`
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
   border: none;
   background: white;
   color: #64748b;
@@ -1033,7 +1384,41 @@ const RemoveChip = styled.button`
   &:hover { color: #1e3a8a; }
 `;
 
-export default function CounterSale({ onBack, initialTable, onOrderCreated, onCreditCustomerCreated, interfaceMode = 'counter' }) {
+const DateTimeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+`;
+
+const DateTimeInput = styled.input`
+  flex: 1;
+  height: 34px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 0 8px;
+  outline: none;
+  background: white;
+  color: #0f172a;
+  transition: all 0.2s;
+  &:focus {
+    border-color: ${props => props.$themeColor};
+  }
+`;
+
+
+
+export default function CounterSale({ 
+  onBack, 
+  initialTable, 
+  onOrderCreated, 
+  onCreditCustomerCreated, 
+  interfaceMode = 'counter',
+  config: propConfig = null,
+  initialCreditCustomers = null
+}) {
   const { timezone, orgId } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState(['ALL']);
@@ -1043,6 +1428,8 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
   const [orderMode, setOrderMode] = useState('settle'); // 'kitchen' | 'settle'
+  const [discountType, setDiscountType] = useState('amount'); // 'amount' | 'percentage'
+  const [discountValue, setDiscountValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -1061,13 +1448,209 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
   const [selectedCreditCustomerId, setSelectedCreditCustomerId] = useState('');
   const [isCreditSale, setIsCreditSale] = useState(false);
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
+  const [defaultPricelistId, setDefaultPricelistId] = useState(null);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [localDiscounts, setLocalDiscounts] = useState({});
+  const [localOrderDiscountType, setLocalOrderDiscountType] = useState('amount');
+  const [localOrderDiscountValue, setLocalOrderDiscountValue] = useState(0);
+  const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
   const customerInputRef = useRef(null);
   const searchRef = useRef(null);
   const isStandardUi = interfaceMode === 'standard';
 
+  const [orderDateTime, setOrderDateTime] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  });
+
+  const propConfigRef = useRef(propConfig);
+  const initialCreditCustomersRef = useRef(initialCreditCustomers);
+
+  useEffect(() => {
+    propConfigRef.current = propConfig;
+  }, [propConfig]);
+
+  useEffect(() => {
+    initialCreditCustomersRef.current = initialCreditCustomers;
+  }, [initialCreditCustomers]);
+
+  // Sync config updates passively without resetting loading or wiping cart
+  useEffect(() => {
+    if (propConfig) {
+      setConfig(propConfig);
+      if (!propConfig.creditEnabled) {
+        setIsCreditSale(false);
+        setSelectedCreditCustomerId('');
+      }
+    }
+  }, [propConfig]);
+
+  // Sync credit customers passively without resetting loading or wiping cart
+  useEffect(() => {
+    if (initialCreditCustomers) {
+      setCreditCustomers(initialCreditCustomers);
+    }
+  }, [initialCreditCustomers]);
+
+  useEffect(() => {
+    if (showDiscountModal) {
+      const initial = {};
+      cart.forEach(item => {
+        const key = cartKeyFor(item);
+        if (item.discount_percent > 0) {
+          initial[key] = { type: 'percentage', value: item.discount_percent };
+        } else if (item.discount_amount > 0) {
+          initial[key] = { type: 'amount', value: item.discount_amount };
+        } else if (item.discount) {
+          initial[key] = { type: item.discount.type || 'amount', value: item.discount.value || 0 };
+        } else {
+          initial[key] = { type: 'amount', value: 0 };
+        }
+      });
+      setLocalDiscounts(initial);
+      setLocalOrderDiscountType(discountType || 'amount');
+      setLocalOrderDiscountValue(discountValue || 0);
+      setDiscountModalTab('line');
+    }
+  }, [showDiscountModal, cart, discountType, discountValue]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (customerInputRef.current && !customerInputRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
+
   const THEME = orderMode === 'kitchen'
     ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
     : { main: '#16a34a', dark: '#15803d', soft: '#ecfdf3' };
+
+  const renderCustomerSelectionPanel = () => {
+    const showCredit = config?.creditEnabled && isCreditSale;
+    return (
+      <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid #edf2f7', borderRadius: '12px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.015)' }}>
+        {/* Customer Selection Block */}
+        {showCredit ? (
+          <CustomerPickerArea style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+              Credit Customer
+            </div>
+            <CreditPickerRow style={{ marginTop: '2px' }}>
+              <CustomerInputWrap style={{ flex: 1, height: 34, padding: '0 8px', borderRadius: '8px' }}>
+                <FaBook color="#14b8a6" size={11} />
+                <CreditSelectWrap>
+                  <NiceSelect
+                    value={selectedCreditCustomerId}
+                    onChange={setSelectedCreditCustomerId}
+                    placeholder="Credit customer..."
+                    options={creditCustomerOptions}
+                    maxHeight={320}
+                    style={{ height: 30, minWidth: 0, fontSize: '12px' }}
+                  />
+                </CreditSelectWrap>
+              </CustomerInputWrap>
+              <CreditNewButton type="button" onClick={() => setShowNewCreditCustomer(true)} style={{ height: 34, padding: '0 8px', borderRadius: '8px', fontSize: '11px' }}>
+                <FaPlus size={9} /> New
+              </CreditNewButton>
+            </CreditPickerRow>
+            <CreditMeta $warn={Boolean(creditLimitWarning)} style={{ fontSize: '10.5px', marginTop: '4px' }}>
+              {creditLimitWarning || (selectedCreditCustomer ? `Balance ₹${Number(selectedCreditCustomer.balance || 0).toFixed(2)}` : 'Choose a credit customer before submitting.')}
+            </CreditMeta>
+          </CustomerPickerArea>
+        ) : (
+          <CustomerPickerArea ref={customerInputRef} style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+              Customer Details
+            </div>
+            {!config?.allowMultipleCustomersPerOrder && selectedCustomerId ? (
+              <CustomerChip style={{ padding: '6px 12px', fontSize: '12px', width: '100%', justifyContent: 'space-between', borderRadius: '8px' }}>
+                <span>{customerName} {customerPhone ? `(${customerPhone})` : ''}</span>
+                <RemoveChip onClick={() => removeCustomer(selectedCustomerId)} style={{ display: 'flex', alignItems: 'center' }}><FaTimes size={10}/></RemoveChip>
+              </CustomerChip>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <CustomerInputWrap style={{ height: 34, padding: '0 8px', borderRadius: '8px', gap: '6px' }}>
+                  <FaUsers color="#94a3b8" size={11} />
+                  <CustomerInput 
+                    placeholder="Customer Name"
+                    value={customerName}
+                    onChange={e => {
+                      setCustomerName(e.target.value);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onKeyDown={handleCustomerKeyDown}
+                    style={{ fontSize: '12px' }}
+                  />
+                </CustomerInputWrap>
+                
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <CustomerInputWrap style={{ flex: 1, height: 34, padding: '0 8px', borderRadius: '8px', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>📞</span>
+                    <CustomerInput 
+                      placeholder="Phone Number (Optional)"
+                      value={customerPhone}
+                      onChange={e => {
+                        setCustomerPhone(e.target.value);
+                        setShowCustomerDropdown(true);
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      onKeyDown={handleCustomerKeyDown}
+                      style={{ fontSize: '12px' }}
+                    />
+                  </CustomerInputWrap>
+
+                  {config?.customerAgeEnabled && (
+                    <CustomerInputWrap style={{ width: '60px', height: 34, padding: '0 8px', borderRadius: '8px', gap: '4px' }}>
+                      <CustomerInput 
+                        placeholder="Age"
+                        value={customerAge}
+                        onChange={e => setCustomerAge(e.target.value)}
+                        style={{ fontSize: '12px', textAlign: 'center' }}
+                        type="number"
+                      />
+                    </CustomerInputWrap>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {showCustomerDropdown && (customerName || customerPhone) && filteredCustomers.length > 0 && (
+              <CustomerDropdown style={{ zIndex: 110 }}>
+                {filteredCustomers.map(c => (
+                  <CustomerOption key={c.id} onClick={() => selectCustomer(c)}>
+                    <CustomerName>{c.name}</CustomerName>
+                    <CustomerPhone>{c.phone || 'No phone'}</CustomerPhone>
+                  </CustomerOption>
+                ))}
+              </CustomerDropdown>
+            )}
+
+            {config?.allowMultipleCustomersPerOrder && selectedCustomers.length > 0 && (
+              <CustomerChips style={{ marginTop: '6px' }}>
+                {selectedCustomers.map(c => (
+                  <CustomerChip key={c.id} style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '8px' }}>
+                    {c.name}
+                    <RemoveChip onClick={() => removeCustomer(c.id)} style={{ display: 'flex', alignItems: 'center' }}><FaTimes size={8}/></RemoveChip>
+                  </CustomerChip>
+                ))}
+              </CustomerChips>
+            )}
+          </CustomerPickerArea>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -1087,12 +1670,17 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
     setCreditCustomers([]);
     (async () => {
       try {
-        const [pRes, cRes, custRes, creditRes] = await Promise.all([
+        const currentPropConfig = propConfigRef.current;
+        const currentCreditCustomers = initialCreditCustomersRef.current;
+
+        const promises = [
           api.get('/api/v1/products'),
-          api.get('/api/v1/configurations'),
+          currentPropConfig ? Promise.resolve({ data: { data: currentPropConfig } }) : api.get('/api/v1/configurations'),
           api.get('/api/v1/purchasing/customers').catch(() => ({ data: { data: [] } })),
-          api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } }).catch(() => ({ data: { data: [] } }))
-        ]);
+          currentCreditCustomers ? Promise.resolve({ data: { data: currentCreditCustomers } }) : api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } }).catch(() => ({ data: { data: [] } })),
+          api.get('/api/v1/purchasing/pricelists/type/SALE').catch(() => ({ data: { data: [] } }))
+        ];
+        const [pRes, cRes, custRes, creditRes, pricelistRes] = await Promise.all(promises);
         const pList = pRes.data.data || [];
         setProducts(pList);
         const nextConfig = cRes.data.data;
@@ -1106,6 +1694,13 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
         }
         if (creditRes?.data?.data) {
           setCreditCustomers(creditRes.data.data);
+        }
+        if (pricelistRes?.data?.data) {
+          const list = pricelistRes.data.data || [];
+          const def = list.find(p => p.isDefault === true || p.is_default === true) || list[0];
+          if (def) {
+            setDefaultPricelistId(def.id);
+          }
         }
         const cats = ['ALL', ...new Set(pList.map(p => p.categoryName).filter(Boolean))];
         setCategories(cats);
@@ -1382,8 +1977,17 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
   useEffect(() => {
     if (cart.length === 0) {
       setMobileCartOpen(false);
+      setDiscountValue(0);
+      setDiscountType('amount');
     }
   }, [cart.length]);
+
+  useEffect(() => {
+    if (orderMode === 'kitchen') {
+      setDiscountValue(0);
+      setDiscountType('amount');
+    }
+  }, [orderMode]);
 
   const totals = useMemo(() => {
     if (!config) return { subtotal: 0, tax: 0, total: 0 };
@@ -1398,7 +2002,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
         is_packaged_good: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true,
         is_packaged: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true
       })),
-      { type: 'amount', value: 0 },
+      { type: discountType, value: discountValue },
       { 
         gst_enabled: config.taxEnabled,
         default_tax_rate: (() => {
@@ -1408,10 +2012,15 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
           return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
         })(),
         prices_include_tax: config.pricesIncludeTax,
-        round_off_config: { round_off_enabled: config.roundOffEnabled }
+        round_off_config: { 
+          round_off_enabled: config.roundOffEnabled,
+          round_off_mode: config.roundOffMode || 'automatic',
+          round_off_auto_factor: config.roundOffAutoFactor ?? 1,
+          round_off_manual_limit: config.roundOffManualLimit ?? 10
+        }
       }
     );
-  }, [cart, config, cartKeyFor]);
+  }, [cart, config, cartKeyFor, discountType, discountValue]);
 
   const creditLimitWarning = useMemo(() => {
     if (!selectedCreditCustomer) return '';
@@ -1448,10 +2057,102 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
     return selections;
   };
 
+  const handleApplyDiscounts = () => {
+    setCart(prev => prev.map(item => {
+      const key = cartKeyFor(item);
+      const disc = localDiscounts[key];
+      if (disc) {
+        if (disc.type === 'percentage') {
+          return {
+            ...item,
+            discount_percent: disc.value,
+            discount_amount: 0,
+            discount: { type: 'percent', value: disc.value }
+          };
+        } else {
+          return {
+            ...item,
+            discount_percent: 0,
+            discount_amount: disc.value,
+            discount: { type: 'amount', value: disc.value }
+          };
+        }
+      }
+      return item;
+    }));
+    setDiscountType(localOrderDiscountType);
+    setDiscountValue(localOrderDiscountValue);
+    setShowDiscountModal(false);
+  };
+
+  const handleClearAllDiscounts = () => {
+    setLocalDiscounts(prev => {
+      const next = {};
+      Object.keys(prev).forEach(key => {
+        next[key] = { type: 'amount', value: 0 };
+      });
+      return next;
+    });
+    setLocalOrderDiscountType('amount');
+    setLocalOrderDiscountValue(0);
+  };
+
   const handlePlaceOrder = async () => {
     if (processing) return;
     setProcessing(true);
     try {
+      const saveCustomerToDb = async (name, phone) => {
+        const payload = {
+          name: name.trim(),
+          phone: phone ? phone.trim() : null,
+          pricelistId: defaultPricelistId,
+          isactive: 'Y'
+        };
+        const { data } = await api.post('/api/v1/purchasing/customers', payload);
+        return data.data; // Created customer entity with real UUID
+      };
+
+      let primaryCustomer = null;
+      let customerSelections = [];
+
+      if (isCreditSale && selectedCreditCustomer) {
+        primaryCustomer = {
+          id: selectedCreditCustomer.linkedCustomerId || null,
+          name: selectedCreditCustomer.name || null,
+          phone: selectedCreditCustomer.phone || null,
+        };
+        customerSelections = [primaryCustomer];
+      } else if (config?.allowMultipleCustomersPerOrder) {
+        const resolvedList = [];
+        for (const c of selectedCustomers) {
+          if (String(c.id).startsWith('temp-')) {
+            const saved = await saveCustomerToDb(c.name, c.phone);
+            resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
+          } else {
+            resolvedList.push({ id: c.id, name: c.name, phone: c.phone });
+          }
+        }
+        if (customerName.trim()) {
+          const saved = await saveCustomerToDb(customerName, customerPhone);
+          resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
+        }
+        customerSelections = resolvedList;
+        primaryCustomer = resolvedList[0] || null;
+      } else {
+        if (selectedCustomerId && String(selectedCustomerId).startsWith('temp-')) {
+          const saved = await saveCustomerToDb(customerName, customerPhone);
+          primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
+          customerSelections = [primaryCustomer];
+        } else if (selectedCustomerId) {
+          primaryCustomer = { id: selectedCustomerId, name: customerName, phone: customerPhone };
+          customerSelections = [primaryCustomer];
+        } else if (customerName.trim()) {
+          const saved = await saveCustomerToDb(customerName, customerPhone);
+          primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
+          customerSelections = [primaryCustomer];
+        }
+      }
+
       const processedLines = (totals.processed_items || []).map((pi, idx) => {
         // processed_items are in the same order as cart — use index for reliable 1:1 mapping
         const cartItem = cart[idx] || null;
@@ -1473,14 +2174,6 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
           lineTotal: Number(Number(pi.line_total || (unitPrice * Number(pi.quantity || 1))).toFixed(2))
         };
       });
-      const customerSelections = isCreditSale && selectedCreditCustomer
-        ? [{
-            id: selectedCreditCustomer.linkedCustomerId || null,
-            name: selectedCreditCustomer.name || null,
-            phone: selectedCreditCustomer.phone || null,
-          }]
-        : buildCustomerSelections();
-      const primaryCustomer = customerSelections[0] || null;
 
       const knownOffline = isKnownOffline();
       const mainOfflineDevice = isMainOfflineBillingDevice();
@@ -1493,10 +2186,20 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
       const isCreditFinal = isCreditSale && orderMode === 'settle';
       const isOfflineFinal = knownOffline && orderMode === 'settle' && mainOfflineDevice;
 
+      let parsedDate = null;
+      try {
+        if (orderDateTime) {
+          parsedDate = new Date(orderDateTime).toISOString();
+        }
+      } catch (err) {
+        console.error('Failed to parse custom date time', err);
+      }
+
       const payload = {
         orderType: 'SALE',
         ...(orgId ? { orgId } : {}),
         orderSource: knownOffline ? 'OFFLINE' : 'ONLINE',
+        ...(parsedDate ? { orderDate: parsedDate } : {}),
         fulfillmentType: initialTable ? 'DINE_IN' : 'TAKEAWAY', // Align with enum: DINE_IN, TAKEAWAY, DELIVERY
         tableNumber: initialTable ? initialTable.tableNumber : null,
         tableId: initialTable ? initialTable.id : null,
@@ -1556,10 +2259,13 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
           syncStatus: offlineAccepted ? 'QUEUED' : savedOrder?.syncStatus,
         };
 
-        onOrderCreated?.(printOrder, orderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle'));
+        const kind = orderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+        onOrderCreated?.(printOrder, kind);
         rememberTrending(cart);
-        setCart([]);
-        if (onBack) onBack();
+        if (kind !== 'settle') {
+          setCart([]);
+          if (onBack) onBack();
+        }
       }
     } catch (e) {
       if (e?.code === 'OFFLINE_CACHE_MISS') {
@@ -1606,8 +2312,7 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
   };
 
   const handleCustomerKeyDown = (e) => {
-    if (e.key === 'Enter' && !showCustomerDropdown && customerPhone) {
-      // Allow them to just hit enter to keep what they typed
+    if (e.key === 'Enter') {
       setShowCustomerDropdown(false);
     }
   };
@@ -1619,135 +2324,42 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
         <CounterHeader>
           <HeaderLeft>
             <BackBtn onClick={onBack}><FaArrowLeft/></BackBtn>
-            <TitleGroup>
-              <Title>{initialTable ? `Table ${initialTable.tableNumber}` : 'Counter Sale'}</Title>
-              <Subtitle>{isStandardUi ? 'Standard UI' : 'Counter UI'} • {formatTzDate(new Date(), timezone, { format: 'time' })}</Subtitle>
+            <TitleGroup $accentColor={THEME.main}>
+              <Title>{initialTable ? `Table ${initialTable.tableNumber}` : 'Sale Order'}</Title>
             </TitleGroup>
           </HeaderLeft>
 
           <HeaderModeSwitch>
-            <CatBtn 
+            <ModeToggleBtn 
               $active={orderMode === 'kitchen'} 
               $themeColor="#f97316" 
               onClick={() => setOrderMode('kitchen')}
-              style={{ padding: '8px 20px', fontSize: '13px' }}
             >
-              <FaFire style={{ marginRight: '8px' }}/> Kitchen
-            </CatBtn>
-            <CatBtn 
+              Kitchen
+            </ModeToggleBtn>
+            <ModeToggleBtn 
               $active={orderMode === 'settle'} 
               $themeColor="#16a34a" 
               onClick={() => setOrderMode('settle')}
-              style={{ padding: '8px 20px', fontSize: '13px' }}
             >
-              <FaWallet style={{ marginRight: '8px' }}/> Settle
-            </CatBtn>
+              Settle
+            </ModeToggleBtn>
           </HeaderModeSwitch>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '280px', flex: '1 1 auto' }} onClick={e => e.stopPropagation()}>
+            <PremiumDateTimePicker 
+              value={orderDateTime}
+              onChange={val => {
+                setOrderDateTime(val);
+              }}
+              themeColor={THEME.main}
+            />
+          </div>
 
           {config?.creditEnabled && (
             <CreditToggleButton type="button" $active={isCreditSale} onClick={toggleCreditSale}>
               <FaBook /> Credit Sale
             </CreditToggleButton>
-          )}
-
-          {config?.creditEnabled && isCreditSale && (
-            <CustomerPickerArea>
-              <CreditPickerRow>
-                <CustomerInputWrap style={{ flex: 1 }}>
-                  <FaBook color="#14b8a6" />
-                  <CreditSelectWrap>
-                    <NiceSelect
-                      value={selectedCreditCustomerId}
-                      onChange={setSelectedCreditCustomerId}
-                      placeholder="Credit customer..."
-                      options={creditCustomerOptions}
-                      maxHeight={320}
-                      style={{ height: 40, minWidth: 0 }}
-                    />
-                  </CreditSelectWrap>
-                </CustomerInputWrap>
-                <CreditNewButton type="button" onClick={() => setShowNewCreditCustomer(true)}>
-                  <FaPlus /> New
-                </CreditNewButton>
-              </CreditPickerRow>
-              <CreditMeta $warn={Boolean(creditLimitWarning)}>
-                {creditLimitWarning || (selectedCreditCustomer ? `Balance ₹${Number(selectedCreditCustomer.balance || 0).toFixed(2)}` : 'Choose a credit customer before submitting.')}
-              </CreditMeta>
-            </CustomerPickerArea>
-          )}
-          
-          {config?.customersEnabled && !isCreditSale && (
-            <CustomerPickerArea ref={customerInputRef}>
-              <CustomerInputWrap>
-                <FaUsers color="#94a3b8" />
-                {!config?.allowMultipleCustomersPerOrder && selectedCustomerId ? (
-                  <CustomerChip>
-                    {customerName} {customerPhone ? `(${customerPhone})` : ''}
-                    <RemoveChip onClick={() => removeCustomer(selectedCustomerId)}><FaTimes/></RemoveChip>
-                  </CustomerChip>
-                ) : (
-                  <>
-                    <CustomerInput 
-                      placeholder="Customer Name"
-                      value={customerName}
-                      onChange={e => {
-                        setCustomerName(e.target.value);
-                        setShowCustomerDropdown(true);
-                      }}
-                      onFocus={() => setShowCustomerDropdown(true)}
-                      onKeyDown={handleCustomerKeyDown}
-                    />
-                    <CustomerInput 
-                      placeholder="Phone"
-                      value={customerPhone}
-                      onChange={e => {
-                        setCustomerPhone(e.target.value);
-                        setShowCustomerDropdown(true);
-                      }}
-                      onFocus={() => setShowCustomerDropdown(true)}
-                      onKeyDown={handleCustomerKeyDown}
-                    />
-                  </>
-                )}
-                {config?.customerAgeEnabled && (
-                  <CustomerInput 
-                    placeholder="Age"
-                    value={customerAge}
-                    onChange={e => setCustomerAge(e.target.value)}
-                    style={{ maxWidth: '60px' }}
-                    type="number"
-                  />
-                )}
-              </CustomerInputWrap>
-              
-              {showCustomerDropdown && (customerName || customerPhone) && (
-                <CustomerDropdown>
-                  {filteredCustomers.length > 0 ? (
-                    filteredCustomers.map(c => (
-                      <CustomerOption key={c.id} onClick={() => selectCustomer(c)}>
-                        <CustomerName>{c.name}</CustomerName>
-                        <CustomerPhone>{c.phone || 'No phone'}</CustomerPhone>
-                      </CustomerOption>
-                    ))
-                  ) : (
-                    <div style={{ padding: '8px 12px', fontSize: 13, color: '#64748b' }}>
-                      New customer will be created
-                    </div>
-                  )}
-                </CustomerDropdown>
-              )}
-
-              {config?.allowMultipleCustomersPerOrder && selectedCustomers.length > 0 && (
-                <CustomerChips>
-                  {selectedCustomers.map(c => (
-                    <CustomerChip key={c.id}>
-                      {c.name}
-                      <RemoveChip onClick={() => removeCustomer(c.id)}><FaTimes/></RemoveChip>
-                    </CustomerChip>
-                  ))}
-                </CustomerChips>
-              )}
-            </CustomerPickerArea>
           )}
         </CounterHeader>
 
@@ -1757,16 +2369,93 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
           ) : (
           <>
           <CatalogSection>
-            <SearchBar>
-              <SearchIcon><FaSearch/></SearchIcon>
-              <SearchInput 
-                ref={searchRef}
-                placeholder="Search menu items..." 
-                value={search} 
-                onChange={e => setSearch(e.target.value)}
-                $themeColor={THEME.main}
-              />
-            </SearchBar>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', position: 'relative' }}>
+              <SearchBar style={{ flex: 1 }}>
+                <SearchIcon><FaSearch/></SearchIcon>
+                <SearchInput 
+                  ref={searchRef}
+                  placeholder="Search menu items..." 
+                  value={search} 
+                  onChange={e => setSearch(e.target.value)}
+                  $themeColor={THEME.main}
+                />
+                {config?.posProductListingEnabled === false && search.trim() !== '' && (
+                  <FloatingSuggestBox>
+                    {standardMatches.length > 0 ? (
+                      <SuggestList>
+                        {standardMatches.map(p => {
+                          const quantity = productCartQuantity(p);
+                          const hasOptions = hasExtendedOptions(p);
+                          return (
+                            <SuggestItem
+                              key={p.id}
+                              onClick={() => addFromStandardSearch(p)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  addFromStandardSearch(p);
+                                }
+                              }}
+                            >
+                              <SuggestItemMeta>
+                                <strong>{p.name}</strong>
+                                <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options' : `₹${Number(p.price || 0).toFixed(2)}`}</span>
+                              </SuggestItemMeta>
+                              {hasOptions ? (
+                                <SuggestAddBtn $themeColor={THEME.main} $outline>
+                                  {quantity > 0 && <VariantCount $themeColor={THEME.main} style={{ height: 16, width: 16, fontSize: 10 }}>{quantity}</VariantCount>}
+                                  Options <FaChevronRight style={{ fontSize: 10 }} />
+                                </SuggestAddBtn>
+                              ) : quantity > 0 ? (
+                                <SuggestStepper onClick={(e) => e.stopPropagation()}>
+                                  <SuggestQtyBtn onClick={(event) => decrementProduct(event, p)}><FaMinus /></SuggestQtyBtn>
+                                  <SuggestQtyVal>{quantity}</SuggestQtyVal>
+                                  <SuggestQtyBtn onClick={(event) => incrementProduct(event, p)}><FaPlus /></SuggestQtyBtn>
+                                </SuggestStepper>
+                              ) : (
+                                <SuggestAddIcon $themeColor={THEME.main}><FaPlus /></SuggestAddIcon>
+                              )}
+                            </SuggestItem>
+                          );
+                        })}
+                      </SuggestList>
+                    ) : (
+                      <NoSuggests>No matching menu items found</NoSuggests>
+                    )}
+                  </FloatingSuggestBox>
+                )}
+              </SearchBar>
+
+              {config?.posProductListingEnabled === false && (
+                <button 
+                  type="button" 
+                  onClick={() => searchRef.current?.focus()}
+                  style={{
+                    height: '42px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'transparent',
+                    border: '1.5px solid ' + THEME.main,
+                    color: THEME.main,
+                    padding: '0 16px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px ' + THEME.main + '08'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = THEME.main; e.currentTarget.style.color = 'white'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = THEME.main; }}
+                >
+                  <FaPlus size={10} /> Add Product
+                </button>
+              )}
+            </div>
 
             {isStandardUi ? (
               <StandardWorkspace>
@@ -1827,132 +2516,344 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
                   )}
                 </StandardSearchPanel>
 
-                <StandardCurrentOrder>
-                  <StandardOrderHeader>
-                    <Title style={{ fontSize: '18px' }}>Current Order</Title>
-                    <CatBtn $themeColor={THEME.main} onClick={() => searchRef.current?.focus()}>
-                      <FaPlus style={{ marginRight: 8 }} /> Product
-                    </CatBtn>
-                  </StandardOrderHeader>
-                  <StandardOrderList>
-                    {cart.length === 0 ? (
-                      <EmptyCart>
-                        <FaUtensils size={44} style={{ opacity: 0.18 }} />
-                        <div>
-                          <div style={{ fontWeight: 800, color: '#475569', fontSize: '18px' }}>Cart is empty</div>
-                          <div style={{ fontSize: '13px' }}>Type above to search and add items</div>
-                        </div>
-                      </EmptyCart>
-                    ) : (
-                      cart.map(item => (
-                        <StandardOrderRow key={cartKeyFor(item)}>
-                          <CartItemInfo>
-                            <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
-                            <div style={{ color: '#64748b', fontWeight: 700 }}>₹{Number(item.price || 0).toFixed(2)} each</div>
-                          </CartItemInfo>
-                          <QtyGroup>
-                            <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus /></QtyBtn>
-                            <div style={{ fontWeight: 800, minWidth: '20px', textAlign: 'center' }}>{item.qty}</div>
-                            <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus /></QtyBtn>
-                          </QtyGroup>
-                          <div style={{ color: THEME.main, fontWeight: 900 }}>₹{(Number(item.price || 0) * item.qty).toFixed(2)}</div>
-                        </StandardOrderRow>
-                      ))
+                <StandardCurrentOrder style={{ display: 'flex', flexDirection: 'row' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    {config?.posProductListingEnabled !== false && (
+                      <StandardOrderHeader>
+                        <Title style={{ fontSize: '18px' }}>Current Order</Title>
+                        <CatBtn $themeColor={THEME.main} onClick={() => searchRef.current?.focus()}>
+                          <FaPlus style={{ marginRight: 8 }} /> Product
+                        </CatBtn>
+                      </StandardOrderHeader>
                     )}
-                  </StandardOrderList>
+                    <StandardOrderList>
+                      {cart.length === 0 ? (
+                        <EmptyCart>
+                          <FaUtensils size={44} style={{ opacity: 0.18 }} />
+                          <div>
+                            <div style={{ fontWeight: 800, color: '#475569', fontSize: '18px' }}>Cart is empty</div>
+                            <div style={{ fontSize: '13px' }}>Type above to search and add items</div>
+                          </div>
+                        </EmptyCart>
+                      ) : (
+                        cart.map(item => (
+                          <StandardOrderRow key={cartKeyFor(item)}>
+                            <CartItemInfo>
+                              <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
+                              <div style={{ color: '#64748b', fontWeight: 700 }}>₹{Number(item.price || 0).toFixed(2)} each</div>
+                              {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                                  <FaTag size={9} />
+                                  Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
+                                </div>
+                              )}
+                            </CartItemInfo>
+                            <QtyGroup>
+                              <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus /></QtyBtn>
+                              <div style={{ fontWeight: 800, minWidth: '20px', textAlign: 'center' }}>{item.qty}</div>
+                              <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus /></QtyBtn>
+                            </QtyGroup>
+                            <div style={{ color: THEME.main, fontWeight: 900 }}>₹{(Number(item.price || 0) * item.qty).toFixed(2)}</div>
+                          </StandardOrderRow>
+                        ))
+                      )}
+                    </StandardOrderList>
+                  </div>
+
+                  {config?.posProductListingEnabled === false && (
+                    <div style={{ width: '260px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '16px', gap: '16px', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>Payment Info</div>
+                        
+                        {renderCustomerSelectionPanel()}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Subtotal</div>
+                          <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.line_subtotal.toFixed(2)}</div>
+                        </div>
+
+                        {totals.discount_amount > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Discount</div>
+                            <div style={{ fontSize: '14px', color: '#dc2626', fontWeight: 800 }}>-₹{totals.discount_amount.toFixed(2)}</div>
+                          </div>
+                        )}
+
+                        {config?.taxEnabled && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Taxable Value</div>
+                            <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.taxable_amount.toFixed(2)}</div>
+                          </div>
+                        )}
+                        
+                        {totals.total_tax_added > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Exclusive)</div>
+                            <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.total_tax_added.toFixed(2)}</div>
+                          </div>
+                        )}
+
+                        {totals.total_tax_included > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Inclusive - Info Only)</div>
+                            <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(2)}</div>
+                          </div>
+                        )}
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Total Amount</div>
+                          <div style={{ fontSize: '18px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_amount.toFixed(2)}</div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {orderMode === 'settle' && (
+                          <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px', height: '36px' }}>
+                            {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
+                          </DiscountBtn>
+                        )}
+
+                        <PayBtn 
+                          $color={THEME.main} 
+                          $colorDark={THEME.dark} 
+                          disabled={cart.length === 0 || processing}
+                          onClick={handlePlaceOrder}
+                          style={{ height: '42px', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px', width: '100%', fontSize: '13px', fontWeight: '800', margin: 0 }}
+                        >
+                          {processing ? 'Processing...' : (
+                            <>
+                              {orderMode === 'kitchen' ? <FaFire/> : isCreditSale ? <FaBook/> : <FaWallet/>}
+                              <span style={{ marginLeft: '6px' }}>
+                                {orderMode === 'kitchen' ? (isCreditSale ? 'Send Credit to Kitchen' : 'Send to Kitchen') : isCreditSale ? 'Complete Credit' : 'Complete Sale'}
+                              </span>
+                            </>
+                          )}
+                        </PayBtn>
+                      </div>
+                    </div>
+                  )}
                 </StandardCurrentOrder>
               </StandardWorkspace>
             ) : (
               <>
-                <FilterTabs>
-                  <FilterBtn $active={dietFilter === 'ALL'} $themeColor={THEME.main} onClick={() => setDietFilter('ALL')}>
-                    All
-                  </FilterBtn>
-                  <FilterBtn $active={dietFilter === 'VEG'} $themeColor={THEME.main} onClick={() => setDietFilter('VEG')}>
-                    Veg Only
-                  </FilterBtn>
-                  <FilterBtn $active={dietFilter === 'TRENDING'} $themeColor={THEME.main} onClick={() => setDietFilter('TRENDING')}>
-                    Trending
-                  </FilterBtn>
-                </FilterTabs>
-                <CategoryScroll>
-                  {categories.map(c => (
-                    <CatBtn 
-                      key={c} 
-                      $active={activeCat === c} 
-                      $themeColor={THEME.main}
-                      onClick={() => setActiveCat(c)}
-                    >
-                      {c === 'ALL' ? 'Everything' : c}
-                    </CatBtn>
-                  ))}
-                </CategoryScroll>
+                {config?.posProductListingEnabled !== false ? (
+                  <>
+                    <FilterTabs>
+                      <FilterBtn $active={dietFilter === 'ALL'} $themeColor={THEME.main} onClick={() => setDietFilter('ALL')}>
+                        All
+                      </FilterBtn>
+                      <FilterBtn $active={dietFilter === 'VEG'} $themeColor={THEME.main} onClick={() => setDietFilter('VEG')}>
+                        Veg Only
+                      </FilterBtn>
+                      <FilterBtn $active={dietFilter === 'TRENDING'} $themeColor={THEME.main} onClick={() => setDietFilter('TRENDING')}>
+                        Trending
+                      </FilterBtn>
+                    </FilterTabs>
+                    <CategoryScroll>
+                      {categories.map(c => (
+                        <CatBtn 
+                          key={c} 
+                          $active={activeCat === c} 
+                          $themeColor={THEME.main}
+                          onClick={() => setActiveCat(c)}
+                        >
+                          {c === 'ALL' ? 'Everything' : c}
+                        </CatBtn>
+                      ))}
+                    </CategoryScroll>
 
-                <ProductGrid>
-                  {visibleProducts.map(p => {
-                  const quantity = productCartQuantity(p);
-                  const hasOptions = hasExtendedOptions(p);
-                  const nonVeg = isNonVegProduct(p);
-                  return (
-                    <ProductCard
-                      key={p.id}
-                      role="button"
-                      tabIndex={0}
-                      $themeColor={THEME.main}
-                      $inCart={quantity > 0}
-                      onClick={() => addToCart(p)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          addToCart(p);
-                        }
-                      }}
-                    >
-                      <ProdImg style={p.imageUrl ? { backgroundImage: `url(${p.imageUrl})` } : undefined}>
-                        {!p.imageUrl && <FaImage />}
-                        <VegBadge $nonVeg={nonVeg}>{nonVeg ? <FaFire /> : <FaLeaf />}</VegBadge>
-                      </ProdImg>
-                      <ProductBody>
-                        <ProdName>{p.name}</ProdName>
-                        <CategoryTag>{p.categoryName || 'Menu item'}</CategoryTag>
-                        <ProdPriceRow>
-                          <ProdPrice $themeColor={THEME.main}>₹{Number(p.price || 0).toFixed(2)}{hasOptions ? '+' : ''}</ProdPrice>
-                          {hasOptions ? (
-                            <AddBtn $themeColor={THEME.main} $outline>
-                              {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
-                              View Options <FaChevronRight />
-                            </AddBtn>
-                          ) : quantity > 0 ? (
-                            <ProductStepper
-                              $themeColor={THEME.main}
-                              onClick={(event) => event.stopPropagation()}
-                              onKeyDown={(event) => event.stopPropagation()}
-                            >
-                              <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => decrementProduct(event, p)}>
-                                <FaMinus />
-                              </ProductQtyBtn>
-                              <ProductQtyValue $themeColor={THEME.main}>{quantity}</ProductQtyValue>
-                              <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => incrementProduct(event, p)}>
-                                <FaPlus />
-                              </ProductQtyBtn>
-                            </ProductStepper>
+                    <ProductGrid>
+                      {visibleProducts.map(p => {
+                      const quantity = productCartQuantity(p);
+                      const hasOptions = hasExtendedOptions(p);
+                      const nonVeg = isNonVegProduct(p);
+                      return (
+                        <ProductCard
+                          key={p.id}
+                          role="button"
+                          tabIndex={0}
+                          $themeColor={THEME.main}
+                          $inCart={quantity > 0}
+                          onClick={() => addToCart(p)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              addToCart(p);
+                            }
+                          }}
+                        >
+                          <ProdImg style={p.imageUrl ? { backgroundImage: `url(${p.imageUrl})` } : undefined}>
+                            {!p.imageUrl && <FaImage />}
+                            <VegBadge $nonVeg={nonVeg}>{nonVeg ? <FaFire /> : <FaLeaf />}</VegBadge>
+                          </ProdImg>
+                          <ProductBody>
+                            <ProdName>{p.name}</ProdName>
+                            <CategoryTag>{p.categoryName || 'Menu item'}</CategoryTag>
+                            <ProdPriceRow>
+                              <ProdPrice $themeColor={THEME.main}>₹{Number(p.price || 0).toFixed(2)}{hasOptions ? '+' : ''}</ProdPrice>
+                              {hasOptions ? (
+                                <AddBtn $themeColor={THEME.main} $outline>
+                                  {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
+                                  View Options <FaChevronRight />
+                                </AddBtn>
+                              ) : quantity > 0 ? (
+                                <ProductStepper
+                                  $themeColor={THEME.main}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                >
+                                  <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => decrementProduct(event, p)}>
+                                    <FaMinus />
+                                  </ProductQtyBtn>
+                                  <ProductQtyValue $themeColor={THEME.main}>{quantity}</ProductQtyValue>
+                                  <ProductQtyBtn type="button" $themeColor={THEME.main} onClick={(event) => incrementProduct(event, p)}>
+                                    <FaPlus />
+                                  </ProductQtyBtn>
+                                </ProductStepper>
+                              ) : (
+                                <AddBtn $themeColor={THEME.main}>
+                                  <FaPlus /> Add
+                                </AddBtn>
+                              )}
+                            </ProdPriceRow>
+                          </ProductBody>
+                        </ProductCard>
+                      );
+                      })}
+                    </ProductGrid>
+                  </>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, gap: '12px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', flex: 1, minHeight: 0, background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.02)', overflow: 'hidden' }}>
+                      
+                      {/* Left Column: Scrollable Cart list */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {cart.length === 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#64748b', padding: '30px 16px' }}>
+                              <FaUtensils size={36} style={{ opacity: 0.18, marginBottom: 12 }} />
+                              <div style={{ fontWeight: 800, color: '#475569', fontSize: '16px' }}>Empty Cart</div>
+                              <div style={{ fontSize: '12px', marginTop: 4 }}>Search or scan above to add items to your order</div>
+                            </div>
                           ) : (
-                            <AddBtn $themeColor={THEME.main}>
-                              <FaPlus /> Add
-                            </AddBtn>
+                            cart.map(item => (
+                              <div key={cartKeyFor(item)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #edf2f7', gap: '12px' }}>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '12.5px', color: '#1e293b' }}>{item.displayName || item.name}</div>
+                                  <div style={{ color: THEME.main, fontWeight: 700, fontSize: '11.5px', marginTop: '1px' }}>₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)} <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: '11px' }}>({Number(item.price || 0).toFixed(2)} each)</span></div>
+                                  {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                    <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                                      <FaTag size={9} />
+                                      Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '1px' }}>
+                                  <button type="button" onClick={() => updateQty(cartKeyFor(item), -1)} style={{ border: 0, background: 'transparent', width: 18, height: 18, borderRadius: '4px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaMinus size={7}/></button>
+                                  <div style={{ fontWeight: 800, minWidth: '16px', textAlign: 'center', fontSize: '11px', color: '#0f172a' }}>{item.qty}</div>
+                                  <button type="button" onClick={() => updateQty(cartKeyFor(item), 1)} style={{ border: 0, background: 'transparent', width: 18, height: 18, borderRadius: '4px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaPlus size={7}/></button>
+                                </div>
+                              </div>
+                            ))
                           )}
-                        </ProdPriceRow>
-                      </ProductBody>
-                    </ProductCard>
-                  );
-                  })}
-                </ProductGrid>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Calculations vertical section */}
+                      <div style={{ width: '280px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '20px', gap: '20px', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>Summary Info</div>
+                          
+                          {renderCustomerSelectionPanel()}
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.02)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                              <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal</span>
+                              <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.line_subtotal.toFixed(2)}</span>
+                            </div>
+
+                            {totals.discount_amount > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', color: '#dc2626' }}>
+                                <span style={{ fontWeight: 600 }}>Discount</span>
+                                <span style={{ fontWeight: 700 }}>-₹{totals.discount_amount.toFixed(2)}</span>
+                              </div>
+                            )}
+
+                            {config?.taxEnabled && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Taxable Value</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.taxable_amount.toFixed(2)}</span>
+                              </div>
+                            )}
+                            
+                            {totals.total_tax_added > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Exclusive)</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.total_tax_added.toFixed(2)}</span>
+                              </div>
+                            )}
+
+                            {totals.total_tax_included > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Inclusive - Info Only)</span>
+                                <span style={{ color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(2)}</span>
+                              </div>
+                            )}
+
+                            {totals.round_off_amount !== 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Round Off</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>{(totals.round_off_amount > 0 ? '+' : '')}₹{totals.round_off_amount.toFixed(2)}</span>
+                              </div>
+                            )}
+                            
+                            <div style={{ height: '1px', borderTop: '1px dashed #cbd5e1', margin: '6px 0' }} />
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '14px' }}>Net Payable</span>
+                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '20px' }}>₹{totals.total_amount.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {orderMode === 'settle' && (
+                            <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
+                              {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
+                            </DiscountBtn>
+                          )}
+                          
+                          <PayBtn 
+                            $color={THEME.main} 
+                            $colorDark={THEME.dark} 
+                            disabled={cart.length === 0 || processing}
+                            onClick={handlePlaceOrder}
+                            style={{ height: '44px', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '8px', width: '100%', fontSize: '14px', fontWeight: '800', margin: 0 }}
+                          >
+                            {processing ? 'Processing...' : (
+                              <>
+                                {orderMode === 'kitchen' ? <FaFire/> : isCreditSale ? <FaBook/> : <FaWallet/>}
+                                <span style={{ marginLeft: '8px' }}>
+                                  {orderMode === 'kitchen' ? (isCreditSale ? 'Send Credit to Kitchen' : 'Send to Kitchen') : isCreditSale ? 'Complete Credit' : 'Complete Sale'}
+                                </span>
+                              </>
+                            )}
+                          </PayBtn>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CatalogSection>
 
           {mobileCartOpen && <MobileCartBackdrop onClick={() => setMobileCartOpen(false)} />}
-          <CartSection $mobileOpen={mobileCartOpen}>
+          {config?.posProductListingEnabled !== false && (
+            <>
+              <CartSection $mobileOpen={mobileCartOpen}>
             <CartHeader>
               <div>
                 <Title style={{ fontSize: '18px' }}>Your Cart</Title>
@@ -1962,6 +2863,8 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
                 <FaTimes />
               </CartCloseBtn>
             </CartHeader>
+
+            {renderCustomerSelectionPanel()}
 
             <CartBody>
               {cart.length === 0 ? (
@@ -1978,6 +2881,12 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
                     <CartItemInfo>
                       <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
                       <div style={{ color: THEME.main, fontWeight: 800 }}>₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)}</div>
+                      {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                        <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                          <FaTag size={9} />
+                          Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
+                        </div>
+                      )}
                     </CartItemInfo>
                     <QtyGroup>
                       <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus/></QtyBtn>
@@ -1992,10 +2901,30 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
             <CartFooter>
               <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <SummaryRow><span>Subtotal</span><span>₹{totals.line_subtotal.toFixed(2)}</span></SummaryRow>
-                <SummaryRow><span>Tax</span><span>₹{totals.total_tax.toFixed(2)}</span></SummaryRow>
+                {totals.discount_amount > 0 && (
+                  <SummaryRow style={{ color: '#dc2626' }}><span>Discount</span><span>-₹{totals.discount_amount.toFixed(2)}</span></SummaryRow>
+                )}
+                {config?.taxEnabled && (
+                  <SummaryRow><span>Taxable Value</span><span>₹{totals.taxable_amount.toFixed(2)}</span></SummaryRow>
+                )}
+                {totals.total_tax_added > 0 && (
+                  <SummaryRow><span>Tax (Excl.)</span><span>₹{totals.total_tax_added.toFixed(2)}</span></SummaryRow>
+                )}
+                {totals.total_tax_included > 0 && (
+                  <SummaryRow style={{ color: '#64748b' }}><span>Tax (Incl. - Info Only)</span><span>₹{totals.total_tax_included.toFixed(2)}</span></SummaryRow>
+                )}
+                {totals.round_off_amount !== 0 && (
+                  <SummaryRow><span>Round Off</span><span>{(totals.round_off_amount > 0 ? '+' : '')}₹{totals.round_off_amount.toFixed(2)}</span></SummaryRow>
+                )}
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }}/>
                 <SummaryRow $bold><span>Total</span><span>₹{totals.total_amount.toFixed(2)}</span></SummaryRow>
               </div>
+
+              {orderMode === 'settle' && (
+                <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px' }}>
+                  {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
+                </DiscountBtn>
+              )}
 
               <PayBtn 
                 $color={THEME.main} 
@@ -2023,6 +2952,8 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
           )}
           </>
           )}
+          </>
+          )}
         </MainLayout>
         <CreditCustomerQuickCreateModal
           open={showNewCreditCustomer}
@@ -2039,7 +2970,202 @@ export default function CounterSale({ onBack, initialTable, onOrderCreated, onCr
             quantityMode
             initialQuantities={currentVariantQuantities}
             onSelectMany={syncVariantCart}
+            themeColor={THEME.main}
+            themeSoftColor={THEME.soft}
+            themeDarkColor={THEME.dark}
           />
+        )}
+        {showDiscountModal && (
+          <ModalBackdrop onClick={() => setShowDiscountModal(false)}>
+            <DiscountModalContent onClick={e => e.stopPropagation()}>
+              <DiscountModalHeader>
+                <h3>Configure Discounts</h3>
+                <FaTimes style={{ cursor: 'pointer' }} onClick={() => setShowDiscountModal(false)} />
+              </DiscountModalHeader>
+              <DiscountTabHeader>
+                <DiscountTabButton
+                  type="button"
+                  $active={discountModalTab === 'line'}
+                  $themeColor={THEME.main}
+                  onClick={() => setDiscountModalTab('line')}
+                >
+                  Line Discounts
+                </DiscountTabButton>
+                <DiscountTabButton
+                  type="button"
+                  $active={discountModalTab === 'total'}
+                  $themeColor={THEME.main}
+                  onClick={() => setDiscountModalTab('total')}
+                >
+                  Total Discount
+                </DiscountTabButton>
+              </DiscountTabHeader>
+              <DiscountModalBody>
+                {discountModalTab === 'line' ? (
+                  cart.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontWeight: '600' }}>
+                      Add items to your cart first to apply discounts.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {cart.map(item => {
+                        const key = cartKeyFor(item);
+                        const disc = localDiscounts[key] || { type: 'amount', value: 0 };
+                        return (
+                          <DiscountRow key={key}>
+                            <DiscountRowInfo>
+                              <span>{item.displayName || item.name}</span>
+                              <small>₹{Number(item.price || 0).toFixed(2)} x {item.qty}</small>
+                            </DiscountRowInfo>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <DiscountInputWrapper $themeColor={THEME.main}>
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  max={disc.type === 'percentage' ? 100 : undefined}
+                                  value={disc.value || ''}
+                                  onChange={e => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], value: val }
+                                    }));
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    outline: 'none',
+                                    width: '60px',
+                                    padding: '0 4px',
+                                    fontSize: '13px',
+                                    fontWeight: '700',
+                                    textAlign: 'right',
+                                    color: '#000000'
+                                  }}
+                                />
+                              </DiscountInputWrapper>
+                              <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                                <DiscUnitToggle 
+                                  type="button"
+                                  $active={disc.type === 'amount'} 
+                                  $themeColor={THEME.main}
+                                  onClick={() => {
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], type: 'amount' }
+                                    }));
+                                  }}
+                                >
+                                  ₹
+                                </DiscUnitToggle>
+                                <DiscUnitToggle 
+                                  type="button"
+                                  $active={disc.type === 'percentage'} 
+                                  $themeColor={THEME.main}
+                                  onClick={() => {
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], type: 'percentage' }
+                                    }));
+                                  }}
+                                >
+                                  %
+                                </DiscUnitToggle>
+                              </div>
+                            </div>
+                          </DiscountRow>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  <div style={{ padding: '16px 0' }}>
+                    <DiscountRow style={{ background: '#f8fafc', borderColor: '#edf2f7', justifyContent: 'space-between', padding: '12px 16px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e293b' }}>Total Discount</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DiscountInputWrapper $themeColor={THEME.main}>
+                          <input 
+                            type="number"
+                            min="0"
+                            max={localOrderDiscountType === 'percentage' ? 100 : undefined}
+                            value={localOrderDiscountValue || ''}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setLocalOrderDiscountValue(val);
+                            }}
+                            style={{
+                              border: 'none',
+                              outline: 'none',
+                              width: '60px',
+                              padding: '0 4px',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              textAlign: 'right',
+                              color: '#000000',
+                              background: 'transparent'
+                            }}
+                          />
+                        </DiscountInputWrapper>
+                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                          <DiscUnitToggle 
+                            type="button"
+                            $active={localOrderDiscountType === 'amount'} 
+                            $themeColor={THEME.main}
+                            onClick={() => setLocalOrderDiscountType('amount')}
+                          >
+                            ₹
+                          </DiscUnitToggle>
+                          <DiscUnitToggle 
+                            type="button"
+                            $active={localOrderDiscountType === 'percentage'} 
+                            $themeColor={THEME.main}
+                            onClick={() => setLocalOrderDiscountType('percentage')}
+                          >
+                            %
+                          </DiscUnitToggle>
+                        </div>
+                      </div>
+                    </DiscountRow>
+                  </div>
+                )}
+              </DiscountModalBody>
+              <DiscountModalFooter>
+                <button 
+                  type="button"
+                  onClick={handleClearAllDiscounts} 
+                  style={{
+                    flex: 1, 
+                    height: '36px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #cbd5e1', 
+                    background: 'white', 
+                    fontWeight: '700', 
+                    fontSize: '13px',
+                    color: '#64748b',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear All
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleApplyDiscounts}
+                  style={{
+                    flex: 1, 
+                    height: '36px', 
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    background: THEME.main, 
+                    fontWeight: '700', 
+                    fontSize: '13px',
+                    color: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Apply
+                </button>
+              </DiscountModalFooter>
+            </DiscountModalContent>
+          </ModalBackdrop>
         )}
       </ModalContent>
     </ModalOverlay>

@@ -9,7 +9,7 @@ import {
   FaBoxOpen, FaUtensils, FaFilter, FaCheckCircle, 
   FaExclamationCircle, FaTimes, FaCamera, FaLayerGroup, FaClock,
   FaWeightHanging, FaBarcode, FaUtensilSpoon, FaCogs, FaSlidersH,
-  FaFileExcel, FaPlus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave
+  FaFileExcel, FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave
 } from 'react-icons/fa';
 import MenuImageImport from '../../components/import/MenuImageImport';
 import MenuExcelImport from '../../components/import/MenuExcelImport';
@@ -55,6 +55,7 @@ function ProductManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showImageImport, setShowImageImport] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [recipeSearch, setRecipeSearch] = useState('');
 
   // ... (existing helper methods)
 
@@ -322,6 +323,22 @@ function ProductManagementContent() {
         }))
       : [];
 
+    const recipeLines = Array.isArray(product.recipeLines)
+      ? product.recipeLines
+          .map(line => {
+             const ingredient = line.ingredient
+               || (line.ingredientId ? { id: line.ingredientId, name: line.ingredientName || 'Ingredient Product' } : null);
+             if (!ingredient) return null;
+             return {
+               ...line,
+               ingredient,
+               quantity: toNumber(line.quantity, 1),
+               isActive: line.isActive ?? line.isactive ?? true
+             };
+          })
+          .filter(Boolean)
+      : [];
+
     return {
       ...product,
       name: product.name || '',
@@ -347,7 +364,8 @@ function ProductManagementContent() {
       variantMappings,
       variantPricings,
       upsells,
-      pricelistProducts
+      pricelistProducts,
+      recipeLines
     };
   };
 
@@ -367,7 +385,13 @@ function ProductManagementContent() {
         ...selectedProduct,
         variantMappings: selectedProduct.variantMappings || [],
         variantPricings: selectedProduct.variantPricings || [],
-        upsells: selectedProduct.upsells || []
+        upsells: selectedProduct.upsells || [],
+        recipeLines: (selectedProduct.recipeLines || []).map(({ id, ingredient, quantity, isActive }) => ({
+          id,
+          ingredient: { id: ingredient.id },
+          quantity: parseFloat(quantity) || 1,
+          isActive: isActive !== false
+        }))
       };
       const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
@@ -446,7 +470,7 @@ function ProductManagementContent() {
       productType: 'VEG', isVariant: false, isPackagedGood: false, isIngredient: false, productCode: '',
       taxRate: 0, taxCode: '', mrp: 0, costPrice: 0, barcode: '', minStockLevel: 0,
       kdsStation: '', uom: null, category: categories[0] || null, isActive: true,
-      variantMappings: [], variantPricings: [], upsells: [], pricelistProducts: []
+      variantMappings: [], variantPricings: [], upsells: [], pricelistProducts: [], recipeLines: []
     });
     setViewOnly(false);
     setFormTab('basic');
@@ -816,47 +840,7 @@ function ProductManagementContent() {
                           />
                        </div>
                     </div> {/* Closing the input-row for Category/Product Type */}
-                 </div> {/* Closing the erp-section for Basic Info */}
-
-                 <div className="erp-section" style={{ marginTop: '16px' }}>
-                    <div className="section-title"><FaClock /> Pricing & Tax</div>
-                    <div className="input-row">
-                       <div className="input-group"><label>Sale Price</label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
-                       <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <label style={{ margin: 0 }}>Packaged Good</label>
-                          <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
-                             <div className="switch-knob"></div>
-                          </div>
-                       </div>
-                    </div>
-                    {selectedProduct.isPackagedGood && (
-                      <div className="input-row" style={{ marginTop: '16px' }}>
-                         <div className="input-group"><label>Tax (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
-                         <div className="input-group"><label>HSN Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
-                      </div>
-                    )}
-                 </div> {/* Closing the erp-section for Pricing & Tax */}
-
-                 <div className="info-options-row" style={{ marginTop: '16px' }}>
-                    <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                       <label style={{ margin: 0 }}>Availability</label>
-                       <div className={`erp-switch ${selectedProduct.isActive ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isActive: !selectedProduct.isActive})}>
-                         <div className="switch-knob"></div>
-                       </div>
-                    </div>
-                    <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                       <label style={{ margin: 0 }}>Is Ingredient</label>
-                       <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
-                         <div className="switch-knob"></div>
-                       </div>
-                    </div>
-                 </div> {/* Closing the info-options-row */}
-               </>)}
-
-               {formTab === 'inventory' && (<>
-                 <div className="erp-section">
-                    <div className="section-title"><FaWeightHanging /> Inventory Details</div>
-                    <div className="input-row">
+                    <div className="input-row" style={{ marginTop: '16px' }}>
                        <div className="input-group">
                           <label>Unit (UOM)</label>
                            <NiceSelect 
@@ -865,14 +849,204 @@ function ProductManagementContent() {
                              onChange={val => setSelectedProduct({...selectedProduct, uom: uomOptions.find(u => u.id === val)})}
                            />
                        </div>
-                       <div className="input-group"><label>Min Stock Level</label><input type="number" value={selectedProduct.minStockLevel || 0} onChange={e => setSelectedProduct({...selectedProduct, minStockLevel: parseInt(e.target.value)})} /></div>
+                       <div className="input-group">
+                          <label>Barcode</label>
+                          <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
+                       </div>
                     </div>
-                    <div className="input-group" style={{ marginTop: '16px' }}>
-                       <label>Barcode</label>
-                       <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
+                 </div> {/* Closing the erp-section for Basic Info */}
+                  <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                     <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <label style={{ margin: 0 }}>Packaged Good</label>
+                        <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
+                           <div className="switch-knob"></div>
+                        </div>
+                     </div>
+                     <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <label style={{ margin: 0 }}>Is Ingredient</label>
+                        <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
+                          <div className="switch-knob"></div>
+                        </div>
+                     </div>
+                  </div>
+
+                  {selectedProduct.isPackagedGood && (
+                    <div className="erp-section" style={{ marginTop: '12px' }}>
+                       <div className="input-row">
+                          <div className="input-group"><label>Tax (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
+                          <div className="input-group"><label>HSN Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
+                       </div>
                     </div>
-                 </div>
-               </>)}
+                  )}
+                </>)}
+
+               {formTab === 'inventory' && (<>
+                  <div className="erp-section">
+                     <div className="section-title"><FaWeightHanging /> Inventory Details</div>
+                     <div className="input-row">
+                        <div className="input-group"><label>Min Stock Level</label><input type="number" value={selectedProduct.minStockLevel || 0} onChange={e => setSelectedProduct({...selectedProduct, minStockLevel: parseInt(e.target.value)})} /></div>
+                        <div style={{ flex: 1 }}></div>
+                     </div>
+                  </div>
+
+                  {!selectedProduct.isIngredient && (
+                     <div className="erp-section" style={{ marginTop: '16px' }}>
+                        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                           <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaCogs /> Product Recipe (Ingredients)</span>
+                           {(selectedProduct.recipeLines || []).length > 0 && (
+                              <span style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#ea580c', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>
+                                 {(selectedProduct.recipeLines || []).length} {(selectedProduct.recipeLines || []).length === 1 ? 'Ingredient' : 'Ingredients'} Added
+                              </span>
+                           )}
+                        </div>
+                        <p className="section-desc">Add raw ingredients that compose this product. Products with recipes cannot be purchased directly.</p>
+                        
+                        <div className="recipe-selector-card">
+                             <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '7px' }}>
+                                <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px' }} /> Add Recipe Ingredient
+                             </label>
+                             <div style={{ position: 'relative' }}>
+                               <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '7px', padding: '5px 9px', gap: '7px', transition: 'border-color 0.2s' }}
+                                 onFocus={() => {}} >
+                                 <FaSearch style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }} />
+                                 <input
+                                   type="text"
+                                   placeholder="Type to search ingredients..."
+                                   value={recipeSearch}
+                                   onChange={e => setRecipeSearch(e.target.value)}
+                                   style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '12px', fontWeight: 500, color: '#0f172a', width: '100%' }}
+                                 />
+                                 {recipeSearch && (
+                                   <button onClick={() => setRecipeSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}>
+                                     <FaTimes style={{ fontSize: '10px' }} />
+                                   </button>
+                                 )}
+                               </div>
+                               {recipeSearch.trim().length > 0 && (() => {
+                                 const suggestions = products.filter(p =>
+                                   p.isIngredient &&
+                                   p.id !== selectedProduct.id &&
+                                   !(selectedProduct.recipeLines || []).some(r => r.ingredient?.id === p.id) &&
+                                   p.name.toLowerCase().includes(recipeSearch.toLowerCase())
+                                 );
+                                 return (
+                                   <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 8px 20px rgba(15,23,42,0.1)', zIndex: 100, overflow: 'hidden', maxHeight: '180px', overflowY: 'auto' }}>
+                                     {suggestions.length === 0 ? (
+                                       <div style={{ padding: '10px 12px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>No ingredients found</div>
+                                     ) : suggestions.map(p => (
+                                       <div key={p.id}
+                                         onMouseDown={e => {
+                                           e.preventDefault();
+                                           setSelectedProduct({
+                                             ...selectedProduct,
+                                             recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: p, quantity: 1, isActive: true }]
+                                           });
+                                           setRecipeSearch('');
+                                         }}
+                                         style={{ padding: '7px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
+                                         onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+                                         onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                       >
+                                         <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px', flexShrink: 0 }} />
+                                         <span style={{ flex: 1 }}>{p.name}</span>
+                                         {p.uom?.shortName && <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '999px', textTransform: 'uppercase' }}>{p.uom.shortName}</span>}
+                                       </div>
+                                     ))}
+                                   </div>
+                                 );
+                               })()}
+                             </div>
+                          </div>
+
+                        <div className="mappings-list">
+                           {(selectedProduct.recipeLines || []).map((r, idx) => (
+                             <div key={idx} className="recipe-glass-card">
+                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(226,232,240,0.6)', paddingBottom: '12px', marginBottom: '12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                       <span className="recipe-index-badge">{idx + 1}</span>
+                                       <div>
+                                         <strong style={{ fontSize: '14px', color: '#0f172a', fontWeight: 700 }}>{r.ingredient?.name}</strong>
+                                         <span className="recipe-uom-pill">
+                                           {r.ingredient?.uomName || 'units'}
+                                         </span>
+                                       </div>
+                                    </div>
+                                    <button className="text-red" style={{ transition: 'transform 0.2s', padding: '6px', borderRadius: '50%' }} onClick={() => {
+                                       setSelectedProduct({
+                                          ...selectedProduct,
+                                          recipeLines: selectedProduct.recipeLines.filter((_, i) => i !== idx)
+                                       });
+                                    }}><FaTimes style={{ fontSize: '14px' }} /></button>
+                                 </div>
+                                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                                    <div style={{ flex: '1 1 200px' }}>
+                                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>Quantity Required</label>
+                                       <div className="qty-controls-container">
+                                          <button className="qty-btn" type="button" onClick={() => {
+                                             const newLines = [...selectedProduct.recipeLines];
+                                             newLines[idx].quantity = Math.max(0, parseFloat((Math.max(0, r.quantity) - 1).toFixed(3)));
+                                             setSelectedProduct({...selectedProduct, recipeLines: newLines});
+                                          }}>
+                                             <FaMinus />
+                                          </button>
+                                          <div className="qty-input-wrapper">
+                                             <input 
+                                               type="number" 
+                                               step="any"
+                                               value={r.quantity} 
+                                               onChange={e => {
+                                                  const qty = parseFloat(e.target.value) || 0;
+                                                  const newLines = [...selectedProduct.recipeLines];
+                                                  newLines[idx].quantity = qty;
+                                                  setSelectedProduct({...selectedProduct, recipeLines: newLines});
+                                               }}
+                                               className="qty-styled-input"
+                                             />
+                                             <span className="qty-floating-badge">{r.ingredient?.uomShortName || r.ingredient?.uomName || 'qty'}</span>
+                                          </div>
+                                          <button className="qty-btn" type="button" onClick={() => {
+                                             const newLines = [...selectedProduct.recipeLines];
+                                             newLines[idx].quantity = parseFloat((Math.max(0, r.quantity) + 1).toFixed(3));
+                                             setSelectedProduct({...selectedProduct, recipeLines: newLines});
+                                          }}>
+                                             <FaPlus />
+                                          </button>
+                                       </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-end', height: '40px' }}>
+                                       <div className="recipe-switch-row">
+                                          <div 
+                                             className={`erp-switch ${r.isActive !== false ? 'active' : ''}`} 
+                                             onClick={() => {
+                                                const newLines = [...selectedProduct.recipeLines];
+                                                newLines[idx].isActive = r.isActive === false;
+                                                setSelectedProduct({...selectedProduct, recipeLines: newLines});
+                                             }}
+                                          >
+                                             <div className="switch-knob"></div>
+                                          </div>
+                                          <span className="recipe-switch-label" style={{ color: r.isActive !== false ? '#22c55e' : '#94a3b8' }}>
+                                             {r.isActive !== false ? 'Active' : 'Inactive'}
+                                          </span>
+                                       </div>
+                                    </div>
+                                 </div>
+                             </div>
+                           ))}
+                           {(selectedProduct.recipeLines || []).length === 0 && (
+                              <div className="recipe-empty-state">
+                                 <div className="empty-icon-circle">
+                                    <FaUtensilSpoon className="pulse-icon" />
+                                 </div>
+                                 <h3>Craft Your Recipe</h3>
+                                 <p>Add raw ingredients that compose this product. You can customize quantities, toggle status, and build recipes easily.</p>
+                                 <div className="empty-state-hint">Use the selector above to choose an ingredient to start.</div>
+                              </div>
+                           )}
+                        </div>
+                     </div>
+                  )}
+                </>)}
 
                 {formTab === 'pricing' && (<>
                   <div className="erp-section">
@@ -1145,7 +1319,7 @@ function ProductManagementContent() {
                          </div>
                        ))}
                     </div>
-                  </div>
+                 </div>
                </>)}
             </div>
           </CafeQRPopup>
@@ -1278,6 +1452,197 @@ function ProductManagementContent() {
 
       <style jsx>{`
         .erp-container { padding: 24px 40px; background: #f8fafc; min-height: calc(100vh - 80px); }
+        
+        /* Premium Recipe Redesign Styles */
+        .recipe-glass-card {
+          background: rgba(255, 255, 255, 0.7) !important;
+          backdrop-filter: blur(12px) !important;
+          border: 1px solid rgba(226, 232, 240, 0.8) !important;
+          border-left: 3px solid #ea580c !important;
+          border-radius: 10px !important;
+          padding: 10px 12px !important;
+          margin-bottom: 8px !important;
+          box-shadow: 0 4px 10px rgba(15, 23, 42, 0.03) !important;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .recipe-glass-card:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05) !important;
+          border-color: #ea580c !important;
+        }
+        .recipe-index-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #0f172a;
+          color: white;
+          font-size: 9px;
+          font-weight: 700;
+          margin-right: 7px;
+        }
+        .recipe-uom-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 1px 6px;
+          background: #f1f5f9;
+          border: 1px solid #cbd5e1;
+          color: #475569;
+          font-size: 9px;
+          font-weight: 700;
+          border-radius: 999px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-left: 6px;
+        }
+        .qty-controls-container {
+          display: flex;
+          align-items: center;
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          padding: 2px;
+          width: 100%;
+          max-width: 160px;
+          transition: all 0.2s;
+        }
+        .qty-controls-container:focus-within {
+          border-color: #ea580c;
+          box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.12);
+        }
+        .qty-btn {
+          width: 24px;
+          height: 24px;
+          border: none;
+          background: white;
+          border-radius: 6px;
+          color: #475569;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          transition: all 0.2s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .qty-btn:hover {
+          background: #ea580c;
+          color: white;
+        }
+        .qty-input-wrapper {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          position: relative;
+          padding: 0 4px;
+        }
+        .qty-styled-input {
+          width: 100%;
+          border: none;
+          background: transparent;
+          font-size: 12px;
+          font-weight: 700;
+          color: #0f172a;
+          text-align: center;
+          padding: 2px 24px 2px 2px;
+          outline: none;
+        }
+        .qty-floating-badge {
+          position: absolute;
+          right: 4px;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 9px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          pointer-events: none;
+          letter-spacing: 0.05em;
+        }
+        .recipe-empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 24px 16px;
+          background: #f8fafc;
+          border: 1px dashed #cbd5e1;
+          border-radius: 10px;
+          text-align: center;
+          margin-top: 10px;
+        }
+        .empty-icon-circle {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: #fff7ed;
+          border: 1.5px solid #ffedd5;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 10px;
+          box-shadow: 0 4px 10px rgba(234, 88, 12, 0.06);
+        }
+        .pulse-icon {
+          color: #ea580c;
+          font-size: 18px;
+          animation: pulseIcon 2.5s infinite ease-in-out;
+        }
+        @keyframes pulseIcon {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.4)); }
+          100% { transform: scale(1); }
+        }
+        .recipe-empty-state h3 {
+          font-size: 13px;
+          font-weight: 700;
+          color: #1e293b;
+          margin-bottom: 4px;
+        }
+        .recipe-empty-state p {
+          font-size: 11px;
+          color: #64748b;
+          max-width: 280px;
+          line-height: 1.4;
+          margin-bottom: 8px;
+        }
+        .empty-state-hint {
+          font-size: 10px;
+          color: #94a3b8;
+          font-weight: 500;
+          background: white;
+          padding: 3px 10px;
+          border-radius: 999px;
+          border: 1px solid #e2e8f0;
+        }
+        .recipe-selector-card {
+          background: white;
+          border: 1.5px solid #f97316;
+          border-radius: 10px;
+          padding: 10px 12px;
+          box-shadow: 0 2px 8px rgba(249, 115, 22, 0.04);
+          margin-bottom: 12px;
+          transition: all 0.3s;
+        }
+        .recipe-selector-card:hover {
+          border-color: #ea580c;
+          box-shadow: 0 4px 12px rgba(234, 88, 12, 0.08);
+        }
+        .recipe-switch-row {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+        }
+        .recipe-switch-label {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+          transition: color 0.2s;
+        }
+
         .erp-main-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         .erp-header { padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; background: #fff; }
         .erp-tabs { display: flex; gap: 8px; background: #f1f5f9; padding: 4px; border-radius: 10px; }
@@ -1321,47 +1686,47 @@ function ProductManagementContent() {
         .table-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px; }
         .table-btn:hover { background: #f8fafc; color: #0f172a; }
 
-        .drawer-form { display: flex; flex-direction: column; gap: 20px; }
-        .erp-section { background: #fcfdfe; padding: 16px; border-radius: 12px; border: 1px solid #f1f5f9; }
-        .section-title { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 16px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+        .drawer-form { display: flex; flex-direction: column; gap: 10px; }
+        .erp-section { background: #fcfdfe; padding: 10px 12px; border-radius: 10px; border: 1px solid #f1f5f9; }
+        .section-title { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 10px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 7px; }
         
-        .input-group { display: flex; flex-direction: column; gap: 6px; }
-        .input-group label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; }
-        .input-group input, .input-group textarea { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #0f172a; }
+        .input-group { display: flex; flex-direction: column; gap: 4px; }
+        .input-group label { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; }
+        .input-group input, .input-group textarea { padding: 5px 9px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 500; color: #0f172a; }
         .input-group input:focus { border-color: #3b82f6; outline: none; }
-        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
-        .drawer-image-box { display: flex; flex-direction: column; gap: 12px; }
-        .drawer-img-preview { width: 100%; height: 180px; border-radius: 12px; background-size: cover; background-position: center; border: 1px solid #e2e8f0; position: relative; }
-        .drawer-img-placeholder { width: 100%; height: 140px; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; gap: 6px; font-size: 13px; }
-        .img-clear { position: absolute; top: 8px; right: 8px; background: white; border: none; width: 24px; height: 24px; border-radius: 50%; color: #ef4444; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .drawer-image-box { display: flex; flex-direction: column; gap: 8px; }
+        .drawer-img-preview { width: 100%; height: 110px; border-radius: 8px; background-size: cover; background-position: center; border: 1px solid #e2e8f0; position: relative; }
+        .drawer-img-placeholder { width: 100%; height: 80px; background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; gap: 4px; font-size: 11px; }
+        .img-clear { position: absolute; top: 6px; right: 6px; background: white; border: none; width: 20px; height: 20px; border-radius: 50%; color: #ef4444; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        .control-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #fcfdfe; border: 1px solid #f1f5f9; border-radius: 10px; margin-top: 10px; }
-        .control-row label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0; }
-        .erp-switch { width: 44px; height: 24px; background: #cbd5e1; border-radius: 100px; position: relative; cursor: pointer; transition: all 0.3s; }
+        .control-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #fcfdfe; border: 1px solid #f1f5f9; border-radius: 8px; margin-top: 6px; }
+        .control-row label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0; }
+        .erp-switch { width: 34px; height: 18px; background: #cbd5e1; border-radius: 100px; position: relative; cursor: pointer; transition: all 0.3s; }
         .erp-switch.active { background: #FF7A00; }
-        .switch-knob { width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .erp-switch.active .switch-knob { left: calc(100% - 21px); }
+        .switch-knob { width: 13px; height: 13px; background: white; border-radius: 50%; position: absolute; top: 2.5px; left: 2.5px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .erp-switch.active .switch-knob { left: calc(100% - 15.5px); }
 
-        .erp-btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .erp-btn { padding: 6px 12px; border-radius: 7px; font-weight: 600; font-size: 12px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
         .erp-btn.primary { background: #FF7A00; color: white; box-shadow: 0 2px 4px rgba(255, 122, 0, 0.2); }
         .erp-btn.primary:hover { background: #ea580c; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(255, 122, 0, 0.25); }
         .erp-btn.secondary:hover { background: #f8fafc; border-color: #cbd5e1; }
-        .erp-actions { display: flex; align-items: center; gap: 12px; }
+        .erp-actions { display: flex; align-items: center; gap: 8px; }
         .text-slate { color: #64748b; }
         .text-green { color: #22c55e; }
         .ai-tag { background: white; color: #FF7A00; font-size: 8px; font-weight: 900; padding: 1px 4px; border-radius: 4px; margin-left: 4px; vertical-align: middle; text-transform: uppercase; line-height: 1; }
-        .variant-options-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
-        .option-item { display: flex; align-items: center; gap: 12px; background: white; padding: 8px; border-radius: 10px; border: 1px solid #f1f5f9; }
-        .option-item input { flex: 1; border: 1px solid transparent; background: #f8fafc; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+        .variant-options-list { display: flex; flex-direction: column; gap: 7px; margin-top: 7px; }
+        .option-item { display: flex; align-items: center; gap: 8px; background: white; padding: 5px 7px; border-radius: 8px; border: 1px solid #f1f5f9; }
+        .option-item input { flex: 1; border: 1px solid transparent; background: #f8fafc; padding: 4px 8px; border-radius: 5px; font-size: 12px; font-weight: 500; }
         .option-item input:focus { border-color: #3b82f6; background: white; }
-        .option-price-input { display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #475569; }
-        .option-price-input input { width: 50px; border: none; background: transparent; padding: 2px; text-align: right; }
-        .icon-btn { width: 28px; height: 28px; border: none; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+        .option-price-input { display: flex; align-items: center; gap: 4px; background: #f1f5f9; padding: 3px 6px; border-radius: 5px; font-size: 11px; font-weight: 600; color: #475569; }
+        .option-price-input input { width: 46px; border: none; background: transparent; padding: 2px; text-align: right; }
+        .icon-btn { width: 24px; height: 24px; border: none; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 5px; }
         .icon-btn.delete { color: #94a3b8; }
         .icon-btn.delete:hover { background: #fef2f2; color: #ef4444; }
-        .add-option-row { margin-top: 10px; display: flex; justify-content: flex-end; }
-        .erp-btn.sm { padding: 6px 12px; font-size: 11px; }
+        .add-option-row { margin-top: 7px; display: flex; justify-content: flex-end; }
+        .erp-btn.sm { padding: 4px 9px; font-size: 11px; }
 
         .text-green { color: #166534; }
 
@@ -1418,16 +1783,16 @@ function ProductManagementContent() {
         .table-btn:hover { color: #FF7A00; background: #fff7ed; }
         .table-btn.delete:hover { background: #fef2f2; color: #ef4444; }
 
-        .drawer-tabs { display: flex; gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 12px; margin-bottom: 24px; position: sticky; top: -20px; z-index: 10; align-self: flex-start; }
-        .drawer-tab { padding: 8px 16px; border: none; background: none; font-size: 11px; font-weight: 700; color: #64748b; cursor: pointer; border-radius: 8px; text-transform: uppercase; transition: all 0.2s; }
+        .drawer-tabs { display: flex; gap: 3px; padding: 3px; background: #f1f5f9; border-radius: 10px; margin-bottom: 14px; position: sticky; top: -20px; z-index: 10; align-self: flex-start; }
+        .drawer-tab { padding: 5px 12px; border: none; background: none; font-size: 10px; font-weight: 700; color: #64748b; cursor: pointer; border-radius: 7px; text-transform: uppercase; transition: all 0.2s; }
         .drawer-tab.active { background: white; color: #FF7A00; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .drawer-tab:hover:not(.active) { color: #0f172a; }
 
-        .mapping-selector { display: flex; flex-direction: column; gap: 8px; }
-        .erp-select { padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #0f172a; width: 100%; }
+        .mapping-selector { display: flex; flex-direction: column; gap: 6px; }
+        .erp-select { padding: 6px 10px; border-radius: 7px; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 500; color: #0f172a; width: 100%; }
 
-        .mappings-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-        .mapping-item-card { background: white; border: 1px solid #f1f5f9; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .mappings-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .mapping-item-card { background: white; border: 1px solid #f1f5f9; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
         .variant-mapping-card { border-color: #e2e8f0; box-shadow: 0 8px 18px rgba(15,23,42,0.04); }
         .mapping-item-card.horizontal { flex-direction: row; align-items: center; }
         .item-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
@@ -1456,7 +1821,7 @@ function ProductManagementContent() {
         .item-info strong { font-size: 13px; color: #0f172a; }
         .item-info span { font-size: 12px; color: #64748b; font-weight: 600; }
 
-        .section-desc { font-size: 12px; color: #94a3b8; margin-top: -12px; margin-bottom: 20px; }
+        .section-desc { font-size: 11px; color: #94a3b8; margin-top: -8px; margin-bottom: 12px; }
         .text-red { color: #ef4444; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
         .view-mode input, .view-mode textarea { pointer-events: none; background: #f8fafc !important; border-color: transparent !important; }
@@ -1476,11 +1841,11 @@ function ProductManagementContent() {
         /* Branded orange borders for all Interactive Selects */
         .erp-container :global(.nice-select) {
             border: 1.5px solid #f97316 !important;
-            border-radius: 12px !important;
+            border-radius: 8px !important;
             transition: 0.3s !important;
             background: #fff !important;
-            height: 40px !important;
-            line-height: 40px !important;
+            height: 32px !important;
+            line-height: 32px !important;
         }
         .erp-container :global(.nice-select:hover) {
             background: #fff7ed !important;
@@ -1488,7 +1853,7 @@ function ProductManagementContent() {
         }
         .erp-container :global(.nice-select .current) {
             font-weight: 600 !important;
-            font-size: 13px !important;
+            font-size: 12px !important;
             color: #0f172a !important;
         }
       `}</style>
