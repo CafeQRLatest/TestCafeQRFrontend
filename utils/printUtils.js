@@ -84,8 +84,8 @@ function normalizeDisplayItem(raw) {
   const name = String(
     pickValue(
       raw,
-      ["productName", "product_name", "name", "item_name", "itemName", "description"],
-      pickValue(menu, ["name", "productName", "item_name", "itemName"], "Item")
+      ["productName", "product_name", "product_name_snapshot", "menuItemName", "menu_item_name", "item_name", "itemName", "displayName", "display_name", "name", "description"],
+      pickValue(menu, ["name", "productName", "product_name", "menuItemName", "item_name", "itemName", "displayName"], "Item")
     ) || "Item"
   ).trim() || "Item";
   const quantity = pickNumber(raw, ["quantity", "qty"], 1);
@@ -97,6 +97,7 @@ function normalizeDisplayItem(raw) {
   const lineDisc = pickNumber(raw, ["line_discount_amount", "lineDiscountAmount"], 0);
   const orderShare = pickNumber(raw, ["order_discount_share", "orderDiscountShare"], 0);
   const discount = pickNumber(raw, ["discountAmount", "discount_amount"], lineDisc + orderShare);
+  const taxAmount = pickNumber(raw, ["taxAmount", "tax_amount"], 0);
   const lineTotal = pickNumber(
     raw,
     ["lineTotal", "line_total", "total", "amount", "totalPrice"],
@@ -111,6 +112,7 @@ function normalizeDisplayItem(raw) {
     line_discount_amount: lineDisc,
     order_discount_share: orderShare,
     discount_amount: discount,
+    tax_amount: taxAmount,
     line_total: lineTotal,
     productId: pickValue(raw, ["productId", "product_id", "pid", "id"], pickValue(menu, ["id", "productId"], undefined)),
     is_packaged_good: Boolean(
@@ -139,7 +141,7 @@ function getOrderTypeLabel(order) {
   if (tableNumber && tableNumber !== null)
     return `Dine in (Table ${tableNumber})`;
   const type = String(pickValue(order, ["order_type", "orderType", "fulfillment_type", "fulfillmentType"], "")).toLowerCase();
-  if (type === "parcel" || type === "takeaway") return "Parcel";
+  if (type === "parcel" || type === "takeaway") return "Takeaway";
   if (type === "delivery") return "Delivery";
   if (type === "dine_in" || type === "dine-in") return "Dine in";
   return "";
@@ -376,6 +378,10 @@ export function buildKotText(order, restaurantProfile) {
     lines.push(withMargins(center("*** KOT ***", W), layout));
     lines.push(withMargins(`${dateStr} ${timeStr}`, layout));
     lines.push(withMargins(`KOT Ref: ${kotReference}`, layout));
+    const dailyBillNo = pickValue(order, ["dailyBillNo", "daily_bill_no"], null);
+    if (dailyBillNo) {
+      lines.push(withMargins(`Daily Bill No: ${dailyBillNo}`, layout));
+    }
     const staffName = String(pickValue(order, ["taken_by_name", "takenByName"], '')).trim();
     if (staffName) {
       lines.push(withMargins(`Attended by: ${staffName}`, layout));
@@ -545,6 +551,10 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     lines.push(withMargins(`${dateStr} ${timeStr}`, layout));
     if (invoiceNo) lines.push(withMargins(`Invoice: ${invoiceNo}`, layout));
     if (billNo) lines.push(withMargins(`Bill No: ${billNo}`, layout));
+    const dailyBillNo = pickValue(bill, ["dailyBillNo", "daily_bill_no"], pickValue(order, ["dailyBillNo", "daily_bill_no"], null));
+    if (dailyBillNo) {
+      lines.push(withMargins(`Daily Bill No: ${dailyBillNo}`, layout));
+    }
     if (orderType) lines.push(withMargins(`Order Type: ${orderType}`, layout));
 
     const customerText = customerDisplay(order);

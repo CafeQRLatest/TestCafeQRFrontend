@@ -28,11 +28,11 @@ import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../u
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 
 const TABLE_STATUS_META = {
-  AVAILABLE: { label: 'AVAILABLE', bg: '#ffffff', fg: '#0f172a', border: '#e2e8f0', soft: '#f8fafc', accent: '#64748b' },
+  AVAILABLE: { label: 'AVAILABLE', bg: '#ffffff', fg: '#0f172a', border: '#cbd5e1', soft: '#f8fafc', accent: '#64748b' },
   OCCUPIED: { label: 'OCCUPIED', bg: '#ef4444', fg: '#ffffff', border: '#dc2626', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
   BILLED: { label: 'BILLED', bg: '#10b981', fg: '#ffffff', border: '#059669', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
   RESERVED: { label: 'RESERVED', bg: '#3b82f6', fg: '#ffffff', border: '#2563eb', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
-  CLEANING: { label: 'CLEANING', bg: '#f59e0b', fg: '#111827', border: '#d97706', soft: 'rgba(255,255,255,0.24)', accent: '#111827' },
+  CLEANING: { label: 'CLEANING', bg: '#f97316', fg: '#ffffff', border: '#ea580c', soft: 'rgba(255,255,255,0.24)', accent: '#ffffff' },
   MAINTENANCE: { label: 'HOLD', bg: '#64748b', fg: '#ffffff', border: '#475569', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
 };
 
@@ -986,7 +986,7 @@ function fulfillmentLabel(order) {
   if (order?.tableNumber || order?.table_number) return `Dine in (Table ${order.tableNumber || order.table_number})`;
   const fulfillment = String(order?.fulfillmentType || order?.fulfillment_type || '').toUpperCase();
   if (fulfillment === 'DELIVERY') return 'Delivery';
-  if (fulfillment === 'TAKEAWAY') return 'Parcel';
+  if (fulfillment === 'TAKEAWAY') return 'Takeaway';
   if (fulfillment === 'DINE_IN') return 'Dine in';
   return fulfillment || 'Dine in';
 }
@@ -1126,7 +1126,12 @@ function SalesContent() {
         });
       } else {
         setActiveView((current) => {
-          if (current === 'billing' && selectedTable?.tableNumber === 'COUNTER') {
+          if (
+            current === 'billing' &&
+            selectedTable?.tableNumber === 'COUNTER' &&
+            selectedTable?.orderType !== 'TAKEAWAY' &&
+            selectedTable?.orderType !== 'DELIVERY'
+          ) {
             setPendingOrderType(null);
             setSelectedTable(null);
             return 'order_type';
@@ -1135,7 +1140,7 @@ function SalesContent() {
         });
       }
     }
-  }, [config, selectedTable?.tableNumber]);
+  }, [config, selectedTable?.tableNumber, selectedTable?.orderType]);
 
   useEffect(() => {
     if (historyFiltersTouchedRef.current) return;
@@ -1599,15 +1604,20 @@ function SalesContent() {
   };
 
   const handleOrderTypeSelected = useCallback(({ orderType, table }) => {
-    setActiveView('billing');
-    setPendingOrderType(orderType);
     if (orderType === 'TABLE' && table) {
+      const status = String(table.status || 'AVAILABLE').toUpperCase();
+      if (status !== 'AVAILABLE') {
+        showToast(`Table ${table.tableNumber || ''} is not available for a new order.`, 'error');
+        return;
+      }
       setSelectedTable(table);
     } else {
       // Non-table order: use a virtual counter table
       setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType });
     }
-  }, []);
+    setActiveView('billing');
+    setPendingOrderType(orderType);
+  }, [showToast]);
 
   const refreshSalesState = useCallback(() => {
     fetchOrders();
@@ -1923,7 +1933,11 @@ function SalesContent() {
   }
 
   return (
-    <DashboardLayout title="Sales">
+    <DashboardLayout 
+      title="Sales" 
+      hideTitle={activeView === 'order_type' || activeView === 'billing'}
+      noPadding={activeView === 'order_type' || activeView === 'billing'}
+    >
       <PageContainer>
         {activeView === 'history' && (
           <OrderHistory
@@ -1970,8 +1984,7 @@ function SalesContent() {
             config={config}
             onSelect={handleOrderTypeSelected}
             onHistoryClick={() => {
-              setActiveView('history');
-              fetchHistoryOrders(0);
+              router.push('/owner/orders?tab=completed');
             }}
             onPoHistoryClick={() => {
               router.push('/owner/purchase-orders?view=history');
@@ -1984,7 +1997,7 @@ function SalesContent() {
 
         {activeView === 'billing' && selectedTable && (
           <CounterSale
-            initialTable={selectedTable.tableNumber === 'COUNTER' ? null : selectedTable}
+            initialTable={selectedTable}
             interfaceMode={billingUi}
             onOrderCreated={handleOrderCreated}
             onCreditCustomerCreated={handleCreditCustomerCreated}
@@ -2077,6 +2090,11 @@ function SalesContent() {
               COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
               PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
               CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+            }}
+            config={config}
+            onOrderUpdated={(savedOrder) => {
+              fetchOrders?.();
+              fetchHistoryOrders?.(historyPage?.number || 0);
             }}
           />
         )}

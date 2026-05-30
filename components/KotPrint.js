@@ -135,7 +135,7 @@ function getOrderTypeLabelLocal(order) {
     return `Dine in (Table ${order.tableNumber})`;
   }
   const type = String(order.fulfillmentType || '').toUpperCase();
-  if (type === 'PARCEL' || type === 'TAKEAWAY') return 'Parcel';
+  if (type === 'PARCEL' || type === 'TAKEAWAY') return 'Takeaway';
   if (type === 'DELIVERY') return 'Delivery';
   if (type === 'DINE_IN') return 'Dine in';
   return '';

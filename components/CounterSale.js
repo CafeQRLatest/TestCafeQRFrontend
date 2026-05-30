@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import styled, { keyframes } from 'styled-components';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { formatTzDate } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
-  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag
+  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
+  FaHistory
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
@@ -22,23 +24,26 @@ const fadeIn = keyframes`
 `;
 
 const ModalOverlay = styled.div`
-  position: fixed;
-  inset: 0;
   background: #f8fafc;
-  z-index: 1000;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  position: relative;
+  flex: 1;
 `;
 
 const ModalContent = styled.div`
   background: #f8fafc;
   width: 100%;
-  height: 100dvh;
+  height: calc(100vh - 60px);
   border-radius: 0;
+  border: none;
+  border-left: 1px solid #e2e8f0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   position: relative;
+  box-shadow: none;
 `;
 
 const CounterHeader = styled.header`
@@ -232,6 +237,35 @@ const ModeToggleBtn = styled.button`
   }
 `;
 
+const HeaderShortcutBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25);
+  transition: all 0.2s;
+
+  &:hover {
+    background: linear-gradient(135deg, #ea580c 0%, #d97706 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+  }
+`;
+
+const HeaderShortcutLabel = styled.span`
+  @media (max-width: 680px) {
+    display: none;
+  }
+`;
+
 const SearchBar = styled.div`
   position: relative;
   width: 100%;
@@ -376,7 +410,9 @@ const NoSuggests = styled.div`
 
 const SearchInput = styled.input`
   width: 100%;
-  padding: 10px 16px 10px 44px;
+  height: 42px;
+  box-sizing: border-box;
+  padding: 0 16px 0 44px;
   background: white;
   color: #000000;
   border: 1.5px solid #cbd5e1;
@@ -1419,6 +1455,7 @@ export default function CounterSale({
   config: propConfig = null,
   initialCreditCustomers = null
 }) {
+  const router = useRouter();
   const { timezone, orgId } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState(['ALL']);
@@ -2200,9 +2237,11 @@ export default function CounterSale({
         ...(orgId ? { orgId } : {}),
         orderSource: knownOffline ? 'OFFLINE' : 'ONLINE',
         ...(parsedDate ? { orderDate: parsedDate } : {}),
-        fulfillmentType: initialTable ? 'DINE_IN' : 'TAKEAWAY', // Align with enum: DINE_IN, TAKEAWAY, DELIVERY
-        tableNumber: initialTable ? initialTable.tableNumber : null,
-        tableId: initialTable ? initialTable.id : null,
+        fulfillmentType: (initialTable && initialTable.tableNumber !== 'COUNTER')
+          ? 'DINE_IN'
+          : (initialTable?.orderType === 'DELIVERY' ? 'DELIVERY' : 'TAKEAWAY'),
+        tableNumber: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.tableNumber : null,
+        tableId: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.id : null,
         orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED')),
         paymentStatus: orderMode === 'kitchen' ? 'PENDING' : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING')),
         ...(isCreditFinal ? { reference: 'CREDIT' } : (isOfflineFinal ? { reference: 'CASH' } : {})),
@@ -2325,7 +2364,15 @@ export default function CounterSale({
           <HeaderLeft>
             <BackBtn onClick={onBack}><FaArrowLeft/></BackBtn>
             <TitleGroup $accentColor={THEME.main}>
-              <Title>{initialTable ? `Table ${initialTable.tableNumber}` : 'Sale Order'}</Title>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Title>
+                  {initialTable
+                    ? (initialTable.tableNumber === 'COUNTER'
+                      ? (initialTable.orderType === 'DELIVERY' ? 'Delivery Order' : 'Takeaway Order')
+                      : `Table ${initialTable.tableNumber}`)
+                    : 'Sale Order'}
+                </Title>
+              </div>
             </TitleGroup>
           </HeaderLeft>
 
@@ -2345,6 +2392,15 @@ export default function CounterSale({
               Settle
             </ModeToggleBtn>
           </HeaderModeSwitch>
+
+          {/* Sales History shortcut */}
+          <HeaderShortcutBtn
+            type="button"
+            onClick={() => router.push('/owner/orders?tab=completed')}
+            style={{ flexShrink: 0 }}
+          >
+            <HeaderShortcutLabel>Sales History</HeaderShortcutLabel>
+          </HeaderShortcutBtn>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '280px', flex: '1 1 auto' }} onClick={e => e.stopPropagation()}>
             <PremiumDateTimePicker 
@@ -2444,6 +2500,7 @@ export default function CounterSale({
                     borderRadius: '12px',
                     fontSize: '13px',
                     fontWeight: '800',
+                    fontFamily: 'inherit',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
@@ -2561,8 +2618,8 @@ export default function CounterSale({
                   </div>
 
                   {config?.posProductListingEnabled === false && (
-                    <div style={{ width: '260px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '16px', gap: '16px', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ width: '260px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '16px', gap: '16px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
                         <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>Payment Info</div>
                         
                         {renderCustomerSelectionPanel()}
@@ -2606,7 +2663,7 @@ export default function CounterSale({
                         </div>
                       </div>
                       
-                      <div>
+                      <div style={{ flexShrink: 0 }}>
                         {orderMode === 'settle' && (
                           <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px', height: '36px' }}>
                             {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
@@ -2761,8 +2818,8 @@ export default function CounterSale({
                       </div>
 
                       {/* Right Column: Calculations vertical section */}
-                      <div style={{ width: '280px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '20px', gap: '20px', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ width: '280px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '20px', gap: '20px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
                           <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>Summary Info</div>
                           
                           {renderCustomerSelectionPanel()}
@@ -2817,7 +2874,7 @@ export default function CounterSale({
                           </div>
                         </div>
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
                           {orderMode === 'settle' && (
                             <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
                               {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}

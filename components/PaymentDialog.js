@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { FaBook, FaCreditCard, FaExchangeAlt, FaMoneyBillWave, FaPlus, FaTimes, FaTrash, FaWallet } from 'react-icons/fa';
+import { calculateOrderTotals } from '../utils/orderCalculations';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 
@@ -11,9 +12,9 @@ const Overlay = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background: rgba(15, 23, 42, 0.48);
-  backdrop-filter: blur(10px);
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
 
   @media (max-width: 640px) {
     align-items: flex-end;
@@ -22,42 +23,44 @@ const Overlay = styled.div`
 `;
 
 const Card = styled.div`
-  width: min(380px, 100%);
+  width: min(340px, 100%);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: white;
-  border-radius: 24px;
-  padding: 24px;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 
   @media (max-width: 640px) {
     width: 100%;
     max-height: calc(100dvh - env(safe-area-inset-top, 0px));
-    border-radius: 24px 24px 0 0;
-    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    border-radius: 20px 20px 0 0;
+    padding: 16px 14px calc(16px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
 
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: clamp(20px, 5.6vw, 22px);
+    font-size: 17px;
     font-weight: 900;
-    overflow-wrap: anywhere;
   }
 
   span {
     display: block;
     color: #64748b;
-    font-size: 12px;
-    font-weight: 800;
-    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 2px;
   }
 `;
 
@@ -66,157 +69,145 @@ const CloseButton = styled.button`
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const TotalBanner = styled.div`
-  margin-top: 18px;
-  border-radius: 18px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f97316, #c2410c);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
   color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   span {
-    display: block;
     font-size: 11px;
-    letter-spacing: 0.08em;
-    font-weight: 900;
+    letter-spacing: 0.05em;
+    font-weight: 800;
     text-transform: uppercase;
-    opacity: 0.86;
+    opacity: 0.9;
   }
 
   strong {
-    display: block;
-    margin-top: 8px;
-    font-size: clamp(30px, 10vw, 38px);
-    line-height: 1;
+    font-size: 22px;
     font-weight: 900;
-    overflow-wrap: anywhere;
   }
 `;
 
 const Breakdown = styled.div`
-  margin-top: 14px;
   border: 1px dashed #cbd5e1;
-  border-radius: 18px;
+  border-radius: 12px;
   background: #f8fafc;
-  padding: 14px 16px;
+  padding: 10px 12px;
   display: grid;
-  gap: 10px;
+  gap: 6px;
 `;
 
 const Row = styled.div`
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
 
   strong {
     color: #0f172a;
+    font-weight: 800;
   }
 `;
 
 const FieldGrid = styled.div`
-  margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
 `;
 
 const Field = styled.label`
   display: grid;
-  gap: 6px;
+  gap: 4px;
   color: #64748b;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
 
   input,
   select {
     min-width: 0;
     border: 1px solid #cbd5e1;
-    border-radius: 13px;
-    padding: 11px 12px;
+    border-radius: 10px;
+    padding: 8px 10px;
     color: #0f172a;
-    font-size: 14px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
     outline: none;
   }
 `;
 
 const SplitPanel = styled.div`
-  margin-top: 16px;
   border: 1px solid #e2e8f0;
-  border-radius: 18px;
+  border-radius: 12px;
   background: #f8fafc;
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-`;
-
-const CreditPanel = styled.div`
-  margin-top: 16px;
-  border: 1px solid #99f6e4;
-  border-radius: 18px;
-  background: #f0fdfa;
-  padding: 12px;
+  padding: 10px;
   display: grid;
   gap: 8px;
 `;
 
+const CreditPanel = styled.div`
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  background: #f0fdfa;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+`;
+
 const CreditLabel = styled.div`
   color: #0f766e;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
 `;
 
 const CreditPickerRow = styled.div`
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-
-  @media (max-width: 420px) {
-    grid-template-columns: 1fr;
-  }
 `;
 
 const NewCreditButton = styled.button`
-  min-height: 42px;
+  min-height: 38px;
   border: 1px solid #99f6e4;
-  border-radius: 13px;
+  border-radius: 10px;
   background: white;
   color: #0f766e;
-  padding: 0 13px;
-  font-size: 12px;
-  font-weight: 900;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 `;
 
 const SplitRow = styled.div`
   display: grid;
-  grid-template-columns: minmax(108px, 0.95fr) minmax(96px, 1fr) 42px;
-  gap: 8px;
+  grid-template-columns: 1.1fr 1fr auto;
+  gap: 6px;
   align-items: end;
-
-  @media (max-width: 420px) {
-    grid-template-columns: 1fr;
-  }
 `;
 
 const IconButton = styled.button`
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 8px;
   background: ${props => props.$danger ? '#fee2e2' : '#e0f2fe'};
   color: ${props => props.$danger ? '#dc2626' : '#0369a1'};
   display: inline-flex;
@@ -228,32 +219,28 @@ const IconButton = styled.button`
     opacity: 0.55;
     cursor: not-allowed;
   }
-
-  @media (max-width: 420px) {
-    width: 100%;
-  }
 `;
 
 const SplitFooter = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   color: #475569;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
 
   button {
     border: 0;
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 8px;
+    padding: 6px 10px;
     background: #fff7ed;
     color: #ea580c;
-    font-weight: 900;
+    font-weight: 800;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
 
     &:disabled {
       opacity: 0.55;
@@ -264,49 +251,51 @@ const SplitFooter = styled.div`
 
 const MethodGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-  gap: 10px;
-  margin-top: 16px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
 `;
 
 const MethodButton = styled.button`
-  min-height: 76px;
-  border-radius: 16px;
+  min-height: 48px;
+  border-radius: 12px;
   border: 1px solid ${props => props.$active ? '#f97316' : '#e2e8f0'};
   background: ${props => props.$active ? '#fff7ed' : 'white'};
   color: ${props => props.$active ? '#ea580c' : '#64748b'};
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
 `;
 
 const Actions = styled.div`
   display: grid;
   grid-template-columns: 1fr 1.3fr;
-  gap: 12px;
-  margin-top: 20px;
-
-  @media (max-width: 420px) {
-    grid-template-columns: 1fr;
-  }
+  gap: 10px;
+  margin-top: 6px;
 `;
 
 const Button = styled.button`
   border: 0;
-  border-radius: 16px;
-  min-height: 56px;
+  border-radius: 12px;
+  min-height: 44px;
   cursor: pointer;
-  background: ${props => props.$primary ? '#f97316' : '#f8fafc'};
+  background: ${props => props.$primary ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#f1f5f9'};
   color: ${props => props.$primary ? 'white' : '#475569'};
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    opacity: 0.9;
+  }
 
   &:disabled {
     opacity: 0.55;
@@ -315,18 +304,19 @@ const Button = styled.button`
 `;
 
 const ErrorText = styled.div`
-  margin-top: 10px;
   color: #dc2626;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
 `;
+
+
 
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const money = (value) => `₹${Number(value || 0).toFixed(2)}`;
+const money = (value) => `\u20B9${Number(value || 0).toFixed(2)}`;
 
 const SPLIT_METHODS = ['CASH', 'ONLINE', 'UPI', 'CARD', 'BANK', 'CHEQUE'];
 
@@ -358,27 +348,139 @@ export default function PaymentDialog({
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
-  const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
-  const taxAmount = Number(order?.totalTaxAmount ?? order?.total_tax_amount ?? 0);
-  const subtotal = Math.max(0, baseTotal - taxAmount);
 
-  // Initialize roundOffAmount based on config
-  const [roundOffAmount, setRoundOffAmount] = useState(() => {
-    if (order?.roundOffAmount !== undefined && order?.roundOffAmount !== null) {
-      return String(order.roundOffAmount);
+
+  const [modifiedOrder, setModifiedOrder] = useState(null);
+  const [totals, setTotals] = useState(null);
+
+  const toCartItems = (lines) => {
+    return (lines || []).map((line, index) => {
+      const price = toNumber(line.unitPrice ?? line.unit_price ?? line.price ?? 0);
+      const qty = toNumber(line.quantity ?? line.qty ?? 1) || 1;
+      const key = line.cartKey || line.id || `${line.productId || 'line'}-${line.variantId || 'base'}-${index}`;
+      
+      let initialType = 'amount';
+      let initialVal = 0;
+      if (line.discount_percent > 0) {
+        initialType = 'percent';
+        initialVal = line.discount_percent;
+      } else if (line.discount_amount > 0) {
+        initialVal = line.discount_amount;
+      } else if (line.discount) {
+        initialType = line.discount.type || 'amount';
+        initialVal = line.discount.value || 0;
+      }
+
+      return {
+        ...line,
+        cartKey: key,
+        displayName: line.productName || line.product_name || line.name || 'Item',
+        price,
+        qty,
+        discount_percent: initialType === 'percent' ? initialVal : 0,
+        discount_amount: initialType === 'amount' ? initialVal : 0,
+        discount: { type: initialType, value: initialVal },
+      };
+    });
+  };
+
+  const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
+
+  // Startup hook to calculate initial totals and lines using centralized GST math
+  useEffect(() => {
+    if (order && !modifiedOrder) {
+      const items = toCartItems(order.lines || []);
+      const configProfile = {
+        gst_enabled: config?.taxEnabled,
+        default_tax_rate: (() => {
+          if (!config?.taxEnabled) return 0;
+          const rates = config?.taxRates || [];
+          const def = rates.find(r => r.id === config?.taxDefaultId);
+          return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
+        })(),
+        prices_include_tax: config?.pricesIncludeTax,
+        round_off_config: { round_off_enabled: config?.roundOffEnabled },
+      };
+      
+      const ordDiscType = order.orderDiscount?.type || (order.totalDiscountAmount > 0 ? 'amount' : 'amount');
+      const ordDiscVal = order.orderDiscount?.value || Number(order.totalDiscountAmount || 0);
+
+      const orderDisc = {
+        type: ordDiscType === 'percent' ? 'percent' : 'amount',
+        value: ordDiscVal,
+      };
+
+      const calculated = calculateOrderTotals(
+        items.map((line) => ({
+          id: line.cartKey,
+          productId: line.productId,
+          name: line.displayName,
+          price: line.price,
+          quantity: line.qty,
+          tax_rate: line.taxRate || line.tax_rate || 0,
+          is_packaged_good: line.isPackagedGood,
+          is_packaged: line.isPackagedGood,
+          discount_percent: line.discount_percent,
+          discount_amount: line.discount_amount,
+          discount: line.discount,
+        })),
+        orderDisc,
+        configProfile
+      );
+
+      const processedLines = (calculated.processed_items || []).map((processed, idx) => {
+        const original = items[idx];
+        return {
+          ...original,
+          quantity: processed.quantity,
+          unitPrice: processed.unit_price,
+          taxRate: processed.tax_rate,
+          taxAmount: processed.tax_amount,
+          discountAmount: processed.discount_amount,
+          lineTotal: processed.line_total,
+        };
+      });
+
+      setModifiedOrder({
+        ...order,
+        grandTotal: calculated.total_amount,
+        totalTaxAmount: calculated.total_tax,
+        totalAmount: calculated.total_inc_tax,
+        totalDiscountAmount: calculated.discount_amount,
+        lines: processedLines,
+      });
+
+      setTotals({
+        grossTotal: calculated.gross_face_total,
+        discount: calculated.discount_amount,
+        taxable: calculated.taxable_amount,
+        tax: calculated.total_tax,
+        roundOff: calculated.round_off_amount,
+        payable: calculated.total_amount,
+      });
     }
-    if (order?.round_off_amount !== undefined && order?.round_off_amount !== null) {
-      return String(order.round_off_amount);
+  }, [order, config, modifiedOrder]);
+
+
+
+  // Derived values from calculated totals
+  const activePayable = totals ? totals.payable : baseTotal;
+  const gross = totals ? totals.grossTotal : baseTotal;
+  const disc = totals ? totals.discount : Number(order?.totalDiscountAmount ?? 0);
+  const tax = totals ? totals.tax : Number(order?.totalTaxAmount ?? 0);
+  const round = totals ? totals.roundOff : 0;
+  const subtotal = Math.max(0, gross - disc);
+
+  const [roundOffAmount, setRoundOffAmount] = useState('0.00');
+
+  useEffect(() => {
+    if (totals) {
+      setRoundOffAmount(String(totals.roundOff));
     }
-    if (roundOffEnabled && roundOffMode === 'automatic') {
-      const rounded = Math.round(baseTotal / roundOffAutoFactor) * roundOffAutoFactor;
-      return String(Number((rounded - baseTotal).toFixed(2)));
-    }
-    return '0.00';
-  });
+  }, [totals]);
 
   const roundOff = toNumber(roundOffAmount);
-  const payable = useMemo(() => Math.max(0, baseTotal + roundOff), [baseTotal, roundOff]);
+  const payable = activePayable;
 
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
@@ -387,6 +489,8 @@ export default function PaymentDialog({
     }
     return true;
   }, [roundOffEnabled, roundOffMode, roundOff, roundOffManualLimit]);
+
+  const isDiscountValid = true; // Fully managed inside the discount modal!
 
   const mixedTotal = paymentSplits.reduce((sum, split) => sum + toNumber(split.amount), 0);
   const selectedSplitMethods = paymentSplits.map((split) => split.paymentMethod).filter(Boolean);
@@ -444,8 +548,9 @@ export default function PaymentDialog({
         paymentMethod: 'CREDIT',
         creditCustomerId,
         amountPaid: 0,
-        discountAmount: 0,
-        roundOffAmount: Number(roundOff.toFixed(2)),
+        discountAmount: Number(disc.toFixed(2)),
+        roundOffAmount: Number(round.toFixed(2)),
+        updatedOrder: modifiedOrder, // Send modified lines & totals back to host first!
       });
       return;
     }
@@ -468,8 +573,9 @@ export default function PaymentDialog({
       cashAmount: paymentMethod === 'MIXED' ? Number(cashAmount.toFixed(2)) : null,
       onlineAmount: paymentMethod === 'MIXED' ? Number(nonCashAmount.toFixed(2)) : null,
       paymentSplits: normalizedSplits,
-      discountAmount: 0,
-      roundOffAmount: Number(roundOff.toFixed(2)),
+      discountAmount: Number(disc.toFixed(2)),
+      roundOffAmount: Number(round.toFixed(2)),
+      updatedOrder: modifiedOrder, // Send modified lines & totals back to host first!
     });
   };
 
@@ -494,24 +600,19 @@ export default function PaymentDialog({
         </TotalBanner>
 
         <Breakdown>
-          <Row><span>Gross Total</span><strong>{money(baseTotal)}</strong></Row>
+          <Row><span>Gross Total</span><strong>{money(gross)}</strong></Row>
+          {disc > 0 && <Row style={{ color: '#ea580c' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
           <Row><span>Subtotal</span><strong>{money(subtotal)}</strong></Row>
-          <Row><span>Tax</span><strong>{money(taxAmount)}</strong></Row>
+          <Row><span>Tax</span><strong>{money(tax)}</strong></Row>
           <Row><span>Round Off</span><strong>{money(roundOff)}</strong></Row>
         </Breakdown>
 
-        <FieldGrid>
+        {roundOffEnabled && roundOffMode === 'manual' && (
           <Field>
-            Round Off {roundOffEnabled && roundOffMode === 'manual' && `(Limit ±₹${roundOffManualLimit})`}
-            <input 
-              type="number" 
-              step="0.01" 
-              disabled={!roundOffEnabled || roundOffMode === 'automatic'} 
-              value={roundOffAmount} 
-              onChange={(event) => setRoundOffAmount(event.target.value)} 
-            />
+            Round Off (Limit ±₹{roundOffManualLimit.toFixed(2)})
+            <input type="number" step="0.01" value={roundOffAmount} onChange={(event) => setRoundOffAmount(event.target.value)} />
           </Field>
-        </FieldGrid>
+        )}
 
         <MethodGrid>
           <MethodButton type="button" $active={paymentMethod === 'CASH'} onClick={() => chooseMethod('CASH')}>
@@ -599,7 +700,6 @@ export default function PaymentDialog({
             </SplitFooter>
           </SplitPanel>
         )}
-
         {mixedInvalid && (
           <ErrorText>Mixed payment split must be valid and equal {money(payable)}.</ErrorText>
         )}
@@ -609,7 +709,7 @@ export default function PaymentDialog({
         {!isRoundOffValid && (
           <ErrorText>Manual round off must not exceed the limit of ±₹{roundOffManualLimit.toFixed(2)}.</ErrorText>
         )}
-
+ 
         <Actions>
           <Button type="button" disabled={loading} onClick={onClose}>
             Cancel
@@ -628,3 +728,4 @@ export default function PaymentDialog({
     </Overlay>
   );
 }
+

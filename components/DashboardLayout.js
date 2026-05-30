@@ -8,7 +8,7 @@ import {
   FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
-  FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle
+  FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
@@ -16,7 +16,7 @@ import BranchSwitcher from './BranchSwitcher';
 /**
  * DashboardLayout Component
  */
-export default function DashboardLayout({ children, title, subtitle, showBack = false, noSidebar = false }) {
+export default function DashboardLayout({ children, title, subtitle, showBack = false, noSidebar = false, hideTitle = false, noPadding = false }) {
   const { logout, userRole, email, firstName, lastName, fullName, orgId, orgName, clientName, terminalId, terminalName, isAuthenticated } = useAuth();
   const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -139,7 +139,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
                   </button>
 
                   <div className="header-text">
-                    <h1>{title}</h1>
+                    {!hideTitle && <h1>{title}</h1>}
                   </div>
                 </div>
 
@@ -492,8 +492,8 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           width: 100%;
           max-width: 100%;
           min-width: 0;
-          padding: ${noSidebar ? '0' : 'clamp(12px, 2.2vw, 24px)'};
-          padding-bottom: ${noSidebar ? '0' : 'calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-bottom, 0px))'};
+          padding: ${noPadding ? '0' : (noSidebar ? '0' : 'clamp(12px, 2.2vw, 24px)')};
+          padding-bottom: ${noPadding ? '0' : (noSidebar ? '0' : 'calc(clamp(16px, 2.2vw, 24px) + env(safe-area-inset-bottom, 0px))')};
         }
 
         /* Mobile Sidebar Drawer */
@@ -566,6 +566,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Data Backup":      <FaDatabase />,
     "Document Sequences": <FaFileInvoice />,
   };
 
@@ -682,6 +683,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Data Backup":      <FaDatabase />,
     "Document Sequences": <FaFileInvoice />,
   };
 
