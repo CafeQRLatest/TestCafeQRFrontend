@@ -6,7 +6,7 @@
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  FaChair, FaUtensils, FaShoppingBag, FaTruck, FaHistory, FaExpand, FaCompress,
+  FaChair, FaUtensils, FaShoppingBag, FaTruck, FaHistory,
 } from 'react-icons/fa';
 
 /* ─── order type definitions ─────────────────────────────────────── */
@@ -17,19 +17,21 @@ function buildOrderTypes(config) {
   } else {
     types.push({ key: 'DINE_IN',   icon: <FaUtensils />,  label: 'Dine in',     accent: '#6366f1' });
   }
-  types.push({ key: 'TAKEAWAY',  icon: <FaShoppingBag />, label: 'Parcel', accent: '#10b981' });
-  types.push({ key: 'DELIVERY',  icon: <FaTruck />,     label: 'Delivery',  accent: '#3b82f6' });
+  types.push({ key: 'TAKEAWAY',  icon: <FaShoppingBag />, label: 'Takeaway', accent: '#10b981' });
+  if (config?.onlineDeliveryEnabled) {
+    types.push({ key: 'DELIVERY',  icon: <FaTruck />,     label: 'Delivery',  accent: '#3b82f6' });
+  }
   return types;
 }
 
 /* ─── table status color map ─────────────────────────────────────── */
 const STATUS_CUBE = {
-  AVAILABLE:   { bg: '#22c55e', label: 'Available' },
-  OCCUPIED:    { bg: '#ef4444', label: 'Occupied' },
-  RESERVED:    { bg: '#3b82f6', label: 'Reserved' },
-  MAINTENANCE: { bg: '#94a3b8', label: 'On Hold' },
-  BILLED:      { bg: '#eab308', label: 'Billed' },
-  CLEANING:    { bg: '#f97316', label: 'Cleaning' },
+  AVAILABLE:   { bg: '#ffffff', fg: '#0f172a', border: '#cbd5e1', label: 'Available' },
+  OCCUPIED:    { bg: '#ef4444', fg: '#ffffff', border: '#dc2626', label: 'Occupied' },
+  BILLED:      { bg: '#10b981', fg: '#ffffff', border: '#059669', label: 'Billed' },
+  RESERVED:    { bg: '#3b82f6', fg: '#ffffff', border: '#2563eb', label: 'Reserved' },
+  CLEANING:    { bg: '#f97316', fg: '#ffffff', border: '#ea580c', label: 'Cleaning' },
+  MAINTENANCE: { bg: '#64748b', fg: '#ffffff', border: '#475569', label: 'Hold' },
 };
 function cubeColor(status) {
   return STATUS_CUBE[String(status || 'AVAILABLE').toUpperCase()] || STATUS_CUBE.AVAILABLE;
@@ -51,35 +53,12 @@ export default function OrderTypeSelectorModal({
   const [hoveredCard, setHoveredCard] = useState(null);
   const [floorFilter, setFloorFilter] = useState('ALL');
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
   // Config loads async — default to TABLE tab once tableManagementEnabled resolves
   useEffect(() => {
     if (config?.tableManagementEnabled && !activeType) {
       setActiveType('TABLE');
     }
   }, [config?.tableManagementEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    setIsFullscreen(!!document.fullscreenElement);
-    const handleFsChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFsChange);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (typeof document === 'undefined') return;
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
 
   const orderTypes = useMemo(() => buildOrderTypes(config), [config]);
 
@@ -91,10 +70,21 @@ export default function OrderTypeSelectorModal({
     return all;
   }, [tables]);
 
-  /* filter tables by floor */
+  /* filter and sort tables by floor/number */
   const filteredTables = useMemo(() => {
-    if (floorFilter === 'ALL') return tables;
-    return tables.filter(t => t.floor === floorFilter);
+    const list = floorFilter === 'ALL'
+      ? [...tables]
+      : tables.filter(t => t.floor === floorFilter);
+
+    return list.sort((a, b) => {
+      const numA = parseInt(String(a.tableNumber || '').replace(/\D/g, ''), 10);
+      const numB = parseInt(String(b.tableNumber || '').replace(/\D/g, ''), 10);
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        if (numA !== numB) return numA - numB;
+      }
+      return String(a.tableNumber || '').localeCompare(String(b.tableNumber || ''), undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [tables, floorFilter]);
 
   const showTablePicker = activeType === 'TABLE';
@@ -111,19 +101,11 @@ export default function OrderTypeSelectorModal({
             <span style={S.sub}>Select order type</span>
           </div>
           <div style={S.headerRight}>
-            <button style={S.fsBtn} onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}>
-              {isFullscreen ? <FaCompress style={{ fontSize: 12 }} /> : <FaExpand style={{ fontSize: 12 }} />}
-              {isFullscreen ? "Exit" : "Fullscreen"}
-            </button>
             {onHistoryClick && (
               <button style={S.salesHistBtn} onClick={onHistoryClick}>
-                <FaHistory style={{ fontSize: 12 }} />
                 Sales History
               </button>
             )}
-            <button style={S.closeBtn} onClick={onClose}>
-              ✕ Close
-            </button>
           </div>
         </div>
 
@@ -188,19 +170,11 @@ export default function OrderTypeSelectorModal({
           <span style={S.sub}>Select order type</span>
         </div>
         <div style={S.headerRight}>
-          <button style={S.fsBtn} onClick={toggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Go Fullscreen"}>
-            {isFullscreen ? <FaCompress style={{ fontSize: 12 }} /> : <FaExpand style={{ fontSize: 12 }} />}
-            {isFullscreen ? "Exit" : "Fullscreen"}
-          </button>
           {onHistoryClick && (
             <button style={S.salesHistBtn} onClick={onHistoryClick}>
-              <FaHistory style={{ fontSize: 12 }} />
               Sales History
             </button>
           )}
-          <button style={S.closeBtn} onClick={onClose}>
-            ✕ Close
-          </button>
         </div>
       </div>
 
@@ -245,7 +219,11 @@ export default function OrderTypeSelectorModal({
             <div style={S.legend}>
               {Object.entries(STATUS_CUBE).map(([k, v]) => (
                 <span key={k} style={S.legendItem}>
-                  <span style={{ ...S.legendDot, background: v.bg }} />
+                  <span style={{
+                    ...S.legendDot,
+                    background: v.bg,
+                    border: `1px solid ${v.border || 'transparent'}`,
+                  }} />
                   {v.label}
                 </span>
               ))}
@@ -287,17 +265,28 @@ export default function OrderTypeSelectorModal({
                     title={`Table ${table.tableNumber} — ${cube.label}${table.floor ? ` · ${table.floor}` : ''}`}
                     style={{
                       ...S.cube,
-                      background: isHov ? cube.bg : `${cube.bg}cc`,
-                      boxShadow: isHov ? `0 0 0 3px ${cube.bg}55, 0 4px 12px ${cube.bg}44` : 'none',
+                      background: isHov
+                        ? (status === 'AVAILABLE' ? '#f8fafc' : cube.bg)
+                        : cube.bg,
+                      border: `1.5px solid ${isHov && status === 'AVAILABLE' ? '#0f172a' : (cube.border || 'transparent')}`,
+                      boxShadow: isHov
+                        ? (status === 'AVAILABLE'
+                          ? '0 8px 20px rgba(15, 23, 42, 0.12), 0 4px 8px rgba(15, 23, 42, 0.04)'
+                          : `0 0 0 3px ${cube.bg}55, 0 4px 12px ${cube.bg}44`)
+                        : 'none',
                       transform: isHov ? 'scale(1.12)' : 'scale(1)',
-                      opacity: isAvail ? 1 : 0.5,
+                      opacity: 1,
                       cursor: isAvail ? 'pointer' : 'not-allowed',
                     }}
                     onClick={() => handleTableClick(table)}
                     onMouseEnter={() => isAvail && setHoveredTable(table.id)}
                     onMouseLeave={() => setHoveredTable(null)}
                   >
-                    <span style={S.cubeNum}>{table.tableNumber}</span>
+                    <span style={{
+                      ...S.cubeNum,
+                      color: cube.fg || 'white',
+                      textShadow: status === 'AVAILABLE' ? 'none' : '0 1px 2px rgba(0,0,0,0.25)',
+                    }}>{table.tableNumber}</span>
                   </button>
                 );
               })}
@@ -325,10 +314,17 @@ export default function OrderTypeSelectorModal({
 /* ─── styles ─────────────────────────────────────────────────────── */
 const S = {
   overlay: {
-    position: 'fixed', inset: 0,
     background: '#f8fafc',
-    zIndex: 1100,
     display: 'flex', flexDirection: 'column',
+    position: 'relative',
+    flex: 1,
+    width: '100%',
+    height: 'calc(100vh - 60px)',
+    borderRadius: 0,
+    border: 'none',
+    borderLeft: '1px solid #e2e8f0',
+    overflow: 'hidden',
+    boxShadow: 'none',
     animation: '_ots_in 0.28s cubic-bezier(0.16,1,0.3,1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
   },
@@ -340,12 +336,12 @@ const S = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 24,
-    padding: 32,
+    padding: 20,
     background: '#f8fafc',
   },
   centerCard: {
-    width: 160,
-    height: 160,
+    width: 150,
+    height: 150,
     borderRadius: 20,
     border: '1px solid #e2e8f0',
     background: 'white',
@@ -360,13 +356,13 @@ const S = {
     outline: 'none',
   },
   centerCardIcon: {
-    fontSize: 40,
+    fontSize: 36,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
   },
   centerCardLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 800,
     color: '#334155',
   },
@@ -374,7 +370,7 @@ const S = {
   /* Header */
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '20px 32px',
+    padding: '14px 20px',
     borderBottom: '1px solid #e2e8f0',
     background: 'white',
     flexShrink: 0,
@@ -386,35 +382,35 @@ const S = {
     borderRadius: 2,
     background: 'linear-gradient(to bottom, #f97316, #ea580c)',
   },
-  title: { fontSize: 18, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' },
-  divider: { color: '#cbd5e1', fontSize: 16 },
-  sub: { fontSize: 13, fontWeight: 600, color: '#64748b' },
+  title: { fontSize: 16, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' },
+  divider: { color: '#cbd5e1', fontSize: 14 },
+  sub: { fontSize: 12, fontWeight: 600, color: '#64748b' },
   headerRight: {
-    display: 'flex', alignItems: 'center', gap: 12,
+    display: 'flex', alignItems: 'center', gap: 10,
   },
   fsBtn: {
     display: 'flex', alignItems: 'center', gap: 7,
-    padding: '8px 16px', borderRadius: 10,
+    padding: '6px 12px', borderRadius: 8,
     border: '1px solid #cbd5e1', background: 'white',
-    color: '#475569', fontSize: 12, fontWeight: 700,
+    color: '#475569', fontSize: 11, fontWeight: 700,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   },
   salesHistBtn: {
     display: 'flex', alignItems: 'center', gap: 7,
-    padding: '8px 16px', borderRadius: 10,
+    padding: '6px 12px', borderRadius: 8,
     border: 'none',
     background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-    color: 'white', fontSize: 12, fontWeight: 700,
+    color: 'white', fontSize: 11, fontWeight: 700,
     cursor: 'pointer',
     boxShadow: '0 2px 6px rgba(249, 115, 22, 0.25)',
     transition: 'all 0.15s ease',
   },
   closeBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
-    padding: '8px 16px', borderRadius: 10,
+    padding: '6px 12px', borderRadius: 8,
     border: '1px solid #f97316', background: 'white',
-    color: '#f97316', fontSize: 12, fontWeight: 700,
+    color: '#f97316', fontSize: 11, fontWeight: 700,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   },
@@ -422,7 +418,7 @@ const S = {
   /* Type tabs */
   typeTabs: {
     display: 'flex', gap: 0,
-    padding: '0 32px',
+    padding: '0 20px',
     borderBottom: '1px solid #e2e8f0',
     background: 'white',
     flexShrink: 0,
@@ -430,9 +426,9 @@ const S = {
   },
   typeTab: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '16px 24px',
+    padding: '12px 18px',
     border: 'none', background: 'transparent',
-    cursor: 'pointer', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontSize: 13, fontWeight: 600,
     color: '#64748b', position: 'relative',
     whiteSpace: 'nowrap',
     transition: 'color 0.15s',
@@ -443,7 +439,7 @@ const S = {
     borderBottom: `2px solid ${accent}`,
   }),
   typeTabIcon: {
-    fontSize: 15, display: 'flex', alignItems: 'center',
+    fontSize: 14, display: 'flex', alignItems: 'center',
     transition: 'color 0.15s',
   },
   typeTabLabel: {
@@ -457,8 +453,8 @@ const S = {
   /* Table picker */
   tablePicker: {
     flex: 1, display: 'flex', flexDirection: 'column',
-    padding: '24px 32px',
-    gap: 20,
+    padding: '16px 20px',
+    gap: 16,
     overflowY: 'auto',
     animation: '_ots_slide 0.22s ease',
   },
@@ -470,24 +466,24 @@ const S = {
 
   /* Legend */
   legend: {
-    display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
   },
   legendItem: {
     display: 'flex', alignItems: 'center', gap: 5,
-    fontSize: 11, fontWeight: 600, color: '#64748b',
+    fontSize: 10, fontWeight: 600, color: '#64748b',
   },
   legendDot: {
-    width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
+    width: 7, height: 7, borderRadius: '50%', display: 'inline-block',
   },
 
   /* Floor filter */
   floorRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   floorPill: (active) => ({
-    padding: '5px 12px', borderRadius: 100,
+    padding: '4px 10px', borderRadius: 100,
     border: `1px solid ${active ? '#0f172a' : '#e2e8f0'}`,
     background: active ? '#0f172a' : 'white',
     color: active ? 'white' : '#64748b',
-    fontSize: 11, fontWeight: 700,
+    fontSize: 10, fontWeight: 700,
     cursor: 'pointer',
   }),
 
@@ -515,6 +511,6 @@ const S = {
   empty: {
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
-    gap: 10, padding: '48px 0',
+    gap: 10, padding: '36px 0',
   },
 };

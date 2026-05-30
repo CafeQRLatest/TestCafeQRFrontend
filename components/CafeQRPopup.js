@@ -16,14 +16,15 @@ export default function CafeQRPopup({
   icon: Icon,
   hideFooter = false
 }) {
+  const overlayRef = React.useRef(null);
   const handleOverlayClick = (e) => {
-    if (e.target.className === 'cafeqr-popup-overlay') {
+    if (e.target === overlayRef.current) {
       onClose();
     }
   };
 
   return (
-    <div className="cafeqr-popup-overlay" onClick={handleOverlayClick}>
+    <div className="cafeqr-popup-overlay" onClick={handleOverlayClick} ref={overlayRef}>
       <div className="cafeqr-popup-content" style={{ '--popup-max-width': maxWidth }}>
         <div className="cafeqr-popup-header">
           <div className="header-left">
