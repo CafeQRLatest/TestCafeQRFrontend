@@ -8,7 +8,7 @@ import {
   FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
-  FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle
+  FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
@@ -566,6 +566,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Data Backup":      <FaDatabase />,
     "Document Sequences": <FaFileInvoice />,
   };
 
@@ -682,6 +683,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Table Management": <FaChair />,
     "Expenses":         <FaReceipt />,
     "Waste Management": <FaRecycle />,
+    "Data Backup":      <FaDatabase />,
     "Document Sequences": <FaFileInvoice />,
   };
 
