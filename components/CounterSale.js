@@ -152,7 +152,7 @@ const CatalogSection = styled.section`
 `;
 
 const CartSection = styled.aside`
-  width: clamp(360px, 30vw, 460px);
+  width: clamp(280px, 24vw, 340px);
   background: white;
   border-left: 1px solid #e2e8f0;
   display: flex;
@@ -447,49 +447,50 @@ const CategoryScroll = styled.div`
 `;
 
 const CatBtn = styled.button`
-  padding: 12px 24px;
-  border-radius: 99px;
+  padding: 4px 10px;
+  border-radius: 6px;
   border: 1px solid ${props => props.$active ? props.$themeColor : '#e2e8f0'};
   background: ${props => props.$active ? props.$themeColor : 'white'};
   color: ${props => props.$active ? 'white' : '#64748b'};
   font-weight: 700;
-  font-size: 14px;
+  font-size: 11px;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s;
-  &:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  transition: all 0.15s ease;
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
 `;
 
 const FilterTabs = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 2px;
   &::-webkit-scrollbar { display: none; }
 `;
 
 const FilterBtn = styled.button`
-  padding: 12px 20px;
-  border-radius: 14px;
+  padding: 4px 10px;
+  border-radius: 6px;
   border: 0;
   background: ${props => props.$active ? props.$themeColor : '#eef2f7'};
   color: ${props => props.$active ? 'white' : '#475569'};
-  font-weight: 900;
+  font-weight: 800;
+  font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
 `;
 
 const ProductGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 6px;
   overflow-y: auto;
   padding-bottom: 20px;
   min-height: 0;
 
   @media (max-width: 1120px) {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
+    gap: 5px;
   }
 
   @media (max-width: 900px) {
@@ -498,7 +499,7 @@ const ProductGrid = styled.div`
 
   @media (max-width: 520px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 4px;
   }
 
   @media (max-width: 360px) {
@@ -628,19 +629,19 @@ const StandardOrderList = styled.div`
 `;
 
 const StandardOrderRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 12px;
+  display: flex;
   align-items: center;
-  padding: 6px 12px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
   background: #f8fafc;
   border-radius: 8px;
   border: 1px solid #edf2f7;
 
   @media (max-width: 560px) {
-    grid-template-columns: 1fr;
     align-items: stretch;
-    padding: 10px 12px;
+    flex-direction: column;
+    padding: 8px 10px;
   }
 `;
 
@@ -656,22 +657,22 @@ const SearchHint = styled.div`
 
 const ProductCard = styled.div`
   background: white;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1.5px solid ${props => props.$inCart ? props.$themeColor : '#f1f5f9'};
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   text-align: left;
   overflow: hidden;
   font: inherit;
   min-width: 0;
-  &:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.06); border-color: ${props => props.$themeColor}40; }
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.03); border-color: ${props => props.$themeColor}40; }
 
   @media (max-width: 640px) {
-    border-radius: 12px;
+    border-radius: 6px;
 
     &:hover {
       transform: none;
@@ -680,7 +681,7 @@ const ProductCard = styled.div`
 `;
 
 const ProdImg = styled.div`
-  height: 96px;
+  height: 56px;
   position: relative;
   background-size: cover;
   background-position: center;
@@ -689,44 +690,44 @@ const ProdImg = styled.div`
   align-items: center;
   justify-content: center;
   color: #cbd5e1;
-  font-size: 24px;
+  font-size: 16px;
 
   @media (max-width: 520px) {
-    height: 80px;
+    height: 48px;
   }
 `;
 
 const ProductBody = styled.div`
-  padding: 10px 12px;
+  padding: 4px 6px;
   display: grid;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
 `;
 
 const VegBadge = styled.div`
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  border: 1.5px solid ${props => props.$nonVeg ? '#dc2626' : '#16a34a'};
+  top: 4px;
+  right: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid ${props => props.$nonVeg ? '#dc2626' : '#16a34a'};
   background: white;
   color: ${props => props.$nonVeg ? '#dc2626' : '#16a34a'};
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 6px;
 `;
 
 const CategoryTag = styled.span`
   width: fit-content;
   max-width: 100%;
-  padding: 2px 6px;
+  padding: 0.5px 3px;
   border-radius: 999px;
   background: #f1f5f9;
   color: #64748b;
-  font-size: 9.5px;
+  font-size: 7.5px;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -734,11 +735,11 @@ const CategoryTag = styled.span`
 `;
 
 const ProdName = styled.div`
-  font-weight: 800;
-  font-size: 13.5px;
+  font-weight: 700;
+  font-size: 11px;
   color: #0f172a;
-  line-height: 1.3;
-  height: 36px;
+  line-height: 1.2;
+  height: 26px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -750,8 +751,8 @@ const ProdPriceRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 2px;
+  margin-top: 1px;
 
   @media (max-width: 520px) {
     align-items: stretch;
@@ -760,23 +761,23 @@ const ProdPriceRow = styled.div`
 `;
 
 const ProdPrice = styled.div`
-  font-weight: 850;
-  font-size: 14.5px;
+  font-weight: 800;
+  font-size: 11.5px;
   color: ${props => props.$themeColor};
 `;
 
 const AddBtn = styled.div`
-  height: 30px;
-  border-radius: 8px;
+  height: 20px;
+  border-radius: 5px;
   background: ${props => props.$outline ? 'white' : props.$themeColor};
   border: 1.5px solid ${props => props.$themeColor};
   color: ${props => props.$outline ? props.$themeColor : 'white'};
-  padding: 0 10px;
+  padding: 0 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 2px;
+  font-size: 8.5px;
   font-weight: 800;
   transition: all 0.2s;
   white-space: nowrap;
@@ -787,14 +788,14 @@ const AddBtn = styled.div`
 `;
 
 const ProductStepper = styled.div`
-  height: 30px;
-  width: 76px;
-  border-radius: 8px;
+  height: 20px;
+  width: 56px;
+  border-radius: 5px;
   border: 1.5px solid ${props => props.$themeColor};
   background: white;
   color: #0f172a;
   display: grid;
-  grid-template-columns: 24px 1fr 24px;
+  grid-template-columns: 16px 1fr 16px;
   overflow: hidden;
 
   @media (max-width: 520px) {
@@ -812,7 +813,7 @@ const ProductQtyBtn = styled.button`
   align-items: center;
   justify-content: center;
   font-weight: 900;
-  font-size: 9px;
+  font-size: 7.5px;
   padding: 0;
   height: 100%;
 
@@ -827,27 +828,27 @@ const ProductQtyValue = styled.div`
   align-items: center;
   justify-content: center;
   font-weight: 850;
-  font-size: 11px;
+  font-size: 9.5px;
   color: #0f172a;
 `;
 
 const VariantCount = styled.span`
-  min-width: 18px;
-  height: 18px;
+  min-width: 12px;
+  height: 12px;
   border-radius: 999px;
-  padding: 0 4px;
+  padding: 0 2px;
   background: ${props => props.$themeColor};
   color: white;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 9.5px;
+  font-size: 7.5px;
   font-weight: 900;
-  margin-right: 4px;
+  margin-right: 2px;
 `;
 
 const CartHeader = styled.div`
-  padding: 24px;
+  padding: 10px 14px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
@@ -856,42 +857,42 @@ const CartHeader = styled.div`
   gap: 12px;
 
   @media (max-width: 900px) {
-    padding: 18px 20px;
+    padding: 8px 12px;
   }
 `;
 
 const CartBody = styled.div`
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 
   @media (max-width: 900px) {
     max-height: 38dvh;
   }
 
   @media (max-width: 520px) {
-    padding: 14px;
+    padding: 8px 10px;
     max-height: 42dvh;
   }
 `;
 
 const CartFooter = styled.div`
-  padding: 24px;
+  padding: 10px 14px;
   border-top: 1px solid #e2e8f0;
   background: white;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 6px;
 
   @media (max-width: 900px) {
-    padding: 18px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
   @media (max-width: 520px) {
-    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -899,30 +900,30 @@ const SummaryRow = styled.div`
   display: flex;
   justify-content: space-between;
   font-weight: ${props => props.$bold ? '800' : '600'};
-  font-size: ${props => props.$bold ? '22px' : '14px'};
+  font-size: ${props => props.$bold ? '16px' : '11.5px'};
   color: ${props => props.$bold ? '#0f172a' : '#64748b'};
 `;
 
 const PayBtn = styled.button`
   width: 100%;
-  padding: 14px 20px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
   background: linear-gradient(135deg, ${props => props.$color} 0%, ${props => props.$colorDark} 100%);
   color: white;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
   border: none;
   cursor: pointer;
-  box-shadow: 0 10px 25px -5px ${props => props.$color}40;
+  box-shadow: 0 4px 12px -2px ${props => props.$color}40;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   transition: transform 0.1s, box-shadow 0.1s;
 
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px -5px ${props => props.$color}50;
+    box-shadow: 0 6px 16px -2px ${props => props.$color}50;
   }
 
   &:active {
@@ -940,18 +941,18 @@ const PayBtn = styled.button`
 
 const DiscountBtn = styled.button`
   width: 100%;
-  height: 38px;
-  border-radius: 8px;
+  height: 28px;
+  border-radius: 6px;
   border: 1px dashed #cbd5e1;
   background: white;
   color: #475569;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 11.5px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.2s;
 
   &:hover {
@@ -984,18 +985,10 @@ const DiscountModalContent = styled.div`
 `;
 
 const DiscountModalHeader = styled.div`
-  padding: 16px 20px;
-  border-bottom: 1px solid #edf2f7;
+  padding: 8px 12px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  h3 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 800;
-    color: #0f172a;
-    font-family: 'Outfit', sans-serif;
-  }
 `;
 
 const DiscountTabHeader = styled.div`
@@ -1122,16 +1115,18 @@ const EmptyCart = styled.div`
 
 const CartItemCard = styled.div`
   display: flex;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 8px;
+  border-radius: 6px;
   border: 1px solid #f1f5f9;
   background: white;
-
-  @media (max-width: 420px) {
-    align-items: stretch;
-    flex-direction: column;
-    padding: 10px 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.01);
+  transition: all 0.15s ease;
+  
+  &:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.02);
   }
 `;
 
@@ -1139,32 +1134,33 @@ const CartItemInfo = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
 `;
 
 const QtyGroup = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   background: #f8fafc;
-  padding: 2px 6px;
-  border-radius: 6px;
+  padding: 1.5px 4px;
+  border-radius: 4px;
   flex: 0 0 auto;
 `;
 
 const QtyBtn = styled.button`
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
   border: none;
   background: white;
   color: #64748b;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 7px;
 `;
 
 const CartCloseBtn = styled.button`
@@ -1238,10 +1234,10 @@ const OfflineNotice = styled.div`
 const CustomerPickerArea = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   position: relative;
   z-index: 10;
-  min-width: 250px;
+  min-width: 200px;
 
   @media (max-width: 720px) {
     width: 100%;
@@ -1255,10 +1251,10 @@ const CustomerInputWrap = styled.div`
   min-width: 0;
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0 12px;
-  height: 44px;
-  gap: 8px;
+  border-radius: 8px;
+  padding: 0 8px;
+  height: 30px;
+  gap: 6px;
   &:focus-within {
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -1270,7 +1266,7 @@ const CustomerInput = styled.input`
   border: none;
   background: transparent;
   outline: none;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #0f172a;
   min-width: 100px;
@@ -1282,7 +1278,7 @@ const CustomerInput = styled.input`
 
 const CreditPickerRow = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   min-width: 0;
 
@@ -1294,24 +1290,24 @@ const CreditPickerRow = styled.div`
 
 const CreditSelectWrap = styled.div`
   flex: 1;
-  min-width: 180px;
+  min-width: 140px;
 `;
 
 const CreditNewButton = styled.button`
-  height: 44px;
+  height: 30px;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 8px;
   background: white;
   color: #0f766e;
-  padding: 0 16px;
-  font-size: 13px;
+  padding: 0 10px;
+  font-size: 11px;
   font-weight: 900;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
 
   &:hover {
     background: #f0fdfa;
@@ -1320,25 +1316,25 @@ const CreditNewButton = styled.button`
 `;
 
 const CreditToggleButton = styled.button`
-  height: 44px;
+  height: 30px;
   border: 1px solid ${props => props.$active ? '#14b8a6' : '#99f6e4'};
-  border-radius: 14px;
+  border-radius: 8px;
   background: ${props => props.$active ? '#14b8a6' : 'white'};
   color: ${props => props.$active ? 'white' : '#0f766e'};
-  padding: 0 18px;
-  font-size: 13px;
+  padding: 0 10px;
+  font-size: 11px;
   font-weight: 900;
   cursor: pointer;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  box-shadow: ${props => props.$active ? '0 10px 24px rgba(20, 184, 166, 0.24)' : 'none'};
+  gap: 5px;
+  box-shadow: ${props => props.$active ? '0 6px 16px rgba(20, 184, 166, 0.16)' : 'none'};
 `;
 
 const CreditMeta = styled.div`
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   color: ${props => props.$warn ? '#c2410c' : '#64748b'};
   padding-left: 4px;
@@ -1427,10 +1423,10 @@ const DateTimeRow = styled.div`
 
 const DateTimeInput = styled.input`
   flex: 1;
-  height: 34px;
+  height: 28px;
   border: 1.5px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 12.5px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 600;
   padding: 0 8px;
   outline: none;
@@ -1979,6 +1975,7 @@ export default function CounterSale({
     const term = search.trim().toLowerCase();
     return products.filter(p => {
       if (p.isActive === false || p.isactive === 'N') return false;
+      if (p.isIngredient === true || p.is_ingredient === true || String(p.isIngredient).toUpperCase() === 'Y' || String(p.is_ingredient).toUpperCase() === 'Y') return false;
       const matchesCategory = activeCat === 'ALL' || p.categoryName === activeCat;
       const matchesSearch = !term || String(p.name || '').toLowerCase().includes(term);
       const matchesDiet = dietFilter === 'VEG' ? isVegProduct(p) : true;
@@ -1994,7 +1991,11 @@ export default function CounterSale({
     if (!term) return [];
     const normalizedTerm = term.toLowerCase();
     return products
-      .filter(p => p.isActive !== false && p.isactive !== 'N' && String(p.name || '').toLowerCase().includes(normalizedTerm))
+      .filter(p => {
+        if (p.isActive === false || p.isactive === 'N') return false;
+        if (p.isIngredient === true || p.is_ingredient === true || String(p.isIngredient).toUpperCase() === 'Y' || String(p.is_ingredient).toUpperCase() === 'Y') return false;
+        return String(p.name || '').toLowerCase().includes(normalizedTerm);
+      })
       .slice(0, 12);
   }, [products, search]);
 
@@ -2593,22 +2594,25 @@ export default function CounterSale({
                       ) : (
                         cart.map(item => (
                           <StandardOrderRow key={cartKeyFor(item)}>
-                            <CartItemInfo>
-                              <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
-                              <div style={{ color: '#64748b', fontWeight: 700 }}>₹{Number(item.price || 0).toFixed(2)} each</div>
-                              {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
-                                <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                                  <FaTag size={9} />
-                                  Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
-                                </div>
-                              )}
-                            </CartItemInfo>
-                            <QtyGroup>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '11.5px', color: '#1e293b', lineHeight: '1.25', wordBreak: 'break-word' }}>{item.displayName || item.name}</div>
+                              <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
+                                ₹{Number(item.price || 0).toFixed(2)} each
+                                {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                  <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
+                                    (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <QtyGroup style={{ margin: '0 4px' }}>
                               <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus /></QtyBtn>
-                              <div style={{ fontWeight: 800, minWidth: '20px', textAlign: 'center' }}>{item.qty}</div>
+                              <div style={{ fontWeight: 800, minWidth: '14px', textAlign: 'center', fontSize: '10.5px', color: '#0f172a' }}>{item.qty}</div>
                               <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus /></QtyBtn>
                             </QtyGroup>
-                            <div style={{ color: THEME.main, fontWeight: 900 }}>₹{(Number(item.price || 0) * item.qty).toFixed(2)}</div>
+                            <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', minWidth: '50px', textAlign: 'right' }}>
+                              ₹{(Number(item.price || 0) * item.qty).toFixed(2)}
+                            </div>
                           </StandardOrderRow>
                         ))
                       )}
@@ -2616,48 +2620,48 @@ export default function CounterSale({
                   </div>
 
                   {config?.posProductListingEnabled === false && (
-                    <div style={{ width: '260px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '16px', gap: '16px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
-                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}>Payment Info</div>
+                    <div style={{ width: '220px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: '8px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
+                        <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '12.5px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Payment Info</div>
                         
                         {renderCustomerSelectionPanel()}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Subtotal</div>
-                          <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.line_subtotal.toFixed(2)}</div>
+                          <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.line_subtotal.toFixed(2)}</div>
                         </div>
 
                         {totals.discount_amount > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Discount</div>
-                            <div style={{ fontSize: '14px', color: '#dc2626', fontWeight: 800 }}>-₹{totals.discount_amount.toFixed(2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#dc2626', fontWeight: 800 }}>-₹{totals.discount_amount.toFixed(2)}</div>
                           </div>
                         )}
 
                         {config?.taxEnabled && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Taxable Value</div>
-                            <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.taxable_amount.toFixed(2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.taxable_amount.toFixed(2)}</div>
                           </div>
                         )}
                         
                         {totals.total_tax_added > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Exclusive)</div>
-                            <div style={{ fontSize: '14px', color: '#0f172a', fontWeight: 800 }}>₹{totals.total_tax_added.toFixed(2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.total_tax_added.toFixed(2)}</div>
                           </div>
                         )}
 
                         {totals.total_tax_included > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Inclusive - Info Only)</div>
-                            <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(2)}</div>
                           </div>
                         )}
                         
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Total Amount</div>
-                          <div style={{ fontSize: '18px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_amount.toFixed(2)}</div>
+                          <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_amount.toFixed(2)}</div>
                         </div>
                       </div>
                       
@@ -2749,7 +2753,7 @@ export default function CounterSale({
                               {hasOptions ? (
                                 <AddBtn $themeColor={THEME.main} $outline>
                                   {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
-                                  View Options <FaChevronRight />
+                                  Options <FaChevronRight style={{ fontSize: '9px' }} />
                                 </AddBtn>
                               ) : quantity > 0 ? (
                                 <ProductStepper
@@ -2793,21 +2797,27 @@ export default function CounterSale({
                             </div>
                           ) : (
                             cart.map(item => (
-                              <div key={cartKeyFor(item)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #edf2f7', gap: '12px' }}>
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div style={{ fontWeight: 600, fontSize: '12.5px', color: '#1e293b' }}>{item.displayName || item.name}</div>
-                                  <div style={{ color: THEME.main, fontWeight: 700, fontSize: '11.5px', marginTop: '1px' }}>₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)} <span style={{ color: '#94a3b8', fontWeight: 600, fontSize: '11px' }}>({Number(item.price || 0).toFixed(2)} each)</span></div>
-                                  {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
-                                    <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                                      <FaTag size={9} />
-                                      Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
-                                    </div>
-                                  )}
+                              <div key={cartKeyFor(item)} style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '5px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #edf2f7' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                  <div style={{ fontWeight: 700, fontSize: '11.5px', color: '#1e293b', lineHeight: '1.25', wordBreak: 'break-word', minWidth: 0, flex: 1 }}>{item.displayName || item.name}</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '1px', flexShrink: 0 }}>
+                                    <button type="button" onClick={() => updateQty(cartKeyFor(item), -1)} style={{ border: 0, background: 'transparent', width: 16, height: 16, borderRadius: '3px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaMinus size={6}/></button>
+                                    <div style={{ fontWeight: 800, minWidth: '14px', textAlign: 'center', fontSize: '10px', color: '#0f172a' }}>{item.qty}</div>
+                                    <button type="button" onClick={() => updateQty(cartKeyFor(item), 1)} style={{ border: 0, background: 'transparent', width: 16, height: 16, borderRadius: '3px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaPlus size={6}/></button>
+                                  </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '1px' }}>
-                                  <button type="button" onClick={() => updateQty(cartKeyFor(item), -1)} style={{ border: 0, background: 'transparent', width: 18, height: 18, borderRadius: '4px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaMinus size={7}/></button>
-                                  <div style={{ fontWeight: 800, minWidth: '16px', textAlign: 'center', fontSize: '11px', color: '#0f172a' }}>{item.qty}</div>
-                                  <button type="button" onClick={() => updateQty(cartKeyFor(item), 1)} style={{ border: 0, background: 'transparent', width: 18, height: 18, borderRadius: '4px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center', fontWeight: 'bold' }}><FaPlus size={7}/></button>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
+                                  <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
+                                    ₹{Number(item.price || 0).toFixed(2)} each
+                                    {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                      <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
+                                        (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', textAlign: 'right' }}>
+                                    ₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)}
+                                  </div>
                                 </div>
                               </div>
                             ))
@@ -2816,58 +2826,58 @@ export default function CounterSale({
                       </div>
 
                       {/* Right Column: Calculations vertical section */}
-                      <div style={{ width: '280px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '20px', gap: '20px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
-                          <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>Summary Info</div>
+                      <div style={{ width: '240px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: '8px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
+                          <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '12.5px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Summary Info</div>
                           
                           {renderCustomerSelectionPanel()}
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'white', padding: '16px', borderRadius: '12px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.02)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.02)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                               <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal</span>
                               <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.line_subtotal.toFixed(2)}</span>
                             </div>
 
                             {totals.discount_amount > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px', color: '#dc2626' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#dc2626' }}>
                                 <span style={{ fontWeight: 600 }}>Discount</span>
                                 <span style={{ fontWeight: 700 }}>-₹{totals.discount_amount.toFixed(2)}</span>
                               </div>
                             )}
 
                             {config?.taxEnabled && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Taxable Value</span>
                                 <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.taxable_amount.toFixed(2)}</span>
                               </div>
                             )}
                             
                             {totals.total_tax_added > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Exclusive)</span>
                                 <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.total_tax_added.toFixed(2)}</span>
                               </div>
                             )}
 
                             {totals.total_tax_included > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Inclusive - Info Only)</span>
                                 <span style={{ color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(2)}</span>
                               </div>
                             )}
 
                             {totals.round_off_amount !== 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Round Off</span>
                                 <span style={{ color: '#0f172a', fontWeight: 700 }}>{(totals.round_off_amount > 0 ? '+' : '')}₹{totals.round_off_amount.toFixed(2)}</span>
                               </div>
                             )}
                             
-                            <div style={{ height: '1px', borderTop: '1px dashed #cbd5e1', margin: '6px 0' }} />
+                            <div style={{ height: '1px', borderTop: '1px dashed #cbd5e1', margin: '4px 0' }} />
                             
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '14px' }}>Net Payable</span>
-                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '20px' }}>₹{totals.total_amount.toFixed(2)}</span>
+                              <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '12px' }}>Net Payable</span>
+                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>₹{totals.total_amount.toFixed(2)}</span>
                             </div>
                           </div>
                         </div>
@@ -2933,28 +2943,34 @@ export default function CounterSale({
               ) : (
                 cart.map(item => (
                   <CartItemCard key={cartKeyFor(item)}>
-                    <CartItemInfo>
-                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b' }}>{item.displayName || item.name}</div>
-                      <div style={{ color: THEME.main, fontWeight: 800 }}>₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)}</div>
-                      {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
-                        <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                          <FaTag size={9} />
-                          Discount: {item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`}
-                        </div>
-                      )}
-                    </CartItemInfo>
-                    <QtyGroup>
-                      <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus/></QtyBtn>
-                      <div style={{ fontWeight: 800, minWidth: '20px', textAlign: 'center' }}>{item.qty}</div>
-                      <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus/></QtyBtn>
-                    </QtyGroup>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '11.5px', color: '#1e293b', lineHeight: '1.25', wordBreak: 'break-word', minWidth: 0, flex: 1 }}>{item.displayName || item.name}</div>
+                      <QtyGroup>
+                        <QtyBtn onClick={() => updateQty(cartKeyFor(item), -1)}><FaMinus/></QtyBtn>
+                        <div style={{ fontWeight: 800, minWidth: '14px', textAlign: 'center', fontSize: '10.5px', color: '#0f172a' }}>{item.qty}</div>
+                        <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus/></QtyBtn>
+                      </QtyGroup>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
+                      <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
+                        ₹{Number(item.price || 0).toFixed(2)} each
+                        {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                          <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
+                            (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', textAlign: 'right' }}>
+                        ₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)}
+                      </div>
+                    </div>
                   </CartItemCard>
                 ))
               )}
             </CartBody>
 
             <CartFooter>
-              <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <SummaryRow><span>Subtotal</span><span>₹{totals.line_subtotal.toFixed(2)}</span></SummaryRow>
                 {totals.discount_amount > 0 && (
                   <SummaryRow style={{ color: '#dc2626' }}><span>Discount</span><span>-₹{totals.discount_amount.toFixed(2)}</span></SummaryRow>
@@ -3034,8 +3050,28 @@ export default function CounterSale({
           <ModalBackdrop onClick={() => setShowDiscountModal(false)}>
             <DiscountModalContent onClick={e => e.stopPropagation()}>
               <DiscountModalHeader>
-                <h3>Configure Discounts</h3>
-                <FaTimes style={{ cursor: 'pointer' }} onClick={() => setShowDiscountModal(false)} />
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(false)}
+                  style={{
+                    border: 'none',
+                    background: '#f1f5f9',
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+                  aria-label="Close discounts modal"
+                >
+                  <FaTimes size={10} />
+                </button>
               </DiscountModalHeader>
               <DiscountTabHeader>
                 <DiscountTabButton
