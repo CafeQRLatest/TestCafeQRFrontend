@@ -40,8 +40,6 @@ const TABLE_STATUS_CUBE = {
 const TABLE_CUBE_LEGEND = [
   { bg: '#ef4444', label: 'New / Occupied' },
   { bg: '#eab308', label: 'Billed' },
-  { bg: '#22c55e', label: 'Paid' },
-  { bg: '#94a3b8', label: 'Cancelled' },
 ];
 
 function tableCubeColor(status) {
