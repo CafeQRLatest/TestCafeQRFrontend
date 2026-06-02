@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
+import { getFrontendCookieOptions } from '../utils/cookieOptions';
 
 const AuthContext = createContext();
 
@@ -77,15 +78,15 @@ export const AuthProvider = ({ children }) => {
           
           if (clientData.timezone) {
             setTimezone(clientData.timezone);
-            Cookies.set('timezone', clientData.timezone, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+            Cookies.set('timezone', clientData.timezone, getFrontendCookieOptions());
           }
           if (clientData.currency) {
             setCurrency(clientData.currency);
-            Cookies.set('currency', clientData.currency, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+            Cookies.set('currency', clientData.currency, getFrontendCookieOptions());
           }
           if (clientData.country) {
             setCountry(clientData.country);
-            Cookies.set('country', clientData.country, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+            Cookies.set('country', clientData.country, getFrontendCookieOptions());
           }
         }
       }).catch(err => console.error("Client profile sync error", err));
@@ -123,7 +124,7 @@ export const AuthProvider = ({ children }) => {
     setTimezone(tz);
     
     // Metadata cookies (Non-HttpOnly) for frontend logic
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
     
     // Store access token for cross-domain Authorization header
     if (data.accessToken) Cookies.set('access_token', data.accessToken, cookieOptions);
@@ -152,7 +153,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateSubscription = useCallback((status, expiry) => {
     const normalizedStatus = (status || '').toUpperCase();
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
 
     setSubscriptionStatus(normalizedStatus || null);
     setSubscriptionExpiryDate(expiry || null);
@@ -256,7 +257,7 @@ export const AuthProvider = ({ children }) => {
   const switchBranch = (newOrgId, newOrgName) => {
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
     if (newOrgId) {
       Cookies.set('orgId', newOrgId, cookieOptions);
     } else {

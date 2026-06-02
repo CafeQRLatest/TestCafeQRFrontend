@@ -1022,6 +1022,10 @@ function logSalesEndpointFailure(label, error) {
   console.warn(`[Sales] ${label} failed`, salesEndpointErrorDetails(error));
 }
 
+function isSuperAdminRole(role) {
+  return role === 'SUPER_ADMIN' || role === 'ROLE_SUPER_ADMIN';
+}
+
 export default function Sales() {
   return <SalesContent />;
 }
@@ -1029,6 +1033,8 @@ export default function Sales() {
 function SalesContent() {
   const router = useRouter();
   const { timezone, orgId, userRole, switchBranch } = useAuth();
+  const isSalesBranchMissing = !orgId;
+  const canSelectBranchInSales = isSuperAdminRole(userRole);
   const [tables, setTables] = useState([]);
   const [floorOrders, setFloorOrders] = useState([]);
   const [historyOrders, setHistoryOrders] = useState([]);
@@ -1038,7 +1044,7 @@ function SalesContent() {
   const [terminals, setTerminals] = useState([]);
 
   useEffect(() => {
-    if (userRole === 'SUPER_ADMIN') {
+    if (isSuperAdminRole(userRole)) {
       api.get('/api/v1/organizations')
         .then(resp => {
           if (resp.data.success) {
@@ -1303,6 +1309,11 @@ function SalesContent() {
 
   useEffect(() => {
     if (activeView !== 'billing' || selectedTable) return;
+    if (!orgId) {
+      setPendingOrderType(null);
+      setActiveView('order_type');
+      return;
+    }
 
     if (config?.tableManagementEnabled === false) {
       console.warn('[Sales] Recovered billing view without selected table; restoring counter sale.', { orgId });
@@ -1375,6 +1386,11 @@ function SalesContent() {
   }, [historyFilters.q, fetchHistoryOrders]);
 
   useEffect(() => {
+    if (!orgId) {
+      loadOfflineOrderState();
+      return undefined;
+    }
+
     fetchTables();
     fetchOrders();
     fetchCreditConfig();
@@ -1622,7 +1638,7 @@ function SalesContent() {
 
   const handleNewOrder = () => {
     if (!orgId) {
-      showToast('Select a branch before creating a sale.', 'error');
+      showToast('Select a branch before using Sales POS.', 'error');
       return;
     }
     // If table management is OFF, skip the order-type picker and go
@@ -1637,6 +1653,13 @@ function SalesContent() {
   };
 
   const handleOrderTypeSelected = useCallback(({ orderType, table }) => {
+    if (!orgId) {
+      showToast('Select a branch before using Sales POS.', 'error');
+      setPendingOrderType(null);
+      setActiveView('order_type');
+      return;
+    }
+
     if (orderType === 'TABLE' && table) {
       const status = String(table.status || 'AVAILABLE').toUpperCase();
       if (status !== 'AVAILABLE') {
@@ -1650,7 +1673,7 @@ function SalesContent() {
     }
     setActiveView('billing');
     setPendingOrderType(orderType);
-  }, [showToast]);
+  }, [orgId, showToast]);
 
   const refreshSalesState = useCallback(() => {
     fetchOrders();
@@ -1968,11 +1991,28 @@ function SalesContent() {
   return (
     <DashboardLayout 
       title="Sales" 
-      hideTitle={activeView === 'order_type' || activeView === 'billing'}
-      noPadding={activeView === 'order_type' || activeView === 'billing'}
+      hideTitle={!isSalesBranchMissing && (activeView === 'order_type' || activeView === 'billing')}
+      noPadding={!isSalesBranchMissing && (activeView === 'order_type' || activeView === 'billing')}
     >
       <PageContainer>
-        {activeView === 'history' && (
+        {isSalesBranchMissing && (
+          <EmptyState style={{ margin: '24px', padding: '24px' }}>
+            <FaExclamationCircle />
+            <strong>Select a branch before using Sales POS</strong>
+            <span>Sales orders need an active branch. Choose a branch from the header before taking orders.</span>
+            {canSelectBranchInSales && branches.length > 0 && (
+              <div style={{ width: 'min(100%, 360px)', marginTop: '10px' }}>
+                <NiceSelect
+                  options={branches.map(b => ({ value: b.id, label: b.name }))}
+                  value=""
+                  onChange={handleOrgChange}
+                />
+              </div>
+            )}
+          </EmptyState>
+        )}
+
+        {!isSalesBranchMissing && activeView === 'history' && (
           <OrderHistory
             orders={historyDisplayOrders}
             page={historyPage}
@@ -2011,7 +2051,7 @@ function SalesContent() {
           />
         )}
 
-        {activeView === 'order_type' && (
+        {!isSalesBranchMissing && activeView === 'order_type' && (
           <OrderTypeSelectorModal
             tables={tables}
             config={config}
@@ -2028,7 +2068,7 @@ function SalesContent() {
           />
         )}
 
-        {activeView === 'billing' && selectedTable && (
+        {!isSalesBranchMissing && activeView === 'billing' && selectedTable && (
           <CounterSale
             initialTable={selectedTable}
             interfaceMode={billingUi}
@@ -2052,7 +2092,7 @@ function SalesContent() {
           />
         )}
 
-        {activeView === 'billing' && !selectedTable && (
+        {!isSalesBranchMissing && activeView === 'billing' && !selectedTable && (
           <EmptyState style={{ margin: '24px' }}>
             <FaExclamationCircle />
             <strong>Preparing sales screen</strong>
@@ -2252,7 +2292,7 @@ function OrderHistory({
           </div>
 
           {/* Org Selector */}
-          {userRole === 'SUPER_ADMIN' && branches.length > 0 && (
+          {isSuperAdminRole(userRole) && branches.length > 0 && (
             <NiceSelect
               className="nice-select"
               options={[

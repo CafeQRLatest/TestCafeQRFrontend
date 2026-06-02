@@ -14,6 +14,7 @@ import {
   markConnectionLost,
   markConnectionOnline,
 } from './networkState';
+import { getFrontendCookieOptions } from './cookieOptions';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -314,10 +315,10 @@ api.interceptors.response.use(
 
       // Store the new tokens from the response
       if (refreshResponse.data?.data?.accessToken) {
-        Cookies.set('access_token', refreshResponse.data.data.accessToken, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+        Cookies.set('access_token', refreshResponse.data.data.accessToken, getFrontendCookieOptions());
       }
       if (refreshResponse.data?.data?.refreshToken) {
-        Cookies.set('refresh_token', refreshResponse.data.data.refreshToken, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+        Cookies.set('refresh_token', refreshResponse.data.data.refreshToken, getFrontendCookieOptions());
       }
 
       // Success: process queued requests
