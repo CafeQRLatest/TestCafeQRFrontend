@@ -839,6 +839,11 @@ function isAllBranchesScope(orgId) {
   return !value || value === '0';
 }
 
+function salesConfigCacheKey(orgId) {
+  const value = String(orgId || '').trim();
+  return `cafeqr_sales_config:${value || 'global'}`;
+}
+
 function orderBranchId(order) {
   return order?.orgId
     || order?.org_id
@@ -1102,7 +1107,7 @@ function SalesContent() {
   useEffect(() => {
     setIsMounted(true);
     try {
-      const cached = localStorage.getItem('cafeqr_sales_config');
+      const cached = localStorage.getItem(salesConfigCacheKey(orgId));
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed && typeof parsed === 'object') {
@@ -1120,7 +1125,7 @@ function SalesContent() {
     } catch (e) {
       console.warn("Failed to load cached config", e);
     }
-  }, []);
+  }, [orgId]);
   const tablesInFlightRef = useRef(false);
   const ordersInFlightRef = useRef(false);
   const historyInFlightRef = useRef(false);
@@ -1227,7 +1232,7 @@ function SalesContent() {
       const configRes = await api.get('/api/v1/configurations');
       const nextConfig = configRes.data?.data || null;
       if (nextConfig && typeof window !== 'undefined') {
-        localStorage.setItem('cafeqr_sales_config', JSON.stringify(nextConfig));
+        localStorage.setItem(salesConfigCacheKey(orgId), JSON.stringify(nextConfig));
       }
       setConfig(nextConfig);
       if (nextConfig?.creditEnabled) {
@@ -1247,7 +1252,18 @@ function SalesContent() {
         creditEnabled: false,
       });
     }
-  }, []);
+  }, [orgId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleConfigUpdated = () => {
+      localStorage.removeItem('cafeqr_sales_config');
+      localStorage.removeItem(salesConfigCacheKey(orgId));
+      fetchCreditConfig();
+    };
+    window.addEventListener('cafeqr-config-updated', handleConfigUpdated);
+    return () => window.removeEventListener('cafeqr-config-updated', handleConfigUpdated);
+  }, [fetchCreditConfig, orgId]);
 
   const handleCreditCustomerCreated = useCallback((customer) => {
     if (!customer?.id) return;

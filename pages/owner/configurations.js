@@ -1,7 +1,7 @@
 // pages/owner/configurations.js — Enterprise POS Configuration Engine
 // SUPER_ADMIN only | Responsive | Modern Segmented Tabs | Centered Layout
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -72,7 +72,12 @@ export default function ConfigurationsPage() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function ConfigurationsContent() {
-  const { userRole } = useAuth();
+  const { orgId, orgName } = useAuth();
+  const hasBranchContext = Boolean(orgId && orgId !== '0');
+  const configEndpoint = useMemo(
+    () => (hasBranchContext ? `/api/v1/configurations/branch/${orgId}` : '/api/v1/configurations'),
+    [hasBranchContext, orgId]
+  );
   const [activeTab, setActiveTab] = useState('modules');
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -161,8 +166,9 @@ function ConfigurationsContent() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setMessage(null);
       try {
-        const resp = await api.get('/api/v1/configurations');
+        const resp = await api.get(configEndpoint);
         if (resp.data?.success && resp.data?.data) {
           const d = resp.data.data;
           
@@ -218,10 +224,13 @@ function ConfigurationsContent() {
             print_win_post_url: d.printWinPostUrl || 'http://127.0.0.1:3333/printRaw',
           });
         }
-      } catch { /* Form maintains defaults if API fails */ }
+      } catch (err) {
+        setMsgType('error');
+        setMessage(err.response?.data?.message || err.message || 'Failed to load configuration');
+      }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [configEndpoint]);
 
   const toggle = useCallback((f) => setConfig(p => ({ ...p, [f]: !p[f] })), []);
   const set = useCallback((f, v) => setConfig(p => ({ ...p, [f]: v })), []);
@@ -286,12 +295,24 @@ function ConfigurationsContent() {
         printLogoCols: config.print_logo_cols,
         printLogoRows: config.print_logo_rows,
       };
-      const resp = await api.put('/api/v1/configurations', payload);
-      if (resp.data?.success) { setMsgType('success'); setMessage('Configuration saved successfully'); }
+      const resp = await api.put(configEndpoint, payload);
+      if (resp.data?.success) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('cafeqr_sales_config');
+          Object.keys(localStorage)
+            .filter((key) => key.startsWith('cafeqr_sales_config:'))
+            .forEach((key) => localStorage.removeItem(key));
+          window.dispatchEvent(new Event('cafeqr-config-updated'));
+        }
+        setMsgType('success');
+        setMessage(hasBranchContext
+          ? `Configuration saved for ${orgName || 'selected branch'}`
+          : 'Default configuration saved successfully');
+      }
       else throw new Error(resp.data?.message || 'Save failed');
     } catch (err) { setMsgType('error'); setMessage(err.response?.data?.message || err.message); }
     finally { setSaving(false); }
-  }, [config]);
+  }, [config, configEndpoint, hasBranchContext, orgName]);
 
 
   if (loading) {
