@@ -1010,6 +1010,18 @@ function paymentMethodLabel(order) {
   return String(method).replace(/_/g, ' ');
 }
 
+function salesEndpointErrorDetails(error) {
+  return {
+    status: error?.response?.status || null,
+    code: error?.code || null,
+    message: error?.response?.data?.message || error?.message || String(error || ''),
+  };
+}
+
+function logSalesEndpointFailure(label, error) {
+  console.warn(`[Sales] ${label} failed`, salesEndpointErrorDetails(error));
+}
+
 export default function Sales() {
   return <SalesContent />;
 }
@@ -1033,7 +1045,10 @@ function SalesContent() {
             setBranches(resp.data.data || []);
           }
         })
-        .catch(err => console.error("Failed to fetch branches in sales page:", err));
+        .catch(err => {
+          setBranches([]);
+          logSalesEndpointFailure('organizations fetch', err);
+        });
     }
   }, [userRole]);
 
@@ -1044,7 +1059,10 @@ function SalesContent() {
           setTerminals(resp.data.data || []);
         }
       })
-      .catch(err => console.error("Failed to fetch terminals in sales page:", err));
+      .catch(err => {
+        setTerminals([]);
+        logSalesEndpointFailure('terminals fetch', err);
+      });
   }, []);
 
   const handleOrgChange = useCallback((val) => {
@@ -1214,7 +1232,7 @@ function SalesContent() {
       }
     } catch (error) {
       if (!isKnownOffline() && error?.message !== 'Network Error') {
-        console.warn('Failed to load credit configuration', error?.message || error);
+        logSalesEndpointFailure('configuration fetch', error);
       }
       setCreditCustomers([]);
       setConfig((current) => current || {
@@ -1282,6 +1300,21 @@ function SalesContent() {
     setCreditCustomers([]);
     setOrdersLoading(false);
   }, [orgId]);
+
+  useEffect(() => {
+    if (activeView !== 'billing' || selectedTable) return;
+
+    if (config?.tableManagementEnabled === false) {
+      console.warn('[Sales] Recovered billing view without selected table; restoring counter sale.', { orgId });
+      setPendingOrderType('DINE_IN');
+      setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'DINE_IN' });
+      return;
+    }
+
+    console.warn('[Sales] Recovered billing view without selected table; returning to order type selection.', { orgId });
+    setPendingOrderType(null);
+    setActiveView('order_type');
+  }, [activeView, config?.tableManagementEnabled, orgId, selectedTable]);
 
   useEffect(() => {
     const previousOrgId = historyOrgScopeRef.current;
@@ -2017,6 +2050,30 @@ function SalesContent() {
               }
             }}
           />
+        )}
+
+        {activeView === 'billing' && !selectedTable && (
+          <EmptyState style={{ margin: '24px' }}>
+            <FaExclamationCircle />
+            <strong>Preparing sales screen</strong>
+            <span>Refreshing the selected branch and order mode.</span>
+            <ActionButton
+              type="button"
+              $tone="blue"
+              onClick={() => {
+                if (config?.tableManagementEnabled === false) {
+                  setPendingOrderType('DINE_IN');
+                  setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'DINE_IN' });
+                  setActiveView('billing');
+                } else {
+                  setPendingOrderType(null);
+                  setActiveView('order_type');
+                }
+              }}
+            >
+              <FaCheck /> Continue
+            </ActionButton>
+          </EmptyState>
         )}
 
         {popoverTable && (
