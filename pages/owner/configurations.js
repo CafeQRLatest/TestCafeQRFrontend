@@ -42,12 +42,7 @@ const MODULES = [
   { key: 'pm_qr_ordering',      icon: <FaQrcode />,      title: 'QR Ordering',       desc: 'QR codes for customer self-ordering',       color: '#8b5cf6' },
   { key: 'pm_inventory',        icon: <FaBoxes />,       title: 'Inventory',         desc: 'Stock tracking & management',               color: '#0ea5e9' },
   { key: 'pm_production',       icon: <FaIndustry />,    title: 'Production',        desc: 'Manufacturing pipeline',                    color: '#64748b' },
-  { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316', 
-    children: [
-      { key: 'pm_allow_multi_customer', title: 'Multi-Customer Orders', desc: 'Attach multiple customers to a single order' },
-      { key: 'pm_customer_age', title: 'Customer Age Field', desc: 'Capture customer age during order creation' }
-    ] 
-  },
+  { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
   { key: 'pm_loyalty',          icon: <FaTags />,        title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#ef4444' },
   { key: 'pm_pos_product_listing', icon: <FaSearch />,   title: 'POS Product Listing', desc: 'Enable product grid in sales screen',       color: '#059669' },
   { key: 'pm_discount',         icon: <FaTags />,        title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f59e0b' },
@@ -115,7 +110,6 @@ function ConfigurationsContent() {
     bill_footer: '',
     pm_pos_product_listing: true,
     pm_discount: true,
-    defaultBillingUiMode: 'standard',
     print_logo_bitmap: null, print_logo_cols: null, print_logo_rows: null,
     
     // Hardware & paper (New)
@@ -191,8 +185,8 @@ function ConfigurationsContent() {
             pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: !!d.inventoryEnabled,
             pm_production: !!d.productionEnabled, pm_customers: !!d.customersEnabled,
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
-            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: !!d.allowMultipleCustomersPerOrder,
-            pm_customer_age: !!d.customerAgeEnabled,
+            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: false,
+            pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
             tax_enabled: !!d.taxEnabled, 
@@ -210,7 +204,6 @@ function ConfigurationsContent() {
             bill_footer: d.billFooter || '',
             pm_pos_product_listing: d.posProductListingEnabled !== false,
             pm_discount: d.discountEnabled !== false,
-            defaultBillingUiMode: d.defaultBillingUiMode || 'standard',
             print_logo_bitmap: d.printLogoBitmap || null,
             print_logo_cols: d.printLogoCols || null,
             print_logo_rows: d.printLogoRows || null,
@@ -272,8 +265,8 @@ function ConfigurationsContent() {
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: config.pm_inventory,
         productionEnabled: config.pm_production, customersEnabled: config.pm_customers,
         loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
-        onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: config.pm_allow_multi_customer,
-        customerAgeEnabled: config.pm_customer_age,
+        onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: false,
+        customerAgeEnabled: false,
         
         taxEnabled: config.tax_enabled, 
         taxLabelGlobal: config.tax_label_global,
@@ -290,7 +283,6 @@ function ConfigurationsContent() {
         billFooter: config.bill_footer || '',
         posProductListingEnabled: config.pm_pos_product_listing,
         discountEnabled: config.pm_discount,
-        defaultBillingUiMode: config.defaultBillingUiMode || 'standard',
         printLogoBitmap: config.print_logo_bitmap,
         printLogoCols: config.print_logo_cols,
         printLogoRows: config.print_logo_rows,
@@ -372,7 +364,7 @@ function ConfigurationsContent() {
                   <div key={m.key} className={`module-wrapper ${config[m.key] ? 'is-active' : ''}`}>
                     <div className="menu-box" onClick={() => toggle(m.key)}>
                       <div className="box-icon" style={
-                          config[m.key] 
+                          config[m.key]
                             ? { background: `linear-gradient(135deg, ${m.color}, ${m.color}dd)`, color: 'white' }
                             : { background: `${m.color}18`, color: '#94a3b8' }
                       }>
@@ -386,76 +378,56 @@ function ConfigurationsContent() {
                         <div className="toggle-thumb"></div>
                       </div>
                     </div>
-
-                    {/* Dynamic Sub-configs Array */}
-                    {m.children && config[m.key] && (
-                       <div style={{ position: 'relative' }}>
-                          <div className="sub-connecting-line"></div>
-                          {m.children.map(child => (
-                             <div key={child.key} className="sub-box" onClick={(e) => { e.stopPropagation(); toggle(child.key); }}>
-                                <div className="box-content">
-                                  <h3>{child.title}</h3>
-                                  <p>{child.desc}</p>
-                                </div>
-                                <div className={`toggle-switch small ${config[child.key] ? 'on' : ''}`}>
-                                  <div className="toggle-thumb"></div>
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    )}
-
-                    {m.key === 'pm_credit_ledger' && config[m.key] && (
-                       <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-                          <div className="sub-connecting-line"></div>
-                          <div className="sub-box credit-config">
-                            <div className="box-content">
-                              <h3>Payment Allocation</h3>
-                              <p>Choose how credit payments are applied to unpaid invoices</p>
-                            </div>
-                            <div style={{ width: '210px', maxWidth: '100%' }}>
-                              <NiceSelect
-                                value={config.credit_allocation_mode}
-                                onChange={v => set('credit_allocation_mode', v)}
-                                options={[
-                                  { value: 'OLDEST_FIRST', label: 'Oldest First' },
-                                  { value: 'MANUAL', label: 'Manual' },
-                                ]}
-                              />
-                            </div>
-                          </div>
-                       </div>
-                    )}
-
                   </div>
                 ))}
+              </div>
 
-                {/* Default POS UI standalone card */}
-                <div className="module-wrapper is-active no-hover">
-                  <div className="menu-box" style={{ cursor: 'default', padding: '16px', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div className="box-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white' }}>
-                        <FaChair />
-                      </div>
-                      <div className="box-content">
-                        <h3 style={{ fontSize: '14.5px', fontWeight: '800' }}>Default POS UI</h3>
-                        <p style={{ fontSize: '12px' }}>Initial sales view</p>
-                      </div>
+              {/* Sub-config panels rendered BELOW the grid — cards stay uniform height */}
+              {MODULES.map(m => {
+                if (!config[m.key]) return null;
+                const hasChildren = m.children && m.children.length > 0;
+                const isCreditLedger = m.key === 'pm_credit_ledger';
+                if (!hasChildren && !isCreditLedger) return null;
+                return (
+                  <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: m.color }}>
+                    <div className="subconfig-strip-label" style={{ color: m.color }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 4, fontSize: 9, background: `${m.color}18`, color: m.color, marginRight: 6 }}>{m.icon}</span>
+                      {m.title} Options
                     </div>
-                    <div style={{ width: '100%' }}>
-                      <NiceSelect
-                        className="small-select"
-                        value={config.defaultBillingUiMode}
-                        onChange={v => set('defaultBillingUiMode', v)}
-                        options={[
-                          { value: 'standard', label: 'Standard UI' },
-                          { value: 'counter', label: 'Counter UI' },
-                        ]}
-                      />
+                    <div className="subconfig-strip-body">
+                      {hasChildren && m.children.map(child => (
+                        <div key={child.key} className="subconfig-row" onClick={e => { e.stopPropagation(); toggle(child.key); }}>
+                          <div className="subconfig-row-text">
+                            <strong>{child.title}</strong>
+                            <span>{child.desc}</span>
+                          </div>
+                          <div className={`toggle-switch small ${config[child.key] ? 'on' : ''}`}>
+                            <div className="toggle-thumb"></div>
+                          </div>
+                        </div>
+                      ))}
+                      {isCreditLedger && (
+                        <div className="subconfig-row" onClick={e => e.stopPropagation()}>
+                          <div className="subconfig-row-text">
+                            <strong>Payment Allocation</strong>
+                            <span>How credit payments are applied to unpaid invoices</span>
+                          </div>
+                          <div style={{ width: 160, flexShrink: 0 }}>
+                            <NiceSelect
+                              value={config.credit_allocation_mode}
+                              onChange={v => set('credit_allocation_mode', v)}
+                              options={[
+                                { value: 'OLDEST_FIRST', label: 'Oldest First' },
+                                { value: 'MANUAL', label: 'Manual' },
+                              ]}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           )}
 
@@ -656,7 +628,7 @@ function ConfigurationsContent() {
                   </div>
 
                   {config.ro_enabled && (
-                    <div className="nested-forms">
+                    <div className="nested-forms animate-slide-down">
                       <div className="input-group">
                         <label className="group-lbl">Mode of Operation</label>
                         <div style={{ maxWidth: '300px' }}>
@@ -895,12 +867,15 @@ function ConfigurationsContent() {
         .module-wrapper {
            display: flex;
            flex-direction: column;
+           justify-content: center;
            background: white;
            border: 1.5px solid #e2e8f0;
-           border-radius: 20px;
+           border-radius: 16px;
            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-           box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+           box-shadow: 0 2px 8px rgba(0,0,0,0.02);
            position: relative;
+           min-height: 68px;
+           height: 68px;
         }
         .module-wrapper:hover { border-color: #cbd5e1; box-shadow: 0 12px 28px rgba(0,0,0,0.05); transform: translateY(-2px); }
          .module-wrapper.is-active {
@@ -959,8 +934,51 @@ function ConfigurationsContent() {
            position: absolute; left: 30px; top: -14px; bottom: 32px;
            width: 3px; background: #fed7aa; border-radius: 4px; z-index: 0;
         }
-        .sub-box .box-content h3 { font-size: 14.5px; color: #334155; }
-        .sub-box .box-content p { font-size: 12.5px; }
+        .sub-box .box-content h3 { font-size: 12.5px; color: #334155; }
+        .sub-box .box-content p { font-size: 11px; }
+
+        /* ─── SUB-CONFIG STRIP ─── */
+        .subconfig-strip {
+           margin-top: 8px;
+           background: white;
+           border: 1.5px solid #e2e8f0;
+           border-left-width: 3px;
+           border-radius: 14px;
+           overflow: hidden;
+           animation: slideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+           box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .subconfig-strip-label {
+           padding: 6px 14px;
+           font-size: 9.5px;
+           font-weight: 800;
+           letter-spacing: 0.07em;
+           text-transform: uppercase;
+           background: #f8fafc;
+           border-bottom: 1px solid #f1f5f9;
+           display: flex;
+           align-items: center;
+        }
+        .subconfig-strip-body {
+           display: flex;
+           flex-wrap: wrap;
+        }
+        .subconfig-row {
+           flex: 1 1 260px;
+           display: flex;
+           align-items: center;
+           justify-content: space-between;
+           gap: 12px;
+           padding: 10px 14px;
+           cursor: pointer;
+           border-right: 1px solid #f8fafc;
+           border-bottom: 1px solid #f8fafc;
+           transition: background 0.12s;
+        }
+        .subconfig-row:hover { background: #fafbfc; }
+        .subconfig-row-text { flex: 1; min-width: 0; }
+        .subconfig-row-text strong { display: block; font-size: 12px; font-weight: 700; color: #1e293b; }
+        .subconfig-row-text span { display: block; font-size: 10.5px; color: #64748b; margin-top: 1px; font-weight: 500; }
 
         /* ─── FORM CARD ─── */
         .form-card {
@@ -988,10 +1006,18 @@ function ConfigurationsContent() {
         .row-info label { display: block; font-size: 17px; font-weight: 800; color: #0f172a; cursor: pointer; margin: 0; }
         .row-info span { display: block; font-size: 14px; color: #64748b; margin-top: 6px; font-weight: 500; }
 
-        .nested-forms {
-           padding-left: 24px; border-left: 3px solid #f1f5f9;
-           margin-left: 12px; display: flex; flex-direction: column; gap: 32px;
-        }
+         .nested-forms {
+            padding: 22px 24px;
+            background: #f8fafc;
+            border-radius: 16px;
+            border: 1.5px solid #e2e8f0;
+            border-left: 4px solid #f97316;
+            margin-top: 16px;
+            margin-left: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+         }
 
         /* ─── GROUP FIELDS REFINED ─── */
         .input-group { display: flex; flex-direction: column; gap: 8px; }

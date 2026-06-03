@@ -40,8 +40,6 @@ const TABLE_STATUS_CUBE = {
 const TABLE_CUBE_LEGEND = [
   { bg: '#ef4444', label: 'New / Occupied' },
   { bg: '#eab308', label: 'Billed' },
-  { bg: '#22c55e', label: 'Paid' },
-  { bg: '#94a3b8', label: 'Cancelled' },
 ];
 
 function tableCubeColor(status) {
@@ -1316,8 +1314,8 @@ export default function OrdersPage() {
         size: 20,
         ...(filters.q?.trim() ? { q: filters.q.trim() } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.from ? { from: localInputToIso(filters.from) } : {}),
-        ...(filters.to ? { to: localInputToIso(filters.to) } : {}),
+        ...(filters.from ? { fromDate: localInputToIso(filters.from) } : {}),
+        ...(filters.to ? { toDate: localInputToIso(filters.to) } : {}),
         ...(filters.terminalId ? { terminalId: filters.terminalId } : {}),
         ...(filters.branchId ? { orgId: filters.branchId } : {}),
       };
@@ -1378,6 +1376,12 @@ export default function OrdersPage() {
         .catch(console.error);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    if (config && config.tableManagementEnabled === false && activeSegment === 'table') {
+      setActiveSegment('parcel');
+    }
+  }, [config, activeSegment]);
 
   useEffect(() => {
     loadOrders();
@@ -1493,9 +1497,11 @@ export default function OrdersPage() {
             <div style={{ minWidth: 130 }} />
 
             <SegmentedWrapper>
-              <SegmentBtn $active={activeSegment === 'table'} $accent="#16a34a" onClick={() => setActiveSegment('table')}>
-                <FaUtensils /> Table <span className="badge">{tableOrders.length}</span>
-              </SegmentBtn>
+              {config?.tableManagementEnabled !== false && (
+                <SegmentBtn $active={activeSegment === 'table'} $accent="#16a34a" onClick={() => setActiveSegment('table')}>
+                  <FaUtensils /> Table <span className="badge">{tableOrders.length}</span>
+                </SegmentBtn>
+              )}
               <SegmentBtn $active={activeSegment === 'parcel'} $accent="#ea580c" onClick={() => setActiveSegment('parcel')}>
                 <FaShoppingBag /> Takeaway <span className="badge">{parcelOrders.length}</span>
               </SegmentBtn>

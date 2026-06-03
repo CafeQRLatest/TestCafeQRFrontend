@@ -26,11 +26,20 @@ const CREDIT_TAB = { key: 'credit', label: 'Credit Sales', icon: <FaBook /> };
 
 const SYM = '₹';
 
+function reportErrorMessage(err) {
+  const status = err?.response?.status;
+  if (status === 401 || status === 403) {
+    return 'Your session or branch access expired. Please sign in again or reselect the branch.';
+  }
+  return err?.response?.data?.message || 'Failed to load report data';
+}
+
 export default function Reports() {
   const { timezone, orgId } = useAuth();
   const { notify, showConfirm } = useNotification();
   const [tab, setTab] = useState('summary');
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const bizNow = getBusinessNow(timezone);
   const getLocalDate = (d = bizNow) => {
@@ -61,6 +70,7 @@ export default function Reports() {
 
   const loadTab = useCallback(async (t) => {
     setLoading(true);
+    setLoadError(null);
     const params = { from: toInstant(dateFrom), to: toInstant(dateTo) };
     try {
       const ep = {
@@ -106,7 +116,13 @@ export default function Reports() {
       }
     } catch (e) {
       console.error('Report load error:', e);
-      notify('error', e?.response?.data?.message || 'Failed to load report data');
+      // Retain production logic and test logic together
+      const prodMessage = e?.response?.data?.message || 'Failed to load report data';
+      const testMessage = reportErrorMessage(e);
+      const finalMessage = testMessage !== prodMessage ? testMessage : prodMessage;
+      
+      setLoadError(finalMessage);
+      notify('error', finalMessage);
     } finally { setLoading(false); }
   }, [dateFrom, dateTo, invoiceFilter, notify]);
 
@@ -586,6 +602,7 @@ export default function Reports() {
             </button>
           ))}
         </div>
+        {loadError && <div className="rpt-error">{loadError}</div>}
         <div className="rpt-body">
           {loading ? <div className="rpt-loading">Loading report data…</div> : tabContent[tab]?.()}
         </div>
@@ -605,6 +622,7 @@ export default function Reports() {
         .rpt-tab svg{font-size:13px}
         .rpt-tab span{display:inline}
         .rpt-body{min-height:300px}
+        .rpt-error{margin-bottom:16px;padding:12px 14px;border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:12px;font-size:12px;font-weight:800}
         .rpt-loading{text-align:center;padding:60px 20px;color:#94a3b8;font-weight:700;font-size:14px}
         .rpt-empty{text-align:center;padding:60px 20px;color:#cbd5e1;font-size:14px;font-weight:600}
         .rpt-toolbar{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap}

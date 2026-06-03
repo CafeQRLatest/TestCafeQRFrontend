@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { 
   FaBoxes, FaWarehouse, FaSearch, FaExclamationTriangle, FaCheckCircle,
-  FaArrowRight, FaArrowLeft, FaHistory, FaSortAmountDown
+  FaArrowRight, FaArrowLeft, FaHistory, FaSortAmountDown, FaBuilding
 } from 'react-icons/fa';
 
 export default function StockOverviewPage() {
@@ -17,7 +18,9 @@ export default function StockOverviewPage() {
 }
 
 function StockContent() {
-  const { orgId } = useAuth();
+  const { orgId: userOrgId } = useAuth();
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [stock, setStock] = useState([]);
@@ -26,21 +29,34 @@ function StockContent() {
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
+    if (userOrgId) {
+      setSelectedOrgId(userOrgId);
+    }
     fetchInitialData();
-  }, [orgId]);
+  }, [userOrgId]);
 
   const fetchInitialData = async () => {
+    setLoading(true);
     try {
-      const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
-        api.get('/api/v1/product-management/products')
+      const orgIdToUse = selectedOrgId || userOrgId || '';
+      const [wResp, pResp, orgResp] = await Promise.all([
+        api.get('/api/v1/warehouses', { params: orgIdToUse ? { orgId: orgIdToUse } : {} }),
+        api.get('/api/v1/product-management/products'),
+        api.get('/api/v1/organizations').catch(() => ({ data: { success: true, data: [] } }))
       ]);
 
+      if (orgResp.data.success) {
+        setOrganizations(orgResp.data.data || []);
+      }
       if (wResp.data.success) {
-        setWarehouses(wResp.data.data || []);
-        if (wResp.data.data?.length > 0) {
-          setSelectedWarehouseId(wResp.data.data[0].id);
-          fetchStock(wResp.data.data[0].id);
+        const whs = wResp.data.data || [];
+        setWarehouses(whs);
+        if (whs.length > 0) {
+          setSelectedWarehouseId(whs[0].id);
+          fetchStock(whs[0].id);
+        } else {
+          setSelectedWarehouseId('');
+          setStock([]);
         }
       }
       if (pResp.data.success) {
@@ -48,6 +64,28 @@ function StockContent() {
       }
     } catch (err) {
       console.error("Failed to load initial stock data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWarehouses = async (orgId) => {
+    setLoading(true);
+    try {
+      const resp = await api.get('/api/v1/warehouses', { params: orgId ? { orgId } : {} });
+      if (resp.data.success) {
+        const whs = resp.data.data || [];
+        setWarehouses(whs);
+        if (whs.length > 0) {
+          setSelectedWarehouseId(whs[0].id);
+          fetchStock(whs[0].id);
+        } else {
+          setSelectedWarehouseId('');
+          setStock([]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch warehouses:", err);
     } finally {
       setLoading(false);
     }
@@ -74,6 +112,12 @@ function StockContent() {
     fetchStock(id);
   };
 
+  const handleOrgChange = (e) => {
+    const id = e.target.value;
+    setSelectedOrgId(id);
+    fetchWarehouses(id);
+  };
+
   const getProductName = (id) => {
     const p = products.find(prod => prod.id === id);
     return p ? p.name : 'Unknown Product';
@@ -91,6 +135,13 @@ function StockContent() {
 
   const totalValuation = filteredStock.reduce((acc, item) => acc + (item.currentQuantity * getProductCost(item.productId)), 0);
 
+  const orgOptions = [
+    { value: '', label: 'All Branches' },
+    ...organizations.map(o => ({ value: o.id, label: o.name }))
+  ];
+
+  const whOptions = warehouses.map(w => ({ value: w.id, label: w.name }));
+
   if (loading && warehouses.length === 0) return <div className="loading-state-premium"><span>Scanning Inventory Grid...</span></div>;
 
   return (
@@ -100,13 +151,35 @@ function StockContent() {
         {/* Top Intelligence Bar */}
         <div className="intelligence-bar">
           <div className="wh-selector-box">
+             <div className="selector-icon branch-icon"><FaBuilding /></div>
+             <div className="selector-details">
+                <label>Active Branch</label>
+                <NiceSelect 
+                   value={selectedOrgId} 
+                   onChange={(val) => {
+                     setSelectedOrgId(val);
+                     fetchWarehouses(val);
+                   }}
+                   options={orgOptions}
+                   placeholder="All Branches"
+                />
+             </div>
+          </div>
+
+          <div className="wh-selector-box">
              <div className="selector-icon"><FaWarehouse /></div>
              <div className="selector-details">
                 <label>Storage Location</label>
-                <select value={selectedWarehouseId} onChange={handleWarehouseChange}>
-                   <option value="">Select Warehouse...</option>
-                   {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
+                <NiceSelect 
+                   value={selectedWarehouseId} 
+                   onChange={(val) => {
+                     setSelectedWarehouseId(val);
+                     fetchStock(val);
+                   }}
+                   options={whOptions}
+                   placeholder="Select Warehouse..."
+                   disabled={warehouses.length === 0}
+                />
              </div>
           </div>
 
@@ -192,25 +265,45 @@ function StockContent() {
         .overview-container { padding: 0 40px 40px; }
         @media (max-width: 768px) { .overview-container { padding: 0 16px 24px; } }
         
-        .intelligence-bar { background: white; border-radius: 20px; padding: 24px; border: 1px solid #edf2f7; display: flex; align-items: center; gap: 32px; margin-bottom: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
-        @media (max-width: 1024px) { .intelligence-bar { flex-direction: column; align-items: stretch; gap: 20px; } }
+        .intelligence-bar { background: white; border-radius: 16px; padding: 12px 20px; border: 1px solid #edf2f7; display: flex; align-items: center; gap: 16px; margin-bottom: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+        @media (max-width: 1024px) { .intelligence-bar { flex-direction: column; align-items: stretch; gap: 12px; } }
 
-        .wh-selector-box { display: flex; align-items: center; gap: 16px; min-width: 280px; }
-        .selector-icon { width: 48px; height: 48px; background: #fff7ed; color: #f97316; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
-        .selector-details { display: flex; flex-direction: column; flex: 1; }
-        .selector-details label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-        .selector-details select { background: none; border: none; font-size: 16px; font-weight: 800; color: #1e293b; outline: none; padding: 0; cursor: pointer; }
+        .wh-selector-box { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+        .selector-icon { width: 36px; height: 36px; background: #fff7ed; color: #f97316; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+        .selector-icon.branch-icon { background: #eff6ff; color: #3b82f6; }
+        .selector-details { display: flex; flex-direction: column; flex: 1; min-width: 0; position: relative; }
+        .selector-details label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        
+        .wh-selector-box :global(.nice-select-trigger) {
+          border: none !important;
+          background: transparent !important;
+          height: 24px !important;
+          padding: 0 !important;
+          box-shadow: none !important;
+        }
+        
+        .wh-selector-box :global(.nice-select-trigger > span:first-child) {
+          font-size: 13.5px !important;
+          font-weight: 800 !important;
+          color: #1e293b !important;
+        }
+
+        .wh-selector-box :global(.nice-select-trigger > span:last-child) {
+          font-size: 9px !important;
+          right: 0 !important;
+          color: #94a3b8 !important;
+        }
 
         .search-intelligence { position: relative; flex: 1; }
-        .search-intelligence .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-        .search-intelligence input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 12px 12px 48px; border-radius: 12px; font-size: 14px; font-weight: 600; color: #1e293b; transition: 0.2s; }
+        .search-intelligence .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; }
+        .search-intelligence input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px 8px 36px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #1e293b; transition: 0.2s; }
         .search-intelligence input:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 4px #fff7ed; }
 
-        .stats-box { display: flex; gap: 24px; border-left: 1px solid #f1f5f9; padding-left: 32px; }
+        .stats-box { display: flex; gap: 16px; border-left: 1px solid #f1f5f9; padding-left: 20px; }
         @media (max-width: 1024px) { .stats-box { border-left: none; padding-left: 0; justify-content: space-around; } }
         .stat-item { display: flex; flex-direction: column; align-items: center; }
-        .stat-val { font-size: 24px; font-weight: 950; color: #1e293b; line-height: 1; }
-        .stat-label { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-top: 4px; }
+        .stat-val { font-size: 18px; font-weight: 950; color: #1e293b; line-height: 1; }
+        .stat-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
         .stat-item.warning .stat-val { color: #f59e0b; }
 
         .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }

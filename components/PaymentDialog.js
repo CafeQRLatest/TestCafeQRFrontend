@@ -399,7 +399,11 @@ export default function PaymentDialog({
           return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
         })(),
         prices_include_tax: config?.pricesIncludeTax,
-        round_off_config: { round_off_enabled: config?.roundOffEnabled },
+        round_off_config: {
+          round_off_enabled: config?.roundOffEnabled,
+          round_off_mode: config?.roundOffMode || 'automatic',
+          round_off_auto_factor: Number(config?.roundOffAutoFactor ?? 1),
+        },
       };
       
       const ordDiscType = order.orderDiscount?.type || (order.totalDiscountAmount > 0 ? 'amount' : 'amount');
@@ -480,7 +484,9 @@ export default function PaymentDialog({
   }, [totals]);
 
   const roundOff = toNumber(roundOffAmount);
-  const payable = activePayable;
+  const payable = roundOffEnabled && roundOffMode === 'manual'
+    ? Number((subtotal + tax + roundOff).toFixed(2))
+    : activePayable;
 
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
@@ -543,14 +549,22 @@ export default function PaymentDialog({
 
   const submit = () => {
     if (mixedInvalid || creditInvalid || !isRoundOffValid) return;
+    const finalRoundOff = roundOffEnabled ? roundOff : 0;
+    const finalOrder = modifiedOrder ? {
+      ...modifiedOrder,
+      grandTotal: payable,
+      totalAmount: payable,
+      roundOffAmount: finalRoundOff,
+    } : null;
+
     if (paymentMethod === 'CREDIT') {
       onConfirm?.({
         paymentMethod: 'CREDIT',
         creditCustomerId,
         amountPaid: 0,
         discountAmount: Number(disc.toFixed(2)),
-        roundOffAmount: Number(round.toFixed(2)),
-        updatedOrder: modifiedOrder, // Send modified lines & totals back to host first!
+        roundOffAmount: Number(finalRoundOff.toFixed(2)),
+        updatedOrder: finalOrder, // Send modified lines & totals back to host first!
       });
       return;
     }
@@ -574,8 +588,8 @@ export default function PaymentDialog({
       onlineAmount: paymentMethod === 'MIXED' ? Number(nonCashAmount.toFixed(2)) : null,
       paymentSplits: normalizedSplits,
       discountAmount: Number(disc.toFixed(2)),
-      roundOffAmount: Number(round.toFixed(2)),
-      updatedOrder: modifiedOrder, // Send modified lines & totals back to host first!
+      roundOffAmount: Number(finalRoundOff.toFixed(2)),
+      updatedOrder: finalOrder, // Send modified lines & totals back to host first!
     });
   };
 
@@ -604,7 +618,9 @@ export default function PaymentDialog({
           {disc > 0 && <Row style={{ color: '#ea580c' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
           <Row><span>Subtotal</span><strong>{money(subtotal)}</strong></Row>
           <Row><span>Tax</span><strong>{money(tax)}</strong></Row>
-          <Row><span>Round Off</span><strong>{money(roundOff)}</strong></Row>
+          {roundOffEnabled && (
+            <Row><span>Round Off</span><strong>{money(roundOff)}</strong></Row>
+          )}
         </Breakdown>
 
         {roundOffEnabled && roundOffMode === 'manual' && (
