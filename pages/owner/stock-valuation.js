@@ -33,18 +33,26 @@ function ValuationContent() {
   const fetchInitialData = async () => {
     try {
       const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
-        api.get('/api/v1/product-management/products')
+        api.get('/api/v1/warehouses')
+          .catch(err => {
+            console.error("Failed to fetch warehouses:", err);
+            return { data: { success: true, data: [] } };
+          }),
+        api.get('/api/v1/products')
+          .catch(err => {
+            console.error("Failed to fetch products:", err);
+            return { data: { success: true, data: [] } };
+          })
       ]);
 
-      if (wResp.data.success) {
+      if (wResp.data && wResp.data.success) {
         setWarehouses(wResp.data.data || []);
         if (wResp.data.data?.length > 0) {
           setSelectedWarehouseId(wResp.data.data[0].id);
           fetchStock(wResp.data.data[0].id);
         }
       }
-      if (pResp.data.success) {
+      if (pResp.data && pResp.data.success) {
         setProducts(pResp.data.data || []);
       }
     } catch (err) {
@@ -75,13 +83,19 @@ function ValuationContent() {
     fetchStock(id);
   };
 
-  const getProduct = (id) => products.find(p => p.id === id);
+  const getProduct = (id) => {
+    if (!id) return null;
+    return products.find(p => p.id?.toLowerCase() === id.toLowerCase());
+  };
   const getProductName = (id) => getProduct(id)?.name || 'Unknown Product';
   const getProductCost = (id) => {
     const p = getProduct(id);
     return p ? (p.costPrice || p.price || 0) : 0;
   };
-  const getProductSku = (id) => getProduct(id)?.sku || id?.slice(0, 8);
+  const getProductSku = (id) => {
+    const p = getProduct(id);
+    return p ? (p.productCode || p.sku || p.id?.slice(0, 8)) : id?.slice(0, 8);
+  };
 
   const valuationData = stock
     .map(item => ({
@@ -91,7 +105,13 @@ function ValuationContent() {
       totalValue: item.currentQuantity * getProductCost(item.productId),
       sku: getProductSku(item.productId)
     }))
-    .filter(item => item.productName.toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(item => {
+      const search = searchTerm.toLowerCase();
+      if (!search) return true;
+      const name = item.productName.toLowerCase();
+      const sku = (item.sku || '').toLowerCase();
+      return name.includes(search) || sku.includes(search);
+    });
 
   // Sort
   const sortedData = [...valuationData].sort((a, b) => {

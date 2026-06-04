@@ -7,7 +7,7 @@ import { formatTzDate } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
   FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
-  FaHistory, FaEdit
+  FaHistory, FaEdit, FaTh, FaList
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
@@ -488,6 +488,8 @@ const ProductGrid = styled.div`
   overflow-y: auto;
   padding-bottom: 20px;
   min-height: 0;
+  flex: 1;
+  align-content: start;
 
   @media (max-width: 1120px) {
     grid-template-columns: repeat(auto-fill, minmax(98px, 1fr));
@@ -531,6 +533,7 @@ const StandardResults = styled.div`
   margin-top: 14px;
   max-height: 260px;
   overflow-y: auto;
+  align-content: start;
 
   @media (max-width: 520px) {
     grid-template-columns: 1fr;
@@ -1460,6 +1463,7 @@ export default function CounterSale({
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState([]);
   const [orderMode, setOrderMode] = useState('settle'); // 'kitchen' | 'settle'
+  const [productListingOn, setProductListingOn] = useState(true);
   const [discountType, setDiscountType] = useState('amount'); // 'amount' | 'percentage'
   const [discountValue, setDiscountValue] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1606,6 +1610,20 @@ export default function CounterSale({
       }
     }
   }, [propConfig]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('pos_product_listing_enabled');
+    if (stored !== null) {
+      setProductListingOn(JSON.parse(stored));
+    } else if (config) {
+      setProductListingOn(config.posProductListingEnabled !== false);
+    }
+  }, [config]);
+
+  const handleToggleProductListing = (enabled) => {
+    setProductListingOn(enabled);
+    localStorage.setItem('pos_product_listing_enabled', JSON.stringify(enabled));
+  };
 
   // Sync credit customers passively without resetting loading or wiping cart
   useEffect(() => {
@@ -2447,6 +2465,27 @@ export default function CounterSale({
             </ModeToggleBtn>
           </HeaderModeSwitch>
 
+          <HeaderModeSwitch style={{ marginLeft: '4px' }}>
+            <ModeToggleBtn 
+              $active={productListingOn} 
+              $themeColor={THEME.main}
+              onClick={() => handleToggleProductListing(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              title="Grid View"
+            >
+              <FaTh size={11} /> Grid
+            </ModeToggleBtn>
+            <ModeToggleBtn 
+              $active={!productListingOn} 
+              $themeColor="#475569"
+              onClick={() => handleToggleProductListing(false)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              title="List View"
+            >
+              <FaList size={11} /> List
+            </ModeToggleBtn>
+          </HeaderModeSwitch>
+
           {/* Sales History shortcut */}
           <HeaderShortcutBtn
             type="button"
@@ -2485,7 +2524,7 @@ export default function CounterSale({
                   onChange={e => setSearch(e.target.value)}
                   $themeColor={THEME.main}
                 />
-                {config?.posProductListingEnabled === false && search.trim() !== '' && (
+                {!productListingOn && search.trim() !== '' && (
                   <FloatingSuggestBox>
                     {standardMatches.length > 0 ? (
                       <SuggestList>
@@ -2623,7 +2662,7 @@ export default function CounterSale({
 
                 <StandardCurrentOrder style={{ display: 'flex', flexDirection: 'row' }}>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                    {config?.posProductListingEnabled !== false && (
+                    {productListingOn && (
                       <StandardOrderHeader>
                         <Title style={{ fontSize: '18px' }}>Current Order</Title>
                         <CatBtn $themeColor={THEME.main} onClick={() => searchRef.current?.focus()}>
@@ -2692,7 +2731,7 @@ export default function CounterSale({
                     </StandardOrderList>
                   </div>
 
-                  {config?.posProductListingEnabled === false && (
+                  {!productListingOn && (
                     <div style={{ width: '220px', borderLeft: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: '8px', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }} className="custom-scrollbar">
                         <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '12.5px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>Payment Info</div>
@@ -2768,7 +2807,7 @@ export default function CounterSale({
               </StandardWorkspace>
             ) : (
               <>
-                {config?.posProductListingEnabled !== false ? (
+                {productListingOn ? (
                   <>
                     <FilterTabs>
                       <FilterBtn $active={dietFilter === 'ALL'} $themeColor={THEME.main} onClick={() => setDietFilter('ALL')}>
@@ -3013,7 +3052,7 @@ export default function CounterSale({
           </CatalogSection>
 
           {mobileCartOpen && <MobileCartBackdrop onClick={() => setMobileCartOpen(false)} />}
-          {config?.posProductListingEnabled !== false && (
+          {productListingOn && (
             <>
               <CartSection $mobileOpen={mobileCartOpen}>
             <CartHeader>

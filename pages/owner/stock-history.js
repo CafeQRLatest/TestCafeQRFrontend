@@ -33,11 +33,19 @@ function StockHistoryContent() {
   const fetchInitialData = async () => {
     try {
       const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
-        api.get('/api/v1/product-management/products')
+        api.get('/api/v1/warehouses')
+          .catch(err => {
+            console.error("Failed to fetch warehouses:", err);
+            return { data: { success: true, data: [] } };
+          }),
+        api.get('/api/v1/products')
+          .catch(err => {
+            console.error("Failed to fetch products:", err);
+            return { data: { success: true, data: [] } };
+          })
       ]);
 
-      if (wResp.data.success) {
+      if (wResp.data && wResp.data.success) {
         setWarehouses(wResp.data.data || []);
         if (wResp.data.data?.length > 0) {
           const firstWh = wResp.data.data[0].id;
@@ -45,7 +53,7 @@ function StockHistoryContent() {
           fetchHistory(firstWh);
         }
       }
-      if (pResp.data.success) {
+      if (pResp.data && pResp.data.success) {
         setProducts(pResp.data.data || []);
       }
     } catch (err) {
@@ -76,16 +84,23 @@ function StockHistoryContent() {
     fetchHistory(id);
   };
 
+  const getProduct = (id) => {
+    if (!id) return null;
+    return products.find(p => p.id?.toLowerCase() === id.toLowerCase());
+  };
+
   const getProductName = (id) => {
-    const p = products.find(prod => prod.id === id);
+    const p = getProduct(id);
     return p ? p.name : 'Unknown Product';
   };
 
   const filteredLedgers = ledgers.filter(lg => {
-    const name = getProductName(lg.productId).toLowerCase();
+    const p = getProduct(lg.productId);
+    const name = (p ? p.name : 'Unknown Product').toLowerCase();
+    const code = (p ? (p.productCode || p.sku || '') : '').toLowerCase();
     const type = (lg.transactionType || '').toLowerCase();
     const search = searchTerm.toLowerCase();
-    return name.includes(search) || type.includes(search);
+    return name.includes(search) || code.includes(search) || type.includes(search);
   });
 
   const getTransactionIcon = (type) => {

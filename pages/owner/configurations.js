@@ -44,7 +44,6 @@ const MODULES = [
   { key: 'pm_production',       icon: <FaIndustry />,    title: 'Production',        desc: 'Manufacturing pipeline',                    color: '#64748b' },
   { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
   { key: 'pm_loyalty',          icon: <FaTags />,        title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#ef4444' },
-  { key: 'pm_pos_product_listing', icon: <FaSearch />,   title: 'POS Product Listing', desc: 'Enable product grid in sales screen',       color: '#059669' },
   { key: 'pm_discount',         icon: <FaTags />,        title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f59e0b' },
   { key: 'pm_send_to_kitchen',  icon: <FaUtensils />,    title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#22c55e' },
   { key: 'pm_online_delivery',  icon: <FaTruck />,       title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#06b6d4' },

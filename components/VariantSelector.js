@@ -345,7 +345,8 @@ export default function VariantSelector({
   onSelectMany,
   themeColor = '#f97316',
   themeSoftColor = '#fff7ed',
-  themeDarkColor = '#ea580c'
+  themeDarkColor = '#ea580c',
+  stockMap = null
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [quantities, setQuantities] = useState({});
@@ -496,6 +497,11 @@ export default function VariantSelector({
                       <OptionMeta>
                         <strong>{stripSymbols(option.label)}</strong>
                         <span>₹{Number(option.price || 0).toFixed(2)}</span>
+                        {stockMap && (
+                          <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold', marginTop: '2px' }}>
+                            Stock: {stockMap[option.id] !== undefined ? (stockMap[option.id]?.currentStock !== undefined ? stockMap[option.id].currentStock : stockMap[option.id]) : (stockMap[`${product.id}_${option.id}`]?.currentStock || 0)}
+                          </div>
+                        )}
                       </OptionMeta>
                       {quantityMode ? (
                         <QuantityControls
