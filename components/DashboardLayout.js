@@ -572,13 +572,13 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
   // Mapping to old Cafe QR names and premium icons
   const menuConfig = {
     "Dashboard":          { name: "Overview", icon: <FaHome /> },
-    "Product Management": { name: "Menu", icon: <FaBookOpen /> },
+    "Product Management": { name: "Product Management", icon: <FaBookOpen /> },
     "Orders":             { name: "Orders", icon: <FaUtensils /> },
-    "Sales":              { name: "Counter Sale", icon: <FaCashRegister /> },
-    "Table Management":   { name: "POS", icon: <FaDesktop /> },
+    "Sales":              { name: "POS", icon: <FaCashRegister /> },
+    "Table Management":   { name: "Table Management", icon: <FaTable /> },
     
-    "Purchase Orders":    { name: "Purchase", icon: <FaShoppingCart /> },
-    "Stock":              { name: "Inventory", icon: <FaBoxes /> },
+    "Purchase Orders":    { name: "Purchase Orders", icon: <FaShoppingCart /> },
+    "Stock":              { name: "Stock and Inventory", icon: <FaBoxes /> },
     "QR Availability":    { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours":     { name: "Delivery Hours", icon: <FaTruck /> },
     "Credit Customers":   { name: "Credit Customers", icon: <FaUserFriends /> },
@@ -593,13 +593,12 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Billing", icon: <FaCalculator /> },
-    "Billing & Reports":  { name: "Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator /> },
     
-    "Organization":       { name: "Team & Acc...", icon: <FaUserCog /> },
+    "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
     "Configurations":     { name: "Settings", icon: <FaCog /> },
-    "Document Sequences": { name: "Sequences", icon: <FaFileInvoice /> },
+    "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
     "Partners":           { name: "Partners", icon: <FaUserFriends /> }
   };
@@ -628,7 +627,6 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
-    "Billing & Reports": "INSIGHTS",
     
     "Organization": "ACCOUNT",
     "Subscription": "ACCOUNT",
@@ -760,13 +758,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   // Mapping to old Cafe QR names and premium icons (identical to desktop Sidebar)
   const menuConfig = {
     "Dashboard":          { name: "Overview", icon: <FaHome /> },
-    "Product Management": { name: "Menu", icon: <FaBookOpen /> },
+    "Product Management": { name: "Product Management", icon: <FaBookOpen /> },
     "Orders":             { name: "Orders", icon: <FaUtensils /> },
-    "Sales":              { name: "Counter Sale", icon: <FaCashRegister /> },
-    "Table Management":   { name: "POS", icon: <FaDesktop /> },
+    "Sales":              { name: "POS", icon: <FaCashRegister /> },
+    "Table Management":   { name: "Table Management", icon: <FaTable /> },
     
-    "Purchase Orders":    { name: "Purchase", icon: <FaShoppingCart /> },
-    "Stock":              { name: "Inventory", icon: <FaBoxes /> },
+    "Purchase Orders":    { name: "Purchase Orders", icon: <FaShoppingCart /> },
+    "Stock":              { name: "Stock and Inventory", icon: <FaBoxes /> },
     "QR Availability":    { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours":     { name: "Delivery Hours", icon: <FaTruck /> },
     "Credit Customers":   { name: "Credit Customers", icon: <FaUserFriends /> },
@@ -781,13 +779,12 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Billing", icon: <FaCalculator /> },
-    "Billing & Reports":  { name: "Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator /> },
     
-    "Organization":       { name: "Team & Acc...", icon: <FaUserCog /> },
+    "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
     "Configurations":     { name: "Settings", icon: <FaCog /> },
-    "Document Sequences": { name: "Sequences", icon: <FaFileInvoice /> },
+    "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
     "Partners":           { name: "Partners", icon: <FaUserFriends /> }
   };
