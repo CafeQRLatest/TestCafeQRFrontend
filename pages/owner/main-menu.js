@@ -11,7 +11,8 @@ import {
   FaBookOpen,
   FaBalanceScale,
   FaCashRegister,
-  FaFileInvoice
+  FaFileInvoice,
+  FaTable
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -49,18 +50,18 @@ function MainMenuContent() {
 
   // Icon and color map by menu name
   const iconMap = {
-    "Organization":     { icon: <FaBuilding />,    color: "#6366f1" },
-    "Subscription":     { icon: <FaCreditCard />,   color: "#f59e0b" },
-    "Dashboard":        { icon: <FaChartLine />,    color: "#f97316" },
-    "Product Management":  { icon: <FaBookOpen />,     color: "#3b82f6" },
-    "Sales":            { icon: <FaChartBar />,     color: "#10b981" },
-    "Billing & Reports":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
-    "Reports & Billing":{ icon: <FaFileInvoice />,  color: "#8b5cf6" },
-    "Stock":            { icon: <FaBoxes />,       color: "#ea580c" },
-    "Accounting":       { icon: <FaBalanceScale />, color: "#0f766e" },
-    "Credit Customers": { icon: <FaUsers />,        color: "#14b8a6" },
-    "Table Management": { icon: <FaChair />,       color: "#f97316" },
-    "Document Sequences":{ icon: <FaFileInvoice />, color: "#6366f1" },
+    "Organization":     { name: "Organization and Team", icon: <FaBuilding />,    color: "#6366f1" },
+    "Subscription":     { name: "Subscription",          icon: <FaCreditCard />,   color: "#f59e0b" },
+    "Dashboard":        { name: "Overview",              icon: <FaChartLine />,    color: "#f97316" },
+    "Product Management":  { name: "Product Management", icon: <FaBookOpen />,     color: "#3b82f6" },
+    "Sales":            { name: "POS",                   icon: <FaCashRegister />, color: "#10b981" },
+    "Billing & Reports":{ name: "Reports & Billing",     icon: <FaFileInvoice />,  color: "#8b5cf6", url: "/owner/reports" },
+    "Reports & Billing":{ name: "Reports & Billing",     icon: <FaFileInvoice />,  color: "#8b5cf6", url: "/owner/reports" },
+    "Stock":            { name: "Stock and Inventory",   icon: <FaBoxes />,        color: "#ea580c" },
+    "Accounting":       { name: "Accounting",            icon: <FaBalanceScale />, color: "#0f766e" },
+    "Credit Customers": { name: "Credit Customers",      icon: <FaUsers />,        color: "#14b8a6" },
+    "Table Management": { name: "Table Management",      icon: <FaTable />,        color: "#f97316" },
+    "Document Sequences":{ name: "Document Sequences",   icon: <FaFileInvoice />,  color: "#6366f1" },
   };
 
   // Only show PARENT menus and Filter out Point of Sale and Offline Sync Center (rendered statically for network resilience)
@@ -71,13 +72,16 @@ function MainMenuContent() {
   });
 
   // Map parent menus to display items
-  const filteredItems = parentMenus.map(m => ({
-    title: m.name,
-    desc: m.description || '',
-    href: m.url,
-    icon: iconMap[m.name]?.icon || <FaBuilding />,
-    color: iconMap[m.name]?.color || "#64748b"
-  }));
+  const filteredItems = parentMenus.map(m => {
+    const configItem = iconMap[m.name] || {};
+    return {
+      title: configItem.name || m.name,
+      desc: m.description || '',
+      href: configItem.url || m.url,
+      icon: configItem.icon || <FaBuilding />,
+      color: configItem.color || "#64748b"
+    };
+  });
 
   const displayItems = [...filteredItems];
   displayItems.push({

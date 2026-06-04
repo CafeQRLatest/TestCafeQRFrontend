@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
-  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
+  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale, FaTable,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase
@@ -593,7 +593,8 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
+    "Billing & Reports":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
     
     "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
@@ -693,7 +694,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
                     fontSize: 22, fontWeight: 900, color: '#0f172a', 
                     letterSpacing: '-0.04em', whiteSpace: 'nowrap',
                     animation: 'fadeIn 0.3s ease-out'
-                  }}>CafeQR</span>
+                  }}>Cafe QR POS</span>
                 )}
             </Link>
             
@@ -718,12 +719,13 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
               <React.Fragment key={categoryName}>
                 <div className="sidebar-section-title">{!collapsed ? categoryName : ""}</div>
                 {items.map(m => {
-                  const active = router.pathname === m.url;
                   const configItem = menuConfig[m.name] || {};
+                  const targetUrl = configItem.url || m.url;
+                  const active = router.pathname === targetUrl;
                   const displayName = configItem.name || m.name;
                   const displayIcon = configItem.icon || <FaBuilding />;
                   return (
-                    <Link key={m.id || m._id || m.url} href={m.url} className={`sidebar-link ${active ? 'active' : ''}`} title={collapsed ? displayName : ''}>
+                    <Link key={m.id || m._id || m.url} href={targetUrl} className={`sidebar-link ${active ? 'active' : ''}`} title={collapsed ? displayName : ''}>
                       <div className="sidebar-icon">{displayIcon}</div>
                       {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>{displayName}</span>}
                     </Link>
@@ -779,7 +781,8 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
+    "Billing & Reports":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
     
     "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
@@ -813,7 +816,6 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
-    "Billing & Reports": "INSIGHTS",
     
     "Organization": "ACCOUNT",
     "Subscription": "ACCOUNT",
@@ -867,7 +869,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
        <div style={{ padding: '32px 24px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 20 }}>C</div>
-          <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>CafeQR</span>
+          <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>Cafe QR POS</span>
        </div>
 
        <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -877,14 +879,15 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
               <React.Fragment key={categoryName}>
                 <div className="sidebar-section-title">{categoryName}</div>
                 {items.map(m => {
-                  const active = router.pathname === m.url;
                   const configItem = menuConfig[m.name] || {};
+                  const targetUrl = configItem.url || m.url;
+                  const active = router.pathname === targetUrl;
                   const displayName = configItem.name || m.name;
                   const displayIcon = configItem.icon || <FaBuilding />;
                   return (
                     <Link 
                       key={m.id || m._id || m.url} 
-                      href={m.url} 
+                      href={targetUrl} 
                       onClick={onNavigate}
                       className={`sidebar-link ${active ? 'active' : ''}`}
                     >
