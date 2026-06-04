@@ -90,6 +90,7 @@ function PurchaseContent() {
     statusCfg,
     filteredProducts,
     stepOk,
+    warehouseStock,
     STATUS_CFG,
   } = usePurchaseOrders();
 
@@ -269,6 +270,7 @@ function PurchaseContent() {
           timezone={timezone} formatTzDate={formatTzDate}
           startFresh={startFresh}
           styles={styles}
+          warehouseStock={warehouseStock}
         />
         {message && <Toast msg={message} type={msgType} onClose={() => setMessage(null)} />}
       </DashboardLayout>

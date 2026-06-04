@@ -33,7 +33,8 @@ export default function PurchaseForm({
   currencySymbol,
   timezone, formatTzDate,
   startFresh,
-  styles
+  styles,
+  warehouseStock = {}
 }) {
   const searchRef = useRef(null);
   const searchInp = useRef(null);
@@ -284,6 +285,11 @@ export default function PurchaseForm({
                               </div>
                             </div>
                             <div className={styles['ps-item-right']}>
+                              {po.warehouseId && warehouseStock[p.id] !== undefined && (
+                                <div style={{ color: '#059669', fontSize: '11px', fontWeight: 'bold', marginRight: '10px' }}>
+                                  Stock: {warehouseStock[p.id]}
+                                </div>
+                              )}
                               {p.price > 0 && (
                                 <div className={styles['ps-item-price']}>
                                   {currencySymbol}{parseFloat(p.price).toFixed(2)}
@@ -343,6 +349,11 @@ export default function PurchaseForm({
                             {line.productCode && <span>#{line.productCode}</span>}
                             {line.categoryName && <span className={styles.orange}>{line.categoryName}</span>}
                             <span className={styles.muted}>{line.unitOfMeasure}</span>
+                            {po.warehouseId && warehouseStock[line.productId] !== undefined && (
+                              <span style={{ background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: '4px', marginLeft: '8px', fontSize: '11px', fontWeight: 'bold' }}>
+                                Stock: {warehouseStock[line.productId]}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className={styles['tc-qty']}>

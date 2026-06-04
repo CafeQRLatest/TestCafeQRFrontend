@@ -11,6 +11,7 @@ import {
   FaTrash, FaPlus, FaMinus, FaFolderOpen, FaBoxOpen,
   FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine
 } from 'react-icons/fa';
+import VariantSelector from '../../components/VariantSelector';
 
 export default function StockAdjustmentsPage() {
   return (
@@ -34,6 +35,7 @@ function AdjustmentContent() {
   
   const [productSearch, setProductSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeVariantProduct, setActiveVariantProduct] = useState(null);
   const searchWrapRef = useRef(null);
 
   const [adjustment, setAdjustment] = useState({
@@ -62,11 +64,19 @@ function AdjustmentContent() {
   const fetchInitialData = async () => {
     try {
       const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
-        api.get('/api/v1/product-management/products')
+        api.get('/api/v1/warehouses')
+          .catch(err => {
+            console.error("Failed to fetch warehouses:", err);
+            return { data: { success: true, data: [] } };
+          }),
+        api.get('/api/v1/products')
+          .catch(err => {
+            console.error("Failed to fetch products:", err);
+            return { data: { success: true, data: [] } };
+          })
       ]);
-      if (wResp.data.success) setWarehouses(wResp.data.data || []);
-      if (pResp.data.success) {
+      if (wResp.data && wResp.data.success) setWarehouses(wResp.data.data || []);
+      if (pResp.data && pResp.data.success) {
         setProducts((pResp.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false));
       }
     } catch (err) {
@@ -92,10 +102,13 @@ function AdjustmentContent() {
     if (!whId) return;
     setFetchingStock(true);
     try {
-      const resp = await api.get(`/api/v1/inventory/warehouse-stock/${whId}`);
+      const resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
       if (resp.data.success) {
         const stockMap = {};
-        (resp.data.data || []).forEach(s => { stockMap[s.productId] = s; });
+        (resp.data.data || []).forEach(s => {
+          s.currentStock = s.currentQuantity;
+          stockMap[s.productId] = s;
+        });
         setSourceStock(stockMap);
       }
     } catch (err) {
@@ -125,7 +138,14 @@ function AdjustmentContent() {
   };
 
   const addProductToManifest = (product) => {
-    const exists = adjustment.lines.find(l => l.productId === product.id);
+    const hasVariants = (product.variantMappings && product.variantMappings.length > 0) || (product.variantPricings && product.variantPricings.length > 0);
+    if (hasVariants) {
+      setActiveVariantProduct(product);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const exists = adjustment.lines.find(l => l.productId === product.id && !l.variantId);
     if (exists) {
       showToast(`${product.name} is already in the list`, "error");
       return;
@@ -144,6 +164,30 @@ function AdjustmentContent() {
     setAdjustment({ ...adjustment, lines: [newLine, ...adjustment.lines] });
     setProductSearch("");
     setShowSuggestions(false);
+  };
+
+  const handleVariantSelect = (selectedVariant) => {
+    if (!activeVariantProduct) return;
+    const exists = adjustment.lines.find(l => l.productId === activeVariantProduct.id && l.variantId === selectedVariant.id);
+    if (exists) {
+      showToast(`${activeVariantProduct.name} (${selectedVariant.label}) is already in the list`, "error");
+      return;
+    }
+
+    const newLine = {
+      productId: activeVariantProduct.id,
+      variantId: selectedVariant.id,
+      productName: `${activeVariantProduct.name} (${selectedVariant.label})`,
+      productCode: activeVariantProduct.productCode,
+      categoryName: activeVariantProduct.categoryName,
+      unitName: activeVariantProduct.unitName,
+      quantityChange: 1,
+      unitCost: selectedVariant.price || activeVariantProduct.costPrice || 0
+    };
+
+    setAdjustment({ ...adjustment, lines: [newLine, ...adjustment.lines] });
+    setProductSearch("");
+    setActiveVariantProduct(null);
   };
 
   const updateLineQty = (idx, val) => {
@@ -310,6 +354,7 @@ function AdjustmentContent() {
                         <tr>
                           <th className="col-idx">#</th>
                           <th className="col-product">Product</th>
+                          <th className="col-stock">Current Stock</th>
                           <th className="col-qty">Adjustment Qty (+/-)</th>
                           <th className="col-action"></th>
                         </tr>
@@ -317,6 +362,7 @@ function AdjustmentContent() {
                       <tbody>
                         {adjustment.lines.map((line, idx) => {
                           const p = products.find(prod => prod.id === line.productId) || line;
+                          const currentStockVal = sourceStock[line.productId]?.currentStock !== undefined ? sourceStock[line.productId].currentStock : 0;
                           return (
                             <tr key={idx}>
                               <td className="col-idx">{idx + 1}</td>
@@ -325,6 +371,11 @@ function AdjustmentContent() {
                                 <div className="p-meta">
                                    {line.productCode && <span className="p-sku">#{line.productCode}</span>}
                                    <span className="p-category">{line.categoryName || p.categoryName}</span>
+                                </div>
+                              </td>
+                              <td className="col-stock">
+                                <div className="classic-pill success" style={{ background: '#ecfdf5', color: '#059669', display: 'inline-flex', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                  {currentStockVal} {line.unitName || p.unitName || 'units'}
                                 </div>
                               </td>
                               <td className="col-qty">
@@ -503,6 +554,15 @@ function AdjustmentContent() {
           {msgType === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
           <span>{message}</span>
         </div>
+      )}
+
+      {activeVariantProduct && (
+        <VariantSelector
+          product={activeVariantProduct}
+          onClose={() => setActiveVariantProduct(null)}
+          stockMap={sourceStock}
+          onSelect={handleVariantSelect}
+        />
       )}
 
       <style jsx>{`

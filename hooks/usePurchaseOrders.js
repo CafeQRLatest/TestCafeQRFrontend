@@ -104,6 +104,34 @@ export function usePurchaseOrders() {
 
   /* ── current PO ── */
   const [po, setPo] = useState(blankPO());
+  const [warehouseStock, setWarehouseStock] = useState({});
+  const [fetchingStock, setFetchingStock] = useState(false);
+
+  const fetchWarehouseStock = useCallback(async (whId) => {
+    if (!whId) {
+      setWarehouseStock({});
+      return;
+    }
+    setFetchingStock(true);
+    try {
+      const resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
+      if (resp.data.success) {
+        const stockMap = {};
+        (resp.data.data || []).forEach(item => {
+          stockMap[item.productId] = item.currentQuantity !== undefined ? item.currentQuantity : (item.currentStock || 0);
+        });
+        setWarehouseStock(stockMap);
+      }
+    } catch {
+      /* silent fallback */
+    } finally {
+      setFetchingStock(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWarehouseStock(po.warehouseId);
+  }, [po.warehouseId, fetchWarehouseStock]);
 
   // Automatically sync expected Date and order Date with local timezone when empty
   useEffect(() => {
@@ -444,6 +472,8 @@ export function usePurchaseOrders() {
     statusCfg,
     filteredProducts,
     stepOk,
+    warehouseStock,
+    fetchingStock,
     STATUS_CFG
   };
 }

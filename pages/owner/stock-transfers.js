@@ -117,6 +117,7 @@ function TransferContent() {
       if (resp.data.success) {
         const stockMap = {};
         (resp.data.data || []).forEach(item => {
+          item.currentStock = item.currentQuantity;
           stockMap[item.productId] = item;
         });
         setSourceStock(stockMap);

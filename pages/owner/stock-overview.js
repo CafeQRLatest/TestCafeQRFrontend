@@ -27,6 +27,8 @@ function StockContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchWrapRef = React.useRef(null);
 
   useEffect(() => {
     if (userOrgId) {
@@ -35,31 +37,56 @@ function StockContent() {
     fetchInitialData();
   }, [userOrgId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchWrapRef.current && !searchWrapRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const fetchInitialData = async () => {
     setLoading(true);
     try {
       const orgIdToUse = selectedOrgId || userOrgId || '';
+      console.log("===> [DEBUG] fetchInitialData: orgIdToUse =", orgIdToUse);
       const [wResp, pResp, orgResp] = await Promise.all([
-        api.get('/api/v1/warehouses', { params: orgIdToUse ? { orgId: orgIdToUse } : {} }),
-        api.get('/api/v1/product-management/products'),
-        api.get('/api/v1/organizations').catch(() => ({ data: { success: true, data: [] } }))
+        api.get('/api/v1/warehouses', { params: orgIdToUse ? { orgId: orgIdToUse } : {} })
+          .catch(err => {
+            console.error("Failed to fetch warehouses:", err);
+            return { data: { success: true, data: [] } };
+          }),
+        api.get('/api/v1/products')
+          .catch(err => {
+            console.error("Failed to fetch products:", err);
+            return { data: { success: true, data: [] } };
+          }),
+        api.get('/api/v1/organizations')
+          .catch(err => {
+            console.error("Failed to fetch organizations:", err);
+            return { data: { success: true, data: [] } };
+          })
       ]);
 
-      if (orgResp.data.success) {
+      console.log("===> [DEBUG] fetchInitialData responses: products count =", pResp.data?.data?.length, "warehouses count =", wResp.data?.data?.length, "organizations count =", orgResp.data?.data?.length);
+
+      if (orgResp.data && orgResp.data.success) {
         setOrganizations(orgResp.data.data || []);
       }
-      if (wResp.data.success) {
+      if (wResp.data && wResp.data.success) {
         const whs = wResp.data.data || [];
         setWarehouses(whs);
         if (whs.length > 0) {
-          setSelectedWarehouseId(whs[0].id);
-          fetchStock(whs[0].id);
+          setSelectedWarehouseId('all');
+          fetchStock('all');
         } else {
           setSelectedWarehouseId('');
           setStock([]);
         }
       }
-      if (pResp.data.success) {
+      if (pResp.data && pResp.data.success) {
         setProducts(pResp.data.data || []);
       }
     } catch (err) {
@@ -77,8 +104,8 @@ function StockContent() {
         const whs = resp.data.data || [];
         setWarehouses(whs);
         if (whs.length > 0) {
-          setSelectedWarehouseId(whs[0].id);
-          fetchStock(whs[0].id);
+          setSelectedWarehouseId('all');
+          fetchStock('all');
         } else {
           setSelectedWarehouseId('');
           setStock([]);
@@ -92,10 +119,19 @@ function StockContent() {
   };
 
   const fetchStock = async (whId) => {
-    if (!whId) return;
     setLoading(true);
     try {
-      const resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
+      let url = `/api/v1/inventory/stock-overview/${whId}`;
+      let params = {};
+      if (whId === 'all' || !whId) {
+        url = `/api/v1/inventory/stock-overview`;
+        const activeOrg = selectedOrgId || userOrgId || '';
+        if (activeOrg) {
+          params.orgId = activeOrg;
+        }
+      }
+      const resp = await api.get(url, { params });
+      console.log("===> [DEBUG] fetchStock stock data =", resp.data);
       if (resp.data.success) {
         setStock(resp.data.data || []);
       }
@@ -118,29 +154,59 @@ function StockContent() {
     fetchWarehouses(id);
   };
 
+  const getProduct = (id) => {
+    if (!id) return null;
+    const match = products.find(p => p.id?.toLowerCase() === id.toLowerCase());
+    if (!match && products.length > 0) {
+      console.log(`===> [DEBUG] getProduct: failed to match ID ${id} with ${products.length} products. Product IDs:`, products.map(p => p.id));
+    }
+    return match;
+  };
+
   const getProductName = (id) => {
-    const p = products.find(prod => prod.id === id);
+    const p = getProduct(id);
     return p ? p.name : 'Unknown Product';
   };
 
   const getProductCost = (id) => {
-    const p = products.find(prod => prod.id === id);
+    const p = getProduct(id);
     return p ? (p.costPrice || p.price || 0) : 0;
   };
 
   const filteredStock = stock.filter(item => {
-    const name = getProductName(item.productId).toLowerCase();
-    return name.includes(searchTerm.toLowerCase());
+    const p = getProduct(item.productId);
+    const search = searchTerm.toLowerCase();
+    if (!search) return true;
+
+    const name = (p ? p.name : 'Unknown Product').toLowerCase();
+    const code = (p ? (p.productCode || p.sku || '') : '').toLowerCase();
+    const category = (p ? (p.categoryName || '') : '').toLowerCase();
+    const shortId = (item.productId || '').toLowerCase();
+
+    return name.includes(search) || 
+           code.includes(search) || 
+           category.includes(search) ||
+           shortId.includes(search);
   });
 
   const totalValuation = filteredStock.reduce((acc, item) => acc + (item.currentQuantity * getProductCost(item.productId)), 0);
+
+  const filteredSuggestions = searchTerm.trim() === "" 
+    ? products.slice(0, 15) 
+    : products.filter(p => 
+        (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (p.productCode || p.sku || "").toLowerCase().includes(searchTerm.toLowerCase())
+      ).slice(0, 15);
 
   const orgOptions = [
     { value: '', label: 'All Branches' },
     ...organizations.map(o => ({ value: o.id, label: o.name }))
   ];
 
-  const whOptions = warehouses.map(w => ({ value: w.id, label: w.name }));
+  const whOptions = [
+    { value: 'all', label: 'All Warehouses' },
+    ...warehouses.map(w => ({ value: w.id, label: w.name }))
+  ];
 
   if (loading && warehouses.length === 0) return <div className="loading-state-premium"><span>Scanning Inventory Grid...</span></div>;
 
@@ -183,14 +249,50 @@ function StockContent() {
              </div>
           </div>
 
-          <div className="search-intelligence">
-             <FaSearch className="search-icon" />
-             <input 
-               type="text" 
-               placeholder="Search product inventory..." 
-               value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
-             />
+          <div className="search-intelligence" ref={searchWrapRef}>
+             <div className="search-bar-input-wrap">
+               <FaSearch className="search-icon" />
+               <input 
+                 type="text" 
+                 placeholder="Search product inventory..." 
+                 value={searchTerm}
+                 onChange={(e) => {
+                   setSearchTerm(e.target.value);
+                   setShowSuggestions(true);
+                 }}
+                 onFocus={() => setShowSuggestions(true)}
+               />
+               {searchTerm && (
+                 <button className="clear-search" onClick={() => setSearchTerm("")}>&times;</button>
+               )}
+             </div>
+
+             {showSuggestions && (
+               <div className="suggestions-popover">
+                 {filteredSuggestions.length === 0 ? (
+                    <div className="no-sug">No products found matching &quot;{searchTerm}&quot;</div>
+                 ) : (
+                   filteredSuggestions.map(p => {
+                     const stockItem = stock.find(item => item.productId?.toLowerCase() === p.id?.toLowerCase());
+                     const qty = stockItem ? stockItem.currentQuantity : 0;
+                     return (
+                       <div key={p.id} className="sug-item" onClick={() => {
+                         setSearchTerm(p.name);
+                         setShowSuggestions(false);
+                       }}>
+                         <div className="sug-left">
+                           <div className="sug-name">{p.name}</div>
+                           <div className="sug-cat">{p.categoryName || 'General'} • {p.productCode || p.sku || 'NO SKU'}</div>
+                         </div>
+                         <div className={`sug-stock ${qty > 0 ? 'success' : 'neutral'}`}>
+                           {qty} in Stock
+                         </div>
+                       </div>
+                     );
+                   })
+                 )}
+               </div>
+             )}
           </div>
 
           <div className="stats-box">
@@ -216,7 +318,7 @@ function StockContent() {
                <div key={item.id} className="stock-card-premium">
                   <div className="card-glare"></div>
                   <div className="stock-info">
-                     <span className="sku-tag">#{item.productId.slice(0, 8)}</span>
+                     <span className="sku-tag">#{item.productId ? item.productId.slice(0, 8) : ''}</span>
                      <h3 className="product-name">{getProductName(item.productId)}</h3>
                      <div className="stock-badge">
                         <span className="qty">{item.currentQuantity}</span>
@@ -295,9 +397,21 @@ function StockContent() {
         }
 
         .search-intelligence { position: relative; flex: 1; }
-        .search-intelligence .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; }
-        .search-intelligence input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 12px 8px 36px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #1e293b; transition: 0.2s; }
+        .search-bar-input-wrap { display: flex; align-items: center; width: 100%; position: relative; }
+        .search-intelligence .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; z-index: 10; }
+        .search-intelligence input { width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 30px 8px 36px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #1e293b; transition: 0.2s; }
         .search-intelligence input:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 4px #fff7ed; }
+        .clear-search { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 18px; color: #94a3b8; cursor: pointer; z-index: 10; }
+
+        .suggestions-popover { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 1000; max-height: 300px; overflow-y: auto; }
+        .sug-item { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #f1f5f9; text-align: left; }
+        .sug-item:hover { background: #fff7ed; }
+        .sug-name { font-size: 13px; font-weight: 700; color: #0f172a; }
+        .sug-cat { font-size: 10px; color: #f97316; font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+        .sug-stock { font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 6px; }
+        .sug-stock.success { background: #ecfdf5; color: #10b981; }
+        .sug-stock.neutral { background: #f1f5f9; color: #64748b; }
+        .no-sug { padding: 16px; text-align: center; color: #64748b; font-size: 12px; font-weight: 600; }
 
         .stats-box { display: flex; gap: 16px; border-left: 1px solid #f1f5f9; padding-left: 20px; }
         @media (max-width: 1024px) { .stats-box { border-left: none; padding-left: 0; justify-content: space-around; } }
