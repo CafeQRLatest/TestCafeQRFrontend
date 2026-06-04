@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
-  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale,
+  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale, FaTable,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase
@@ -572,13 +572,13 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
   // Mapping to old Cafe QR names and premium icons
   const menuConfig = {
     "Dashboard":          { name: "Overview", icon: <FaHome /> },
-    "Product Management": { name: "Menu", icon: <FaBookOpen /> },
+    "Product Management": { name: "Product Management", icon: <FaBookOpen /> },
     "Orders":             { name: "Orders", icon: <FaUtensils /> },
-    "Sales":              { name: "Counter Sale", icon: <FaCashRegister /> },
-    "Table Management":   { name: "POS", icon: <FaDesktop /> },
+    "Sales":              { name: "POS", icon: <FaCashRegister /> },
+    "Table Management":   { name: "Table Management", icon: <FaTable /> },
     
-    "Purchase Orders":    { name: "Purchase", icon: <FaShoppingCart /> },
-    "Stock":              { name: "Inventory", icon: <FaBoxes /> },
+    "Purchase Orders":    { name: "Purchase Orders", icon: <FaShoppingCart /> },
+    "Stock":              { name: "Stock and Inventory", icon: <FaBoxes /> },
     "QR Availability":    { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours":     { name: "Delivery Hours", icon: <FaTruck /> },
     "Credit Customers":   { name: "Credit Customers", icon: <FaUserFriends /> },
@@ -593,13 +593,13 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Billing", icon: <FaCalculator /> },
-    "Billing & Reports":  { name: "Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
+    "Billing & Reports":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
     
-    "Organization":       { name: "Team & Acc...", icon: <FaUserCog /> },
+    "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
     "Configurations":     { name: "Settings", icon: <FaCog /> },
-    "Document Sequences": { name: "Sequences", icon: <FaFileInvoice /> },
+    "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
     "Partners":           { name: "Partners", icon: <FaUserFriends /> }
   };
@@ -628,7 +628,6 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
-    "Billing & Reports": "INSIGHTS",
     
     "Organization": "ACCOUNT",
     "Subscription": "ACCOUNT",
@@ -720,12 +719,13 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
               <React.Fragment key={categoryName}>
                 <div className="sidebar-section-title">{!collapsed ? categoryName : ""}</div>
                 {items.map(m => {
-                  const active = router.pathname === m.url;
                   const configItem = menuConfig[m.name] || {};
+                  const targetUrl = configItem.url || m.url;
+                  const active = router.pathname === targetUrl;
                   const displayName = configItem.name || m.name;
                   const displayIcon = configItem.icon || <FaBuilding />;
                   return (
-                    <Link key={m.id || m._id || m.url} href={m.url} className={`sidebar-link ${active ? 'active' : ''}`} title={collapsed ? displayName : ''}>
+                    <Link key={m.id || m._id || m.url} href={targetUrl} className={`sidebar-link ${active ? 'active' : ''}`} title={collapsed ? displayName : ''}>
                       <div className="sidebar-icon">{displayIcon}</div>
                       {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>{displayName}</span>}
                     </Link>
@@ -760,13 +760,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   // Mapping to old Cafe QR names and premium icons (identical to desktop Sidebar)
   const menuConfig = {
     "Dashboard":          { name: "Overview", icon: <FaHome /> },
-    "Product Management": { name: "Menu", icon: <FaBookOpen /> },
+    "Product Management": { name: "Product Management", icon: <FaBookOpen /> },
     "Orders":             { name: "Orders", icon: <FaUtensils /> },
-    "Sales":              { name: "Counter Sale", icon: <FaCashRegister /> },
-    "Table Management":   { name: "POS", icon: <FaDesktop /> },
+    "Sales":              { name: "POS", icon: <FaCashRegister /> },
+    "Table Management":   { name: "Table Management", icon: <FaTable /> },
     
-    "Purchase Orders":    { name: "Purchase", icon: <FaShoppingCart /> },
-    "Stock":              { name: "Inventory", icon: <FaBoxes /> },
+    "Purchase Orders":    { name: "Purchase Orders", icon: <FaShoppingCart /> },
+    "Stock":              { name: "Stock and Inventory", icon: <FaBoxes /> },
     "QR Availability":    { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours":     { name: "Delivery Hours", icon: <FaTruck /> },
     "Credit Customers":   { name: "Credit Customers", icon: <FaUserFriends /> },
@@ -781,13 +781,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Sales_Insight":      { name: "Sales", icon: <FaChartLine /> },
     "Expenses":           { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting":         { name: "Accounting", icon: <FaBalanceScale /> },
-    "Reports & Billing":  { name: "Billing", icon: <FaCalculator /> },
-    "Billing & Reports":  { name: "Billing", icon: <FaCalculator /> },
+    "Reports & Billing":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
+    "Billing & Reports":  { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
     
-    "Organization":       { name: "Team & Acc...", icon: <FaUserCog /> },
+    "Organization":       { name: "Organization and Team", icon: <FaUserCog /> },
     "Subscription":       { name: "Subscription", icon: <FaCreditCard /> },
     "Configurations":     { name: "Settings", icon: <FaCog /> },
-    "Document Sequences": { name: "Sequences", icon: <FaFileInvoice /> },
+    "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
     "Partners":           { name: "Partners", icon: <FaUserFriends /> }
   };
@@ -816,7 +816,6 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
-    "Billing & Reports": "INSIGHTS",
     
     "Organization": "ACCOUNT",
     "Subscription": "ACCOUNT",
@@ -880,14 +879,15 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
               <React.Fragment key={categoryName}>
                 <div className="sidebar-section-title">{categoryName}</div>
                 {items.map(m => {
-                  const active = router.pathname === m.url;
                   const configItem = menuConfig[m.name] || {};
+                  const targetUrl = configItem.url || m.url;
+                  const active = router.pathname === targetUrl;
                   const displayName = configItem.name || m.name;
                   const displayIcon = configItem.icon || <FaBuilding />;
                   return (
                     <Link 
                       key={m.id || m._id || m.url} 
-                      href={m.url} 
+                      href={targetUrl} 
                       onClick={onNavigate}
                       className={`sidebar-link ${active ? 'active' : ''}`}
                     >
