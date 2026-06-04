@@ -113,6 +113,14 @@ function shortId(value) {
   return value ? String(value).slice(0, 8) : '-';
 }
 
+function accountingErrorMessage(err, fallback) {
+  const status = err?.response?.status;
+  if (status === 401 || status === 403) {
+    return 'Your session or branch access expired. Please sign in again or reselect the branch.';
+  }
+  return err?.response?.data?.message || fallback;
+}
+
 export default function AccountingPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
@@ -133,7 +141,10 @@ function AccountingContent() {
   const [reconciliation, setReconciliation] = useState(null);
   const [postingErrors, setPostingErrors] = useState([]);
   const [retryingPostingId, setRetryingPostingId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [detailLoadError, setDetailLoadError] = useState(null);
   const [savingAccount, setSavingAccount] = useState(false);
   const [postingJournal, setPostingJournal] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -154,44 +165,88 @@ function AccountingContent() {
 
   const fetchAccountingData = useCallback(async (periodOverride = null) => {
     const effectivePeriod = periodOverride || appliedPeriod;
-    setLoading(true);
+    setLoadError(null);
+    setDetailLoadError(null);
+    setInitialLoading(true);
+    setDetailLoading(false);
     try {
       const periodParams = { from: toInstant(effectivePeriod.from), to: toInstant(effectivePeriod.to) };
       const journalParams = { ...periodParams, sortBy, sortDir };
-      const requests = [
+      const coreResults = await Promise.allSettled([
         api.get('/api/v1/accounting/accounts', { params: periodParams }),
-        api.get('/api/v1/accounting/summary', { params: periodParams }),
-        api.get('/api/v1/accounting/reconciliation', { params: periodParams }),
-        api.get('/api/v1/accounting/journals', { params: journalParams }),
-        api.get('/api/v1/accounting/trial-balance', { params: periodParams })
+        api.get('/api/v1/accounting/summary', { params: periodParams })
+      ]);
+      const [accountResp, summaryResp] = coreResults;
+      if (accountResp.status === 'fulfilled' && accountResp.value.data.success) setAccounts(accountResp.value.data.data || []);
+      if (summaryResp.status === 'fulfilled' && summaryResp.value.data.success) setSummary(summaryResp.value.data.data || null);
+
+      const coreFailure = coreResults.find(result => result.status === 'rejected');
+      if (coreFailure) {
+        const message = accountingErrorMessage(coreFailure.reason, 'Core accounting data could not be loaded');
+        setLoadError(message);
+        notify('error', message);
+        if ([401, 403].includes(coreFailure.reason?.response?.status)) {
+          setInitialLoading(false);
+          return;
+        }
+      }
+
+      setInitialLoading(false);
+
+      const detailRequests = [
+        {
+          key: 'reconciliation',
+          request: api.get('/api/v1/accounting/reconciliation', { params: periodParams }),
+          apply: resp => setReconciliation(resp.data.data || null)
+        },
+        {
+          key: 'journals',
+          request: api.get('/api/v1/accounting/journals', { params: journalParams }),
+          apply: resp => setJournals(resp.data.data || [])
+        },
+        {
+          key: 'trial balance',
+          request: api.get('/api/v1/accounting/trial-balance', { params: periodParams }),
+          apply: resp => setTrialBalance(resp.data.data || [])
+        }
       ];
       if (canManagePostingErrors) {
-        requests.push(api.get('/api/v1/accounting/posting-errors'));
+        detailRequests.push({
+          key: 'posting errors',
+          request: api.get('/api/v1/accounting/posting-errors'),
+          apply: resp => setPostingErrors(resp.data.data || [])
+        });
       } else {
         setPostingErrors([]);
       }
 
-      const [accountResp, summaryResp, reconciliationResp, journalResp, trialResp, postingErrorResp] = await Promise.allSettled(requests);
-      if (accountResp.status === 'fulfilled' && accountResp.value.data.success) setAccounts(accountResp.value.data.data || []);
-      if (summaryResp.status === 'fulfilled' && summaryResp.value.data.success) setSummary(summaryResp.value.data.data || null);
-      if (reconciliationResp.status === 'fulfilled' && reconciliationResp.value.data.success) setReconciliation(reconciliationResp.value.data.data || null);
-      if (journalResp.status === 'fulfilled' && journalResp.value.data.success) setJournals(journalResp.value.data.data || []);
-      if (trialResp.status === 'fulfilled' && trialResp.value.data.success) setTrialBalance(trialResp.value.data.data || []);
-      if (canManagePostingErrors && postingErrorResp?.status === 'fulfilled' && postingErrorResp.value.data.success) {
-        setPostingErrors(postingErrorResp.value.data.data || []);
-      } else if (canManagePostingErrors && postingErrorResp?.status === 'rejected') {
-        setPostingErrors([]);
-        notify('warning', postingErrorResp.reason?.response?.data?.message || 'Posting failure details could not be loaded');
-      }
-
-      const failed = [accountResp, summaryResp, reconciliationResp, journalResp, trialResp].find(result => result.status === 'rejected');
-      if (failed) {
-        notify('error', failed.reason?.response?.data?.message || 'Some accounting data could not be loaded');
+      setDetailLoading(true);
+      const detailResults = await Promise.allSettled(detailRequests.map(item => item.request));
+      let detailFailure = null;
+      detailResults.forEach((result, index) => {
+        const item = detailRequests[index];
+        if (result.status === 'fulfilled' && result.value.data.success) {
+          item.apply(result.value);
+          return;
+        }
+        if (!detailFailure) {
+          detailFailure = result.status === 'rejected'
+            ? result.reason
+            : { response: { data: { message: `${item.key} data could not be loaded` } } };
+        }
+      });
+      if (detailFailure) {
+        const message = accountingErrorMessage(detailFailure, 'Some detailed accounting data could not be loaded');
+        setDetailLoadError(message);
+        notify('warning', message);
       }
     } catch (err) {
-      notify('error', err.response?.data?.message || 'Failed to load accounting data');
+      const message = accountingErrorMessage(err, 'Failed to load accounting data');
+      setLoadError(message);
+      notify('error', message);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setDetailLoading(false);
     }
   }, [appliedPeriod, canManagePostingErrors, notify, sortBy, sortDir]);
 
@@ -501,8 +556,32 @@ function AccountingContent() {
     }
   };
 
-  if (loading) {
-    return <div className="loading-state"><span>Loading accounting...</span></div>;
+  if (loadError && !summary && accounts.length === 0 && !initialLoading) {
+    return (
+      <div className="loading-state loading-error-state">
+        <span>{loadError}</span>
+        <button
+          type="button"
+          onClick={() => fetchAccountingData()}
+          style={{
+            minHeight: '38px',
+            border: 0,
+            borderRadius: '8px',
+            padding: '0 16px',
+            background: '#f97316',
+            color: '#fff',
+            fontWeight: 900,
+            cursor: 'pointer'
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (initialLoading && !summary && accounts.length === 0) {
+    return <div className="loading-state"><span>Loading accounting summary...</span></div>;
   }
 
   const otherActivePayments = numberValue(reconciliation?.otherActivePaymentsTotal);
@@ -603,6 +682,10 @@ function AccountingContent() {
               </button>
             </div>
           </header>
+
+          {loadError && <div className="load-error-banner">{loadError}</div>}
+          {detailLoading && <div className="load-banner">Loading detailed accounting rows...</div>}
+          {detailLoadError && <div className="load-error-banner">{detailLoadError}</div>}
 
           <div className="tab-row">
             <button className={activeTab === 'accounts' ? 'active' : ''} onClick={() => setActiveTab('accounts')}><FaBook /> Money Accounts</button>
@@ -796,6 +879,9 @@ function AccountingContent() {
             <div className="panel table-panel">
               <h3>📋 Transactions in Selected Period</h3>
               <p className="section-helper">Journal-backed transactions dated inside the selected From and To range.</p>
+              {sortedJournals.length >= 500 && (
+                <p className="section-helper">Showing the latest 500 transactions for this period. Narrow the date range for older entries.</p>
+              )}
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th></tr></thead>
@@ -888,6 +974,8 @@ function AccountingContent() {
         .posting-retry-button { min-height: 30px; border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #991b1b; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; font-size: 11px; font-weight: 900; cursor: pointer; }
         .posting-retry-button:hover { background: #fee2e2; }
         .posting-retry-button:disabled { opacity: .6; cursor: not-allowed; }
+        .load-banner { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 8px; font-size: 12px; font-weight: 800; }
+        .load-error-banner { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 8px; font-size: 12px; font-weight: 800; }
         .recon-warning { margin: 12px 16px 0; padding: 10px 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 12px; font-weight: 800; }
         .recon-warning.compact { margin: 0; }
         .recon-summary { margin: 12px 16px 0; border: 1px solid #e2e8f0; background: #fff; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
@@ -943,6 +1031,7 @@ function AccountingContent() {
         .journal-total { color: #b91c1c; font-size: 13px; font-weight: 900; margin-right: auto; }
         .journal-total.balanced { color: #047857; }
         .loading-state { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #0f172a; font-weight: 800; }
+        .loading-error-state { flex-direction: column; gap: 12px; padding: 24px; text-align: center; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 980px) {
           .accounting-page { padding: 12px; }
