@@ -268,14 +268,14 @@ api.interceptors.response.use(
     }
 
     // Background sync must never cause foreground auth redirect loops.
-    if ((status === 401 || status === 403) && (originalRequest?.skipAuthRedirect || originalRequest?.backgroundSync)) {
+    if (status === 401 && (originalRequest?.skipAuthRedirect || originalRequest?.backgroundSync)) {
       return Promise.reject(error);
     }
 
-    // Only attempt refresh for 401/403 and NOT for auth endpoints (prevents infinite loop)
+    // Only attempt refresh for 401 and NOT for auth endpoints (prevents infinite loop)
     const isAuthEndpoint = originalRequest?.url?.includes('/api/v1/auth/');
     const isRefreshable = originalRequest
-      && (status === 401 || status === 403)
+      && status === 401
       && !originalRequest._retry
       && !isAuthEndpoint
       && !originalRequest.skipAuthRedirect
