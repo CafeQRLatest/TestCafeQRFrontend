@@ -36,7 +36,8 @@ export default function SubscriptionPage() {
     fullName,
     clientName,
     updateSubscription,
-    timezone
+    timezone,
+    clientId
   } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -69,6 +70,24 @@ export default function SubscriptionPage() {
     }
   }, [isAuthenticated, fetchStatus])
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const statusParam = params.get('status')
+      const paymentId = params.get('payment_id')
+      const errorMsg = params.get('message')
+
+      if (statusParam === 'success') {
+        alert('Payment successful. Your subscription is active.')
+        router.replace('/subscription', undefined, { shallow: true })
+        fetchStatus()
+      } else if (statusParam === 'error') {
+        setError(errorMsg || 'Payment failed. Please try again.')
+        router.replace('/subscription', undefined, { shallow: true })
+      }
+    }
+  }, [router, fetchStatus])
+
   const handlePayment = async () => {
     setLoading(true)
     setError(null)
@@ -82,6 +101,9 @@ export default function SubscriptionPage() {
         throw new Error('Invalid payment order returned by server')
       }
 
+      // Check if running in Capacitor/Android WebView to support UPI Intent
+      const isAndroidApp = typeof window !== 'undefined' && window.Capacitor && window.Capacitor.getPlatform() === 'android';
+
       const options = {
         key: payment.keyId,
         amount: payment.amount,
@@ -94,7 +116,20 @@ export default function SubscriptionPage() {
           email: email || ''
         },
         theme: { color: '#f97316' },
-        handler: async (razorpayResponse) => {
+        modal: {
+          ondismiss: () => setLoading(false)
+        }
+      }
+
+      if (isAndroidApp) {
+        // WebView UPI Intent requirements
+        options.webview_intent = true
+        options.redirect = true
+        const frontendUrl = window.location.origin + '/subscription'
+        options.callback_url = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/public/subscription/razorpay-callback-redirect/${clientId}?frontend_url=${encodeURIComponent(frontendUrl)}`
+      } else {
+        // Standard Web handler
+        options.handler = async (razorpayResponse) => {
           try {
             const activateResponse = await api.post('/api/v1/subscription/activate', {
               razorpayOrderId: razorpayResponse.razorpay_order_id,
@@ -113,9 +148,6 @@ export default function SubscriptionPage() {
           } finally {
             setLoading(false)
           }
-        },
-        modal: {
-          ondismiss: () => setLoading(false)
         }
       }
 
