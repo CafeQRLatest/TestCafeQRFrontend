@@ -1977,6 +1977,17 @@ function SalesContent() {
     }
   };
 
+  const isBillingView = !isSalesBranchMissing && activeView === 'billing';
+  const billingPageStyle = isBillingView
+    ? {
+        height: 'calc(100dvh - 60px)',
+        minHeight: 0,
+        overflow: 'hidden',
+        padding: 0,
+        width: '100%',
+      }
+    : undefined;
+
   if (!isMounted) {
     return (
       <DashboardLayout title="Sales">
@@ -2006,7 +2017,7 @@ function SalesContent() {
       hideTitle={!isSalesBranchMissing && (activeView === 'order_type' || activeView === 'billing')}
       noPadding={!isSalesBranchMissing && (activeView === 'order_type' || activeView === 'billing')}
     >
-      <PageContainer>
+      <PageContainer style={billingPageStyle}>
         {isSalesBranchMissing && (
           <EmptyState style={{ margin: '24px', padding: '24px' }}>
             <FaExclamationCircle />
