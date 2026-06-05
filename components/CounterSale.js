@@ -141,6 +141,7 @@ const CatalogSection = styled.section`
   padding: 24px;
   gap: 24px;
   min-width: 0;
+  min-height: 0;
 
   @media (max-width: 900px) {
     min-height: 100%;
@@ -876,6 +877,7 @@ const CartBody = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 0;
 
   @media (max-width: 900px) {
     max-height: 38dvh;
