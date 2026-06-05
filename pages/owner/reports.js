@@ -243,17 +243,48 @@ export default function Reports() {
       { label: 'Discounts', val: `${SYM}${fmt(discounts)}`, color: '#ec4899', bg: '#fdf2f8' },
     ];
     return (
-      <div className="rpt-kpi-grid">
-        {cards.map((c, i) => (
-          <div key={i} className="rpt-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
-            <div className="rpt-kpi-icon" style={{ background: c.bg, color: c.color }}>{TABS[0].icon}</div>
-            <div className="rpt-kpi-data">
-              <span className="rpt-kpi-label">{c.label}</span>
-              <span className="rpt-kpi-val">{c.val}</span>
+      <>
+        <div className="rpt-toolbar">
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Metric', 'Value'],
+            [
+              ['Billed Total', billedTotal],
+              ['Gross Sales', grossSales],
+              ['Net Sales', netSales],
+              ['Total Orders', summary.totalOrders],
+              ['Avg Order Value', summary.avgOrderValue],
+              ['Items Sold', summary.itemsSold],
+              ['Tax', tax],
+              ['Discounts', discounts]
+            ].map(row => row.map(csvCell).join(',')),
+            'sales_summary'
+          )}><FaFileCsv /> CSV</button>
+          <button className="rpt-exp-btn" onClick={() => exportExcel(
+            [
+              { Metric: 'Billed Total', Value: billedTotal },
+              { Metric: 'Gross Sales', Value: grossSales },
+              { Metric: 'Net Sales', Value: netSales },
+              { Metric: 'Total Orders', Value: summary.totalOrders },
+              { Metric: 'Avg Order Value', Value: summary.avgOrderValue },
+              { Metric: 'Items Sold', Value: summary.itemsSold },
+              { Metric: 'Tax', Value: tax },
+              { Metric: 'Discounts', Value: discounts }
+            ],
+            'Sales Summary', 'sales_summary'
+          )}><FaFileExcel /> Excel</button>
+        </div>
+        <div className="rpt-kpi-grid">
+          {cards.map((c, i) => (
+            <div key={i} className="rpt-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
+              <div className="rpt-kpi-icon" style={{ background: c.bg, color: c.color }}>{TABS[0].icon}</div>
+              <div className="rpt-kpi-data">
+                <span className="rpt-kpi-label">{c.label}</span>
+                <span className="rpt-kpi-val">{c.val}</span>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </>
     );
   };
 
@@ -392,16 +423,36 @@ export default function Reports() {
 
   const renderPayments = () => (
     payments.length === 0 ? <div className="rpt-empty">No payment data</div> : (
-      <div className="rpt-pay-grid">
-        {payments.map((p, i) => (
-          <div key={i} className="rpt-pay-card">
-            <div className="rpt-pay-method">{p.paymentMethod}</div>
-            <div className="rpt-pay-amt">{SYM}{fmt(p.totalAmount)}</div>
-            <div className="rpt-pay-meta">{p.orderCount} txns · {Number(p.percentage || 0).toFixed(1)}%</div>
-            <div className="rpt-pay-bar"><div style={{width:`${p.percentage}%`}} /></div>
-          </div>
-        ))}
-      </div>
+      <>
+        <div className="rpt-toolbar">
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Payment Method', 'Total Amount', 'Order Count', 'Percentage'],
+            payments.map(p => [
+              p.paymentMethod, p.totalAmount, p.orderCount, `${Number(p.percentage || 0).toFixed(1)}%`
+            ].map(csvCell).join(',')),
+            'payments_breakdown'
+          )}><FaFileCsv /> CSV</button>
+          <button className="rpt-exp-btn" onClick={() => exportExcel(
+            payments.map(p => ({
+              'Payment Method': p.paymentMethod,
+              'Total Amount': p.totalAmount,
+              'Order Count': p.orderCount,
+              'Percentage': `${Number(p.percentage || 0).toFixed(1)}%`
+            })),
+            'Payments Breakdown', 'payments_breakdown'
+          )}><FaFileExcel /> Excel</button>
+        </div>
+        <div className="rpt-pay-grid">
+          {payments.map((p, i) => (
+            <div key={i} className="rpt-pay-card">
+              <div className="rpt-pay-method">{p.paymentMethod}</div>
+              <div className="rpt-pay-amt">{SYM}{fmt(p.totalAmount)}</div>
+              <div className="rpt-pay-meta">{p.orderCount} txns · {Number(p.percentage || 0).toFixed(1)}%</div>
+              <div className="rpt-pay-bar"><div style={{width:`${p.percentage}%`}} /></div>
+            </div>
+          ))}
+        </div>
+      </>
     )
   );
 
@@ -456,8 +507,40 @@ export default function Reports() {
         type: '='
       },
     ];
+
+    const exportData = [
+      ['Gross Sales', pnl.grossSales],
+      ['Discounts', pnl.discounts],
+      ['Net Sales', pnl.netSales],
+      ['Output Tax', pnl.totalTax],
+      ['COGS / Purchases', pnl.cogsPurchases],
+      ['Operating Expenses', pnl.operatingExpenses],
+      ['Net Profit', pnl.netProfit],
+      ['Receivable Balance', pnl.creditOutstanding],
+      ['Cash Collected After Expenses', cashCollectedAfterExpenses],
+    ];
+    if (reconciliation) {
+      exportData.push(
+        ['Billed Sales Total', reconciliation.billedSalesTotal],
+        ['Linked Sales Payments Total', reconciliation.linkedSalesPaymentsTotal],
+        ['Other Active Payments Total', reconciliation.otherActivePaymentsTotal],
+        ['Payment Collected Total', reconciliation.paymentCollectedTotal]
+      );
+    }
+
     return (
       <>
+        <div className="rpt-toolbar">
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Metric', 'Value'],
+            exportData.map(row => row.map(csvCell).join(',')),
+            'profit_loss'
+          )}><FaFileCsv /> CSV</button>
+          <button className="rpt-exp-btn" onClick={() => exportExcel(
+            exportData.map(row => ({ Metric: row[0], Value: row[1] })),
+            'Profit & Loss', 'profit_loss'
+          )}><FaFileExcel /> Excel</button>
+        </div>
         <div className="rpt-note">Profit & Loss is calculated from accounting journals, so expenses, purchases, COGS, inventory adjustments, and reversals are included.</div>
         <div className="rpt-pnl-grid">
           {rows.map((r, i) => (
@@ -498,19 +581,36 @@ export default function Reports() {
   const renderHourly = () => {
     const maxAmt = hourly.length ? Math.max(...hourly.map(h => Number(h.totalAmount || 0)), 1) : 1;
     return hourly.length === 0 ? <div className="rpt-empty">No hourly data</div> : (
-      <div className="rpt-hourly-chart">
-        {hourly.map((h, i) => (
-          <div key={i} className="rpt-hour-col">
-            <div className="rpt-hour-bar-area">
-              <div className="rpt-hour-bar" style={{height:`${(Number(h.totalAmount)/maxAmt*100).toFixed(0)}%`}}>
-                <span className="rpt-hour-tip">{SYM}{fmt(h.totalAmount)}</span>
+      <>
+        <div className="rpt-toolbar">
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Hour', 'Order Count', 'Total Amount'],
+            hourly.map(h => [h.hourLabel, h.orderCount, h.totalAmount].map(csvCell).join(',')),
+            'hourly_trends'
+          )}><FaFileCsv /> CSV</button>
+          <button className="rpt-exp-btn" onClick={() => exportExcel(
+            hourly.map(h => ({
+              'Hour': h.hourLabel,
+              'Order Count': h.orderCount,
+              'Total Amount': h.totalAmount
+            })),
+            'Hourly Trends', 'hourly_trends'
+          )}><FaFileExcel /> Excel</button>
+        </div>
+        <div className="rpt-hourly-chart">
+          {hourly.map((h, i) => (
+            <div key={i} className="rpt-hour-col">
+              <div className="rpt-hour-bar-area">
+                <div className="rpt-hour-bar" style={{height:`${(Number(h.totalAmount)/maxAmt*100).toFixed(0)}%`}}>
+                  <span className="rpt-hour-tip">{SYM}{fmt(h.totalAmount)}</span>
+                </div>
               </div>
+              <div className="rpt-hour-label">{h.hourLabel}</div>
+              <div className="rpt-hour-cnt">{h.orderCount}</div>
             </div>
-            <div className="rpt-hour-label">{h.hourLabel}</div>
-            <div className="rpt-hour-cnt">{h.orderCount}</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </>
     );
   };
 
@@ -527,6 +627,22 @@ export default function Reports() {
     const paymentsRows = creditReport.payments || [];
     return (
       <>
+        <div className="rpt-toolbar">
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Order No', 'Invoice No', 'Customer Name', 'Phone', 'Amount', 'Tax', 'Total', 'Amount Due', 'Date', 'Status'],
+            orders.map(o => [
+              o.orderNo, o.invoiceNo, o.customerName, o.customerPhone, o.amount, o.tax, o.total, o.amountDue, o.date, o.status
+            ].map(csvCell).join(',')),
+            'credit_orders'
+          )}><FaFileCsv /> Export Credit Orders CSV</button>
+          <button className="rpt-exp-btn" onClick={() => exportCSV(
+            ['Date', 'Customer Name', 'Payment Method', 'Amount', 'Reference No', 'Description'],
+            paymentsRows.map(p => [
+              p.transactionDate, p.customerName, p.paymentMethod, p.amount, p.referenceNo, p.description
+            ].map(csvCell).join(',')),
+            'credit_payments'
+          )}><FaFileCsv /> Export Credit Payments CSV</button>
+        </div>
         <div className="rpt-kpi-grid">
           {cards.map((card) => (
             <div key={card.label} className="rpt-kpi" style={{ borderLeft: `4px solid ${card.color}` }}>

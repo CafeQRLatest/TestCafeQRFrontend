@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaArrowDown, FaArrowUp, FaSync, FaExclamationTriangle } from 'react-icons/fa';
+import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaArrowDown, FaArrowUp, FaSync, FaExclamationTriangle, FaFileCsv } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import RoleGate from '../../components/RoleGate';
@@ -377,6 +377,21 @@ function AccountingContent() {
   const periodLabel = useMemo(() => {
     return `Showing accounting data from ${formatPeriodValue(appliedPeriod.from)} to ${formatPeriodValue(appliedPeriod.to)}`;
   }, [appliedPeriod]);
+
+  const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const exportCSV = (headers, rows, filename) => {
+    if (!rows.length) return notify('error', 'No data to export');
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${appliedPeriod.from.split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const journalOutsideSelectedPeriod = useMemo(() => {
     return journalForm.entryDate && !isWithinPeriod(journalForm.entryDate, appliedPeriod);
@@ -795,7 +810,23 @@ function AccountingContent() {
                     <h3>Your Money Accounts</h3>
                     <p className="section-helper">Before/After include previous posted entries. Money In/Out and Net Change are only for the selected period.</p>
                   </div>
-                  <div className="search-field"><FaSearch /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search..." /></div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => exportCSV(
+                        ['Account Code', 'Account Name', 'Type', 'Before Period', 'Money In', 'Money Out', 'Net Change', 'After Period', 'Status'],
+                        displayedAccounts.map(a => [
+                          a.code, a.name, a.accountType, a.periodOpening, a.periodDebit, a.periodCredit, a.periodNet, a.periodClosing, a.isActive === 'Y' ? 'Active' : 'Inactive'
+                        ].map(csvCell).join(',')),
+                        'money_accounts'
+                      )}
+                    >
+                      <FaFileCsv /> Export CSV
+                    </button>
+                    <div className="search-field"><FaSearch /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search..." /></div>
+                  </div>
                 </div>
                 <div className="table-wrap">
                   <table>
@@ -872,11 +903,33 @@ function AccountingContent() {
 
           {activeTab === 'journals' && (
             <div className="panel table-panel">
-              <h3>📋 Transactions in Selected Period</h3>
-              <p className="section-helper">Journal-backed transactions dated inside the selected From and To range.</p>
-              {sortedJournals.length >= 500 && (
-                <p className="section-helper">Showing the latest 500 transactions for this period. Narrow the date range for older entries.</p>
-              )}
+              <div className="panel-toolbar">
+                <div>
+                  <h3>📋 Transactions in Selected Period</h3>
+                  <p className="section-helper">Journal-backed transactions dated inside the selected From and To range.</p>
+                  {sortedJournals.length >= 500 && (
+                    <p className="section-helper">Showing the latest 500 transactions for this period. Narrow the date range for older entries.</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => exportCSV(
+                    ['Type', 'Document No', 'Date', 'Description', 'Received', 'Paid', 'Adjustment', 'Status'],
+                    journals.map(entry => {
+                      const view = journalDisplay(entry);
+                      return [
+                        view.type, view.documentNo, entry.entryDate, entry.description,
+                        view.received, view.paid, view.adjustment, entry.status
+                      ].map(csvCell).join(',');
+                    }),
+                    'transactions'
+                  )}
+                >
+                  <FaFileCsv /> Export CSV
+                </button>
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th></tr></thead>
@@ -907,8 +960,27 @@ function AccountingContent() {
 
           {activeTab === 'trial' && (
             <div className="panel table-panel">
-              <h3>📊 Account Movement in Selected Period</h3>
-              <p className="section-helper">This is journal-backed and period-filtered. Money In and Money Out are debit and credit movement within the selected period.</p>
+              <div className="panel-toolbar">
+                <div>
+                  <h3>📊 Account Movement in Selected Period</h3>
+                  <p className="section-helper">This is journal-backed and period-filtered. Money In and Money Out are debit and credit movement within the selected period.</p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => exportCSV(
+                    ['Account Code', 'Account Name', 'Type', 'Money In', 'Money Out', 'Net Amount'],
+                    trialBalance.map(row => [
+                      row.code, row.name || accountById[row.accountId]?.name || '-', row.accountType,
+                      row.debit, row.credit, row.balance
+                    ].map(csvCell).join(',')),
+                    'balance_summary'
+                  )}
+                >
+                  <FaFileCsv /> Export CSV
+                </button>
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>#</th><th>Account</th><th>Type</th><th>Money In</th><th>Money Out</th><th>Net Amount</th></tr></thead>
