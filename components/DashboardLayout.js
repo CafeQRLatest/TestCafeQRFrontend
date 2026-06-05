@@ -694,7 +694,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
                     fontSize: 22, fontWeight: 900, color: '#0f172a', 
                     letterSpacing: '-0.04em', whiteSpace: 'nowrap',
                     animation: 'fadeIn 0.3s ease-out'
-                  }}>CafeQR</span>
+                  }}>Cafe QR POS</span>
                 )}
             </Link>
             
@@ -869,7 +869,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
        <div style={{ padding: '32px 24px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 20 }}>C</div>
-          <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>CafeQR</span>
+          <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>Cafe QR POS</span>
        </div>
 
        <div style={{ flex: 1, overflowY: 'auto' }}>

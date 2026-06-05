@@ -57,6 +57,9 @@ function blankJournalLine() {
   return { accountId: '', debit: '', credit: '', description: '' };
 }
 
+/**********************************************************
+ * Safe numeric parsing & formatting helpers
+ **********************************************************/
 function numberValue(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -133,6 +136,8 @@ function AccountingContent() {
   const { timezone, userRole } = useAuth();
   const { notify } = useNotification();
   const canManagePostingErrors = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+
+  // State
   const [activeTab, setActiveTab] = useState('accounts');
   const [accounts, setAccounts] = useState([]);
   const [journals, setJournals] = useState([]);
@@ -141,18 +146,22 @@ function AccountingContent() {
   const [reconciliation, setReconciliation] = useState(null);
   const [postingErrors, setPostingErrors] = useState([]);
   const [retryingPostingId, setRetryingPostingId] = useState(null);
+
   const [initialLoading, setInitialLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [detailLoadError, setDetailLoadError] = useState(null);
+
   const [savingAccount, setSavingAccount] = useState(false);
   const [postingJournal, setPostingJournal] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
   const [period, setPeriod] = useState(() => defaultAccountingPeriod(timezone));
   const [appliedPeriod, setAppliedPeriod] = useState(() => defaultAccountingPeriod(timezone));
   const [sortBy, setSortBy] = useState('entryDate');
   const [sortDir, setSortDir] = useState('DESC');
+
   const [accountForm, setAccountForm] = useState(blankAccount);
   const [journalForm, setJournalForm] = useState(() => {
     const initialPeriod = defaultAccountingPeriod(timezone);
@@ -169,13 +178,17 @@ function AccountingContent() {
     setDetailLoadError(null);
     setInitialLoading(true);
     setDetailLoading(false);
+
     try {
       const periodParams = { from: toInstant(effectivePeriod.from), to: toInstant(effectivePeriod.to) };
       const journalParams = { ...periodParams, sortBy, sortDir };
+
+      // Core queries: Accounts & Summary
       const coreResults = await Promise.allSettled([
         api.get('/api/v1/accounting/accounts', { params: periodParams }),
         api.get('/api/v1/accounting/summary', { params: periodParams })
       ]);
+
       const [accountResp, summaryResp] = coreResults;
       if (accountResp.status === 'fulfilled' && accountResp.value.data.success) setAccounts(accountResp.value.data.data || []);
       if (summaryResp.status === 'fulfilled' && summaryResp.value.data.success) setSummary(summaryResp.value.data.data || null);
@@ -193,6 +206,7 @@ function AccountingContent() {
 
       setInitialLoading(false);
 
+      // Detail queries: reconciliation, journals, trial-balance, posting-errors
       const detailRequests = [
         {
           key: 'reconciliation',
@@ -210,6 +224,7 @@ function AccountingContent() {
           apply: resp => setTrialBalance(resp.data.data || [])
         }
       ];
+
       if (canManagePostingErrors) {
         detailRequests.push({
           key: 'posting errors',
@@ -222,6 +237,7 @@ function AccountingContent() {
 
       setDetailLoading(true);
       const detailResults = await Promise.allSettled(detailRequests.map(item => item.request));
+
       let detailFailure = null;
       detailResults.forEach((result, index) => {
         const item = detailRequests[index];
@@ -235,6 +251,7 @@ function AccountingContent() {
             : { response: { data: { message: `${item.key} data could not be loaded` } } };
         }
       });
+
       if (detailFailure) {
         const message = accountingErrorMessage(detailFailure, 'Some detailed accounting data could not be loaded');
         setDetailLoadError(message);
@@ -299,6 +316,7 @@ function AccountingContent() {
     fetchAccountingData();
   }, [fetchAccountingData]);
 
+  // Real-time synchronization
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
@@ -324,6 +342,7 @@ function AccountingContent() {
     };
   }, [fetchAccountingData]);
 
+  // Memoized filters & computed arrays
   const displayedAccounts = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const filtered = !term ? accounts : accounts.filter(account => {
@@ -334,6 +353,7 @@ function AccountingContent() {
         account.accountSubType?.toLowerCase().includes(term)
       );
     });
+
     const direction = sortDir === 'ASC' ? 1 : -1;
     return [...filtered].sort((a, b) => {
       if (sortBy === 'totalDebit') {
@@ -378,6 +398,7 @@ function AccountingContent() {
     return `Showing accounting data from ${formatPeriodValue(appliedPeriod.from)} to ${formatPeriodValue(appliedPeriod.to)}`;
   }, [appliedPeriod]);
 
+  // CSV Export utility
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const exportCSV = (headers, rows, filename) => {
     if (!rows.length) return notify('error', 'No data to export');
@@ -397,10 +418,12 @@ function AccountingContent() {
     return journalForm.entryDate && !isWithinPeriod(journalForm.entryDate, appliedPeriod);
   }, [journalForm.entryDate, appliedPeriod]);
 
+  // Display map helper for journal entry rows
   const journalDisplay = useCallback((entry) => {
     const source = String(entry.sourceType || '').toUpperCase();
     const documentNo = entry.entryNo || '-';
     const amount = numberValue(entry.totalDebit);
+
     if (source.includes('PAYMENT')) {
       return {
         type: source.includes('OUTBOUND') ? 'Payment Out' : 'Payment In',
@@ -411,18 +434,43 @@ function AccountingContent() {
       };
     }
     if (source.includes('INVOICE') || source.includes('BILL') || source.includes('RECEIPT')) {
-      return { type: source.includes('VENDOR') || source.includes('EXPENSE') ? 'Bill / Expense' : 'Sale Invoice', documentNo, received: 0, paid: 0, adjustment: amount };
+      return {
+        type: source.includes('VENDOR') || source.includes('EXPENSE') ? 'Bill / Expense' : 'Sale Invoice',
+        documentNo,
+        received: 0,
+        paid: 0,
+        adjustment: amount
+      };
     }
     if (source.includes('COGS') || source.includes('STOCK')) {
-      return { type: 'Inventory', documentNo, received: 0, paid: 0, adjustment: amount };
+      return {
+        type: 'Inventory',
+        documentNo,
+        received: 0,
+        paid: 0,
+        adjustment: amount
+      };
     }
     if (source.includes('REV')) {
-      return { type: 'Reversal', documentNo, received: 0, paid: 0, adjustment: amount };
+      return {
+        type: 'Reversal',
+        documentNo,
+        received: 0,
+        paid: 0,
+        adjustment: amount
+      };
     }
-    return { type: 'Journal', documentNo, received: 0, paid: 0, adjustment: amount };
+    return {
+      type: 'Journal',
+      documentNo,
+      received: 0,
+      paid: 0,
+      adjustment: amount
+    };
   }, []);
 
-  const handleCreateAccount = async event => {
+  // Creation/Edit form submissions
+  const handleCreateAccount = async (event) => {
     event.preventDefault();
     if (!accountForm.code.trim() || !accountForm.name.trim()) {
       notify('error', 'Account code and name are required');
@@ -526,7 +574,7 @@ function AccountingContent() {
     }));
   };
 
-  const handlePostJournal = async event => {
+  const handlePostJournal = async (event) => {
     event.preventDefault();
     const lines = journalForm.lines
       .map(line => ({
@@ -555,7 +603,11 @@ function AccountingContent() {
       });
       if (resp.data.success) {
         notify('success', 'Journal posted');
-        setJournalForm({ entryDate: suggestedJournalDateForPeriod(appliedPeriod), description: '', lines: [blankJournalLine(), blankJournalLine()] });
+        setJournalForm({
+          entryDate: suggestedJournalDateForPeriod(appliedPeriod),
+          description: '',
+          lines: [blankJournalLine(), blankJournalLine()]
+        });
         await fetchAccountingData();
         setActiveTab('journals');
       }
@@ -566,6 +618,7 @@ function AccountingContent() {
     }
   };
 
+  // Error and Loading states
   if (loadError && !summary && accounts.length === 0 && !initialLoading) {
     return (
       <div className="loading-state loading-error-state">
@@ -600,6 +653,7 @@ function AccountingContent() {
   return (
     <DashboardLayout title="Money Book" showBack={true}>
       <div className="accounting-page">
+        {/* Period control panel */}
         <div className="period-toolbar top-period-toolbar">
           <label>
             From
@@ -631,60 +685,62 @@ function AccountingContent() {
 
         <div className="period-caption">{periodLabel}</div>
 
+        {/* Financial KPI summary cards */}
         <section className="summary-grid">
-          <div className="summary-tile" style={{borderLeft:'4px solid #10b981'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #10b981' }}>
             <span>💰 Gross Sales</span>
             <strong>₹{money(summaryValue('grossSales'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #6366f1'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #6366f1' }}>
             <span>🏷️ Discounts</span>
             <strong>₹{money(summaryValue('discounts'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #3b82f6'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #3b82f6' }}>
             <span>📈 Net Sales</span>
-            <strong style={{color:'#3b82f6'}}>₹{money(summaryValue('netSales'))}</strong>
+            <strong style={{ color: '#3b82f6' }}>₹{money(summaryValue('netSales'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #ef4444'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
             <span>🧾 Billed Total</span>
             <strong>₹{money(summaryValue('billedTotal'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #06b6d4'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #06b6d4' }}>
             <span>💳 Payment Collected</span>
             <strong>₹{money(summaryValue('paymentCollected'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #f97316'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #f97316' }}>
             <span>🧮 Output Tax</span>
             <strong>₹{money(summaryValue('outputTax'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:'4px solid #ef4444'}}>
+          <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
             <span>📉 Expenses + COGS</span>
-            <strong style={{color:'#ef4444'}}>₹{money(summaryValue('expenses') + summaryValue('cogsPurchases'))}</strong>
+            <strong style={{ color: '#ef4444' }}>₹{money(summaryValue('expenses') + summaryValue('cogsPurchases'))}</strong>
             <small>For selected period</small>
           </div>
-          <div className="summary-tile" style={{borderLeft:`4px solid ${summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}`}}>
+          <div className="summary-tile" style={{ borderLeft: `4px solid ${summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}` }}>
             <span>✅ Profit</span>
-            <strong style={{color: summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}}>₹{money(summaryValue('profit'))}</strong>
+            <strong style={{ color: summaryValue('profit') >= 0 ? '#10b981' : '#ef4444' }}>₹{money(summaryValue('profit'))}</strong>
             <small>For selected period</small>
           </div>
         </section>
 
+        {/* Main Work Area */}
         <section className="workspace">
           <header className="workspace-header">
             <div className="title-block">
               <div className="page-title"><FaWallet /> Money Book</div>
               <p>Track all your money — accounts, transactions, and balances in one place.</p>
             </div>
-            <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button className="primary-button" onClick={handleSyncPastData} disabled={syncing} title="Sync all past sales, expenses & payments into accounting">
-                <FaSync style={syncing ? {animation:'spin 1s linear infinite'} : {}} /> {syncing ? 'Syncing...' : 'Sync Selected Period'}
+                <FaSync style={syncing ? { animation: 'spin 1s linear infinite' } : {}} /> {syncing ? 'Syncing...' : 'Sync Selected Period'}
               </button>
-              <button className="secondary-button" onClick={handleResyncAll} disabled={syncing} title="Rebuild only auto-posted accounting entries. Manual journals stay untouched." style={{fontSize:'10px',padding:'6px 10px',borderColor:'#ef4444',color:'#ef4444'}}>
+              <button className="secondary-button" onClick={handleResyncAll} disabled={syncing} title="Rebuild only auto-posted accounting entries. Manual journals stay untouched." style={{ fontSize: '10px', padding: '6px 10px', borderColor: '#ef4444', color: '#ef4444' }}>
                 Fix Auto Entries
               </button>
               <button className="icon-button" onClick={() => fetchAccountingData()} title="Refresh">
@@ -697,6 +753,7 @@ function AccountingContent() {
           {detailLoading && <div className="load-banner">Loading detailed accounting rows...</div>}
           {detailLoadError && <div className="load-error-banner">{detailLoadError}</div>}
 
+          {/* Sub-tabs selection */}
           <div className="tab-row">
             <button className={activeTab === 'accounts' ? 'active' : ''} onClick={() => setActiveTab('accounts')}><FaBook /> Money Accounts</button>
             <button className={activeTab === 'post' ? 'active' : ''} onClick={() => setActiveTab('post')}><FaPlus /> Add Entry</button>
@@ -704,6 +761,7 @@ function AccountingContent() {
             <button className={activeTab === 'trial' ? 'active' : ''} onClick={() => setActiveTab('trial')}><FaChartPie /> Balance Summary</button>
           </div>
 
+          {/* Posting Errors warning block */}
           {canManagePostingErrors && postingErrors.length > 0 && (
             <div className="posting-error-panel">
               <div className="posting-error-heading">
@@ -763,8 +821,10 @@ function AccountingContent() {
             </div>
           )}
 
+          {/* TAB 1: Money Accounts */}
           {activeTab === 'accounts' && (
             <div className="split-layout">
+              {/* Left pane: account creation form */}
               <form className="panel" onSubmit={handleCreateAccount}>
                 <h3>➕ Add New Account</h3>
                 <div className="form-grid">
@@ -804,6 +864,7 @@ function AccountingContent() {
                 </button>
               </form>
 
+              {/* Right pane: accounts listing */}
               <div className="panel table-panel">
                 <div className="panel-toolbar">
                   <div>
@@ -836,11 +897,11 @@ function AccountingContent() {
                         <tr key={account.id}>
                           <td className="mono">{account.code}</td>
                           <td>{account.name}</td>
-                          <td><span style={{color: TYPE_COLORS[account.accountType] || '#64748b', fontWeight:800, fontSize:'11px'}}>{TYPE_LABELS[account.accountType] || account.accountType}</span></td>
+                          <td><span style={{ color: TYPE_COLORS[account.accountType] || '#64748b', fontWeight: 800, fontSize: '11px' }}>{TYPE_LABELS[account.accountType] || account.accountType}</span></td>
                           <td className="amount">₹{money(account.periodOpening)}</td>
-                          <td className="amount" style={{color:'#10b981'}}>₹{money(account.periodDebit)}</td>
-                          <td className="amount" style={{color:'#ef4444'}}>₹{money(account.periodCredit)}</td>
-                          <td className="amount" style={{color: numberValue(account.periodNet) >= 0 ? '#10b981' : '#ef4444'}}>₹{money(account.periodNet)}</td>
+                          <td className="amount" style={{ color: '#10b981' }}>₹{money(account.periodDebit)}</td>
+                          <td className="amount" style={{ color: '#ef4444' }}>₹{money(account.periodCredit)}</td>
+                          <td className="amount" style={{ color: numberValue(account.periodNet) >= 0 ? '#10b981' : '#ef4444' }}>₹{money(account.periodNet)}</td>
                           <td className="amount">₹{money(account.periodClosing)}</td>
                           <td><span className={`status ${account.isActive === 'Y' ? 'active' : 'inactive'}`}>{account.isActive === 'Y' ? 'Active' : 'Inactive'}</span></td>
                         </tr>
@@ -855,6 +916,7 @@ function AccountingContent() {
             </div>
           )}
 
+          {/* TAB 2: Add Entry (Journal input form) */}
           {activeTab === 'post' && (
             <form className="panel" onSubmit={handlePostJournal}>
               <h3>📝 Add a Money Entry</h3>
@@ -901,6 +963,7 @@ function AccountingContent() {
             </form>
           )}
 
+          {/* TAB 3: Transaction History */}
           {activeTab === 'journals' && (
             <div className="panel table-panel">
               <div className="panel-toolbar">
@@ -942,8 +1005,8 @@ function AccountingContent() {
                           <td className="mono">{view.documentNo}</td>
                           <td>{entry.entryDate?.replace('T', ' ').slice(0, 16)}</td>
                           <td>{entry.description || '-'}</td>
-                          <td className="amount" style={{color:'#10b981'}}>{view.received ? `₹${money(view.received)}` : '-'}</td>
-                          <td className="amount" style={{color:'#ef4444'}}>{view.paid ? `₹${money(view.paid)}` : '-'}</td>
+                          <td className="amount" style={{ color: '#10b981' }}>{view.received ? `₹${money(view.received)}` : '-'}</td>
+                          <td className="amount" style={{ color: '#ef4444' }}>{view.paid ? `₹${money(view.paid)}` : '-'}</td>
                           <td className="amount">{view.adjustment ? `₹${money(view.adjustment)}` : '-'}</td>
                           <td><span className="status active">{entry.status}</span></td>
                         </tr>
@@ -958,6 +1021,7 @@ function AccountingContent() {
             </div>
           )}
 
+          {/* TAB 4: Trial Balance summary */}
           {activeTab === 'trial' && (
             <div className="panel table-panel">
               <div className="panel-toolbar">
@@ -989,10 +1053,10 @@ function AccountingContent() {
                       <tr key={row.accountId}>
                         <td className="mono">{row.code}</td>
                         <td>{row.name || accountById[row.accountId]?.name || '-'}</td>
-                        <td><span style={{color: TYPE_COLORS[row.accountType] || '#64748b', fontWeight:800, fontSize:'11px'}}>{TYPE_LABELS[row.accountType] || row.accountType}</span></td>
-                        <td className="amount" style={{color:'#10b981'}}>₹{money(row.debit)}</td>
-                        <td className="amount" style={{color:'#ef4444'}}>₹{money(row.credit)}</td>
-                        <td className="amount" style={{fontWeight:900}}>₹{money(row.balance)}</td>
+                        <td><span style={{ color: TYPE_COLORS[row.accountType] || '#64748b', fontWeight: 800, fontSize: '11px' }}>{TYPE_LABELS[row.accountType] || row.accountType}</span></td>
+                        <td className="amount" style={{ color: '#10b981' }}>₹{money(row.debit)}</td>
+                        <td className="amount" style={{ color: '#ef4444' }}>₹{money(row.credit)}</td>
+                        <td className="amount" style={{ fontWeight: 900 }}>₹{money(row.balance)}</td>
                       </tr>
                     ))}
                     {trialBalance.length === 0 && (
@@ -1086,7 +1150,7 @@ function AccountingContent() {
         .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 900; }
         .status.active { background: #ecfdf5; color: #047857; }
         .status.inactive { background: #fef2f2; color: #b91c1c; }
-        .type-pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:#f1f5f9; color:#475569; font-size:11px; font-weight:900; white-space:nowrap; }
+        .type-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 900; white-space: nowrap; }
         .empty-cell { text-align: center; color: #94a3b8; padding: 36px 16px; }
         .journal-meta { grid-template-columns: 240px 1fr; margin-bottom: 14px; }
         .journal-lines { border: 1px solid #eef2f7; border-radius: 8px; overflow: hidden; }
