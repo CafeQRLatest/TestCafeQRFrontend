@@ -16,6 +16,7 @@ export const PageContainer = styled.div`
   overflow-x: clip;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 `;
 
 export const POSHeader = styled.div`

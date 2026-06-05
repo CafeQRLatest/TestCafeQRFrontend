@@ -124,6 +124,8 @@ const MainLayout = styled.main`
   display: flex;
   overflow: hidden;
   min-height: 0;
+  width: 100%;
+  min-width: 0;
 
   @media (max-width: 900px) {
     display: block;
