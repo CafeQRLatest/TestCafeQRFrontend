@@ -62,6 +62,9 @@ export default function Reports() {
   const [expandedTransaction, setExpandedTransaction] = useState(null);
   const [config, setConfig] = useState(null);
   const [creditReport, setCreditReport] = useState(null);
+  const [voidingInvoice, setVoidingInvoice] = useState(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidingInProgress, setVoidingInProgress] = useState(false);
 
   const toInstant = (dtLocal) => {
     if (!dtLocal) return undefined;
@@ -116,13 +119,9 @@ export default function Reports() {
       }
     } catch (e) {
       console.error('Report load error:', e);
-      // Retain production logic and test logic together
-      const prodMessage = e?.response?.data?.message || 'Failed to load report data';
-      const testMessage = reportErrorMessage(e);
-      const finalMessage = testMessage !== prodMessage ? testMessage : prodMessage;
-      
-      setLoadError(finalMessage);
-      notify('error', finalMessage);
+      const message = reportErrorMessage(e);
+      setLoadError(message);
+      notify('error', message);
     } finally { setLoading(false); }
   }, [dateFrom, dateTo, invoiceFilter, notify]);
 
@@ -204,24 +203,30 @@ export default function Reports() {
   const handleVoid = (inv) => {
     const invoiceId = inv.invoiceId || inv.id;
     if (!invoiceId) return notify('error', 'No invoice is linked to this row');
-    showConfirm({
-      title: 'Void Invoice?',
-      message: `Void invoice ${inv.invoiceNo || 'this invoice'}? This will cancel the linked order.`,
-      type: 'error',
-      onConfirm: async () => {
-        try {
-          await api.post(`/api/v1/reports/invoices/${invoiceId}/void`, { reason: 'Voided from reports' });
-          notify('success', 'Invoice voided');
-          publishAccountingDataChanged({
-            source: 'reports',
-            reason: 'invoice-voided',
-            invoiceId,
-            orderId: inv.orderId || null
-          });
-          loadTab('salesInvoices');
-        } catch (e) { notify('error', e.response?.data?.message || 'Void failed'); }
-      }
-    });
+    setVoidingInvoice(inv);
+    setVoidReason('');
+  };
+
+  const submitVoid = async () => {
+    if (!voidingInvoice || voidingInProgress) return;
+    const invoiceId = voidingInvoice.invoiceId || voidingInvoice.id;
+    setVoidingInProgress(true);
+    try {
+      await api.post(`/api/v1/reports/invoices/${invoiceId}/void`, { reason: voidReason });
+      notify('success', 'Invoice voided');
+      publishAccountingDataChanged({
+        source: 'reports',
+        reason: 'invoice-voided',
+        invoiceId,
+        orderId: voidingInvoice.orderId || null
+      });
+      setVoidingInvoice(null);
+      loadTab('salesInvoices');
+    } catch (e) {
+      notify('error', e.response?.data?.message || 'Void failed');
+    } finally {
+      setVoidingInProgress(false);
+    }
   };
 
   // ─── RENDER HELPERS ─────────────────────────────────────────────────
@@ -295,11 +300,11 @@ export default function Reports() {
           {value:'ALL',label:'All Sales'},{value:'PAID',label:'Paid'},{value:'CREDIT',label:'Credit/Unpaid'},{value:'VOIDED',label:'Voided'}
         ]} style={{width:180}} />
         <button className="rpt-exp-btn" onClick={() => exportCSV(
-          ['Order No','Invoice No','Date','Branch','Customer','Type','Table','Order Status','Invoice Status','Payment Status','Payment Method','Payment No','Tax','Discount','Total','Due'],
+          ['Order No','Invoice No','Date','Branch','Customer','Type','Table','Order Status','Invoice Status','Payment Status','Payment Method','Payment No','Tax','Discount','Total','Due','Void Reason'],
           salesInvoices.map(tx => [
             tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
             tx.orderStatus, tx.invoiceStatus, tx.paymentStatus, tx.paymentMethod, tx.paymentNo,
-            tx.totalTaxAmount, tx.totalDiscountAmount, tx.grandTotal, tx.amountDue
+            tx.totalTaxAmount, tx.totalDiscountAmount, tx.grandTotal, tx.amountDue, tx.voidReason
           ].map(csvCell).join(',')),
           'sales_invoices'
         )}><FaFileCsv /> CSV</button>
@@ -321,6 +326,7 @@ export default function Reports() {
             Discount: tx.totalDiscountAmount,
             Total: tx.grandTotal,
             Due: tx.amountDue,
+            'Void Reason': tx.voidReason || '',
           })),
           'Sales & Invoices', 'sales_invoices'
         )}><FaFileExcel /> Excel</button>
@@ -338,12 +344,13 @@ export default function Reports() {
               const hasLines = tx.lines?.length > 0;
               const expanded = expandedTransaction === rowId;
               const typeLabel = [tx.fulfillmentType || 'SALE', tx.tableNumber ? `Table ${tx.tableNumber}` : null].filter(Boolean).join(' / ');
+              const canExpand = hasLines || !!tx.voidReason;
               return (
                 <React.Fragment key={rowId}>
                   <tr
                     className={isVoidTransaction(tx) ? 'voided' : ''}
-                    onClick={() => hasLines && setExpandedTransaction(expanded ? null : rowId)}
-                    style={{cursor: hasLines ? 'pointer' : 'default'}}
+                    onClick={() => canExpand && setExpandedTransaction(expanded ? null : rowId)}
+                    style={{cursor: canExpand ? 'pointer' : 'default'}}
                   >
                     <td><span className="rpt-mono">{tx.orderNo || '—'}</span></td>
                     <td><span className="rpt-mono">{tx.invoiceNo || '—'}</span></td>
@@ -352,7 +359,7 @@ export default function Reports() {
                     <td>{tx.customerName || '—'}</td>
                     <td><span className="rpt-pill">{typeLabel}</span></td>
                     <td><span className={`rpt-st ${String(tx.orderStatus || 'unknown').toLowerCase()}`}>{tx.orderStatus || '—'}</span></td>
-                    <td><span className={`rpt-st ${String(tx.invoiceStatus || 'unknown').toLowerCase()}`}>{tx.invoiceStatus || '—'}</span></td>
+                    <td><span className={`rpt-st ${String(tx.invoiceStatus || 'unknown').toLowerCase()}`} title={tx.voidReason ? `Reason: ${tx.voidReason}` : undefined}>{tx.invoiceStatus || '—'}</span></td>
                     <td><span className={`rpt-st ${String(tx.paymentStatus || 'unknown').toLowerCase()}`}>{tx.paymentStatus || '—'}</span></td>
                     <td><span className="rpt-pill">{tx.paymentMethod || '—'}</span></td>
                     <td className="r">{SYM}{fmt(tx.totalTaxAmount)}</td>
@@ -360,12 +367,17 @@ export default function Reports() {
                     <td className="r rpt-amt">{SYM}{fmt(tx.grandTotal)}</td>
                     <td className="r">{fmtMaybe(tx.amountDue)}</td>
                     <td>{tx.voidable && <button className="rpt-void-btn" onClick={(e) => { e.stopPropagation(); handleVoid(tx); }} title="Void"><FaBan /></button>}</td>
-                    <td>{hasLines ? (expanded ? <FaChevronDown /> : <FaChevronRight />) : null}</td>
+                    <td>{canExpand ? (expanded ? <FaChevronDown /> : <FaChevronRight />) : null}</td>
                   </tr>
-                  {expanded && hasLines && (
+                  {expanded && (
                     <tr><td colSpan={16} style={{padding:0}}>
                       <div className="rpt-subrows rpt-line-details">
-                        {tx.lines.map((l, i) => (
+                        {tx.voidReason && (
+                          <div style={{ marginBottom: 12, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '12px', display: 'inline-block' }}>
+                            <strong>Void Reason:</strong> {tx.voidReason}
+                          </div>
+                        )}
+                        {hasLines && tx.lines.map((l, i) => (
                           <div key={i} className="rpt-subrow">
                             <span className="rpt-line-name">
                               <strong>{l.productName || 'Item'}</strong>
@@ -723,6 +735,29 @@ export default function Reports() {
           {loading ? <div className="rpt-loading">Loading report data…</div> : tabContent[tab]?.()}
         </div>
       </div>
+      {voidingInvoice && (
+        <div className="rpt-modal-overlay" onClick={() => setVoidingInvoice(null)}>
+          <div className="rpt-modal" onClick={e => e.stopPropagation()}>
+            <h3>Void Invoice</h3>
+            <p>Are you sure you want to void invoice <strong>{voidingInvoice.invoiceNo || 'this invoice'}</strong>? This will cancel the linked order.</p>
+            <label>Reason</label>
+            <textarea
+              value={voidReason}
+              onChange={e => setVoidReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Mistake in order / Client walked away"
+            />
+            <div className="rpt-modal-actions">
+              <button onClick={() => setVoidingInvoice(null)} className="rpt-modal-btn rpt-modal-btn-outline" disabled={voidingInProgress}>
+                Cancel
+              </button>
+              <button onClick={submitVoid} className="rpt-modal-btn rpt-modal-btn-danger" disabled={!voidReason.trim() || voidingInProgress}>
+                {voidingInProgress ? '...' : 'Proceed'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <style jsx global>{`
         .rpt-page{padding:0 20px;width:100%}
         .rpt-controls{display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;background:#fff;padding:12px 16px;border-radius:16px;border:1px solid #f1f5f9;box-shadow:0 2px 10px rgba(0,0,0,.02)}
@@ -817,6 +852,19 @@ export default function Reports() {
         .rpt-hour-cnt{font-size:8px;color:#cbd5e1;font-weight:600}
         .rpt-void-btn{width:30px;height:30px;border-radius:8px;border:1px solid #fecaca;background:#fff;color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;font-size:12px}
         .rpt-void-btn:hover{background:#fef2f2;transform:scale(1.05)}
+        .rpt-modal-overlay{position:fixed;inset:0;background-color:rgba(15,23,42,0.4);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;z-index:10000;padding:12px}
+        .rpt-modal{background:white;padding:20px;border-radius:16px;max-width:320px;width:100%;box-shadow:0 12px 24px -10px rgba(0,0,0,0.15);animation:fadeIn 0.2s ease-out}
+        .rpt-modal h3{font-size:17px;font-weight:800;color:#0f172a;margin:0 0 8px 0;letter-spacing:-0.01em}
+        .rpt-modal p{font-size:12px;color:#64748b;line-height:1.4;margin-bottom:16px}
+        .rpt-modal label{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;display:block;margin-bottom:4px}
+        .rpt-modal textarea{width:100%;padding:10px;font-size:12px;border-radius:10px;border:1.5px solid #e2e8f0;outline:none;background:#f8fafc;color:#1e293b;margin-bottom:20px;resize:vertical}
+        .rpt-modal-actions{display:flex;gap:8px}
+        .rpt-modal-btn{flex:1;height:38px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all 0.2s}
+        .rpt-modal-btn-outline{background:#fff;border:1.5px solid #e2e8f0;color:#64748b}
+        .rpt-modal-btn-outline:hover{background:#f8fafc;border-color:#cbd5e1}
+        .rpt-modal-btn-danger{background:#ef4444;color:#fff}
+        .rpt-modal-btn-danger:hover{background:#dc2626}
+        .rpt-modal-btn-danger:disabled{background:#fecaca;cursor:not-allowed}
         @media(max-width:768px){
           .rpt-page{padding:0 4px}
           .rpt-controls{flex-direction:column;align-items:stretch}
