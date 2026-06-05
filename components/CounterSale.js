@@ -488,6 +488,8 @@ const ProductGrid = styled.div`
   overflow-y: auto;
   padding-bottom: 20px;
   min-height: 0;
+  width: 100%;
+  min-width: 0;
   flex: 1;
   align-content: start;
 

@@ -169,6 +169,8 @@ export const ProductGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
   gap: 16px;
   align-content: start;
+  width: 100%;
+  min-width: 0;
 
   @media (max-width: 360px) {
     grid-template-columns: 1fr;
