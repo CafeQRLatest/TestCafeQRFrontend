@@ -157,66 +157,79 @@ try {
   exit 1
 }
 
-try {
-  while ($true) {
+while ($true) {
+  try {
+    # Ensure listener is active and running (handles network state changes / wake from sleep)
+    if ($null -eq $listener -or -not $listener.IsListening) {
+      try {
+        if ($null -ne $listener) { $listener.Close() }
+      } catch {}
+      $listener, $prefix = New-HubListener -Port $Port
+    }
+
     $ctx = $listener.GetContext()
-    $req  = $ctx.Request
-    $resp = $ctx.Response
 
-    if ($req.HttpMethod -eq 'OPTIONS') {
-      Set-Cors $resp
-      $resp.StatusCode = 204
-      $resp.OutputStream.Close()
-      continue
-    }
+    # Process request in nested try-catch to keep listener running on handler errors
+    try {
+      $req  = $ctx.Request
+      $resp = $ctx.Response
 
-    if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/health*') {
-      Send-Json $ctx 200 @{
-        ok   = $true
-        host = [string]$env:COMPUTERNAME
-        os   = [string][Environment]::OSVersion.VersionString
-      }
-      continue
-    }
-
-    if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/printers*') {
-      $names = @(Get-InstalledPrinters) | ForEach-Object { [string]$_ }
-      Send-Json $ctx 200 $names
-      continue
-    }
-
-    if ($req.HttpMethod -eq 'POST' -and $req.RawUrl -like '/printRaw*') {
-      $sr   = New-Object IO.StreamReader $req.InputStream, [Text.Encoding]::UTF8
-      $raw  = $sr.ReadToEnd()
-      $body = From-JsonCompat $raw
-
-      $printerName = $null
-      $dataBase64  = $null
-      if ($body -is [System.Collections.IDictionary]) {
-        $printerName = $body["printerName"]
-        $dataBase64  = $body["dataBase64"]
-      } else {
-        $printerName = $body.printerName
-        $dataBase64  = $body.dataBase64
-      }
-
-      if (-not $printerName -or -not $dataBase64) {
-        Send-Json $ctx 400 @{ error = 'printerName and dataBase64 required' }
+      if ($req.HttpMethod -eq 'OPTIONS') {
+        Set-Cors $resp
+        $resp.StatusCode = 204
+        $resp.OutputStream.Close()
         continue
       }
 
-      $bytes = [Convert]::FromBase64String($dataBase64)
-      $ok    = [RawPrinterHelper]::SendBytes($printerName, $bytes)
-      if (-not $ok) { Send-Json $ctx 500 @{ error = 'Raw print failed (check printer name / driver)' } }
-      else { Send-Json $ctx 200 @{ ok = $true } }
-      continue
-    }
+      if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/health*') {
+        Send-Json $ctx 200 @{
+          ok   = $true
+          host = [string]$env:COMPUTERNAME
+          os   = [string][Environment]::OSVersion.VersionString
+        }
+        continue
+      }
 
-    Send-Json $ctx 404 @{ error = 'not found' }
-  }
-} finally {
-  if ($listener -and $listener.IsListening) {
-    $listener.Stop()
-    $listener.Close()
+      if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/printers*') {
+        $names = @(Get-InstalledPrinters) | ForEach-Object { [string]$_ }
+        Send-Json $ctx 200 $names
+        continue
+      }
+
+      if ($req.HttpMethod -eq 'POST' -and $req.RawUrl -like '/printRaw*') {
+        $sr   = New-Object IO.StreamReader $req.InputStream, [Text.Encoding]::UTF8
+        $raw  = $sr.ReadToEnd()
+        $body = From-JsonCompat $raw
+
+        $printerName = $null
+        $dataBase64  = $null
+        if ($body -is [System.Collections.IDictionary]) {
+          $printerName = $body["printerName"]
+          $dataBase64  = $body["dataBase64"]
+        } else {
+          $printerName = $body.printerName
+          $dataBase64  = $body.dataBase64
+        }
+
+        if (-not $printerName -or -not $dataBase64) {
+          Send-Json $ctx 400 @{ error = 'printerName and dataBase64 required' }
+          continue
+        }
+
+        $bytes = [Convert]::FromBase64String($dataBase64)
+        $ok    = [RawPrinterHelper]::SendBytes($printerName, $bytes)
+        if (-not $ok) { Send-Json $ctx 500 @{ error = 'Raw print failed (check printer name / driver)' } }
+        else { Send-Json $ctx 200 @{ ok = $true } }
+        continue
+      }
+
+      Send-Json $ctx 404 @{ error = 'not found' }
+    } catch {
+      $err = $_.Exception.Message
+      try { Send-Json $ctx 500 @{ error = "Internal handler error: $err" } } catch {}
+    }
+  } catch {
+    # If the listener itself fails (e.g. system wake/sleep or socket conflicts), wait and retry
+    Start-Sleep -Seconds 2
   }
 }
