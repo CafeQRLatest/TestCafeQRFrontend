@@ -19,6 +19,13 @@ export default function BranchSwitcher() {
   }, [isAuthenticated, userRole]);
 
   useEffect(() => {
+    if (isSuperAdmin && branches.length > 0 && !orgId) {
+      const firstBranch = branches[0];
+      switchBranch(firstBranch.id, firstBranch.name);
+    }
+  }, [branches, orgId, isSuperAdmin, switchBranch]);
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
@@ -82,7 +89,7 @@ export default function BranchSwitcher() {
     );
   }
 
-  const selectedName = orgName || 'All Branches';
+  const selectedName = orgName || 'Select Branch...';
 
   return (
     <div className="branch-switcher-container" ref={dropdownRef}>
@@ -106,18 +113,6 @@ export default function BranchSwitcher() {
         <div className="switcher-dropdown">
           <div className="dropdown-header">Select Workspace Branch</div>
           <ul className="branch-list" role="listbox">
-            <li 
-              onClick={() => handleSelect('ALL')} 
-              className={`branch-item ${!orgId ? 'selected' : ''}`}
-              role="option"
-              aria-selected={!orgId}
-            >
-              <div className="item-main">
-                <span className="branch-name">All Branches (Global View)</span>
-                <span className="branch-code">ALL</span>
-              </div>
-              {!orgId && <FaCheck className="check-icon" />}
-            </li>
 
             {loading ? (
               <li className="loading-item">Syncing network nodes...</li>
