@@ -287,6 +287,59 @@ const SearchBar = styled.div`
   width: 100%;
 `;
 
+const CatalogToolbar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  position: relative;
+  flex: 0 0 auto;
+
+  ${SearchBar} {
+    flex: 1 1 320px;
+    min-width: min(100%, 260px);
+  }
+
+  @media (max-width: 640px) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+
+    ${SearchBar} {
+      flex-basis: auto;
+      min-width: 0;
+    }
+  }
+`;
+
+const AddProductButton = styled.button`
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1.5px solid ${props => props.$themeColor};
+  color: ${props => props.$themeColor};
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+  flex: 0 0 auto;
+
+  &:hover {
+    background: ${props => props.$themeColor};
+    color: white;
+  }
+
+  @media (max-width: 640px) {
+    width: 100%;
+  }
+`;
+
 const FloatingSuggestBox = styled.div`
   position: absolute;
   top: calc(100% + 6px);
@@ -2615,8 +2668,8 @@ export default function CounterSale({
           ) : (
           <>
           <CatalogSection>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', position: 'relative' }}>
-              <SearchBar style={{ flex: 1 }}>
+            <CatalogToolbar>
+              <SearchBar>
                 <SearchIcon><FaSearch/></SearchIcon>
                 <SearchInput 
                   ref={searchRef}
@@ -2674,33 +2727,14 @@ export default function CounterSale({
                 )}
               </SearchBar>
 
-              <button 
+              <AddProductButton
                 type="button" 
                 onClick={startNewProductForPopup}
-                style={{
-                  height: '34px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: '1.5px solid ' + THEME.main,
-                  color: THEME.main,
-                  padding: '0 12px',
-                  borderRadius: '10px',
-                  fontSize: '12px',
-                  fontWeight: '800',
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 8px ' + THEME.main + '08'
-                }}
-                onMouseOver={e => { e.currentTarget.style.background = THEME.main; e.currentTarget.style.color = 'white'; }}
-                onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = THEME.main; }}
+                $themeColor={THEME.main}
               >
                 <FaPlus size={10} /> Add Product
-              </button>
-            </div>
+              </AddProductButton>
+            </CatalogToolbar>
 
             {isStandardUi ? (
               <StandardWorkspace>
