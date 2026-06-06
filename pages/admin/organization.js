@@ -4,166 +4,155 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaWarehouse } from 'react-icons/fa';
 
 export default function OrganizationPage() {
-  return (
-    <OrganizationContent />
-  );
+  return <OrganizationContent />;
 }
 
 function OrganizationContent() {
   const organizationMenus = [
-    { 
-      name: 'Client Management', 
-      url: '/admin/client-profile', 
-      description: 'Enterprise Details & Global Settings', 
-      icon: <FaBuilding />, 
-      color: "#6366f1" 
-    },
-    { 
-      name: 'Branch Management', 
-      url: '/admin/organization-details', 
-      description: 'Branches, Locations & Operating Hours', 
-      icon: <FaBuilding />, 
-      color: "#8b5cf6" 
-    },
-    { 
-        name: 'Terminal Management', 
-        url: '/admin/terminals', 
-        description: 'POS Counter & Ordering Points', 
-        icon: <FaMicrochip />, 
-        color: "#f59e0b" 
-      },
-    { 
-      name: 'Device Management', 
-      url: '/admin/devices', 
-      description: 'Hardware Inventory & Device Linking', 
-      icon: <FaTools />, 
-      color: "#ec4899" 
-    },
-    { 
-      name: 'Staff & Permissions', 
-      url: '/admin/users', 
-      description: 'User Access Control & Role Management', 
-      icon: <FaUsers />, 
-      color: "#10b981" 
-    },
-    { 
-      name: 'Warehouse Management', 
-      url: '/admin/warehouses', 
-      description: 'Manage Storage Locations & Distribution Centers', 
-      icon: <FaWarehouse />, 
-      color: "#06b6d4" 
-    },
-    { 
-      name: 'Currency Masters', 
-      url: '/owner/currencies', 
-      description: 'Multi-Currency Setup & Exchange Rates', 
-      icon: <FaMoneyBillWave />, 
-      color: "#14b8a6" 
-    },
-    { 
-      name: 'Price List Masters', 
-      url: '/owner/pricelists', 
-      description: 'Sales & Purchase Pricing with Versioning', 
-      icon: <FaTags />, 
-      color: "#f97316" 
-    },
-    {
-      name: 'Accounting Foundation',
-      url: '/owner/accounting',
-      description: 'Chart of Accounts, Journals & Ledgers',
-      icon: <FaBalanceScale />,
-      color: "#0f766e"
-    }
+    { name: 'Client Management',    url: '/admin/client-profile',         desc: 'Enterprise details & global settings',          icon: <FaBuilding />,      color: '#6366f1', bg: '#eef2ff' },
+    { name: 'Branch Management',    url: '/admin/organization-details',   desc: 'Branches, locations & operating hours',         icon: <FaBuilding />,      color: '#8b5cf6', bg: '#faf5ff' },
+    { name: 'Terminal Management',  url: '/admin/terminals',              desc: 'POS counter & ordering points',                 icon: <FaMicrochip />,     color: '#f59e0b', bg: '#fffbeb' },
+    { name: 'Device Management',    url: '/admin/devices',                desc: 'Hardware inventory & device linking',           icon: <FaTools />,         color: '#ec4899', bg: '#fdf2f8' },
+    { name: 'Staff & Permissions',  url: '/admin/users',                  desc: 'User access control & role management',         icon: <FaUsers />,         color: '#10b981', bg: '#f0fdf4' },
+    { name: 'Warehouse Management', url: '/admin/warehouses',             desc: 'Manage storage locations & distribution',       icon: <FaWarehouse />,     color: '#06b6d4', bg: '#f0f9ff' },
+    { name: 'Currency Masters',     url: '/owner/currencies',             desc: 'Multi-currency setup & exchange rates',         icon: <FaMoneyBillWave />, color: '#14b8a6', bg: '#f0fdfa' },
+    { name: 'Price List Masters',   url: '/owner/pricelists',             desc: 'Sales & purchase pricing with versioning',      icon: <FaTags />,          color: '#f97316', bg: '#fff7ed' },
+    { name: 'Accounting Foundation',url: '/owner/accounting',             desc: 'Chart of accounts, journals & ledgers',         icon: <FaBalanceScale />,  color: '#0f766e', bg: '#f0fdfa' },
   ];
 
   return (
-    <DashboardLayout 
-      title="Organization Management" 
-      showBack={true}
-    >
-        <div className="dense-grid">
-           {organizationMenus.map((item, idx) => {
-             return (
-               <Link href={item.url} key={idx} className="menu-box">
-                  <div className="box-icon" style={{ background: `${item.color}15`, color: item.color }}>
-                    {item.icon}
-                  </div>
-                  <div className="box-content">
-                    <h3>{item.name}</h3>
-                    <p>{item.description}</p>
-                  </div>
-                  <FaArrowRight className="box-arrow" />
-               </Link>
-             );
-           })}
+    <DashboardLayout title="Organization Management" showBack={true}>
+      <div className="menu-wrap">
+
+        <div className="section-rule">
+          <span className="section-label">Modules</span>
+          <div className="rule-line" />
         </div>
 
-      <style jsx>{`
-        .dense-grid {
-           display: grid;
-           grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-           gap: 20px;
-        }
+        <div className="card-grid">
+          {organizationMenus.map((item, i) => (
+            <Link
+              href={item.url}
+              key={i}
+              className="m-card"
+              style={{ '--c': item.color, '--cbg': item.bg }}
+            >
+              <div className="m-icon">{item.icon}</div>
+              <div className="m-text">
+                <span className="m-title">{item.name}</span>
+                <span className="m-desc">{item.desc}</span>
+              </div>
+              <FaArrowRight className="m-arrow" />
+            </Link>
+          ))}
+        </div>
+      </div>
 
-        .menu-box {
-          background: white;
-          padding: 24px;
-          border-radius: 16px;
-          border: 1px solid #e2e8f0;
+      <style jsx>{`
+        .menu-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          max-width: 1080px;
+          margin: 0 auto;
+          padding-bottom: 32px;
+        }
+        .section-rule {
           display: flex;
           align-items: center;
-          gap: 20px;
-          text-decoration: none;
-          transition: border-color 0.2s;
+          gap: 10px;
         }
-        .menu-box:hover {
-          border-color: #f97316;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
-        .box-icon {
-          width: 52px; height: 52px;
-          border-radius: 12px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px;
+        .section-label {
+          font-size: 10.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: #94a3b8;
+          white-space: nowrap;
           flex-shrink: 0;
         }
-
-        .box-content h3 { margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; }
-        .box-content p { margin: 4px 0 0; font-size: 13px; color: #64748b; line-height: 1.4; font-weight: 500; }
-
-        .box-arrow {
-          margin-left: auto;
-          color: #cbd5e1;
-          font-size: 14px;
+        .rule-line {
+          flex: 1;
+          height: 1px;
+          background: #e2e8f0;
         }
-        .menu-box:hover .box-arrow { color: #f97316; }
-
-        @media (max-width: 640px) {
-           .dense-grid { grid-template-columns: 1fr; }
+        .card-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+          gap: 8px;
         }
-
-        .empty-state {
-          grid-column: 1 / -1;
-          background: white;
-          padding: 60px 20px;
-          border-radius: 20px;
-          text-align: center;
-          border: 1px dashed #cbd5e1;
+        .m-card {
+          display: flex;
+          align-items: center;
+          gap: 13px;
+          padding: 13px 15px;
+          background: #fff;
+          border: 1px solid #f1f5f9;
+          border-radius: 12px;
+          text-decoration: none;
+          transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
         }
-        .empty-state h3 { color: #0f172a; margin-bottom: 8px; }
-        .empty-state p { color: #64748b; margin-bottom: 24px; max-width: 400px; margin-inline: auto; font-size: 14px; }
-        .retry-btn {
-          background: #f97316;
-          color: white;
-          border: none;
-          padding: 10px 24px;
-          border-radius: 10px;
+        .m-card:hover {
+          border-color: var(--c);
+          box-shadow: 0 4px 16px -6px rgba(0,0,0,0.08);
+          transform: translateY(-1px);
+        }
+        .m-icon {
+          width: 38px;
+          height: 38px;
+          border-radius: 9px;
+          background: var(--cbg);
+          color: var(--c);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          flex-shrink: 0;
+          transition: background 0.18s, color 0.18s;
+        }
+        .m-card:hover .m-icon {
+          background: var(--c);
+          color: #fff;
+        }
+        .m-text {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+        .m-title {
+          font-size: 13px;
           font-weight: 700;
-          cursor: pointer;
-          transition: transform 0.2s;
+          color: #0f172a;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .retry-btn:hover { transform: scale(1.05); }
+        .m-desc {
+          font-size: 11px;
+          color: #94a3b8;
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .m-arrow {
+          font-size: 10px;
+          color: #cbd5e1;
+          flex-shrink: 0;
+          transition: color 0.18s, transform 0.18s;
+        }
+        .m-card:hover .m-arrow {
+          color: var(--c);
+          transform: translateX(2px);
+        }
+        @media (max-width: 640px) {
+          .card-grid { grid-template-columns: 1fr; gap: 6px; }
+          .m-card { padding: 11px 13px; gap: 11px; }
+          .m-icon { width: 34px; height: 34px; font-size: 14px; border-radius: 8px; }
+          .m-title { font-size: 12.5px; }
+        }
       `}</style>
     </DashboardLayout>
   );

@@ -2,270 +2,221 @@ import React from 'react';
 import Link from 'next/link';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
-import { 
-  FaBoxes, FaExchangeAlt, FaBalanceScale, FaChartBar, FaHistory,
-  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight, FaWarehouse
+import {
+  FaBoxes, FaExchangeAlt, FaBalanceScale, FaHistory,
+  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight
 } from 'react-icons/fa';
 
 const stockModules = [
   {
     title: 'Stock Overview',
-    desc: 'Real-time inventory balances across all warehouses',
-    href: '/owner/stock-overview',
-    icon: <FaBoxes />,
+    desc:  'Real-time inventory balances across warehouses',
+    href:  '/owner/stock-overview',
+    icon:  <FaBoxes />,
     color: '#f97316',
-    gradient: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'
+    bg:    '#fff7ed',
   },
   {
     title: 'Stock Transfer',
-    desc: 'Move inventory between warehouse locations',
-    href: '/owner/stock-transfers',
-    icon: <FaExchangeAlt />,
+    desc:  'Move inventory between warehouse locations',
+    href:  '/owner/stock-transfers',
+    icon:  <FaExchangeAlt />,
     color: '#3b82f6',
-    gradient: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)'
+    bg:    '#eff6ff',
   },
   {
     title: 'Stock Adjustment',
-    desc: 'Audit corrections, wastage & damage logging',
-    href: '/owner/stock-adjustments',
-    icon: <FaBalanceScale />,
+    desc:  'Audit corrections, wastage & damage logging',
+    href:  '/owner/stock-adjustments',
+    icon:  <FaBalanceScale />,
     color: '#8b5cf6',
-    gradient: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)'
+    bg:    '#faf5ff',
   },
   {
     title: 'Stock Valuation',
-    desc: 'Total inventory worth by warehouse & product',
-    href: '/owner/stock-valuation',
-    icon: <FaDollarSign />,
+    desc:  'Total inventory worth by warehouse & product',
+    href:  '/owner/stock-valuation',
+    icon:  <FaDollarSign />,
     color: '#10b981',
-    gradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)'
+    bg:    '#f0fdf4',
   },
   {
     title: 'Transfer Reports',
-    desc: 'Track all inter-warehouse movements & status',
-    href: '/owner/stock-transfer-reports',
-    icon: <FaFileAlt />,
+    desc:  'Track all inter-warehouse movements & status',
+    href:  '/owner/stock-transfer-reports',
+    icon:  <FaFileAlt />,
     color: '#0ea5e9',
-    gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)'
+    bg:    '#f0f9ff',
   },
   {
     title: 'Adjustment Reports',
-    desc: 'Complete audit trail of stock corrections',
-    href: '/owner/stock-adjustment-reports',
-    icon: <FaClipboardList />,
+    desc:  'Complete audit trail of stock corrections',
+    href:  '/owner/stock-adjustment-reports',
+    icon:  <FaClipboardList />,
     color: '#ec4899',
-    gradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)'
+    bg:    '#fdf2f8',
   },
   {
     title: 'Stock Ledger',
-    desc: 'Immutable transaction history & event log',
-    href: '/owner/stock-history',
-    icon: <FaHistory />,
+    desc:  'Immutable transaction history & event log',
+    href:  '/owner/stock-history',
+    icon:  <FaHistory />,
     color: '#6366f1',
-    gradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)'
-  }
+    bg:    '#eef2ff',
+  },
 ];
 
 export default function StockMenuPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
       <DashboardLayout title="Stock Management">
+        <div className="menu-wrap">
 
-        {/* Module Grid */}
-        <div className="module-grid" style={{ marginTop: '20px' }}>
-          {stockModules.map((mod, idx) => (
-            <Link href={mod.href} key={idx} className="module-card">
-              <div className="card-glow" style={{ background: `${mod.color}10` }}></div>
-              <div className="card-header">
-                <div className="module-icon" style={{ background: `${mod.color}12`, color: mod.color }}>
-                  {mod.icon}
+          {/* Section divider */}
+          <div className="section-rule">
+            <span className="section-label">Modules</span>
+            <div className="rule-line" />
+          </div>
+
+          {/* Card grid */}
+          <div className="card-grid">
+            {stockModules.map((mod, i) => (
+              <Link
+                href={mod.href}
+                key={i}
+                className="m-card"
+                style={{ '--c': mod.color, '--cbg': mod.bg }}
+              >
+                <div className="m-icon">{mod.icon}</div>
+                <div className="m-text">
+                  <span className="m-title">{mod.title}</span>
+                  <span className="m-desc">{mod.desc}</span>
                 </div>
-                <FaArrowRight className="card-arrow" style={{ color: mod.color }} />
-              </div>
-              <div className="card-body">
-                <h3>{mod.title}</h3>
-              </div>
-              <div className="card-accent" style={{ background: mod.gradient }}></div>
-            </Link>
-          ))}
+                <FaArrowRight className="m-arrow" />
+              </Link>
+            ))}
+          </div>
         </div>
 
         <style jsx>{`
-          .stock-hero {
-            background: white;
-            border-radius: 24px;
-            padding: 40px;
-            border: 1px solid #edf2f7;
-            margin-bottom: 32px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.03);
-          }
-          .hero-bg-pattern {
-            position: absolute;
-            top: 0; right: 0;
-            width: 400px; height: 100%;
-            background: 
-              radial-gradient(circle at 80% 20%, rgba(249, 115, 22, 0.06) 0%, transparent 50%),
-              radial-gradient(circle at 60% 80%, rgba(59, 130, 246, 0.04) 0%, transparent 50%);
-            pointer-events: none;
-          }
-          .hero-content {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            position: relative;
-            z-index: 1;
-          }
-          .hero-icon-wrap {
-            width: 64px; height: 64px;
-            background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-            border-radius: 20px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 28px; color: white;
-            box-shadow: 0 8px 24px rgba(249, 115, 22, 0.25);
-            flex-shrink: 0;
-          }
-          .hero-text-block h2 {
-            margin: 0;
-            font-size: 26px;
-            font-weight: 900;
-            color: #0f172a;
-            letter-spacing: -0.03em;
-          }
-          .hero-text-block p {
-            margin: 6px 0 0;
-            font-size: 14px;
-            font-weight: 500;
-            color: #64748b;
-            max-width: 480px;
-            line-height: 1.5;
-          }
-          .hero-stats {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-            position: relative;
-            z-index: 1;
-          }
-          .hero-stat-pill {
-            padding: 6px 16px;
-            background: #fff7ed;
-            color: #f97316;
-            font-size: 12px;
-            font-weight: 800;
-            border-radius: 20px;
-            letter-spacing: 0.02em;
-          }
-
-          .module-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-          }
-
-          .module-card {
-            background: white;
-            border-radius: 20px;
-            padding: 28px;
-            border: 1px solid #edf2f7;
-            position: relative;
-            overflow: hidden;
-            text-decoration: none;
+          .menu-wrap {
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-            cursor: pointer;
-          }
-          .module-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
-            border-color: transparent;
+            gap: 12px;
+            max-width: 1080px;
+            margin: 0 auto;
+            padding-bottom: 32px;
           }
 
-          .card-glow {
-            position: absolute;
-            top: -60px; right: -60px;
-            width: 200px; height: 200px;
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.4s;
-            pointer-events: none;
-          }
-          .module-card:hover .card-glow {
-            opacity: 1;
-          }
-
-          .card-header {
+          /* ─── Section divider ─── */
+          .section-rule {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 10px;
           }
-          .module-icon {
-            width: 52px; height: 52px;
-            border-radius: 16px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 22px;
-            transition: transform 0.3s;
-          }
-          .module-card:hover .module-icon {
-            transform: scale(1.1);
-          }
-          .card-arrow {
-            font-size: 14px;
-            opacity: 0;
-            transform: translateX(-8px);
-            transition: all 0.3s;
-          }
-          .module-card:hover .card-arrow {
-            opacity: 1;
-            transform: translateX(0);
-          }
-
-          .card-body h3 {
-            margin: 0;
-            font-size: 17px;
+          .section-label {
+            font-size: 10.5px;
             font-weight: 800;
-            color: #0f172a;
-            letter-spacing: -0.01em;
-          }
-          .card-body p {
-            margin: 6px 0 0;
-            font-size: 13px;
-            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
             color: #94a3b8;
-            line-height: 1.5;
+            white-space: nowrap;
+            flex-shrink: 0;
+          }
+          .rule-line {
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
           }
 
-          .card-accent {
-            position: absolute;
-            bottom: 0; left: 0; right: 0;
-            height: 3px;
-            opacity: 0;
-            transition: opacity 0.3s;
-          }
-          .module-card:hover .card-accent {
-            opacity: 1;
+          /* ─── Grid ─── */
+          .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+            gap: 8px;
           }
 
+          /* ─── Card ─── */
+          .m-card {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 13px 15px;
+            background: #fff;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+            position: relative;
+          }
+          .m-card:hover {
+            border-color: var(--c);
+            box-shadow: 0 4px 16px -6px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
+          }
+
+          /* ─── Icon ─── */
+          .m-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 9px;
+            background: var(--cbg);
+            color: var(--c);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            transition: background 0.18s, color 0.18s;
+          }
+          .m-card:hover .m-icon {
+            background: var(--c);
+            color: #fff;
+          }
+
+          /* ─── Text ─── */
+          .m-text {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+          }
+          .m-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .m-desc {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          /* ─── Arrow ─── */
+          .m-arrow {
+            font-size: 10px;
+            color: #cbd5e1;
+            flex-shrink: 0;
+            transition: color 0.18s, transform 0.18s;
+          }
+          .m-card:hover .m-arrow {
+            color: var(--c);
+            transform: translateX(2px);
+          }
+
+          /* ─── Responsive ─── */
           @media (max-width: 640px) {
-            .stock-hero {
-              padding: 24px;
-            }
-            .hero-content {
-              flex-direction: column;
-              text-align: center;
-            }
-            .hero-text-block h2 {
-              font-size: 20px;
-            }
-            .hero-stats {
-              justify-content: center;
-            }
-            .module-grid {
-              grid-template-columns: 1fr;
-            }
+            .card-grid { grid-template-columns: 1fr; gap: 6px; }
+            .m-card { padding: 11px 13px; gap: 11px; }
+            .m-icon { width: 34px; height: 34px; font-size: 14px; border-radius: 8px; }
+            .m-title { font-size: 12.5px; }
           }
         `}</style>
       </DashboardLayout>
