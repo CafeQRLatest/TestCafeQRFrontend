@@ -5,6 +5,7 @@ import api from '../utils/api';
 import { printUniversal } from '../utils/printGateway';
 import { Capacitor } from '@capacitor/core';
 import Cookies from 'js-cookie';
+import { isNativePrintServicePaired } from '../utils/printServiceClient';
 
 const PRINT_DEDUP_KEY = 'KOTPRINT_PRINTED_V1';
 const PRINT_DEDUP_TTL_MS = 15_000; // 15 seconds
@@ -222,6 +223,7 @@ async function ensurePrinterConfigured() {
 
 export default function KotPrint({ order, onClose, onPrint, autoPrint = true, kind = 'bill' }) {
   const [status, setStatus] = useState('');
+  const [outputOverride, setOutputOverride] = useState('DEFAULT');
   const [fullOrder, setFullOrder] = useState(() => mergeOrderForPrint(order, null));
   const [bill] = useState(order?.bill || null);
   const [restaurantProfile, setRestaurantProfile] = useState(() => fallbackRestaurantProfile());
@@ -338,6 +340,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
     try {
       const normalizedOrder = mergeOrderForPrint(fullOrder, order);
+      const baseDocument = {
+        order: normalizedOrder,
+        restaurant: restaurantProfile,
+        bill,
+      };
+      const nativeOutput = outputOverride === 'DEFAULT' ? undefined : outputOverride;
 
       const onAndroidPWA = isAndroidPWA();
       // Never show browser print dialog — the gateway's auto-discovery
@@ -359,6 +367,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: kind,
+              outputFormat: nativeOutput,
+              document: baseDocument,
               ...getPrintJobMeta(normalizedOrder, kind, 'main'),
             });
             onPrint?.();
@@ -379,6 +389,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           allowSystemDialog,
           scale,
           jobKind: kind,
+          outputFormat: nativeOutput,
+          document: baseDocument,
           ...getPrintJobMeta(normalizedOrder, kind, 'main'),
         });
 
@@ -401,6 +413,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: 'kot',
+              outputFormat: nativeOutput,
+              document: baseDocument,
               ...getPrintJobMeta(normalizedOrder, 'kot', 'main'),
             });
             onPrint?.();
@@ -418,6 +432,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           scale,
           codepage: 0,
           jobKind: 'kot',
+          outputFormat: nativeOutput,
+          document: baseDocument,
           ...getPrintJobMeta(normalizedOrder, 'kot', 'main'),
         });
 
@@ -448,6 +464,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: true,
               scale,
               jobKind: 'kot',
+              outputFormat: nativeOutput,
+              document: { ...baseDocument, order: routedOrder },
               ...getPrintJobMeta(routedOrder, 'kot', `route-${r.id || r.name || r.label || 'android'}`),
             });
           } catch (e) {
@@ -472,6 +490,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               allowSystemDialog: false,
               scale,
               jobKind: 'kot',
+              outputFormat: nativeOutput,
+              document: { ...baseDocument, order: routedOrder },
               ...getPrintJobMeta(routedOrder, 'kot', `route-net-${r.id || r.name || t.ip}`),
             });
             printedRoute = true;
@@ -486,6 +506,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             allowSystemDialog,
             scale,
             jobKind: 'kot',
+            outputFormat: nativeOutput,
+            document: { ...baseDocument, order: routedOrder },
             winPrinterNames: routeWinPrinterNames,
             ...getPrintJobMeta(routedOrder, 'kot', `route-win-${r.id || r.name || routeWinPrinterNames.join('-')}`),
           });
@@ -503,6 +525,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             allowSystemDialog,
             scale,
             jobKind: 'kot',
+            outputFormat: nativeOutput,
+            document: { ...baseDocument, order: routedOrder },
             ...getPrintJobMeta(routedOrder, 'kot', `route-default-${r.id || r.name || 'fallback'}`),
           });
         }
@@ -544,7 +568,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         lockRef.current = false;
       }, 600);
     }
-  }, [fullOrder, order, bill, restaurantProfile, onPrint, kind, closeAfterPrint, autoPrint]);
+  }, [fullOrder, order, bill, restaurantProfile, onPrint, kind, closeAfterPrint, autoPrint, outputOverride]);
 
   useEffect(() => {
     if (!autoPrint || !order?.id || loadingData) return;
@@ -665,9 +689,28 @@ Amount: ₹${amount.toFixed(2)}`}</pre>
           <div className={`status ${status.includes('✗') ? 'error' : 'success'}`}>{status}</div>
         )}
         {!autoPrint && !loadingData && !status && (
-          <div style={{ textAlign: 'center', marginTop: 10 }}>
-            <p>Sending to printer...</p>
-            <PrintTrigger manualTrigger={doPrint} />
+          <div className="manual-print">
+            {isNativePrintServicePaired() && (
+              <div className="output-choice">
+                {[
+                  ['DEFAULT', 'Saved default'],
+                  ['THERMAL', 'Thermal'],
+                  ['REGULAR', 'Regular'],
+                  ['BOTH', 'Both'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={outputOverride === value ? 'active' : ''}
+                    onClick={() => setOutputOverride(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button className="print-now" onClick={doPrint}>
+              Print {kind === 'kot' ? 'KOT' : 'Bill'}
+            </button>
           </div>
         )}
       </div>
@@ -680,14 +723,12 @@ Amount: ₹${amount.toFixed(2)}`}</pre>
         .status { padding: 12px; border-radius: 8px; font-weight: 600; text-align: center; }
         .status.success { background: #f0fdf4; color: #16a34a; }
         .status.error { background: #fef2f2; color: #ef4444; }
+        .manual-print { display: flex; flex-direction: column; gap: 14px; }
+        .output-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+        .output-choice button { min-height: 38px; border: 1px solid #dbe2ea; background: white; color: #475569; font-weight: 700; border-radius: 7px; cursor: pointer; }
+        .output-choice button.active { border-color: #f97316; background: #fff7ed; color: #c2410c; }
+        .print-now { min-height: 44px; border: 0; border-radius: 7px; background: #f97316; color: white; font-weight: 800; cursor: pointer; }
       `}</style>
     </div>
   );
-}
-
-function PrintTrigger({ manualTrigger }) {
-  useEffect(() => {
-    manualTrigger();
-  }, [manualTrigger]);
-  return null;
 }

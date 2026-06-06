@@ -7,7 +7,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
-import PrinterSetupCard from '../../components/PrinterSetupCard';
+import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import {
   FaSave, FaCheckCircle, FaExclamationCircle,
@@ -754,7 +754,7 @@ function ConfigurationsContent() {
                 </div>
                 
                 <div className="hardware-wrapper">
-                   <PrinterSetupCard 
+                    <PrintPlatformSetup
                       restaurantId={null} 
                       config={config} 
                       onConfigChange={set} 

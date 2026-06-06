@@ -1,0 +1,4 @@
+.wix/
+artifacts/
+src/**/bin/
+src/**/obj/
