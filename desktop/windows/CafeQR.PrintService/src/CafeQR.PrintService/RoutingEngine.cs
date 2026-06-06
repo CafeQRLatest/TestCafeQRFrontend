@@ -5,6 +5,17 @@ using Newtonsoft.Json.Linq;
 
 namespace CafeQR.PrintService
 {
+    internal sealed class PrintConfigurationException : InvalidOperationException
+    {
+        public PrintConfigurationException(string jobKind)
+            : base($"No {jobKind.ToUpperInvariant()} printer configured. Open Settings -> Hardware.")
+        {
+            JobKind = jobKind.ToUpperInvariant();
+        }
+
+        public string JobKind { get; }
+    }
+
     internal sealed class RoutingEngine
     {
         public IReadOnlyList<PrinterProfile> Profiles(JObject configuration)
@@ -62,9 +73,7 @@ namespace CafeQR.PrintService
 
             var targets = new List<RoutedTarget>();
             var targetIndex = 0;
-            var defaultMode = route == null && IsBothOutput(submission, configuration)
-                ? PrintConstants.Mirror
-                : PrintConstants.Failover;
+            var defaultMode = DefaultMode(kind, configuration);
             foreach (var profileId in profileIds.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 if (!profiles.TryGetValue(profileId, out var profile)) continue;
@@ -88,22 +97,18 @@ namespace CafeQR.PrintService
 
             if (targets.Count == 0)
             {
-                throw new InvalidOperationException("No compatible printer profile is configured for " + kind);
+                throw new PrintConfigurationException(kind);
             }
             return targets;
         }
 
-        private static bool IsBothOutput(LocalJobSubmission submission, JObject configuration)
+        private static string DefaultMode(string kind, JObject configuration)
         {
-            var output = submission.OutputFormat;
-            if (string.IsNullOrWhiteSpace(output))
-            {
-                var defaults = configuration?["defaults"] as JObject ?? new JObject();
-                output = (submission.JobKind ?? "bill").Equals("kot", StringComparison.OrdinalIgnoreCase)
-                    ? defaults.Value<string>("kotOutput")
-                    : defaults.Value<string>("billOutput");
-            }
-            return PrintConstants.Both.Equals(output, StringComparison.OrdinalIgnoreCase);
+            var defaults = configuration?["defaults"] as JObject ?? new JObject();
+            var key = DefaultKey(kind, "Mode");
+            return string.Equals(defaults.Value<string>(key), PrintConstants.Failover, StringComparison.OrdinalIgnoreCase)
+                ? PrintConstants.Failover
+                : PrintConstants.Mirror;
         }
 
         private static IEnumerable<string> DefaultProfiles(
@@ -113,7 +118,7 @@ namespace CafeQR.PrintService
         {
             var defaults = configuration?["defaults"] as JObject ?? new JObject();
             var kind = (submission.JobKind ?? "bill").ToUpperInvariant();
-            var configured = defaults[kind == "KOT" ? "kotProfileIds" : "billProfileIds"] as JArray;
+            var configured = defaults[DefaultKey(kind, "ProfileIds")] as JArray;
             if (configured != null && configured.Count > 0)
             {
                 return configured.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value));
@@ -122,17 +127,24 @@ namespace CafeQR.PrintService
             var output = submission.OutputFormat;
             if (string.IsNullOrWhiteSpace(output))
             {
-                output = defaults.Value<string>("billOutput") ?? PrintConstants.Thermal;
-            }
-            if (kind == "KOT" && string.IsNullOrWhiteSpace(submission.OutputFormat))
-            {
-                output = defaults.Value<string>("kotOutput") ?? PrintConstants.Thermal;
+                var fallback = kind == "INVOICE" ? PrintConstants.Regular : PrintConstants.Thermal;
+                output = defaults.Value<string>(DefaultKey(kind, "Output")) ?? fallback;
             }
 
             return profiles
                 .Where(profile => output.Equals(PrintConstants.Both, StringComparison.OrdinalIgnoreCase)
                     || profile.Format.Equals(output, StringComparison.OrdinalIgnoreCase))
                 .Select(profile => profile.Id);
+        }
+
+        private static string DefaultKey(string kind, string suffix)
+        {
+            var prefix = kind == "KOT"
+                ? "kot"
+                : kind == "INVOICE"
+                    ? "invoice"
+                    : "bill";
+            return prefix + suffix;
         }
 
         private static bool Matches(IReadOnlyCollection<string> allowed, string value) =>

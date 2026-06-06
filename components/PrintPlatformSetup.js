@@ -38,8 +38,13 @@ const DEFAULT_CONFIG = {
   defaults: {
     billOutput: 'THERMAL',
     kotOutput: 'THERMAL',
+    invoiceOutput: 'REGULAR',
     billProfileIds: [],
     kotProfileIds: [],
+    invoiceProfileIds: [],
+    billMode: 'MIRROR',
+    kotMode: 'MIRROR',
+    invoiceMode: 'MIRROR',
   },
   thermalTemplate: {
     preset: '58MM',
@@ -126,6 +131,91 @@ const routeDefaults = () => ({
   profileIds: [],
 });
 
+const DOCUMENT_DEFAULTS = [
+  {
+    type: 'KOT',
+    title: 'KOT printers',
+    description: 'Kitchen tickets print to every selected profile.',
+    profileKey: 'kotProfileIds',
+    outputKey: 'kotOutput',
+    modeKey: 'kotMode',
+  },
+  {
+    type: 'BILL',
+    title: 'Bill printers',
+    description: 'Receipts and customer bills print to every selected profile.',
+    profileKey: 'billProfileIds',
+    outputKey: 'billOutput',
+    modeKey: 'billMode',
+  },
+  {
+    type: 'INVOICE',
+    title: 'Invoice printers',
+    description: 'Tax invoices print independently from customer bills.',
+    profileKey: 'invoiceProfileIds',
+    outputKey: 'invoiceOutput',
+    modeKey: 'invoiceMode',
+  },
+];
+
+const profileDestination = (profile) => {
+  if (profile.connectionType === 'NETWORK') return `${profile.host || 'No host'}:${profile.port || 9100}`;
+  if (profile.connectionType === 'BLUETOOTH_COM') return profile.comPort || 'No COM port';
+  return profile.windowsPrinterName || 'No Windows queue selected';
+};
+
+const profileTransportLabel = (profile) => {
+  if (profile.connectionType === 'NETWORK') return 'Direct network';
+  if (profile.connectionType === 'BLUETOOTH_COM') return 'Bluetooth COM';
+  return 'Windows queue';
+};
+
+const profileSupportsDocument = (profile, documentType) => {
+  const documents = Array.isArray(profile?.documents) ? profile.documents : [];
+  return documents.length === 0 || documents.includes(documentType);
+};
+
+const profileDisplayLabel = (profile) => (
+  `${profile.name} - ${profileDestination(profile)} (${profileTransportLabel(profile)}, ${profile.paperPreset || profile.format})`
+);
+
+const sanitizeConfiguration = (configuration) => {
+  const profileMap = new Map((configuration.profiles || []).map((profile) => [profile.id, profile]));
+  const defaults = { ...DEFAULT_CONFIG.defaults, ...(configuration.defaults || {}) };
+
+  DOCUMENT_DEFAULTS.forEach(({ type, profileKey, modeKey }) => {
+    defaults[profileKey] = (defaults[profileKey] || []).filter((profileId) => {
+      const profile = profileMap.get(profileId);
+      return profile?.enabled !== false && profileSupportsDocument(profile, type);
+    });
+    defaults[modeKey] = 'MIRROR';
+  });
+
+  return {
+    ...configuration,
+    defaults,
+    routes: (configuration.routes || []).map((route) => ({
+      ...route,
+      profileIds: (route.profileIds || []).filter((profileId) => profileMap.has(profileId)),
+    })),
+  };
+};
+
+const assignmentValidationError = (configuration) => {
+  const profileMap = new Map((configuration.profiles || []).map((profile) => [profile.id, profile]));
+  for (const { type, title, profileKey } of DOCUMENT_DEFAULTS) {
+    for (const profileId of configuration.defaults?.[profileKey] || []) {
+      const profile = profileMap.get(profileId);
+      if (!profile) return `${title} reference a printer profile that no longer exists.`;
+      if (profile.enabled === false) return `${profile.name} is disabled and cannot be assigned to ${title}.`;
+      if (!profileSupportsDocument(profile, type)) {
+        return `${profile.name} does not support ${type}. Enable ${type} on that profile first.`;
+      }
+    }
+  }
+  return '';
+};
+
 export default function PrintPlatformSetup({ restaurantId, config: legacyConfig, onConfigChange }) {
   const [tab, setTab] = useState('service');
   const [printConfig, setPrintConfig] = useState(DEFAULT_CONFIG);
@@ -195,28 +285,44 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     return () => window.clearInterval(timer);
   }, [loadCloud, refreshService]);
 
+  const sessionAwareMessage = (error, fallback) => {
+    if ([401, 403].includes(error?.response?.status)) {
+      return 'Your login session has expired or cannot edit this configuration. Sign in again, then retry.';
+    }
+    return error?.response?.data?.message || error.message || fallback;
+  };
+
+  const persistConfiguration = async (candidate = printConfig) => {
+    const validationError = assignmentValidationError(candidate);
+    if (validationError) throw new Error(validationError);
+
+    const settings = sanitizeConfiguration(candidate);
+    const resolvedScopeId = scopeType === 'CLIENT'
+      ? null
+      : scopeType === 'ORGANIZATION'
+        ? currentOrgId
+        : (scopeId || Cookies.get('terminalId'));
+    const { data } = await api.put('/api/v1/print-configurations', {
+      scopeType,
+      scopeId: resolvedScopeId || null,
+      orgId: currentOrgId || null,
+      settings,
+    });
+    const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, data?.data || settings));
+    setPrintConfig(effective);
+    if (isNativePrintServicePaired()) {
+      await updateNativePrintConfiguration(effective);
+    }
+    return effective;
+  };
+
   const saveConfiguration = async () => {
     setBusy(true);
     try {
-      const resolvedScopeId = scopeType === 'CLIENT'
-        ? null
-        : scopeType === 'ORGANIZATION'
-          ? currentOrgId
-          : (scopeId || Cookies.get('terminalId'));
-      const { data } = await api.put('/api/v1/print-configurations', {
-        scopeType,
-        scopeId: resolvedScopeId || null,
-        orgId: currentOrgId || null,
-        settings: printConfig,
-      });
-      const effective = deepMerge(DEFAULT_CONFIG, data?.data || printConfig);
-      setPrintConfig(effective);
-      if (isNativePrintServicePaired()) {
-        await updateNativePrintConfiguration(effective).catch(() => null);
-      }
-      showMessage('Printing configuration saved.');
+      await persistConfiguration();
+      showMessage('Printing configuration saved and applied to the Windows Print Service.');
     } catch (error) {
-      showMessage(error?.response?.data?.message || error.message || 'Unable to save printing configuration.');
+      showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
     } finally {
       setBusy(false);
     }
@@ -270,14 +376,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   };
 
   const updateProfile = (id, changes) => {
-    setPrintConfig((previous) => ({
+    setPrintConfig((previous) => sanitizeConfiguration({
       ...previous,
       profiles: previous.profiles.map((profile) => profile.id === id ? { ...profile, ...changes } : profile),
     }));
   };
 
   const deleteProfile = (id) => {
-    setPrintConfig((previous) => ({
+    setPrintConfig((previous) => sanitizeConfiguration({
       ...previous,
       profiles: previous.profiles.filter((profile) => profile.id !== id),
       routes: previous.routes.map((route) => ({
@@ -318,7 +424,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   }, [printConfig.routes]);
 
   const testProfile = async (profile) => {
+    setBusy(true);
     try {
+      await persistConfiguration();
       await submitNativePrintJob({
         idempotencyKey: `test:${profile.id}:${Date.now()}`,
         jobKind: 'test',
@@ -335,11 +443,18 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           grandTotal: 0,
         },
       });
-      showMessage('Test job persisted in the Windows print queue.');
-      refreshService();
+      showMessage(`Saved and queued a test print for ${profileDisplayLabel(profile)}.`);
+      await refreshService();
     } catch (error) {
-      showMessage(error.message || 'Unable to submit the test print.');
+      showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
+    } finally {
+      setBusy(false);
     }
+  };
+
+  const refreshInstalledPrinters = async () => {
+    await refreshService();
+    showMessage('Installed Windows printers and COM ports refreshed.');
   };
 
   const downloadLogs = async () => {
@@ -381,6 +496,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const tabs = [
     ['service', 'Print Service', <FaServer key="service" />],
     ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
+    ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
     ['routing', 'Routing', <FaRoute key="routing" />],
     ['templates', 'Templates & Paper', <FaCog key="templates" />],
     ['queue', 'Print Queue', <FaSync key="queue" />],
@@ -516,6 +632,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           <header>
             <div><h3>Printer Profiles</h3><p>Every physical printer has its own transport, format, paper, and document capabilities.</p></div>
             <div className="actions">
+              <button className="secondary" onClick={refreshInstalledPrinters}><FaSync /> Refresh installed printers</button>
               <button className="secondary" onClick={() => addProfile('THERMAL')}><FaPlus /> Thermal</button>
               <button className="secondary" onClick={() => addProfile('REGULAR')}><FaPlus /> Regular</button>
             </div>
@@ -612,21 +729,86 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                     <label className="check" key={documentType}>
                       <input
                         type="checkbox"
-                        checked={profile.documents.includes(documentType)}
-                        onChange={(event) => updateProfile(profile.id, {
-                          documents: event.target.checked
-                            ? [...profile.documents, documentType]
-                            : profile.documents.filter((value) => value !== documentType),
-                        })}
+                        checked={profileSupportsDocument(profile, documentType)}
+                        onChange={(event) => {
+                          const currentDocuments = Array.isArray(profile.documents) && profile.documents.length > 0
+                            ? profile.documents
+                            : ['KOT', 'BILL', 'INVOICE'];
+                          updateProfile(profile.id, {
+                            documents: event.target.checked
+                              ? Array.from(new Set([...currentDocuments, documentType]))
+                              : currentDocuments.filter((value) => value !== documentType),
+                          });
+                        }}
                       />
                       <span>{documentType}</span>
                     </label>
                   ))}
-                  <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health?.paired}>Test print</button>
+                  <span className="profile-destination">{profileDestination(profile)}</span>
+                  <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health?.paired || busy}>Save & Test</button>
                 </div>
               </div>
             ))}
             {!printConfig.profiles.length && <div className="empty-state"><FaPrint /><strong>No printer profiles</strong><span>Add the first thermal or regular printer.</span></div>}
+          </div>
+        </section>
+      )}
+
+      {tab === 'assignments' && (
+        <section className="surface">
+          <header>
+            <div>
+              <h3>Default Document Printers</h3>
+              <p>Select the exact printer profiles used by KOT, Bill, and Invoice jobs. Every selected profile receives a mirrored copy.</p>
+            </div>
+            <button className="secondary" onClick={() => setTab('profiles')}><FaPlus /> Manage profiles</button>
+          </header>
+          <div className="assignment-list">
+            {DOCUMENT_DEFAULTS.map(({ type, title, description, profileKey, outputKey, modeKey }) => {
+              const compatible = printConfig.profiles.filter((profile) => (
+                profile.enabled !== false && profileSupportsDocument(profile, type)
+              ));
+              const labels = Object.fromEntries(compatible.map((profile) => [profile.id, profileDisplayLabel(profile)]));
+              return (
+                <div className="assignment" key={type}>
+                  <div className="assignment-head">
+                    <div>
+                      <h4>{title}</h4>
+                      <p>{description}</p>
+                    </div>
+                    <span className="mirror-badge">Mirror to all selected</span>
+                  </div>
+                  <div className="assignment-output">
+                    <Field label="Output format">
+                      <select value={printConfig.defaults[outputKey]} onChange={(event) => setDefault(outputKey, event.target.value)}>
+                        <option value="THERMAL">Thermal</option>
+                        <option value="REGULAR">Regular</option>
+                        <option value="BOTH">Both</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <TagSelector
+                    label="Assigned printer profiles"
+                    values={compatible.map((profile) => profile.id)}
+                    selected={printConfig.defaults[profileKey] || []}
+                    onChange={(values) => setPrintConfig((previous) => ({
+                      ...previous,
+                      defaults: {
+                        ...previous.defaults,
+                        [profileKey]: values,
+                        [modeKey]: 'MIRROR',
+                      },
+                    }))}
+                    labels={labels}
+                  />
+                  {!compatible.length && (
+                    <div className="assignment-warning">
+                      <FaExclamationTriangle /> No enabled profile supports {type}. Create a printer profile and enable {type}.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -637,18 +819,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             <div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div>
             <button className="secondary" onClick={addRoute}><FaPlus /> Add route</button>
           </header>
-          <div className="defaults-row">
-            <Field label="Default bill output">
-              <select value={printConfig.defaults.billOutput} onChange={(event) => setDefault('billOutput', event.target.value)}>
-                <option value="THERMAL">Thermal</option><option value="REGULAR">Regular</option><option value="BOTH">Both</option>
-              </select>
-            </Field>
-            <Field label="Default KOT output">
-              <select value={printConfig.defaults.kotOutput} onChange={(event) => setDefault('kotOutput', event.target.value)}>
-                <option value="THERMAL">Thermal</option><option value="REGULAR">Regular</option><option value="BOTH">Both</option>
-              </select>
-            </Field>
-          </div>
           <div className="route-list">
             {printConfig.routes.map((route) => (
               <div className={`route ${routeConflicts.has(route.id) ? 'conflict' : ''}`} key={route.id}>
@@ -672,7 +842,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 <TagSelector label="Printer targets" values={printConfig.profiles.map((profile) => profile.id)} selected={route.profileIds} onChange={(values) => updateRoute(route.id, { profileIds: values })} labels={Object.fromEntries(printConfig.profiles.map((profile) => [profile.id, profile.name]))} />
               </div>
             ))}
-            {!printConfig.routes.length && <div className="empty-state"><FaRoute /><strong>No custom routes</strong><span>Default bill and KOT profiles will be used.</span></div>}
+            {!printConfig.routes.length && <div className="empty-state"><FaRoute /><strong>No custom routes</strong><span>Default KOT, Bill, and Invoice assignments will be used.</span></div>}
           </div>
         </section>
       )}
@@ -757,7 +927,10 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 {jobs.map((job) => (
                   <tr key={job.Id || job.id}>
                     <td>{job.Id || job.id}</td><td>{job.JobKind || job.jobKind}</td>
-                    <td>{printConfig.profiles.find((profile) => profile.id === (job.ProfileId || job.profileId))?.name || job.ProfileId || job.profileId}</td>
+                    <td>{(() => {
+                      const profile = printConfig.profiles.find((row) => row.id === (job.ProfileId || job.profileId));
+                      return profile ? profileDisplayLabel(profile) : (job.ProfileId || job.profileId);
+                    })()}</td>
                     <td><span className={`state ${['SPOOLED', 'COMPLETED', 'PRINTED'].includes(job.Status || job.status) ? 'ok' : ''}`}>{job.Status || job.status}</span></td>
                     <td>{job.Attempts ?? job.attempts}</td><td>{job.SpoolJobId || job.spoolJobId || '—'}</td>
                     <td>{job.ErrorMessage || job.errorMessage || '—'}</td>
@@ -841,7 +1014,15 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         .print-platform .icon { width: 34px; height: 34px; border: 0; background: transparent; color: #dc2626; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
         .print-platform .document-toggles { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
         .print-platform .document-toggles .test { margin-left: auto; min-height: 34px; }
+        .print-platform .profile-destination { color: #60708a; font-size: 12px; font-weight: 700; }
         .print-platform .defaults-row { display: grid; grid-template-columns: repeat(2, minmax(0, 260px)); gap: 12px; margin-bottom: 18px; }
+        .print-platform .assignment-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .print-platform .assignment { border: 1px solid #dfe5ee; padding: 16px; min-width: 0; }
+        .print-platform .assignment-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+        .print-platform .assignment-head p { color: #687890; font-size: 12px; line-height: 1.45; margin: 5px 0 0; }
+        .print-platform .assignment-output { max-width: 220px; margin-top: 14px; }
+        .print-platform .mirror-badge { background: #eaf8f1; color: #087443; padding: 5px 7px; border-radius: 5px; font-size: 10px; font-weight: 850; white-space: nowrap; }
+        .print-platform .assignment-warning { display: flex; align-items: center; gap: 7px; color: #b42318; background: #fff1f0; padding: 9px; margin-top: 12px; font-size: 11px; font-weight: 750; }
         .print-platform .route.conflict { border-left: 3px solid #dc2626; padding-left: 12px; }
         .print-platform .warning { color: #b42318; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; font-weight: 800; white-space: nowrap; }
         .print-platform .empty-state { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8190a5; gap: 8px; border: 1px dashed #d6deea; }
@@ -858,6 +1039,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         @media (max-width: 1100px) {
           .print-platform .status-grid { grid-template-columns: 1fr 1fr; }
           .print-platform .form-grid.compact { grid-template-columns: 1fr 1fr; }
+          .print-platform .assignment-list { grid-template-columns: 1fr; }
           .print-platform .template-grid { grid-template-columns: 1fr; }
           .print-platform .template-editor + .template-editor { border-left: 0; border-top: 1px solid #e1e7ef; padding: 20px 0 0; }
         }
@@ -905,7 +1087,7 @@ function TagSelector({ label, values, selected, onChange, labels = {} }) {
       <span>{label}</span>
       <div>
         {values.map((value) => (
-          <button key={value} className={selected.includes(value) ? 'active' : ''} onClick={() => toggle(value)}>
+          <button type="button" key={value} className={selected.includes(value) ? 'active' : ''} onClick={() => toggle(value)}>
             {labels[value] || value}
           </button>
         ))}

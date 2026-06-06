@@ -58,12 +58,12 @@ Build an incremented MSI, then install it from an elevated PowerShell prompt:
 ```powershell
 .\build-service.ps1 `
   -TargetFramework net48 `
-  -Version 2.0.3 `
+  -Version 2.0.4 `
   -CertificateThumbprint <thumbprint>
 
 Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList @(
   '/i',
-  "`"$PWD\artifacts\net48\CafeQR-PrintService-2.0.3-net48.msi`""
+  "`"$PWD\artifacts\net48\CafeQR-PrintService-2.0.4-net48.msi`""
 )
 ```
 

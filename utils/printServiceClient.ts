@@ -34,7 +34,17 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 5000) {
     });
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
-    if (!response.ok) throw new Error(data?.error || `PRINT_SERVICE_${response.status}`);
+    if (!response.ok) {
+      const error = new Error(data?.error || `PRINT_SERVICE_${response.status}`) as Error & {
+        code?: string;
+        status?: number;
+        jobKind?: string;
+      };
+      error.code = data?.code;
+      error.status = response.status;
+      error.jobKind = data?.jobKind;
+      throw error;
+    }
     return data;
   } finally {
     window.clearTimeout(timer);

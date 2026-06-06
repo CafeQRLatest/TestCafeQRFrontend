@@ -231,6 +231,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
   const ranRef = useRef(false);
   const lockRef = useRef(false);
+  const nonRetryableRef = useRef(false);
 
   const isClient = typeof window !== 'undefined';
   const androidPwa = isClient && isAndroidPWA();
@@ -244,6 +245,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
   useEffect(() => {
     ranRef.current = false;
     lockRef.current = false;
+    nonRetryableRef.current = false;
     setStatus('');
   }, [order?.id, kind]);
 
@@ -545,6 +547,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         }
       }
       const message = e?.message || '';
+      if (e?.code === 'PRINTER_NOT_CONFIGURED' || message.includes('printer configured. Open Settings')) {
+        nonRetryableRef.current = true;
+        const documentName = kind === 'kot' ? 'KOT' : kind === 'invoice' ? 'Invoice' : 'Bill';
+        setStatus(`✗ No ${documentName} printer configured. Open Settings > Hardware.`);
+        return false;
+      }
       if (message.includes('NO_PRINTER_CONFIGURED') || message.includes('NO_WIN_PRINTER')) {
         console.warn('[print] printer not configured:', message);
         setStatus('Order saved. Printer not configured.');
@@ -587,7 +595,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('cafeqr-local-print-done'));
           }
-        } else {
+        } else if (!nonRetryableRef.current) {
           ranRef.current = false;
         }
       } catch {

@@ -142,7 +142,7 @@ function normalizeJob(raw) {
   const jobKind = String(raw?.jobKind || payload.jobKind || 'bill').toLowerCase();
   return {
     ...raw,
-    kind: jobKind === 'kot' ? 'kot' : 'bill',
+    kind: jobKind === 'kot' ? 'kot' : jobKind === 'invoice' ? 'invoice' : 'bill',
     order,
   };
 }

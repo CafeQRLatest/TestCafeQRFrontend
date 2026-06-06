@@ -155,7 +155,22 @@ namespace CafeQR.PrintService
             catch (UnauthorizedAccessException ex)
             {
                 context.Response.StatusCode = 401;
-                await JsonAsync(context, new JObject { ["error"] = ex.Message }).ConfigureAwait(false);
+                await JsonAsync(context, new JObject
+                {
+                    ["error"] = ex.Message,
+                    ["code"] = "LOCAL_AUTH_REQUIRED"
+                }).ConfigureAwait(false);
+            }
+            catch (PrintConfigurationException ex)
+            {
+                Log.Info("Print configuration required for " + ex.JobKind);
+                context.Response.StatusCode = 409;
+                await JsonAsync(context, new JObject
+                {
+                    ["error"] = ex.Message,
+                    ["code"] = "PRINTER_NOT_CONFIGURED",
+                    ["jobKind"] = ex.JobKind
+                }).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
