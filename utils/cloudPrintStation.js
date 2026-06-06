@@ -4,6 +4,7 @@ import api from './api';
 import { isKnownOffline } from './networkState';
 import { printUniversal } from './printGateway';
 import { buildKotText, buildReceiptText } from './printUtils';
+import { isNativePrintServicePaired } from './printServiceClient';
 
 const isBrowser = () => typeof window !== 'undefined';
 let cloudPrintFailureCount = 0;
@@ -64,6 +65,7 @@ function isMobileUserAgent() {
 
 export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
+  if (isNativePrintServicePaired()) return false;
   if (hasExplicitPrintStationFlag() || hasLocalPrinterConfig() || hasAndroidBluetoothConfig()) return true;
   if (isMobileUserAgent()) return false;
   return false;
@@ -140,7 +142,7 @@ function normalizeJob(raw) {
   const jobKind = String(raw?.jobKind || payload.jobKind || 'bill').toLowerCase();
   return {
     ...raw,
-    kind: jobKind === 'kot' ? 'kot' : 'bill',
+    kind: jobKind === 'kot' ? 'kot' : jobKind === 'invoice' ? 'invoice' : 'bill',
     order,
   };
 }
@@ -200,6 +202,10 @@ async function printClaimedJob(job) {
     allowSystemDialog: false,
     codepage: 0,
     jobKind: normalized.kind,
+    document: {
+      order: normalized.order,
+      restaurant: profile,
+    },
   });
 
   await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {

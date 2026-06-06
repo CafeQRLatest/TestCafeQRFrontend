@@ -2063,6 +2063,7 @@ function SalesContent() {
             terminals={terminals}
             onOrgChange={handleOrgChange}
             isTableConfigOn={Boolean(config?.tableManagementEnabled)}
+            isCustomerConfigOn={Boolean(config?.customersEnabled)}
             onViewDocument={async (order) => {
               try {
                 const fullOrder = await loadFullOrder(order.id);
@@ -2251,6 +2252,7 @@ function OrderHistory({
   terminals = [],
   onOrgChange,
   isTableConfigOn = false,
+  isCustomerConfigOn = false,
   onViewDocument,
 }) {
   const pageNumber = page?.number || 0;
@@ -2370,7 +2372,7 @@ function OrderHistory({
               <tr>
                 <th>Order#</th>
                 <th>Date</th>
-                <th>Customer</th>
+                {isCustomerConfigOn && <th>Customer</th>}
                 <th>Type</th>
                 {isTableConfigOn && <th>Table</th>}
                 <th>Items</th>
@@ -2404,9 +2406,11 @@ function OrderHistory({
                         </RdT>
                       </RowDate>
                     </td>
-                    <td>
-                      <strong>{customerLabel(order)}</strong>
-                    </td>
+                    {isCustomerConfigOn && (
+                      <td>
+                        <strong>{customerLabel(order)}</strong>
+                      </td>
+                    )}
                     <td>
                       <span style={{ fontWeight: 600, color: '#475569' }}>{fulfillmentLabel(order)}</span>
                     </td>

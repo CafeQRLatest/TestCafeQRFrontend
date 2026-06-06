@@ -58,7 +58,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
     const now = getBusinessNow();
     setSelectedDate(now);
     setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    if (onChange) onChange(getLocalISO(now));
+    if (onChange) onChange(getLocalISO(now), { isNow: true });
     setIsOpen(false);
   };
 
@@ -230,7 +230,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         .dt-icon { color: ${themeColor}; font-size: 14px; opacity: 0.6; }
         .dt-input { border: none; background: none; outline: none; font-size: 13px; font-weight: 500; color: #64748b; flex: 1; padding: 0; pointer-events: auto; width: 100%; }
         .dt-input:focus { color: #1e293b; }
-        .dt-chevron { font-size: 10px; color: #cbd5e1; transition: 0.2s; cursor: pointer; padding: 4px; }
+        .dt-chevron { font-size: 10px; color: #64748b; transition: 0.2s; cursor: pointer; padding: 4px; }
         .dt-chevron.up { transform: rotate(180deg); }
 
         .dt-dropdown-side {
@@ -253,11 +253,11 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         .dt-calendar { padding: 14px; flex: 1; border-right: 1px solid #fcfdfe; }
         .cal-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .cal-hdr span { font-weight: 600; font-size: 12px; color: #334155; }
-        .cal-hdr button { border: none; background: #f8fafc; color: #cbd5e1; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .cal-hdr button { border: none; background: #f1f5f9; color: #334155; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; flex-shrink: 0; }
         .cal-hdr button:hover { background: ${themeColor}10; color: ${themeColor}; }
 
         .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
-        .day-name { font-size: 8px; font-weight: 700; color: #e2e8f0; text-align: center; padding: 4px 0; text-transform: uppercase; }
+        .day-name { font-size: 8px; font-weight: 700; color: #64748b; text-align: center; padding: 4px 0; text-transform: uppercase; }
         .day { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: #94a3b8; border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .day:hover:not(.empty) { background: #f8fafc; color: #334155; }
         .day.selected { background: ${themeColor}; color: #fff; font-weight: 600; box-shadow: 0 4px 10px ${themeColor}15; }

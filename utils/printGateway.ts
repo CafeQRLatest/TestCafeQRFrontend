@@ -2,6 +2,7 @@
 import { Capacitor } from '@capacitor/core';
 import { textToEscPos } from './escpos';
 import { markPrintJobFailed, markPrintJobSent, queuePrintJob } from './offlineStore';
+import { isNativePrintServicePaired, submitNativePrintJob } from './printServiceClient';
 
 type Options = {
   text: string;
@@ -14,7 +15,7 @@ type Options = {
   allowPrompt?: boolean;
   allowSystemDialog?: boolean;
   scale?: 'normal' | 'large';
-  jobKind?: 'bill' | 'kot';
+  jobKind?: 'bill' | 'kot' | 'invoice';
   winPrinterNames?: string[];
   btAddresses?: string[];
   jobId?: string;
@@ -22,6 +23,11 @@ type Options = {
   offlineOperationId?: string;
   orderNo?: string;
   printTarget?: string;
+  outputFormat?: 'THERMAL' | 'REGULAR' | 'BOTH';
+  printerProfileId?: string;
+  routeId?: string;
+  document?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 };
 
 function readJsonArray(key: string): string[] {
@@ -56,7 +62,7 @@ function createPrintJobRecord(opts: Options) {
   const orderRef = opts.offlineOperationId || opts.orderId || opts.orderNo;
   if (!opts.jobId && !orderRef) return null;
 
-  const kind = opts.jobKind === 'kot' ? 'kot' : 'bill';
+  const kind = opts.jobKind === 'kot' ? 'kot' : opts.jobKind === 'invoice' ? 'invoice' : 'bill';
   const targetKey = opts.printTarget || uniq(opts.winPrinterNames || []).join(',') || opts.ip || 'default';
   const id = opts.jobId || `print:${kind}:${String(orderRef)}:${targetKey}:${hashText(opts.text)}`;
 
@@ -130,7 +136,11 @@ export function printUniversal(opts: Options) {
 
 
 async function printUniversalNow(opts: Options) {
-  const jobKind: 'bill' | 'kot' = opts.jobKind === 'kot' ? 'kot' : 'bill';
+  const jobKind: 'bill' | 'kot' | 'invoice' = opts.jobKind === 'kot'
+    ? 'kot'
+    : opts.jobKind === 'invoice'
+      ? 'invoice'
+      : 'bill';
 
   // NOTE: This module can be imported in Next.js server build,
   // but printUniversal should only be called in the browser.
@@ -151,7 +161,7 @@ async function printUniversalNow(opts: Options) {
   const base64 = btoa(String.fromCharCode(...payload));
 
   // --- Windows helper config (PRINT_WIN_*) ---
-  const winCfg = (kind: 'bill' | 'kot') => {
+  const winCfg = (kind: 'bill' | 'kot' | 'invoice') => {
     const url = window.localStorage.getItem('PRINT_WIN_URL') || 'http://127.0.0.1:3333/printRaw';
 
     // V2 arrays
@@ -219,7 +229,11 @@ async function printUniversalNow(opts: Options) {
   }
 
   async function printWinspool(localOpts: Options) {
-    const kind: 'bill' | 'kot' = localOpts.jobKind === 'kot' ? 'kot' : 'bill';
+    const kind: 'bill' | 'kot' | 'invoice' = localOpts.jobKind === 'kot'
+      ? 'kot'
+      : localOpts.jobKind === 'invoice'
+        ? 'invoice'
+        : 'bill';
     const { url, names } = winCfg(kind);
 
     const forced = uniq(localOpts.winPrinterNames || []);
@@ -275,7 +289,7 @@ async function printUniversalNow(opts: Options) {
       const { DevicePrinter } = (window as any).Capacitor.Plugins;
       await DevicePrinter.ensurePermissions();
 
-      const job: 'bill' | 'kot' = jobKind;
+      const job: 'bill' | 'kot' = jobKind === 'kot' ? 'kot' : 'bill';
 
       // V2 arrays
       const addrArrKey = job === 'kot' ? 'BT_PRINTER_ADDRS_KOT' : 'BT_PRINTER_ADDRS_BILL';
@@ -314,9 +328,34 @@ async function printUniversalNow(opts: Options) {
       return { via: 'android-pos' as const };
     }
 
+    // 1b) Paired CafeQR Windows Service. It persists the job before returning,
+    // so browser closure or a Windows restart cannot lose an acknowledged job.
+    if (isNativePrintServicePaired()) {
+      const result = await submitNativePrintJob({
+        idempotencyKey: opts.jobId || (
+          opts.offlineOperationId || opts.orderId || opts.orderNo
+            ? `local:${jobKind}:${opts.offlineOperationId || opts.orderId || opts.orderNo}:${hashText(opts.text)}`
+            : `local:${jobKind}:${Date.now()}:${hashText(opts.text)}`
+        ),
+        jobKind,
+        outputFormat: opts.outputFormat,
+        printerProfileId: opts.printerProfileId,
+        routeId: opts.routeId,
+        text: opts.text,
+        document: opts.document,
+        metadata: {
+          ...(opts.metadata || {}),
+          orderId: opts.orderId,
+          orderNo: opts.orderNo,
+          offlineOperationId: opts.offlineOperationId,
+        },
+      });
+      return { via: 'cafeqr-print-service' as const, jobs: result };
+    }
+
     const n: any = navigator as any;
 
-    // 1b) Windows helper mode
+    // 1c) Legacy Windows helper mode
     const wantsWinspool = mode === 'winspool' || (!mode && hasWinHelperConfig) || forcedWinPrinterNames.length > 0;
     if (wantsWinspool) {
       return await printWinspool(opts);

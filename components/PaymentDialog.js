@@ -359,13 +359,16 @@ export default function PaymentDialog({
       const qty = toNumber(line.quantity ?? line.qty ?? 1) || 1;
       const key = line.cartKey || line.id || `${line.productId || 'line'}-${line.variantId || 'base'}-${index}`;
       
+      const discPercent = line.discountPercent ?? line.discount_percent ?? 0;
+      const discAmount = line.discountAmount ?? line.discount_amount ?? 0;
+
       let initialType = 'amount';
       let initialVal = 0;
-      if (line.discount_percent > 0) {
+      if (discPercent > 0) {
         initialType = 'percent';
-        initialVal = line.discount_percent;
-      } else if (line.discount_amount > 0) {
-        initialVal = line.discount_amount;
+        initialVal = discPercent;
+      } else if (discAmount > 0) {
+        initialVal = discAmount;
       } else if (line.discount) {
         initialType = line.discount.type || 'amount';
         initialVal = line.discount.value || 0;
@@ -406,8 +409,11 @@ export default function PaymentDialog({
         },
       };
       
-      const ordDiscType = order.orderDiscount?.type || (order.totalDiscountAmount > 0 ? 'amount' : 'amount');
-      const ordDiscVal = order.orderDiscount?.value || Number(order.totalDiscountAmount || 0);
+      const totalLineDisc = items.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
+      const totalDisc = Number(order.totalDiscountAmount ?? order.total_discount_amount ?? 0);
+
+      const ordDiscType = order.orderDiscount?.type || 'amount';
+      const ordDiscVal = order.orderDiscount?.value || Math.max(0, totalDisc - totalLineDisc);
 
       const orderDisc = {
         type: ordDiscType === 'percent' ? 'percent' : 'amount',

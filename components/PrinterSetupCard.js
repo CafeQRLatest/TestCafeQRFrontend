@@ -46,7 +46,7 @@ function isNativeAndroid() {
   }
 }
 
-export default function PrinterSetupCard({ restaurantId, config, onConfigChange }) {
+export default function PrinterSetupCard({ restaurantId, config, onConfigChange, androidOnly = false }) {
   // ---------- Paper settings ----------
   // Use props if available, otherwise fallback to localStorage
   const paperMm = config?.paper_mm ?? '58';
@@ -86,7 +86,7 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange 
   const [billPrinters, setBillPrinters] = useState(() => uniq(readJson('PRINT_WIN_PRINTER_NAMES_BILL', [])));
   const [kotPrinters, setKotPrinters] = useState(() => uniq(readJson('PRINT_WIN_PRINTER_NAMES_KOT', [])));
 
-  const [activeSubTab, setActiveSubTab] = useState('windows'); // windows, network, android, routing, paper
+  const [activeSubTab, setActiveSubTab] = useState(androidOnly ? 'android' : 'windows'); // windows, network, android, routing, paper
 
 
   // Keep old single values for display fallback (optional)
@@ -504,7 +504,7 @@ function saveNetworkPrinters() {
           { id: 'android', label: 'Android Native', icon: <FaAndroid /> },
           { id: 'routing', label: 'KOT Routing', icon: <FaRoute /> },
           { id: 'paper',   label: 'Paper & Margins', icon: <FaCog /> },
-        ].map(tab => (
+        ].filter(tab => !androidOnly || tab.id === 'android').map(tab => (
           <button 
             key={tab.id}
             className={`nav-btn ${activeSubTab === tab.id ? 'active' : ''}`}
@@ -517,7 +517,7 @@ function saveNetworkPrinters() {
 
       <div className="hardware-content fade-in">
         
-        {activeSubTab === 'windows' && (
+        {!androidOnly && activeSubTab === 'windows' && (
           <div className="form-card">
             <div className="section-title">
               <FaWindows className="title-icon" />
@@ -595,7 +595,7 @@ function saveNetworkPrinters() {
           </div>
         )}
 
-        {activeSubTab === 'network' && (
+        {!androidOnly && activeSubTab === 'network' && (
           <div className="form-card">
             <div className="section-title">
               <FaNetworkWired className="title-icon" />
@@ -714,7 +714,7 @@ function saveNetworkPrinters() {
           </div>
         )}
 
-        {activeSubTab === 'routing' && (
+        {!androidOnly && activeSubTab === 'routing' && (
           <div className="form-card full">
              <div className="section-title">
                 <FaRoute className="title-icon" />
@@ -787,7 +787,7 @@ function saveNetworkPrinters() {
           </div>
         )}
 
-        {activeSubTab === 'paper' && (
+        {!androidOnly && activeSubTab === 'paper' && (
           <div className="form-card">
             <div className="section-title">
               <FaCog className="title-icon" />

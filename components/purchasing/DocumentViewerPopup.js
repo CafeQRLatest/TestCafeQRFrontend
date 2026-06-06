@@ -14,13 +14,16 @@ const toCartItems = (lines) => {
     const qty = toNumber(line.quantity ?? line.qty ?? 1) || 1;
     const key = line.cartKey || line.id || `${line.productId || 'line'}-${line.variantId || 'base'}-${index}`;
 
+    const discPercent = line.discountPercent ?? line.discount_percent ?? 0;
+    const discAmount = line.discountAmount ?? line.discount_amount ?? 0;
+
     let initialType = 'amount';
     let initialVal = 0;
-    if (line.discount_percent > 0) {
+    if (discPercent > 0) {
       initialType = 'percent';
-      initialVal = line.discount_percent;
-    } else if (line.discount_amount > 0) {
-      initialVal = line.discount_amount;
+      initialVal = discPercent;
+    } else if (discAmount > 0) {
+      initialVal = discAmount;
     } else if (line.discount) {
       initialType = line.discount.type || 'amount';
       initialVal = line.discount.value || 0;
@@ -68,7 +71,8 @@ export default function DocumentViewerPopup({
   React.useEffect(() => {
     if (showDiscount && currentOrder) {
       const initial = {};
-      toCartItems(currentOrder.lines).forEach((item) => {
+      const cartItems = toCartItems(currentOrder.lines);
+      cartItems.forEach((item) => {
         const disc = item.discount || { type: 'amount', value: 0 };
         initial[item.cartKey] = {
           type: disc.type === 'percentage' || disc.type === 'percent' ? 'percentage' : 'amount',
@@ -76,8 +80,12 @@ export default function DocumentViewerPopup({
         };
       });
       setLocalDiscounts(initial);
+      const totalLineDisc = cartItems.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
+      const totalDisc = Number(currentOrder.totalDiscountAmount ?? currentOrder.total_discount_amount ?? 0);
       const ordDiscType = currentOrder.orderDiscount?.type || 'amount';
-      const ordDiscVal = currentOrder.orderDiscount?.value || Number(currentOrder.totalDiscountAmount || 0);
+      // Only pre-fill the order-level (bill) discount value — never fall back to
+      // totalDiscountAmount, which is line + bill combined and would double the discount.
+      const ordDiscVal = currentOrder.orderDiscount?.value || Math.max(0, totalDisc - totalLineDisc);
       setLocalOrderDiscountType(ordDiscType === 'percent' ? 'percentage' : 'amount');
       setLocalOrderDiscountValue(ordDiscVal);
     }
@@ -208,6 +216,18 @@ export default function DocumentViewerPopup({
     return { subtotal, tax: taxTotal, discount: discountTotal, grandTotal: Math.max(0, grandTotal) };
   }, [currentOrder]);
 
+  const primaryCustomer = React.useMemo(() => {
+    if (!currentOrder) return null;
+    if (currentOrder.customer) return currentOrder.customer;
+    if (Array.isArray(currentOrder.customers) && currentOrder.customers.length > 0) {
+      return currentOrder.customers.find(c => c.primary) || currentOrder.customers[0];
+    }
+    if (currentOrder.customerName || currentOrder.customerPhone) {
+      return { name: currentOrder.customerName, phone: currentOrder.customerPhone };
+    }
+    return null;
+  }, [currentOrder]);
+
   if (!currentOrder) return null;
 
   const isSale = currentOrder.orderType === 'SALE';
@@ -244,13 +264,15 @@ export default function DocumentViewerPopup({
 
         {/* ── supplier/customer · warehouse/table · date · method/terminal ── */}
         <div className="dv-row4">
-          <div className="dv-cell">
-            <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
-            <span className="dv-val">{isSale ? (currentOrder.customerName || currentOrder.customer?.name || '-') : (vendor?.name || '—')}</span>
-            {!isSale && vendor?.phone && <span className="dv-sub">{vendor.phone}</span>}
-            {!isSale && vendor?.email && <span className="dv-sub">{vendor.email}</span>}
-            {isSale && (currentOrder.customerPhone || currentOrder.customer?.phone) && <span className="dv-sub">{currentOrder.customerPhone || currentOrder.customer?.phone}</span>}
-          </div>
+          {(!isSale || config?.customersEnabled) && (
+            <div className="dv-cell">
+              <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
+              <span className="dv-val">{isSale ? (primaryCustomer?.name || '—') : (vendor?.name || '—')}</span>
+              {!isSale && vendor?.phone && <span className="dv-sub">{vendor.phone}</span>}
+              {!isSale && vendor?.email && <span className="dv-sub">{vendor.email}</span>}
+              {isSale && primaryCustomer?.phone && <span className="dv-sub">{primaryCustomer.phone}</span>}
+            </div>
+          )}
           <div className="dv-cell">
             <span className="dv-lbl">{isSale ? 'Table / Type' : 'Warehouse'}</span>
             <span className="dv-val">

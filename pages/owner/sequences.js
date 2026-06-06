@@ -315,16 +315,16 @@ function SequencesContent() {
         .erp-search-field input::placeholder { color: #94a3b8; }
         .erp-table-wrapper { overflow-x: auto; }
         .erp-table { width: 100%; border-collapse: collapse; }
-        .erp-table th { text-align: left; padding: 14px 16px; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #FF7A00; background: #fff; }
-        .erp-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #475569; vertical-align: middle; }
+        .erp-table th { text-align: left; padding: 8px 16px; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #FF7A00; background: #fff; }
+        .erp-table td { padding: 6px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #475569; vertical-align: middle; }
         .clickable-row { cursor: pointer; transition: background 0.15s; }
         .clickable-row:hover { background: #fffbf5; }
         .name-text { font-weight: 600; color: #0f172a; }
         .code-cell { font-family: 'Inter', monospace; color: #64748b; font-weight: 500; font-size: 12px; }
         
-        .preview-badge { display: inline-block; padding: 4px 8px; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: monospace; font-size: 13px; font-weight: 600; color: #334155; }
+        .preview-badge { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 6px; font-family: monospace; font-size: 13px; font-weight: 600; color: #334155; }
         
-        .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
+        .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
         .status-pill.active { background: #f0fdf4; color: #166534; border-color: #dcfce7; }
         .status-pill.inactive { background: #fef2f2; color: #ef4444; border-color: #fee2e2; }
         .status-dot { width: 6px; height: 6px; border-radius: 50%; }

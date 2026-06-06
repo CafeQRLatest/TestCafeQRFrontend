@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { FaPrint } from 'react-icons/fa';
 import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../utils/printServiceClient';
 
 export default function CloudPrintStation({ onJobsChanged }) {
   const [enabled, setEnabled] = useState(false);
@@ -9,7 +10,10 @@ export default function CloudPrintStation({ onJobsChanged }) {
   const localPrintActiveRef = useRef(false);
 
   useEffect(() => {
-    setEnabled(isPrintStationEnabled());
+    const refresh = () => setEnabled(!isNativePrintServicePaired() && isPrintStationEnabled());
+    refresh();
+    window.addEventListener('cafeqr-print-station-config-changed', refresh);
+    return () => window.removeEventListener('cafeqr-print-station-config-changed', refresh);
   }, []);
 
   // Pause polling while a local KotPrint is active to avoid duplicate prints

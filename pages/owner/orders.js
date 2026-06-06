@@ -1705,7 +1705,7 @@ export default function OrdersPage() {
                       <tr>
                         <th>Order#</th>
                         <th>Date</th>
-                        <th>Customer</th>
+                        {config?.customersEnabled && <th>Customer</th>}
                         <th>Type</th>
                         <th>Items</th>
                         <th>Total</th>
@@ -1738,7 +1738,9 @@ export default function OrdersPage() {
                                 <span className="rd-t">{formatTzDate(date, timezone || 'Asia/Kolkata', { format: 'time' })}</span>
                               </HistRowDate>
                             </td>
-                            <td><strong>{histCustomerLabel(order)}</strong></td>
+                            {config?.customersEnabled && (
+                              <td><strong>{histCustomerLabel(order)}</strong></td>
+                            )}
                             <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
                             <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
                             <td><strong>{money(histOrderTotal(order))}</strong></td>
