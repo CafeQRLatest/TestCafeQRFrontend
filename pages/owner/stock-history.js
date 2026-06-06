@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import api from '../../utils/api';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
@@ -12,7 +13,9 @@ import ReportTable from '../../components/ReportTable';
 export default function StockHistoryPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
-      <StockHistoryContent />
+      <ModuleGate>
+        <StockHistoryContent />
+      </ModuleGate>
     </RoleGate>
   );
 }

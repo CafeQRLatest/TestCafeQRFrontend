@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumTimeSelect from '../../components/PremiumTimeSelect';
 import CafeQRPopup from '../../components/CafeQRPopup';
@@ -37,7 +38,9 @@ function saveList(key, list) {
 export default function TableManagementPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
-      <TableContent />
+      <ModuleGate>
+        <TableContent />
+      </ModuleGate>
     </RoleGate>
   );
 }

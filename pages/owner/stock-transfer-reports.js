@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import ReportTable from '../../components/ReportTable';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
@@ -13,7 +14,9 @@ import {
 export default function StockTransferReportsPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
-      <TransferReportContent />
+      <ModuleGate>
+        <TransferReportContent />
+      </ModuleGate>
     </RoleGate>
   );
 }

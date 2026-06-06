@@ -6,6 +6,7 @@ import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
+import { isCustomersModuleEnabled } from '../../utils/moduleVisibility';
 import {
   FaUserFriends, FaUsers, FaTruck, FaPlus, FaSearch, FaChevronRight,
   FaTimes, FaFileInvoice, FaTrash
@@ -22,6 +23,7 @@ export default function PartnersPage() {
 function PartnersContent() {
   const { notify, showConfirm } = useNotification();
   const [activeTab, setActiveTab] = useState('customers');
+  const [config, setConfig] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [pricelists, setPricelists] = useState([]);
@@ -33,18 +35,35 @@ function PartnersContent() {
   // Edit states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const customersEnabled = isCustomersModuleEnabled(config);
 
   useEffect(() => { fetchAll(); }, []);
+
+  useEffect(() => {
+    if (config && !customersEnabled && activeTab === 'customers') {
+      setActiveTab('vendors');
+      setSelectedCustomer(null);
+      setSearchTerm('');
+      setStatusFilter('');
+    }
+  }, [activeTab, config, customersEnabled]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
+      const configRes = await api.get('/api/v1/configurations').catch(() => null);
+      const nextConfig = configRes?.data?.success ? (configRes.data.data || {}) : {};
+      const shouldLoadCustomers = isCustomersModuleEnabled(nextConfig);
+      setConfig(nextConfig);
+      setActiveTab(shouldLoadCustomers ? 'customers' : 'vendors');
+
       const [custRes, vendRes, plRes] = await Promise.all([
-        api.get('/api/v1/purchasing/customers'),
+        shouldLoadCustomers ? api.get('/api/v1/purchasing/customers') : Promise.resolve(null),
         api.get('/api/v1/purchasing/vendors'),
         api.get('/api/v1/purchasing/pricelists'),
       ]);
-      if (custRes.data.success) setCustomers(custRes.data.data || []);
+      if (custRes?.data?.success) setCustomers(custRes.data.data || []);
+      if (!shouldLoadCustomers) setCustomers([]);
       if (vendRes.data.success) setVendors(vendRes.data.data || []);
       if (plRes.data.success) setPricelists(plRes.data.data || []);
     } catch (err) {
@@ -154,9 +173,11 @@ function PartnersContent() {
         <div className="erp-main-card">
           <header className="erp-header">
             <div className="erp-tabs">
-              <button className={`erp-tab ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => { setActiveTab('customers'); setSearchTerm(''); setStatusFilter(''); }}>
-                <FaUsers style={{ marginRight: 6 }} /> Customers
-              </button>
+              {customersEnabled && (
+                <button className={`erp-tab ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => { setActiveTab('customers'); setSearchTerm(''); setStatusFilter(''); }}>
+                  <FaUsers style={{ marginRight: 6 }} /> Customers
+                </button>
+              )}
               <button className={`erp-tab ${activeTab === 'vendors' ? 'active' : ''}`} onClick={() => { setActiveTab('vendors'); setSearchTerm(''); setStatusFilter(''); }}>
                 <FaTruck style={{ marginRight: 6 }} /> Vendors
               </button>
@@ -326,7 +347,7 @@ function PartnersContent() {
         {/* ════════════════════════════════════════════════════════════════════════════════ */}
         {/* CUSTOMER EDIT POPUP                                                            */}
         {/* ════════════════════════════════════════════════════════════════════════════════ */}
-        {selectedCustomer && (
+        {customersEnabled && selectedCustomer && (
           <CafeQRPopup
             title={selectedCustomer.id ? 'Edit Customer' : 'New Customer'}
             onClose={() => setSelectedCustomer(null)}

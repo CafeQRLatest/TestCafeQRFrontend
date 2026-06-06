@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import api from '../../utils/api';
 import { 
   FaDollarSign, FaWarehouse, FaSearch, FaBoxes, FaChartPie,
@@ -11,7 +12,9 @@ import ReportTable from '../../components/ReportTable';
 export default function StockValuationPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
-      <ValuationContent />
+      <ModuleGate>
+        <ValuationContent />
+      </ModuleGate>
     </RoleGate>
   );
 }

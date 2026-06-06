@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { useNotification } from '../../context/NotificationContext';
@@ -356,7 +357,9 @@ function CreditCustomersContent() {
 export default function CreditCustomersPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
-      <CreditCustomersContent />
+      <ModuleGate>
+        <CreditCustomersContent />
+      </ModuleGate>
     </RoleGate>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import BranchRequiredGate from '../../components/BranchRequiredGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
@@ -16,9 +17,11 @@ import VariantSelector from '../../components/VariantSelector';
 export default function StockAdjustmentsPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
-      <BranchRequiredGate>
-        <AdjustmentContent />
-      </BranchRequiredGate>
+      <ModuleGate>
+        <BranchRequiredGate>
+          <AdjustmentContent />
+        </BranchRequiredGate>
+      </ModuleGate>
     </RoleGate>
   );
 }

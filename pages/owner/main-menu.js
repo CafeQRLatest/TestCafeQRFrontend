@@ -3,16 +3,11 @@ import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
-import { 
-  FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaChartBar,
-  FaArrowRight,
-  FaBuilding,
-  FaBoxes,
-  FaBookOpen,
-  FaBalanceScale,
-  FaCashRegister,
-  FaFileInvoice,
-  FaTable
+import { isMenuVisibleForConfig } from '../../utils/moduleVisibility';
+import {
+  FaChartLine, FaCreditCard, FaBoxes, FaBookOpen, FaBalanceScale,
+  FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
+  FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -20,91 +15,101 @@ export default function MainMenuPage() {
 }
 
 function MainMenuContent() {
-  const { userRole, loading: authLoading, isAuthenticated } = useAuth();
+  const { loading: authLoading, isAuthenticated } = useAuth();
   const [assignedMenus, setAssignedMenus] = useState([]);
   const [config, setConfig] = useState(null);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchAssignedMenus();
-    }
+    if (isAuthenticated) fetchAssignedMenus();
   }, [isAuthenticated]);
 
   const fetchAssignedMenus = async () => {
     try {
       const resp = await api.get('/api/v1/users/menus');
-      if (resp.data.success) {
-        setAssignedMenus(resp.data.data || []);
-      }
+      if (resp.data.success) setAssignedMenus(resp.data.data || []);
       const configResp = await api.get('/api/v1/configurations').catch(() => null);
-      if (configResp?.data?.success) {
-        setConfig(configResp.data.data || null);
-      }
+      if (configResp?.data?.success) setConfig(configResp.data.data || null);
     } catch (err) {
-      console.error("Failed to fetch dashboard permissions:", err);
+      console.error('Failed to fetch menus:', err);
     } finally {
       setFetching(false);
     }
   };
 
-  // Icon and color map by menu name
   const iconMap = {
-    "Organization":     { name: "Organization and Team", icon: <FaBuilding />,    color: "#6366f1" },
-    "Subscription":     { name: "Subscription",          icon: <FaCreditCard />,   color: "#f59e0b" },
-    "Dashboard":        { name: "Overview",              icon: <FaChartLine />,    color: "#f97316" },
-    "Product Management":  { name: "Product Management", icon: <FaBookOpen />,     color: "#3b82f6" },
-    "Sales":            { name: "POS",                   icon: <FaCashRegister />, color: "#10b981" },
-    "Billing & Reports":{ name: "Reports & Billing",     icon: <FaFileInvoice />,  color: "#8b5cf6", url: "/owner/reports" },
-    "Reports & Billing":{ name: "Reports & Billing",     icon: <FaFileInvoice />,  color: "#8b5cf6", url: "/owner/reports" },
-    "Stock":            { name: "Stock and Inventory",   icon: <FaBoxes />,        color: "#ea580c" },
-    "Accounting":       { name: "Accounting",            icon: <FaBalanceScale />, color: "#0f766e" },
-    "Credit Customers": { name: "Credit Customers",      icon: <FaUsers />,        color: "#14b8a6" },
-    "Table Management": { name: "Table Management",      icon: <FaTable />,        color: "#f97316" },
-    "Document Sequences":{ name: "Document Sequences",   icon: <FaFileInvoice />,  color: "#6366f1" },
+    'Organization':       { name: 'Organization & Team',  desc: 'Branch & team management',      icon: <FaBuilding />,     color: '#6366f1', bg: '#eef2ff', cat: 'Settings'    },
+    'Subscription':       { name: 'Subscription',         desc: 'Billing & plans',               icon: <FaCreditCard />,   color: '#f59e0b', bg: '#fffbeb', cat: 'Settings'    },
+    'Dashboard':          { name: 'Overview',             desc: 'Live business analytics',       icon: <FaChartLine />,    color: '#f97316', bg: '#fff7ed', cat: 'Operations'  },
+    'Product Management': { name: 'Products',             desc: 'Menu & price management',       icon: <FaBookOpen />,     color: '#3b82f6', bg: '#eff6ff', cat: 'Operations'  },
+    'Sales':              { name: 'POS',                  desc: 'Point of sale terminal',        icon: <FaCashRegister />, color: '#10b981', bg: '#f0fdf4', cat: 'Operations'  },
+    'Table Management':   { name: 'Table Management',     desc: 'Dine-in floor plan',            icon: <FaTable />,        color: '#f97316', bg: '#fff7ed', cat: 'Operations'  },
+    'Billing & Reports':  { name: 'Reports & Billing',    desc: 'Invoices & tax reports',        icon: <FaFileInvoice />,  color: '#8b5cf6', bg: '#faf5ff', cat: 'Insights',   url: '/owner/reports' },
+    'Reports & Billing':  { name: 'Reports & Billing',    desc: 'Invoices & tax reports',        icon: <FaFileInvoice />,  color: '#8b5cf6', bg: '#faf5ff', cat: 'Insights',   url: '/owner/reports' },
+    'Stock':              { name: 'Stock & Inventory',    desc: 'Manage inventory & stock',      icon: <FaBoxes />,        color: '#ea580c', bg: '#fff7ed', cat: 'Operations'  },
+    'Accounting':         { name: 'Accounting',           desc: 'Ledger & journal entries',      icon: <FaBalanceScale />, color: '#0f766e', bg: '#f0fdfa', cat: 'Insights'    },
+    'Credit Customers':   { name: 'Credit Customers',     desc: 'Customer credit ledger',        icon: <FaUsers />,        color: '#14b8a6', bg: '#f0fdfa', cat: 'Insights'    },
+    'Document Sequences': { name: 'Document Sequences',   desc: 'Invoice numbering',             icon: <FaFileInvoice />,  color: '#6366f1', bg: '#eef2ff', cat: 'Settings'    },
+    'Purchase Orders':    { name: 'Purchase Orders',      desc: 'Vendor order management',       icon: <FaShoppingCart />, color: '#ef4444', bg: '#fef2f2', cat: 'Operations'  },
+    'Partners':           { name: 'Partners',             desc: 'Customers & vendors',           icon: <FaUserFriends />,  color: '#06b6d4', bg: '#f0f9ff', cat: 'Operations'  },
+    'Data Backup':        { name: 'Data Backup',          desc: 'Backup & restore data',         icon: <FaDatabase />,     color: '#64748b', bg: '#f8fafc', cat: 'Settings'    },
+    'Waste Management':   { name: 'Waste Management',     desc: 'Track & reduce food waste',     icon: <FaRecycle />,      color: '#84cc16', bg: '#f7fee7', cat: 'Operations'  },
+    'Expenses':           { name: 'Expenses',             desc: 'Expense tracking & profit',     icon: <FaFileInvoice />,  color: '#f43f5e', bg: '#fff1f2', cat: 'Insights'    },
+    'Configurations':     { name: 'Configurations',       desc: 'System configuration',          icon: <FaBuilding />,     color: '#64748b', bg: '#f8fafc', cat: 'Settings'    },
   };
 
-  // Only show PARENT menus and Filter out Point of Sale and Offline Sync Center (rendered statically for network resilience)
+  const categoryOrder = ['Operations', 'Insights', 'Settings'];
+
   const parentMenus = assignedMenus.filter(m => {
-    if (m.parentId || m.parent_id || m.name === "Point of Sale" || m.name === "Offline Sync Center") return false;
-    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
-    return true;
+    if (m.parentId || m.parent_id || m.name === 'Point of Sale' || m.name === 'Offline Sync Center') return false;
+    return isMenuVisibleForConfig(m, config);
   });
 
-  // Map parent menus to display items
-  const filteredItems = parentMenus.map(m => {
-    const configItem = iconMap[m.name] || {};
-    return {
-      title: configItem.name || m.name,
-      desc: m.description || '',
-      href: configItem.url || m.url,
-      icon: configItem.icon || <FaBuilding />,
-      color: configItem.color || "#64748b"
-    };
+  // Deduplicate by resolved name to avoid showing same item twice
+  const seenNames = new Set();
+  const filteredItems = [];
+  parentMenus.forEach(m => {
+    const cfg = iconMap[m.name] || {};
+    const resolvedName = cfg.name || m.name;
+    if (seenNames.has(resolvedName)) return;
+    seenNames.add(resolvedName);
+    filteredItems.push({
+      title: resolvedName,
+      desc:  cfg.desc  || m.description || '',
+      href:  cfg.url   || m.url,
+      icon:  cfg.icon  || <FaBuilding />,
+      color: cfg.color || '#64748b',
+      bg:    cfg.bg    || '#f8fafc',
+      cat:   cfg.cat   || 'Operations',
+    });
   });
 
-  const displayItems = [...filteredItems];
-  displayItems.push({
-    title: "Offline Sync Center",
-    desc: "Manage offline operations queue, manually trigger synchronizations, and adjust network configuration settings.",
-    href: "/owner/offline-sync",
-    icon: <FaCashRegister />,
-    color: "#f59e0b"
+  filteredItems.push({
+    title: 'Offline Sync',
+    desc:  'Manage offline queue & sync',
+    href:  '/owner/offline-sync',
+    icon:  <FaWifi />,
+    color: '#f59e0b',
+    bg:    '#fffbeb',
+    cat:   'Settings',
+  });
+
+  // Group by category
+  const grouped = {};
+  categoryOrder.forEach(c => { grouped[c] = []; });
+  filteredItems.forEach(item => {
+    const c = categoryOrder.includes(item.cat) ? item.cat : 'Operations';
+    grouped[c].push(item);
   });
 
   if (authLoading || fetching) {
     return (
-      <div className="loading-permissions">
-        <div className="loader-box">
-           <div className="spinner"></div>
-           <p>Initializing Business Suite...</p>
-        </div>
+      <div className="loading-screen">
+        <div className="loading-ring" />
         <style jsx>{`
-          .loading-permissions { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f1f5f9; font-family: 'Plus Jakarta Sans', sans-serif; }
-          .loader-box { text-align: center; }
-          .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #f97316; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+          .loading-screen { height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; }
+          .loading-ring { width: 32px; height: 32px; border: 2.5px solid #e2e8f0; border-top-color: #f97316; border-radius: 50%; animation: spin 0.7s linear infinite; }
           @keyframes spin { to { transform: rotate(360deg); } }
-          p { color: #64748b; font-weight: 600; font-size: 15px; }
         `}</style>
       </div>
     );
@@ -114,70 +119,165 @@ function MainMenuContent() {
 
   return (
     <DashboardLayout title="Business Suite">
-        <div className="dense-grid">
-           {displayItems.map((item, idx) => (
-             <Link href={item.href} key={idx} className="menu-box">
-                <div className="box-icon" style={{ background: `${item.color}15`, color: item.color }}>
-                  {item.icon}
-                </div>
-                <div className="box-content">
-                  <h3>{item.title}</h3>
-                  <p>{item.desc}</p>
-                </div>
-                <FaArrowRight className="box-arrow" />
-             </Link>
-           ))}
-        </div>
+      <div className="menu-wrap">
+        {categoryOrder.map(cat => {
+          const items = grouped[cat];
+          if (!items || items.length === 0) return null;
+          return (
+            <div key={cat} className="cat-block">
+
+              {/* Minimal section divider */}
+              <div className="section-rule">
+                <span className="section-label">{cat}</span>
+                <div className="rule-line" />
+              </div>
+
+              {/* Grid of cards */}
+              <div className="card-grid">
+                {items.map((item, i) => (
+                  <Link
+                    href={item.href}
+                    key={i}
+                    className="m-card"
+                    style={{ '--c': item.color, '--cbg': item.bg }}
+                  >
+                    <div className="m-icon">
+                      {item.icon}
+                    </div>
+                    <div className="m-text">
+                      <span className="m-title">{item.title}</span>
+                      <span className="m-desc">{item.desc}</span>
+                    </div>
+                    <FaArrowRight className="m-arrow" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <style jsx>{`
-        .dense-grid {
-           display: grid;
-           grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-           gap: 16px;
-        }
-        @media (max-width: 640px) {
-           .dense-grid { grid-template-columns: 1fr; }
+        .menu-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 28px;
+          max-width: 1080px;
+          margin: 0 auto;
+          padding-bottom: 32px;
         }
 
-        .menu-box {
-          background: white;
-          padding: 24px;
-          border-radius: 16px;
-          border: 1px solid #e2e8f0;
+        /* ─── Section divider ─── */
+        .section-rule {
           display: flex;
           align-items: center;
-          gap: 20px;
-          text-decoration: none;
-          transition: border-color 0.2s;
+          gap: 10px;
+          margin-bottom: 10px;
         }
-        .menu-box:hover {
-          border-color: #f97316;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
-        .box-icon {
-          width: 52px; height: 52px;
-          border-radius: 12px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px;
+        .section-label {
+          font-size: 10.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: #94a3b8;
+          white-space: nowrap;
           flex-shrink: 0;
         }
-
-        .box-content h3 { margin: 0; font-size: 16px; font-weight: 800; color: #0f172a; }
-        .box-content p { margin: 4px 0 0; font-size: 13px; color: #64748b; line-height: 1.4; font-weight: 500; }
-
-        .box-arrow {
-          margin-left: auto;
-          color: #cbd5e1;
-          font-size: 14px;
+        .rule-line {
+          flex: 1;
+          height: 1px;
+          background: #e2e8f0;
         }
-        .menu-box:hover .box-arrow { color: #f97316; }
 
-        @media (max-width: 480px) {
-           .menu-box { padding: 16px; gap: 16px; }
-           .box-icon { width: 44px; height: 44px; font-size: 18px; }
-           .box-content h3 { font-size: 15px; }
-           .box-content p { font-size: 12px; }
+        /* ─── Grid ─── */
+        .card-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+          gap: 8px;
+        }
+
+        /* ─── Card ─── */
+        .m-card {
+          display: flex;
+          align-items: center;
+          gap: 13px;
+          padding: 13px 15px;
+          background: #fff;
+          border: 1px solid #f1f5f9;
+          border-radius: 12px;
+          text-decoration: none;
+          transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+          position: relative;
+          overflow: hidden;
+        }
+        .m-card:hover {
+          border-color: var(--c);
+          box-shadow: 0 4px 16px -6px rgba(0,0,0,0.08);
+          transform: translateY(-1px);
+        }
+
+        /* ─── Icon ─── */
+        .m-icon {
+          width: 38px;
+          height: 38px;
+          border-radius: 9px;
+          background: var(--cbg);
+          color: var(--c);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          flex-shrink: 0;
+          transition: background 0.18s, color 0.18s;
+        }
+        .m-card:hover .m-icon {
+          background: var(--c);
+          color: #fff;
+        }
+
+        /* ─── Text ─── */
+        .m-text {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+        .m-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #0f172a;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .m-desc {
+          font-size: 11px;
+          color: #94a3b8;
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* ─── Arrow ─── */
+        .m-arrow {
+          font-size: 10px;
+          color: #cbd5e1;
+          flex-shrink: 0;
+          transition: color 0.18s, transform 0.18s;
+        }
+        .m-card:hover .m-arrow {
+          color: var(--c);
+          transform: translateX(2px);
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 640px) {
+          .card-grid { grid-template-columns: 1fr; gap: 6px; }
+          .m-card { padding: 11px 13px; gap: 11px; }
+          .m-icon { width: 34px; height: 34px; font-size: 14px; border-radius: 8px; }
+          .m-title { font-size: 12.5px; }
         }
       `}</style>
     </DashboardLayout>

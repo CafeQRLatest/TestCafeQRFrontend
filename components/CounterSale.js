@@ -12,6 +12,7 @@ import {
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
 import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../utils/offlineSequences';
+import { isCustomersModuleEnabled, isDiscountModuleEnabled, isKitchenModuleEnabled } from '../utils/moduleVisibility';
 import VariantSelector from './VariantSelector';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
@@ -123,6 +124,13 @@ const Subtitle = styled.span`
   font-weight: 600;
   color: #64748b;
 `;
+
+const withoutDiscounts = (item) => ({
+  ...item,
+  discount_percent: 0,
+  discount_amount: 0,
+  discount: null,
+});
 
 const MainLayout = styled.main`
   flex: 1;
@@ -1578,6 +1586,9 @@ export default function CounterSale({
   const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
   const [selectedProductForPopup, setSelectedProductForPopup] = useState(null);
   const [popupViewOnly, setPopupViewOnly] = useState(false);
+  const customersEnabled = isCustomersModuleEnabled(config);
+  const discountsEnabled = isDiscountModuleEnabled(config);
+  const kitchenEnabled = isKitchenModuleEnabled(config);
 
   const startNewProductForPopup = () => {
     setSelectedProductForPopup({
@@ -1700,6 +1711,35 @@ export default function CounterSale({
   }, [propConfig]);
 
   useEffect(() => {
+    if (!kitchenEnabled && orderMode === 'kitchen') {
+      setOrderMode('settle');
+    }
+  }, [kitchenEnabled, orderMode]);
+
+  useEffect(() => {
+    if (!customersEnabled) {
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAge('');
+      setSelectedCustomerId(null);
+      setSelectedCustomers([]);
+      setShowCustomerDropdown(false);
+    }
+  }, [customersEnabled]);
+
+  useEffect(() => {
+    if (!discountsEnabled) {
+      setShowDiscountModal(false);
+      setDiscountType('amount');
+      setDiscountValue(0);
+      setLocalOrderDiscountType('amount');
+      setLocalOrderDiscountValue(0);
+      setLocalDiscounts({});
+      setCart(prev => prev.map(withoutDiscounts));
+    }
+  }, [discountsEnabled]);
+
+  useEffect(() => {
     const stored = localStorage.getItem('pos_product_listing_enabled');
     if (stored !== null) {
       setProductListingOn(JSON.parse(stored));
@@ -1754,11 +1794,14 @@ export default function CounterSale({
     };
   }, []);
 
-  const THEME = orderMode === 'kitchen'
+  const activeOrderMode = kitchenEnabled ? orderMode : 'settle';
+  const THEME = activeOrderMode === 'kitchen'
     ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
     : { main: '#16a34a', dark: '#15803d', soft: '#ecfdf3' };
 
   const renderCustomerSelectionPanel = () => {
+    if (!customersEnabled) return null;
+
     return (
       <div style={{ padding: '12px 16px', background: 'white', borderBottom: '1px solid #edf2f7', borderRadius: '12px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.015)' }}>
         <CustomerPickerArea ref={customerInputRef} style={{ minWidth: 0 }}>
@@ -2186,8 +2229,10 @@ export default function CounterSale({
 
   const totals = useMemo(() => {
     if (!config) return { subtotal: 0, tax: 0, total: 0 };
+    const cartForTotals = discountsEnabled ? cart : cart.map(withoutDiscounts);
+    const orderDiscount = discountsEnabled ? { type: discountType, value: discountValue } : { type: 'amount', value: 0 };
     return calculateOrderTotals(
-      cart.map(i => ({
+      cartForTotals.map(i => ({
         ...i,
         id: cartKeyFor(i),
         productId: i.productId || i.id,
@@ -2197,7 +2242,7 @@ export default function CounterSale({
         is_packaged_good: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true,
         is_packaged: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true
       })),
-      { type: discountType, value: discountValue },
+      orderDiscount,
       { 
         gst_enabled: config.taxEnabled,
         default_tax_rate: (() => {
@@ -2215,7 +2260,7 @@ export default function CounterSale({
         }
       }
     );
-  }, [cart, config, cartKeyFor, discountType, discountValue]);
+  }, [cart, config, cartKeyFor, discountType, discountValue, discountsEnabled]);
 
   const creditLimitWarning = useMemo(() => {
     if (!selectedCreditCustomer) return '';
@@ -2226,6 +2271,8 @@ export default function CounterSale({
   }, [selectedCreditCustomer, totals?.total_amount]);
 
   const buildCustomerSelections = () => {
+    if (!customersEnabled) return [];
+
     const selections = [];
     const seen = new Set();
     const addSelection = (customer) => {
@@ -2253,6 +2300,8 @@ export default function CounterSale({
   };
 
   const handleApplyDiscounts = () => {
+    if (!discountsEnabled) return;
+
     setCart(prev => prev.map(item => {
       const key = cartKeyFor(item);
       const disc = localDiscounts[key];
@@ -2281,6 +2330,8 @@ export default function CounterSale({
   };
 
   const handleClearAllDiscounts = () => {
+    if (!discountsEnabled) return;
+
     setLocalDiscounts(prev => {
       const next = {};
       Object.keys(prev).forEach(key => {
@@ -2310,41 +2361,43 @@ export default function CounterSale({
       let primaryCustomer = null;
       let customerSelections = [];
 
-      if (isCreditSale && selectedCreditCustomer) {
-        primaryCustomer = {
-          id: selectedCreditCustomer.linkedCustomerId || null,
-          name: selectedCreditCustomer.name || null,
-          phone: selectedCreditCustomer.phone || null,
-        };
-        customerSelections = [primaryCustomer];
-      } else if (config?.allowMultipleCustomersPerOrder) {
-        const resolvedList = [];
-        for (const c of selectedCustomers) {
-          if (String(c.id).startsWith('temp-')) {
-            const saved = await saveCustomerToDb(c.name, c.phone);
-            resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
-          } else {
-            resolvedList.push({ id: c.id, name: c.name, phone: c.phone });
+      if (customersEnabled) {
+        if (isCreditSale && selectedCreditCustomer) {
+          primaryCustomer = {
+            id: selectedCreditCustomer.linkedCustomerId || null,
+            name: selectedCreditCustomer.name || null,
+            phone: selectedCreditCustomer.phone || null,
+          };
+          customerSelections = [primaryCustomer];
+        } else if (config?.allowMultipleCustomersPerOrder) {
+          const resolvedList = [];
+          for (const c of selectedCustomers) {
+            if (String(c.id).startsWith('temp-')) {
+              const saved = await saveCustomerToDb(c.name, c.phone);
+              resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
+            } else {
+              resolvedList.push({ id: c.id, name: c.name, phone: c.phone });
+            }
           }
-        }
-        if (customerName.trim()) {
-          const saved = await saveCustomerToDb(customerName, customerPhone);
-          resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
-        }
-        customerSelections = resolvedList;
-        primaryCustomer = resolvedList[0] || null;
-      } else {
-        if (selectedCustomerId && String(selectedCustomerId).startsWith('temp-')) {
-          const saved = await saveCustomerToDb(customerName, customerPhone);
-          primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
-          customerSelections = [primaryCustomer];
-        } else if (selectedCustomerId) {
-          primaryCustomer = { id: selectedCustomerId, name: customerName, phone: customerPhone };
-          customerSelections = [primaryCustomer];
-        } else if (customerName.trim()) {
-          const saved = await saveCustomerToDb(customerName, customerPhone);
-          primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
-          customerSelections = [primaryCustomer];
+          if (customerName.trim()) {
+            const saved = await saveCustomerToDb(customerName, customerPhone);
+            resolvedList.push({ id: saved.id, name: saved.name, phone: saved.phone });
+          }
+          customerSelections = resolvedList;
+          primaryCustomer = resolvedList[0] || null;
+        } else {
+          if (selectedCustomerId && String(selectedCustomerId).startsWith('temp-')) {
+            const saved = await saveCustomerToDb(customerName, customerPhone);
+            primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
+            customerSelections = [primaryCustomer];
+          } else if (selectedCustomerId) {
+            primaryCustomer = { id: selectedCustomerId, name: customerName, phone: customerPhone };
+            customerSelections = [primaryCustomer];
+          } else if (customerName.trim()) {
+            const saved = await saveCustomerToDb(customerName, customerPhone);
+            primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
+            customerSelections = [primaryCustomer];
+          }
         }
       }
 
@@ -2372,14 +2425,15 @@ export default function CounterSale({
 
       const knownOffline = isKnownOffline();
       const mainOfflineDevice = isMainOfflineBillingDevice();
+      const effectiveOrderMode = kitchenEnabled ? orderMode : 'settle';
       if (isCreditSale && knownOffline) {
         throw new Error('Credit orders are online-only in this release.');
       }
       if (isCreditSale && !selectedCreditCustomerId) {
         throw new Error('Choose a credit customer before completing a credit sale.');
       }
-      const isCreditFinal = isCreditSale && orderMode === 'settle';
-      const isOfflineFinal = knownOffline && orderMode === 'settle' && mainOfflineDevice;
+      const isCreditFinal = isCreditSale && effectiveOrderMode === 'settle';
+      const isOfflineFinal = knownOffline && effectiveOrderMode === 'settle' && mainOfflineDevice;
 
       let parsedDate = null;
       try {
@@ -2400,13 +2454,15 @@ export default function CounterSale({
           : (initialTable?.orderType === 'DELIVERY' ? 'DELIVERY' : 'TAKEAWAY'),
         tableNumber: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.tableNumber : null,
         tableId: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.id : null,
-        orderStatus: orderMode === 'kitchen' ? 'KITCHEN' : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED')),
-        paymentStatus: orderMode === 'kitchen' ? 'PENDING' : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING')),
+        orderStatus: effectiveOrderMode === 'kitchen' ? 'KITCHEN' : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED')),
+        paymentStatus: effectiveOrderMode === 'kitchen' ? 'PENDING' : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING')),
         ...(isCreditFinal ? { reference: 'CREDIT' } : (isOfflineFinal ? { reference: 'CASH' } : {})),
         isCredit: isCreditFinal,
         creditCustomerId: isCreditSale ? selectedCreditCustomerId || null : null,
-        customerId: primaryCustomer?.id || null,
-        customerIds: customerSelections.length > 0 ? customerSelections : null,
+        ...(customersEnabled ? {
+          customerId: primaryCustomer?.id || null,
+          customerIds: customerSelections.length > 0 ? customerSelections : null,
+        } : {}),
         grandTotal: Number(totals.total_amount.toFixed(2)),
         totalTaxAmount: Number(totals.total_tax.toFixed(2)),
         totalDiscountAmount: Number(Number(totals.discount_amount || 0).toFixed(2)),
@@ -2414,7 +2470,7 @@ export default function CounterSale({
         lines: processedLines
       };
 
-      if (knownOffline && orderMode === 'settle' && !mainOfflineDevice) {
+      if (knownOffline && effectiveOrderMode === 'settle' && !mainOfflineDevice) {
         throw new Error('Final offline billing is available only on the main billing device. This device can create provisional kitchen orders while offline.');
       }
 
@@ -2423,14 +2479,14 @@ export default function CounterSale({
         payload.syncOrigin = 'MAIN_OFFLINE';
         payload.sourceLocalRef = `LOCAL-${Date.now()}`;
         payload.orderNo = allocateOfflineSequence('SALE_ORDER');
-        if (orderMode === 'settle') {
+        if (effectiveOrderMode === 'settle') {
           payload.offlineInvoiceNo = allocateOfflineSequence('CUSTOMER_INVOICE');
           payload.offlinePaymentNo = allocateOfflineSequence('INBOUND_PAYMENT');
         }
       }
 
       const res = await api.post('/api/v1/orders', payload, {
-        skipOfflineQueue: knownOffline && orderMode === 'settle' && !mainOfflineDevice,
+        skipOfflineQueue: knownOffline && effectiveOrderMode === 'settle' && !mainOfflineDevice,
       });
       if (res.data.success) {
         const offlineAccepted = Boolean(res.offline || res.data.offline || res.data.data?.offline);
@@ -2456,7 +2512,7 @@ export default function CounterSale({
           syncStatus: offlineAccepted ? 'QUEUED' : savedOrder?.syncStatus,
         };
 
-        const kind = orderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+        const kind = effectiveOrderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
         onOrderCreated?.(printOrder, kind);
         rememberTrending(cart);
         if (kind !== 'settle') {
@@ -2475,15 +2531,18 @@ export default function CounterSale({
     }
   };
   const filteredCustomers = useMemo(() => {
+    if (!customersEnabled) return [];
     if (!customerPhone && !customerName) return [];
     const lowerName = customerName.toLowerCase();
     return allCustomers.filter(c => 
       (c.phone && c.phone.includes(customerPhone)) || 
       (c.name && c.name.toLowerCase().includes(lowerName))
     ).slice(0, 5);
-  }, [allCustomers, customerName, customerPhone]);
+  }, [allCustomers, customerName, customerPhone, customersEnabled]);
 
   const selectCustomer = (cust) => {
+    if (!customersEnabled) return;
+
     if (config?.allowMultipleCustomersPerOrder) {
       if (!selectedCustomers.find(c => c.id === cust.id)) {
         setSelectedCustomers([...selectedCustomers, cust]);
@@ -2499,6 +2558,8 @@ export default function CounterSale({
   };
 
   const removeCustomer = (id) => {
+    if (!customersEnabled) return;
+
     if (id === selectedCustomerId) {
       setSelectedCustomerId(null);
       setCustomerName('');
@@ -2509,6 +2570,8 @@ export default function CounterSale({
   };
 
   const handleCustomerKeyDown = (e) => {
+    if (!customersEnabled) return;
+
     if (e.key === 'Enter') {
       setShowCustomerDropdown(false);
     }
@@ -2535,15 +2598,17 @@ export default function CounterSale({
           </HeaderLeft>
 
           <HeaderModeSwitch>
+            {kitchenEnabled && (
+              <ModeToggleBtn
+                $active={activeOrderMode === 'kitchen'}
+                $themeColor="#f97316"
+                onClick={() => setOrderMode('kitchen')}
+              >
+                Kitchen
+              </ModeToggleBtn>
+            )}
             <ModeToggleBtn 
-              $active={orderMode === 'kitchen'} 
-              $themeColor="#f97316" 
-              onClick={() => setOrderMode('kitchen')}
-            >
-              Kitchen
-            </ModeToggleBtn>
-            <ModeToggleBtn 
-              $active={orderMode === 'settle'} 
+              $active={activeOrderMode === 'settle'}
               $themeColor="#16a34a" 
               onClick={() => setOrderMode('settle')}
             >
@@ -2777,7 +2842,7 @@ export default function CounterSale({
                               </div>
                               <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
                                 ₹{Number(item.price || 0).toFixed(2)} each
-                                {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                                   <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
                                     (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
                                   </span>
@@ -2845,7 +2910,7 @@ export default function CounterSale({
                       </div>
                       
                       <div style={{ flexShrink: 0 }}>
-                        {orderMode === 'settle' && (
+                        {discountsEnabled && activeOrderMode === 'settle' && (
                           <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px', height: '36px' }}>
                             {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
                           </DiscountBtn>
@@ -2860,9 +2925,9 @@ export default function CounterSale({
                         >
                           {processing ? 'Processing...' : (
                             <>
-                              {orderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
+                              {activeOrderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
                               <span style={{ marginLeft: '6px' }}>
-                                {orderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
+                                {activeOrderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
                               </span>
                             </>
                           )}
@@ -3012,7 +3077,7 @@ export default function CounterSale({
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
                                   <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
                                     ₹{Number(item.price || 0).toFixed(2)} each
-                                    {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                                    {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                                       <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
                                         (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
                                       </span>
@@ -3086,7 +3151,7 @@ export default function CounterSale({
                         </div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
-                          {orderMode === 'settle' && (
+                          {discountsEnabled && activeOrderMode === 'settle' && (
                             <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
                               {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
                             </DiscountBtn>
@@ -3101,9 +3166,9 @@ export default function CounterSale({
                           >
                             {processing ? 'Processing...' : (
                               <>
-                                {orderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
+                                {activeOrderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
                                 <span style={{ marginLeft: '8px' }}>
-                                  {orderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
+                                  {activeOrderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
                                 </span>
                               </>
                             )}
@@ -3181,7 +3246,7 @@ export default function CounterSale({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
                       <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
                         ₹{Number(item.price || 0).toFixed(2)} each
-                        {((item.discount_percent > 0) || (item.discount_amount > 0)) && (
+                        {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                           <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
                             (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${item.discount_amount}`})
                           </span>
@@ -3218,7 +3283,7 @@ export default function CounterSale({
                 <SummaryRow $bold><span>Total</span><span>₹{totals.total_amount.toFixed(2)}</span></SummaryRow>
               </div>
 
-              {orderMode === 'settle' && (
+              {discountsEnabled && activeOrderMode === 'settle' && (
                 <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px' }}>
                   {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(2)})` : 'Apply Discount'}
                 </DiscountBtn>
@@ -3232,8 +3297,8 @@ export default function CounterSale({
               >
                 {processing ? 'Processing...' : (
                   <>
-                    {orderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
-                    {orderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
+                    {activeOrderMode === 'kitchen' ? <FaFire/> : <FaWallet/>}
+                    {activeOrderMode === 'kitchen' ? 'Send to Kitchen' : 'Complete Sale'}
                   </>
                 )}
               </PayBtn>
@@ -3273,7 +3338,7 @@ export default function CounterSale({
             themeDarkColor={THEME.dark}
           />
         )}
-        {showDiscountModal && (
+        {discountsEnabled && showDiscountModal && (
           <ModalBackdrop onClick={() => setShowDiscountModal(false)}>
             <DiscountModalContent onClick={e => e.stopPropagation()}>
               <DiscountModalHeader>

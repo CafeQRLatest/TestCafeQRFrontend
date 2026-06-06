@@ -5,13 +5,14 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { 
-  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaBuilding, FaDesktop, FaCrown, FaBalanceScale, FaTable,
+  FaExpand, FaCompress, FaSignOutAlt, FaBell, FaArrowLeft, FaUserCog, FaChevronDown, FaChevronRight, FaBuilding, FaDesktop, FaCrown, FaBalanceScale, FaTable,
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge, 
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes, 
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
+import { isMenuVisibleForConfig } from '../utils/moduleVisibility';
 
 /**
  * DashboardLayout Component
@@ -303,38 +304,64 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           margin: 20px 24px 8px;
         }
 
-        .collapsed .sidebar-link { padding: 12px; margin: 8px 12px; justify-content: center; }
-        .collapsed .sidebar-link:hover { transform: scale(1.05); }
-        .collapsed .sidebar-link span { display: none; }
+        /* Collapsed sidebar nav items */
+        .collapsed-link {
+          padding: 0 !important;
+          margin: 3px 10px !important;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          transform: none !important;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        .collapsed-link:hover { background: transparent !important; transform: none !important; }
+
+        /* Icon pill — the container inside collapsed links */
+        .icon-pill {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          background: transparent;
+          color: #64748b;
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.18s, color 0.18s;
+        }
+        .collapsed-link:hover .icon-pill {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+        .collapsed-link.active .icon-pill,
+        .icon-pill-active {
+          background: #f97316 !important;
+          color: white !important;
+          box-shadow: 0 4px 12px rgba(249,115,22,0.25);
+        }
+
         .collapsed .sidebar-section-title { display: none; }
 
         .sidebar-toggle-btn {
-          background: rgba(255, 255, 255, 0.5);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          width: 28px;
-          height: 28px;
-          border-radius: 8px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          width: 26px;
+          height: 26px;
+          border-radius: 7px;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-          color: #64748b;
+          transition: all 0.2s ease;
+          color: #94a3b8;
+          flex-shrink: 0;
         }
         .sidebar-toggle-btn:hover { 
-          background: #ffffff; 
+          background: #fff7ed; 
           border-color: #f97316; 
           color: #f97316;
-          transform: scale(1.1);
-        }
-        .sidebar-toggle-btn.collapsed-float {
-           position: absolute;
-           top: 30px;
-           right: -14px;
-           z-index: 101;
-           box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-           background: white;
         }
       `}</style>
 
@@ -348,6 +375,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         .sidebar-desktop {
           width: 250px;
+          height: 100vh;
+          position: sticky;
+          top: 0;
           background: rgba(255, 255, 255, 0.7);
           backdrop-filter: blur(24px) saturate(180%);
           -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -355,8 +385,10 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           transition: width 0.4s cubic-bezier(0.23, 1, 0.32, 1);
           flex-shrink: 0;
           z-index: 100;
+          display: flex;
+          flex-direction: column;
         }
-        .sidebar-desktop.collapsed { width: 80px; }
+        .sidebar-desktop.collapsed { width: 64px; }
 
         .main-content {
           flex: 1;
@@ -649,9 +681,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
     if (m.name === "Point of Sale") return false;
-    if (m.name === "Table Management" && config && config.tableManagementEnabled === false) return false;
-    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
-    return true;
+    return isMenuVisibleForConfig(m, config);
   });
 
   const groupedMenus = {
@@ -679,45 +709,71 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-      <div style={{ padding: collapsed ? '24px 12px' : '32px 24px', transition: 'all 0.3s' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Link href="/owner/main-menu" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ 
-                  width: 40, height: 40, borderRadius: 12, 
-                  background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                  color: 'white', fontWeight: 900, fontSize: 20, flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(249, 115, 22, 0.2)'
-                }}>C</div>
-                {!collapsed && (
-                  <span style={{ 
-                    fontSize: 22, fontWeight: 900, color: '#0f172a', 
-                    letterSpacing: '-0.04em', whiteSpace: 'nowrap',
-                    animation: 'fadeIn 0.3s ease-out'
-                  }}>Cafe QR POS</span>
-                )}
-            </Link>
-            
-            {!collapsed && (
-              <button onClick={onToggle} className="sidebar-toggle-btn inner" title="Collapse">
-                <FaBars style={{ fontSize: '12px', color: '#94a3b8' }} />
-              </button>
-            )}
-          </div>
-      </div>
-      
-      {collapsed && (
-         <button onClick={onToggle} className="sidebar-toggle-btn collapsed-float" title="Expand">
-            <FaBars style={{ fontSize: '12px', color: '#94a3b8' }} />
-         </button>
+      {/* ── Sidebar Header ── */}
+      {collapsed ? (
+        /* COLLAPSED: logo + expand button stacked */
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 8, padding: '16px 8px 12px',
+          borderBottom: '1px solid rgba(226,232,240,0.5)',
+        }}>
+          <Link href="/owner/main-menu" style={{ textDecoration: 'none' }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontWeight: 900, fontSize: 18,
+              boxShadow: '0 4px 12px rgba(249,115,22,0.2)'
+            }}>C</div>
+          </Link>
+          {/* Expand button — same ☰ button as collapse */}
+          <button
+            onClick={onToggle}
+            className="sidebar-toggle-btn"
+            title="Expand sidebar"
+          >
+            <FaBars style={{ fontSize: '10px' }} />
+          </button>
+        </div>
+      ) : (
+        /* EXPANDED: logo + title + collapse button inline */
+        <div style={{
+          padding: '18px 16px 14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(226,232,240,0.5)',
+        }}>
+          <Link href="/owner/main-menu" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, overflow: 'hidden' }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontWeight: 900, fontSize: 17, flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(249,115,22,0.2)'
+            }}>C</div>
+            <span style={{
+              fontSize: 15, fontWeight: 900, color: '#0f172a',
+              letterSpacing: '-0.03em', whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              animation: 'fadeIn 0.3s ease-out'
+            }}>Cafe QR POS</span>
+          </Link>
+          <button onClick={onToggle} className="sidebar-toggle-btn" title="Collapse sidebar" style={{ flexShrink: 0 }}>
+            <FaBars style={{ fontSize: '10px' }} />
+          </button>
+        </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '20px' }} className="custom-scrollbar">
+      
+
+
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '12px', paddingTop: '8px' }} className="custom-scrollbar">
           {Object.entries(groupedMenus).map(([categoryName, items]) => {
             if (items.length === 0) return null;
             return (
               <React.Fragment key={categoryName}>
-                <div className="sidebar-section-title">{!collapsed ? categoryName : ""}</div>
+                {/* Section title — hidden in collapsed */}
+                {!collapsed && <div className="sidebar-section-title">{categoryName}</div>}
+                {collapsed && <div style={{ height: 6 }} />}
                 {items.map(m => {
                   const configItem = menuConfig[m.name] || {};
                   const targetUrl = configItem.url || m.url;
@@ -725,8 +781,15 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
                   const displayName = configItem.name || m.name;
                   const displayIcon = configItem.icon || <FaBuilding />;
                   return (
-                    <Link key={m.id || m._id || m.url} href={targetUrl} className={`sidebar-link ${active ? 'active' : ''}`} title={collapsed ? displayName : ''}>
-                      <div className="sidebar-icon">{displayIcon}</div>
+                    <Link
+                      key={m.id || m._id || m.url}
+                      href={targetUrl}
+                      className={`sidebar-link ${active ? 'active' : ''} ${collapsed ? 'collapsed-link' : ''}`}
+                      title={collapsed ? displayName : ''}
+                    >
+                      <div className={`sidebar-icon ${collapsed ? 'icon-pill' : ''} ${active && collapsed ? 'icon-pill-active' : ''}`}>
+                        {displayIcon}
+                      </div>
                       {!collapsed && <span style={{ animation: 'fadeIn 0.2s ease-out' }}>{displayName}</span>}
                     </Link>
                   );
@@ -738,15 +801,30 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
       <div style={{ flexShrink: 0 }}>
         <SyncStatusBar collapsed={collapsed} />
+        {/* Bottom toggle button when collapsed */}
+        {collapsed && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 14px' }}>
+            <button onClick={onToggle} className="sidebar-toggle-btn" title="Expand sidebar" style={{ width: 32, height: 32, borderRadius: 9 }}>
+              <FaBars style={{ fontSize: '11px' }} />
+            </button>
+          </div>
+        )}
         {!collapsed && (
-          <div style={{ padding: '12px 24px', fontSize: '11px', color: '#94a3b8', fontWeight: 800, textAlign: 'center' }}>Café QR v1.2</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 14px' }}>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Café QR v1.2</span>
+          </div>
         )}
       </div>
 
       <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148, 163, 184, 0.3) rgba(0, 0, 0, 0.01);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.01); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(249, 115, 22, 0.6); }
         @keyframes fadeIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
       `}</style>
     </div>
@@ -837,9 +915,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
     if (m.name === "Point of Sale") return false;
-    if (m.name === "Table Management" && config && config.tableManagementEnabled === false) return false;
-    if (m.name === "Credit Customers" && config && config.creditEnabled === false) return false;
-    return true;
+    return isMenuVisibleForConfig(m, config);
   });
 
   const groupedMenus = {

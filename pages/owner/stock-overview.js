@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { 
@@ -12,7 +13,9 @@ import {
 export default function StockOverviewPage() {
   return (
     <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
-      <StockContent />
+      <ModuleGate>
+        <StockContent />
+      </ModuleGate>
     </RoleGate>
   );
 }
