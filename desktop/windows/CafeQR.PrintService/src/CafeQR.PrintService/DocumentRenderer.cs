@@ -14,6 +14,18 @@ namespace CafeQR.PrintService
     {
         public byte[] Thermal(LocalJobSubmission submission, PrinterProfile profile, int attempt)
         {
+            if (!string.IsNullOrWhiteSpace(submission.DataBase64))
+            {
+                try
+                {
+                    return Convert.FromBase64String(submission.DataBase64);
+                }
+                catch
+                {
+                    // Fall back to text rendering if decoding fails
+                }
+            }
+
             var text = !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
                 : BuildText(submission.Document ?? new JObject(), submission.JobKind, profile.Columns);

@@ -4,6 +4,7 @@ import api from './api';
 import { isKnownOffline } from './networkState';
 import { printUniversal } from './printGateway';
 import { buildKotText, buildReceiptText } from './printUtils';
+import { bitmapToPngBase64, logoUrlToBitmapGrid } from './logoBitmap';
 import { isNativePrintServicePaired } from './printServiceClient';
 
 const isBrowser = () => typeof window !== 'undefined';
@@ -111,24 +112,48 @@ async function getRestaurantProfile() {
       skipAuthRedirect: true,
     });
     const cfg = data?.data;
-    cachedProfile = cfg ? {
-      restaurant_name: cfg.restaurantName || Cookies.get('orgName') || Cookies.get('clientName'),
-      shipping_address_line1: cfg.shippingAddressLine1,
-      shipping_address_line2: cfg.shippingAddressLine2,
-      shipping_city: cfg.shippingCity,
-      shipping_address_state: cfg.shippingState || cfg.shippingAddressState,
-      shipping_pincode: cfg.shippingPincode,
-      phone: cfg.phone,
-      gstin: cfg.gstin,
-      gst_enabled: cfg.taxEnabled,
-      fssai_license: cfg.fssaiLicense,
-      bill_footer_text: cfg.billFooter || cfg.billFooterText,
-      bill_footer_enabled: cfg.billFooterEnabled !== false,
-      receipt_cols: cfg.printCols,
-      print_logo_bitmap: cfg.printLogoBitmap,
-      print_logo_cols: cfg.printLogoCols,
-      print_logo_rows: cfg.printLogoRows,
-    } : fallbackRestaurantProfile();
+    if (cfg) {
+      let logoBitmap = cfg.printLogoBitmap;
+      let logoCols = cfg.printLogoCols;
+      let logoRows = cfg.printLogoRows;
+      let logoBase64 = null;
+
+      if (cfg.logoUrl) {
+        try {
+          const grid = await logoUrlToBitmapGrid(cfg.logoUrl);
+          if (grid) {
+            logoBitmap = grid.bitmap;
+            logoCols = grid.cols;
+            logoRows = grid.rows;
+            logoBase64 = cfg.logoUrl;
+          }
+        } catch (err) {
+          console.warn('Failed to convert logoUrl to bitmap grid:', err);
+        }
+      }
+
+      cachedProfile = {
+        restaurant_name: cfg.restaurantName || Cookies.get('orgName') || Cookies.get('clientName'),
+        shipping_address_line1: cfg.shippingAddressLine1,
+        shipping_address_line2: cfg.shippingAddressLine2,
+        shipping_city: cfg.shippingCity,
+        shipping_address_state: cfg.shippingState || cfg.shippingAddressState,
+        shipping_pincode: cfg.shippingPincode,
+        phone: cfg.phone,
+        gstin: cfg.gstin,
+        gst_enabled: cfg.taxEnabled,
+        fssai_license: cfg.fssaiLicense,
+        bill_footer_text: cfg.billFooter || cfg.billFooterText,
+        bill_footer_enabled: cfg.billFooterEnabled !== false,
+        receipt_cols: cfg.printCols,
+        print_logo_bitmap: logoBitmap,
+        print_logo_cols: logoCols,
+        print_logo_rows: logoRows,
+        logo_base64: logoBase64 || (logoBitmap ? bitmapToPngBase64(logoBitmap, logoCols, logoRows) : null)
+      };
+    } else {
+      cachedProfile = fallbackRestaurantProfile();
+    }
   } catch {
     cachedProfile = fallbackRestaurantProfile();
   }

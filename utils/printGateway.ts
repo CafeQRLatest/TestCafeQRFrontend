@@ -240,20 +240,7 @@ async function printUniversalNow(opts: Options) {
     const targets = forced.length ? forced : names;
     if (!targets.length) throw new Error('NO_WIN_PRINTER');
 
-    const autoCut =
-      typeof window !== 'undefined' &&
-      window.localStorage.getItem('PRINT_WIN_AUTOCUT') === '1';
-
-    let txt = '';
-    txt += '\x1b@'; // reset
-    txt += localOpts.scale === 'large' ? '\x1d!\x01' : '\x1d!\x00';
-
-    txt += (localOpts.text || '').replace(/\r?\n/g, '\r\n') + '\r\n\r\n\r\n';
-    if (autoCut) txt += '\x1dV\x00';
-
-    let bin = '';
-    for (let i = 0; i < txt.length; i++) bin += String.fromCharCode(txt.charCodeAt(i) & 0xff);
-    const base64Plain = btoa(bin);
+    const base64Plain = base64;
 
     for (const printerName of targets) {
       const ctrl = new AbortController();
@@ -342,6 +329,7 @@ async function printUniversalNow(opts: Options) {
         printerProfileId: opts.printerProfileId,
         routeId: opts.routeId,
         text: opts.text,
+        dataBase64: base64,
         document: opts.document,
         metadata: {
           ...(opts.metadata || {}),
