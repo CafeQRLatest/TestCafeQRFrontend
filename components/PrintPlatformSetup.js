@@ -339,7 +339,25 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } })),
     ];
     const [configuration, stationRows, terminalRows, categoryRows] = await Promise.all(requests);
-    const cloudSettings = configuration.error ? null : (configuration.data?.data || {});
+    
+    let cloudSettings = configuration.error ? null : (configuration.data?.data || {});
+    let finalConfiguration = configuration;
+
+    if (configuration.error && terminalId) {
+      if (configuration.error.response?.status === 400 || String(configuration.error.message).includes('Terminal not found')) {
+        selectTerminal('');
+        try {
+          const fallbackConfig = await api.get('/api/v1/print-configurations/effective', {
+            params: { orgId: currentOrgId || undefined },
+          });
+          cloudSettings = fallbackConfig.data?.data || {};
+          finalConfiguration = fallbackConfig;
+        } catch (fallbackError) {
+          finalConfiguration = { error: fallbackError };
+        }
+      }
+    }
+
     const localSnapshot = localState?.configuration || null;
     const localSettings = localSnapshot?.configuration || null;
     const localWins = Boolean(
@@ -361,13 +379,22 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       }
     } else if (localSettings) {
       setPrintConfig(sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings)));
-    } else if (configuration.error) {
-      throw configuration.error;
+    } else if (finalConfiguration.error) {
+      throw finalConfiguration.error;
     }
+
+    const availableTerminals = terminalRows.data?.data || [];
     setStations(stationRows.data?.data || []);
-    setTerminals(terminalRows.data?.data || []);
+    setTerminals(availableTerminals);
     setCategories((categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean));
-  }, [currentOrgId, scopeId]);
+
+    if (scopeId && availableTerminals.length > 0) {
+      const exists = availableTerminals.some((t) => t.id === scopeId);
+      if (!exists) {
+        selectTerminal('');
+      }
+    }
+  }, [currentOrgId, scopeId, selectTerminal]);
 
   useEffect(() => {
     let mounted = true;
