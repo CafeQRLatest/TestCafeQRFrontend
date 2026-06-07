@@ -256,6 +256,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const [secureContext, setSecureContext] = useState(null);
   const [localAccessState, setLocalAccessState] = useState('IDLE');
   const [localAccessError, setLocalAccessError] = useState('');
+  const [serviceTerminalSynced, setServiceTerminalSynced] = useState(false);
 
   const currentOrgId = Cookies.get('orgId') || '';
   const currentClientId = Cookies.get('clientId') || '';
@@ -296,8 +297,12 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       setHealth(result);
       setLocalAccessState('CONNECTED');
       setLocalAccessError('');
-      if (result?.terminalId) {
-        selectTerminal(result.terminalId);
+      if (result?.terminalId && !serviceTerminalSynced) {
+        const isValid = terminals.length === 0 || terminals.some(t => t.id === result.terminalId);
+        if (isValid) {
+          selectTerminal(result.terminalId);
+          setServiceTerminalSynced(true);
+        }
       }
       const [printers, configuration] = await Promise.all([
         getPrintServicePrinters().catch(() => []),
@@ -323,7 +328,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       );
       return { health: null, configuration: null, error };
     }
-  }, [selectTerminal]);
+  }, [selectTerminal, serviceTerminalSynced, terminals]);
 
   const loadCloud = useCallback(async (localState = null) => {
     const terminalId = localState?.health?.terminalId
@@ -413,6 +418,12 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       mounted = false;
     };
   }, [loadCloud, refreshService]);
+
+  useEffect(() => {
+    if (localAccessState !== 'CONNECTED') {
+      setServiceTerminalSynced(false);
+    }
+  }, [localAccessState]);
 
   useEffect(() => {
     if (localAccessState !== 'CONNECTED') return undefined;
