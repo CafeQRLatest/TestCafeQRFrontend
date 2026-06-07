@@ -14,21 +14,31 @@ namespace CafeQR.PrintService
     {
         public byte[] Thermal(LocalJobSubmission submission, PrinterProfile profile, int attempt)
         {
+            Log.Info($"[Thermal Print] JobKind={submission.JobKind}, Attempt={attempt}, Printer={profile.WindowsPrinterName}");
+            Log.Info($"[Thermal Print] Has DataBase64: {!string.IsNullOrWhiteSpace(submission.DataBase64)}, Length={(submission.DataBase64?.Length ?? 0)}");
+            Log.Info($"[Thermal Print] Has Text: {!string.IsNullOrWhiteSpace(submission.Text)}, Length={(submission.Text?.Length ?? 0)}");
+            Log.Info($"[Thermal Print] Document keys: {string.Join(", ", (submission.Document ?? new JObject()).Properties().Select(p => p.Name))}");
+
             if (!string.IsNullOrWhiteSpace(submission.DataBase64))
             {
                 try
                 {
-                    return Convert.FromBase64String(submission.DataBase64);
+                    var data = Convert.FromBase64String(submission.DataBase64);
+                    Log.Info($"[Thermal Print] Printing direct DataBase64. Bytes count: {data.Length}");
+                    return data;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Fall back to text rendering if decoding fails
+                    Log.Warn($"[Thermal Print] Failed to decode DataBase64, falling back to text. Error: {ex.Message}");
                 }
             }
 
             var text = !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
                 : BuildText(submission.Document ?? new JObject(), submission.JobKind, profile.Columns);
+
+            Log.Info($"[Thermal Print] Rendered Text: {Environment.NewLine}{text}");
+
             if ((submission.JobKind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase) && attempt > 1)
             {
                 text = Center("*** REPRINT ***", profile.Columns) + Environment.NewLine + text;
@@ -47,7 +57,9 @@ namespace CafeQR.PrintService
                 {
                     stream.Write(new byte[] { 0x1D, 0x56, 0x00 }, 0, 3);
                 }
-                return stream.ToArray();
+                var bytes = stream.ToArray();
+                Log.Info($"[Thermal Print] Final ESC/POS stream size: {bytes.Length} bytes");
+                return bytes;
             }
         }
 
