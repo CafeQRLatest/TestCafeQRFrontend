@@ -3,6 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace CafeQR.PrintService
 {
@@ -15,6 +16,7 @@ namespace CafeQR.PrintService
 
         public static readonly string Database = Path.Combine(Root, "queue.db");
         public static readonly string Configuration = Path.Combine(Root, "service.json");
+        public static readonly string ConfigurationBackup = Path.Combine(Root, "service.json.bak");
         public static readonly string Logs = Path.Combine(Root, "logs");
 
         public static void Ensure()
@@ -39,9 +41,19 @@ namespace CafeQR.PrintService
                     Save(created);
                     return created;
                 }
-                var options = JsonConvert.DeserializeObject<ServiceOptions>(
-                    File.ReadAllText(ServicePaths.Configuration, Encoding.UTF8)) ?? new ServiceOptions();
+                ServiceOptions options;
+                try
+                {
+                    options = Read(ServicePaths.Configuration);
+                }
+                catch
+                {
+                    if (!File.Exists(ServicePaths.ConfigurationBackup)) throw;
+                    options = Read(ServicePaths.ConfigurationBackup);
+                }
+                var changed = Normalize(options);
                 options.ServiceVersion = BuildInfo.Version;
+                if (changed) Save(options);
                 return options;
             }
         }
@@ -55,13 +67,41 @@ namespace CafeQR.PrintService
                 File.WriteAllText(temporary, JsonConvert.SerializeObject(options, Formatting.Indented), Encoding.UTF8);
                 if (File.Exists(ServicePaths.Configuration))
                 {
-                    File.Replace(temporary, ServicePaths.Configuration, null);
+                    File.Replace(temporary, ServicePaths.Configuration, ServicePaths.ConfigurationBackup);
                 }
                 else
                 {
                     File.Move(temporary, ServicePaths.Configuration);
                 }
             }
+        }
+
+        private static ServiceOptions Read(string path) =>
+            JsonConvert.DeserializeObject<ServiceOptions>(
+                File.ReadAllText(path, Encoding.UTF8)) ?? new ServiceOptions();
+
+        private static bool Normalize(ServiceOptions options)
+        {
+            if (options.EffectiveConfiguration == null)
+                options.EffectiveConfiguration = new JObject();
+            if (options.ConfigurationStateVersion >= 1) return false;
+
+            var profiles = options.EffectiveConfiguration["profiles"] as JArray;
+            var hasLocalConfiguration = profiles != null && profiles.Count > 0;
+            options.ConfigurationStateVersion = 1;
+            options.ConfigurationRevision = hasLocalConfiguration
+                ? Math.Max(1L, options.ConfigurationRevision)
+                : options.ConfigurationRevision;
+            options.ConfigurationDirty = hasLocalConfiguration;
+            options.ConfigurationUpdatedAtUtc = hasLocalConfiguration
+                ? (options.ConfigurationUpdatedAtUtc ?? DateTime.UtcNow)
+                : options.ConfigurationUpdatedAtUtc;
+            options.CloudStatus = hasLocalConfiguration
+                ? "SYNC_PENDING"
+                : string.IsNullOrWhiteSpace(Unprotect(options.StationTokenProtected))
+                    ? "UNPAIRED"
+                    : "UNKNOWN";
+            return true;
         }
 
         public static string Protect(string value)

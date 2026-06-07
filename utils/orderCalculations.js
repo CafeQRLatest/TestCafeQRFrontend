@@ -21,12 +21,12 @@ export function calculateOrderTotals(
     const qty = Number(item.quantity ?? 1);
     const faceUnit = Number(item.price ?? 0);
     const isPackaged = !!(item.is_packaged_good || item.is_packaged);
-    const itemTaxRate = Number(item.tax_rate ?? 0);
+    const hasItemTax = item.tax_rate !== undefined && item.tax_rate !== null && item.tax_rate !== '';
     
     // Logic: If Packaged, use Item Rate (fallback to Base). If Not Packaged, ALWAYS use Base Rate.
     const rate = gstEnabled 
       ? (isPackaged 
-          ? (itemTaxRate > 0 ? itemTaxRate : baseRate) 
+          ? (hasItemTax ? Number(item.tax_rate) : baseRate) 
           : baseRate) 
       : 0;
 
@@ -252,7 +252,10 @@ export function calculateOrderTotals(
       line_total: total,
 
       discount_amount: Number(
-        (i.line_discount_face + i.order_discount_face_share).toFixed(2)
+        (isIncl 
+          ? (i.line_discount_face + i.order_discount_face_share) 
+          : (i.line_discount_amount + i.order_discount_share)
+        ).toFixed(2)
       ),
 
       unit_price_ex_tax: Number((taxable / qty).toFixed(4)),

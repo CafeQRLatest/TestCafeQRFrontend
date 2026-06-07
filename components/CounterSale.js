@@ -18,6 +18,7 @@ import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import PremiumDateTimePicker from './PremiumDateTimePicker';
 import ProductManagementPopup from './ProductManagementPopup';
+import PaymentDialog from './PaymentDialog';
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI
 const fadeIn = keyframes`
@@ -1567,6 +1568,7 @@ export default function CounterSale({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [showSettleDialog, setShowSettleDialog] = useState(false); // PaymentDialog shown BEFORE order creation in settle mode
   const [config, setConfig] = useState(null);
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
@@ -2253,6 +2255,8 @@ export default function CounterSale({
     if (!config) return { subtotal: 0, tax: 0, total: 0 };
     const cartForTotals = discountsEnabled ? cart : cart.map(withoutDiscounts);
     const orderDiscount = discountsEnabled ? { type: discountType, value: discountValue } : { type: 'amount', value: 0 };
+    // NOTE: round_off_config is intentionally NOT passed here.
+    // Round-off is a payment-settlement concept and is applied only inside PaymentDialog.
     return calculateOrderTotals(
       cartForTotals.map(i => ({
         ...i,
@@ -2260,7 +2264,7 @@ export default function CounterSale({
         productId: i.productId || i.id,
         name: i.displayName || i.name,
         quantity: i.qty,
-        tax_rate: i.taxRate || 0,
+        tax_rate: (i.taxRate !== undefined && i.taxRate !== null && i.taxRate !== '') ? Number(i.taxRate) : null,
         is_packaged_good: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true,
         is_packaged: i.isPackagedGood === true || i.is_packaged_good === true || i.is_packaged === true
       })),
@@ -2274,21 +2278,27 @@ export default function CounterSale({
           return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
         })(),
         prices_include_tax: config.pricesIncludeTax,
-        round_off_config: { 
-          round_off_enabled: config.roundOffEnabled,
-          round_off_mode: config.roundOffMode || 'automatic',
-          round_off_auto_factor: config.roundOffAutoFactor ?? 1,
-          round_off_manual_limit: config.roundOffManualLimit ?? 10
-        }
+        // No round_off_config — round-off belongs in PaymentDialog only
       }
     );
   }, [cart, config, cartKeyFor, discountType, discountValue, discountsEnabled]);
+
+  // Preview-only round-off for display on sales screen (automatic mode only, informational).
+  // The actual round-off is computed and confirmed inside PaymentDialog.
+  const roundOffPreview = useMemo(() => {
+    if (!config?.roundOffEnabled || config?.roundOffMode !== 'automatic') return 0;
+    const base = totals.total_inc_tax || 0;
+    const factor = Number(config.roundOffAutoFactor ?? 1);
+    if (factor <= 0) return 0;
+    const rounded = Math.round(base / factor) * factor;
+    return Number((rounded - base).toFixed(2));
+  }, [config, totals]);
 
   const creditLimitWarning = useMemo(() => {
     if (!selectedCreditCustomer) return '';
     const limit = Number(selectedCreditCustomer.creditLimit || 0);
     if (limit <= 0) return '';
-    const projected = Number(selectedCreditCustomer.balance || 0) + Number(totals?.total_amount || 0);
+    const projected = Number(selectedCreditCustomer.balance || 0) + Number(totals?.total_inc_tax || 0);
     return projected > limit ? `Credit limit warning: projected balance ₹${projected.toFixed(2)} exceeds ₹${limit.toFixed(2)}.` : '';
   }, [selectedCreditCustomer, totals?.total_amount]);
 
@@ -2365,7 +2375,14 @@ export default function CounterSale({
     setLocalOrderDiscountValue(0);
   };
 
-  const handlePlaceOrder = async () => {
+  // Opens the PaymentDialog BEFORE creating the order in settle mode.
+  // On confirmation, handlePlaceOrder is called with the payment payload.
+  const handleCompleteSettle = () => {
+    if (cart.length === 0 || processing) return;
+    setShowSettleDialog(true);
+  };
+
+  const handlePlaceOrder = async (paymentPayload = null) => {
     if (processing) return;
     setProcessing(true);
     try {
@@ -2429,19 +2446,43 @@ export default function CounterSale({
         const unitPrice = Number(pi.unit_price ?? pi.price ?? cartItem?.price ?? 0);
         const productName = pi.item_name || pi.name || cartItem?.displayName || cartItem?.name || 'Item';
 
+        // GST enrichment
+        const gstEnabled = Boolean(config?.taxEnabled);
+        const taxRatePct  = Number(pi.tax_rate || 0);
+        const isInclusive = gstEnabled && (pi.is_packaged_good || Boolean(config?.pricesIncludeTax));
+        const discType    = cartItem?.discount?.type; // 'percent' | 'amount'
+
+        // Resolve tax code/name snapshot from config rates
+        const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
+        const taxCode     = gstEnabled && taxRatePct > 0 ? (matchedRate?.code  || `GST_${taxRatePct}`) : null;
+        const taxName     = gstEnabled && taxRatePct > 0 ? (matchedRate?.name  || `GST ${taxRatePct}%`) : null;
+        const qty         = Number(pi.quantity || 1);
+
         return {
           productId: cartItem?.productId || pi.productId || pi.product_id || pi.id || pi.pid || null,
           variantId: cartItem?.variantId || null,
           productName,
           categoryName: cartItem?.categoryName || pi.categoryName || pi.category || null,
           isPackagedGood: Boolean(cartItem?.isPackagedGood ?? cartItem?.is_packaged_good ?? cartItem?.is_packaged ?? pi.isPackagedGood ?? pi.is_packaged_good ?? pi.is_packaged),
-          quantity: pi.quantity,
+          quantity: qty,
           unitPrice: Number(unitPrice.toFixed(2)),
           unitOfMeasure: cartItem?.uomName || cartItem?.unitOfMeasure || pi.unitOfMeasure || pi.unit_of_measure || 'units',
-          taxRate: Number(Number(pi.tax_rate || 0).toFixed(2)),
+          taxRate: taxRatePct,
           taxAmount: Number(Number(pi.tax_amount || 0).toFixed(2)),
           discountAmount: Number(Number(pi.discount_amount || 0).toFixed(2)),
-          lineTotal: Number(Number(pi.line_total || (unitPrice * Number(pi.quantity || 1))).toFixed(2))
+          lineTotal: Number(Number(pi.line_total || (unitPrice * qty)).toFixed(2)),
+
+          // ─── GST Enrichment fields (V1_110) ───────────────────────────
+          grossLineAmount:          Number((unitPrice * qty).toFixed(2)),
+          unitPriceExTax:           Number((pi.unit_price_ex_tax || pi.unit_price_ex_tax_orig || 0).toFixed(4)),
+          taxableAmount:            Number((pi.taxable_amount || 0).toFixed(2)),
+          taxType:                  isInclusive ? 'INCLUSIVE' : (gstEnabled && taxRatePct > 0 ? 'EXCLUSIVE' : 'NONE'),
+          taxSnapshotRate:          taxRatePct,
+          taxCode,
+          taxName,
+          manualDiscountAmount:     discType !== 'percent' ? Number((pi.line_discount_face || 0).toFixed(2)) : null,
+          manualDiscountPercent:    discType === 'percent'  ? Number((cartItem?.discount?.value || 0).toFixed(4)) : null,
+          allocatedOrderDiscount:   Number((pi.order_discount_share || 0).toFixed(2)),
         };
       });
 
@@ -2456,6 +2497,10 @@ export default function CounterSale({
       }
       const isCreditFinal = isCreditSale && effectiveOrderMode === 'settle';
       const isOfflineFinal = knownOffline && effectiveOrderMode === 'settle' && mainOfflineDevice;
+
+      // When paymentPayload is present this is a settle-mode order: go directly to COMPLETED/PAID.
+      // Kitchen orders remain KITCHEN/PENDING as before.
+      const isSettleDirect = effectiveOrderMode === 'settle' && paymentPayload !== null;
 
       let parsedDate = null;
       try {
@@ -2476,19 +2521,50 @@ export default function CounterSale({
           : (initialTable?.orderType === 'DELIVERY' ? 'DELIVERY' : 'TAKEAWAY'),
         tableNumber: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.tableNumber : null,
         tableId: (initialTable && initialTable.tableNumber !== 'COUNTER') ? initialTable.id : null,
-        orderStatus: effectiveOrderMode === 'kitchen' ? 'KITCHEN' : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED')),
-        paymentStatus: effectiveOrderMode === 'kitchen' ? 'PENDING' : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING')),
-        ...(isCreditFinal ? { reference: 'CREDIT' } : (isOfflineFinal ? { reference: 'CASH' } : {})),
-        isCredit: isCreditFinal,
-        creditCustomerId: isCreditSale ? selectedCreditCustomerId || null : null,
+        // ─── Status: go DIRECTLY to COMPLETED/PAID on settle. No BILLED intermediate. ───
+        orderStatus: effectiveOrderMode === 'kitchen'
+          ? 'KITCHEN'
+          : (isSettleDirect
+            ? (paymentPayload.paymentMethod === 'CREDIT' ? 'COMPLETED' : 'COMPLETED')
+            : (isCreditFinal ? 'COMPLETED' : (isOfflineFinal ? 'COMPLETED' : 'BILLED'))),
+        paymentStatus: effectiveOrderMode === 'kitchen'
+          ? 'PENDING'
+          : (isSettleDirect
+            ? (paymentPayload.paymentMethod === 'CREDIT' ? 'PENDING' : 'PAID')
+            : (isCreditFinal ? 'PENDING' : (isOfflineFinal ? 'PAID' : 'PENDING'))),
+        ...(isSettleDirect
+          ? { reference: paymentPayload.paymentMethod }
+          : (isCreditFinal ? { reference: 'CREDIT' } : (isOfflineFinal ? { reference: 'CASH' } : {}))),
+        isCredit: isSettleDirect ? paymentPayload.paymentMethod === 'CREDIT' : isCreditFinal,
+        creditCustomerId: isSettleDirect
+          ? (paymentPayload.paymentMethod === 'CREDIT' ? paymentPayload.creditCustomerId || null : null)
+          : (isCreditSale ? selectedCreditCustomerId || null : null),
+        // ─── Embedded payment details (for direct COMPLETED orders) ───────
+        ...(isSettleDirect && paymentPayload.paymentMethod !== 'CREDIT' ? {
+          paymentMethod: paymentPayload.paymentMethod,
+          amountPaid: paymentPayload.amountPaid,
+          roundOffAmount: paymentPayload.roundOffAmount || 0,
+          ...(paymentPayload.paymentMethod === 'MIXED' ? {
+            paymentSplits: paymentPayload.paymentSplits,
+          } : {}),
+        } : {}),
         ...(customersEnabled ? {
           customerId: primaryCustomer?.id || null,
           customerIds: customerSelections.length > 0 ? customerSelections : null,
         } : {}),
-        grandTotal: Number(totals.total_amount.toFixed(2)),
+        grandTotal: isSettleDirect
+          ? Number((paymentPayload.amountPaid || totals.total_inc_tax).toFixed(2))
+          : Number(totals.total_inc_tax.toFixed(2)),
         totalTaxAmount: Number(totals.total_tax.toFixed(2)),
         totalDiscountAmount: Number(Number(totals.discount_amount || 0).toFixed(2)),
         totalAmount: Number(totals.total_inc_tax.toFixed(2)),
+
+        // ─── GST Discount Engine order-level fields (V1_110) ───────────
+        grossAmount: Number((totals.gross_face_total || 0).toFixed(2)),
+        orderDiscountType: discountType === 'percentage' ? 'PERCENT' : 'AMOUNT',
+        orderDiscountValue: Number(discountValue || 0),
+        discountSource: 'MANUAL',
+
         lines: processedLines
       };
 
@@ -2534,7 +2610,12 @@ export default function CounterSale({
           syncStatus: offlineAccepted ? 'QUEUED' : savedOrder?.syncStatus,
         };
 
-        const kind = effectiveOrderMode === 'kitchen' ? 'kot' : (isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+        // isSettleDirect → kind = 'bill' so sales.js treats it as a completed settled sale
+        // (not 'settle', which would open a second PaymentDialog in sales.js)
+        const kind = effectiveOrderMode === 'kitchen'
+          ? 'kot'
+          : (isSettleDirect || isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+        setShowSettleDialog(false);
         onOrderCreated?.(printOrder, kind);
         setIsDateTimeManuallyEdited(false);
         rememberTrending(cart);
@@ -2933,9 +3014,16 @@ export default function CounterSale({
                           </div>
                         )}
                         
+                        {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Round Off (est.)</div>
+                            <div style={{ fontSize: '12.5px', color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(2)}</div>
+                          </div>
+                        )}
+                        
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Total Amount</div>
-                          <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_amount.toFixed(2)}</div>
+                          <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_inc_tax.toFixed(2)}</div>
                         </div>
                       </div>
                       
@@ -2950,7 +3038,7 @@ export default function CounterSale({
                           $color={THEME.main} 
                           $colorDark={THEME.dark} 
                           disabled={cart.length === 0 || processing}
-                          onClick={handlePlaceOrder}
+                          onClick={activeOrderMode === 'kitchen' ? handlePlaceOrder : handleCompleteSettle}
                           style={{ height: '42px', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px', width: '100%', fontSize: '13px', fontWeight: '800', margin: 0 }}
                         >
                           {processing ? 'Processing...' : (
@@ -3164,10 +3252,10 @@ export default function CounterSale({
                               </div>
                             )}
 
-                            {totals.round_off_amount !== 0 && (
+                            {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Round Off</span>
-                                <span style={{ color: '#0f172a', fontWeight: 700 }}>{(totals.round_off_amount > 0 ? '+' : '')}₹{totals.round_off_amount.toFixed(2)}</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Round Off (est.)</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(2)}</span>
                               </div>
                             )}
                             
@@ -3175,7 +3263,7 @@ export default function CounterSale({
                             
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '12px' }}>Net Payable</span>
-                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>₹{totals.total_amount.toFixed(2)}</span>
+                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>₹{totals.total_inc_tax.toFixed(2)}</span>
                             </div>
                           </div>
                         </div>
@@ -3191,7 +3279,7 @@ export default function CounterSale({
                             $color={THEME.main} 
                             $colorDark={THEME.dark} 
                             disabled={cart.length === 0 || processing}
-                            onClick={handlePlaceOrder}
+                            onClick={activeOrderMode === 'kitchen' ? handlePlaceOrder : handleCompleteSettle}
                             style={{ height: '44px', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '8px', width: '100%', fontSize: '14px', fontWeight: '800', margin: 0 }}
                           >
                             {processing ? 'Processing...' : (
@@ -3306,11 +3394,11 @@ export default function CounterSale({
                 {totals.total_tax_included > 0 && (
                   <SummaryRow style={{ color: '#64748b' }}><span>Tax (Incl. - Info Only)</span><span>₹{totals.total_tax_included.toFixed(2)}</span></SummaryRow>
                 )}
-                {totals.round_off_amount !== 0 && (
-                  <SummaryRow><span>Round Off</span><span>{(totals.round_off_amount > 0 ? '+' : '')}₹{totals.round_off_amount.toFixed(2)}</span></SummaryRow>
+                {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
+                  <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off (est.)</span><span>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(2)}</span></SummaryRow>
                 )}
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }}/>
-                <SummaryRow $bold><span>Total</span><span>₹{totals.total_amount.toFixed(2)}</span></SummaryRow>
+                <SummaryRow $bold><span>Total</span><span>₹{totals.total_inc_tax.toFixed(2)}</span></SummaryRow>
               </div>
 
               {discountsEnabled && activeOrderMode === 'settle' && (
@@ -3323,7 +3411,7 @@ export default function CounterSale({
                 $color={THEME.main} 
                 $colorDark={THEME.dark} 
                 disabled={cart.length === 0 || processing}
-                onClick={handlePlaceOrder}
+                onClick={activeOrderMode === 'kitchen' ? handlePlaceOrder : handleCompleteSettle}
               >
                 {processing ? 'Processing...' : (
                   <>
@@ -3586,6 +3674,42 @@ export default function CounterSale({
             viewOnly={popupViewOnly}
             onClose={() => { setSelectedProductForPopup(null); setPopupViewOnly(false); }}
             onSaveSuccess={refreshProductsList}
+          />
+        )}
+        {/* ─── Settle PaymentDialog: shown BEFORE order creation ─── */}
+        {showSettleDialog && (
+          <PaymentDialog
+            order={{
+              // Pass a synthetic "order" with current cart totals so PaymentDialog
+              // can re-calculate the breakdown and round-off correctly
+              lines: cart.map((item, idx) => ({
+                productId: item.productId || item.id,
+                productName: item.displayName || item.name || 'Item',
+                unitPrice: item.price,
+                quantity: item.qty,
+                taxRate: (item.taxRate !== undefined && item.taxRate !== null && item.taxRate !== '') ? Number(item.taxRate) : null,
+                isPackagedGood: item.isPackagedGood === true || item.is_packaged_good === true,
+                discountAmount: item.discount_amount || 0,
+                discountPercent: item.discount_percent || 0,
+                discount: item.discount,
+              })),
+              orderDiscount: discountsEnabled ? { type: discountType, value: discountValue } : { type: 'amount', value: 0 },
+              grandTotal: totals.total_inc_tax,
+              totalTaxAmount: totals.total_tax,
+              totalDiscountAmount: totals.discount_amount,
+              totalAmount: totals.total_inc_tax,
+              orderNo: '(new)',
+              tableNumber: initialTable?.tableNumber || 'Counter',
+            }}
+            loading={processing}
+            config={config}
+            creditCustomers={initialCreditCustomers || []}
+            onClose={() => setShowSettleDialog(false)}
+            onConfirm={(paymentPayload) => {
+              setShowSettleDialog(false);
+              handlePlaceOrder(paymentPayload);
+            }}
+            onCreditCustomerCreated={onCreditCustomerCreated}
           />
         )}
       </ModalContent>

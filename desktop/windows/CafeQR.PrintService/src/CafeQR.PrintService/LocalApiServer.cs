@@ -145,8 +145,26 @@ namespace CafeQR.PrintService
                 if (path == "/v1/configuration" && context.Request.HttpMethod == "PUT")
                 {
                     var body = await ReadJsonAsync(context.Request).ConfigureAwait(false);
-                    cloud.SaveConfiguration(body);
-                    await JsonAsync(context, new JObject { ["saved"] = true }).ConfigureAwait(false);
+                    await JsonAsync(context, cloud.SaveConfiguration(body)).ConfigureAwait(false);
+                    return;
+                }
+                if (path == "/v1/configuration" && context.Request.HttpMethod == "GET")
+                {
+                    await JsonAsync(context, cloud.ConfigurationSnapshot()).ConfigureAwait(false);
+                    return;
+                }
+                if (path == "/v1/configuration/cloud" && context.Request.HttpMethod == "POST")
+                {
+                    var body = await ReadJsonAsync(context.Request).ConfigureAwait(false);
+                    await JsonAsync(context, cloud.AcceptCloudConfiguration(
+                        body["configuration"] as JObject ?? new JObject(),
+                        body.Value<int?>("cloudRevision") ?? 0)).ConfigureAwait(false);
+                    return;
+                }
+                if (path == "/v1/configuration/sync" && context.Request.HttpMethod == "POST")
+                {
+                    await cloud.SyncConfigurationAsync(token).ConfigureAwait(false);
+                    await JsonAsync(context, cloud.ConfigurationSnapshot()).ConfigureAwait(false);
                     return;
                 }
                 context.Response.StatusCode = 404;
@@ -172,6 +190,27 @@ namespace CafeQR.PrintService
                     ["jobKind"] = ex.JobKind
                 }).ConfigureAwait(false);
             }
+            catch (CloudPrintApiException ex)
+            {
+                context.Response.StatusCode = ex.IsAuthenticationFailure
+                    ? 401
+                    : ex.IsConflict
+                        ? 409
+                        : 503;
+                await JsonAsync(context, new JObject
+                {
+                    ["error"] = ex.IsAuthenticationFailure
+                        ? "Print Service pairing is no longer accepted by CafeQR. Re-pair this computer; local printing remains active."
+                        : ex.IsConflict
+                            ? "Cloud printing configuration changed. Local settings remain active until you resolve the conflict."
+                            : "CafeQR cloud synchronization is unavailable. Local printing remains active.",
+                    ["code"] = ex.IsAuthenticationFailure
+                        ? "PRINT_STATION_AUTH_REQUIRED"
+                        : ex.IsConflict
+                            ? "CONFIGURATION_CONFLICT"
+                            : "CLOUD_SYNC_UNAVAILABLE"
+                }).ConfigureAwait(false);
+            }
             catch (Exception ex)
             {
                 Log.Error("Local API request failed", ex);
@@ -188,6 +227,14 @@ namespace CafeQR.PrintService
                 ["service"] = "CafeQR Print Service",
                 ["version"] = options.ServiceVersion,
                 ["paired"] = cloud.IsPaired,
+                ["credentialsPresent"] = cloud.HasCredentials,
+                ["cloudPaired"] = cloud.IsPaired,
+                ["cloudStatus"] = options.CloudStatus,
+                ["configurationDirty"] = options.ConfigurationDirty,
+                ["configurationRevision"] = options.ConfigurationRevision,
+                ["cloudRevision"] = options.CloudRevision,
+                ["lastCloudSyncAtUtc"] = options.LastCloudSyncAtUtc,
+                ["lastCloudError"] = options.LastCloudError,
                 ["stationId"] = options.StationId,
                 ["terminalId"] = options.TerminalId,
                 ["queueDepth"] = coordinator.PendingCount,

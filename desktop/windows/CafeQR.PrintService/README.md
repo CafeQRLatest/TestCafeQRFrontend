@@ -21,7 +21,10 @@ The compatibility targets do not restore operating-system security support.
 - `POST /v1/jobs/{id}/retry`
 - `POST /v1/jobs/{id}/resolve`
 - `POST /v1/enroll`
+- `GET /v1/configuration`
 - `PUT /v1/configuration`
+- `POST /v1/configuration/cloud`
+- `POST /v1/configuration/sync`
 - `GET /v1/logs`
 
 Legacy `/health`, `/printers`, and `/printRaw` endpoints remain available while
@@ -58,12 +61,12 @@ Build an incremented MSI, then install it from an elevated PowerShell prompt:
 ```powershell
 .\build-service.ps1 `
   -TargetFramework net48 `
-  -Version 2.0.4 `
+  -Version 2.0.5 `
   -CertificateThumbprint <thumbprint>
 
 Start-Process msiexec.exe -Verb RunAs -Wait -ArgumentList @(
   '/i',
-  "`"$PWD\artifacts\net48\CafeQR-PrintService-2.0.4-net48.msi`""
+  "`"$PWD\artifacts\net48\CafeQR-PrintService-2.0.5-net48.msi`""
 )
 ```
 

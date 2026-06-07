@@ -21,6 +21,8 @@ namespace CafeQR.PrintService
         private readonly CancellationTokenSource stop = new CancellationTokenSource();
         private Task loop;
         private DateTime lastHeartbeatUtc = DateTime.MinValue;
+        private DateTime nextCloudAttemptUtc = DateTime.MinValue;
+        private int cloudFailures;
 
         public PrintCoordinator(DurableStore store, CloudPrintClient cloud, OptionsStore optionsStore)
         {
@@ -79,28 +81,10 @@ namespace CafeQR.PrintService
         {
             while (!token.IsCancellationRequested)
             {
+                await RunCloudCycleAsync(token).ConfigureAwait(false);
+
                 try
                 {
-                    if (cloud.IsPaired)
-                    {
-                        var claimed = await cloud.ClaimAsync(10, token).ConfigureAwait(false);
-                        foreach (var job in claimed)
-                        {
-                            await SubmitAsync(new LocalJobSubmission
-                            {
-                                IdempotencyKey = "cloud:" + job.Id,
-                                JobKind = job.JobKind,
-                                Document = job.Payload,
-                                Metadata = job.Payload
-                            }, job, token).ConfigureAwait(false);
-                        }
-                        if ((DateTime.UtcNow - lastHeartbeatUtc) > TimeSpan.FromSeconds(20))
-                        {
-                            await cloud.HeartbeatAsync(PendingCount, token).ConfigureAwait(false);
-                            lastHeartbeatUtc = DateTime.UtcNow;
-                        }
-                    }
-
                     var ready = store.GetReady(20);
                     var running = ready.Select(task => ProcessAsync(task, token)).ToArray();
                     if (running.Length > 0) await Task.WhenAll(running).ConfigureAwait(false);
@@ -122,6 +106,44 @@ namespace CafeQR.PrintService
                 {
                     return;
                 }
+            }
+        }
+
+        private async Task RunCloudCycleAsync(CancellationToken token)
+        {
+            if (!cloud.IsPaired || DateTime.UtcNow < nextCloudAttemptUtc) return;
+            try
+            {
+                await cloud.SyncConfigurationAsync(token).ConfigureAwait(false);
+                var claimed = await cloud.ClaimAsync(10, token).ConfigureAwait(false);
+                foreach (var job in claimed)
+                {
+                    await SubmitAsync(new LocalJobSubmission
+                    {
+                        IdempotencyKey = "cloud:" + job.Id,
+                        JobKind = job.JobKind,
+                        Document = job.Payload,
+                        Metadata = job.Payload
+                    }, job, token).ConfigureAwait(false);
+                }
+                if ((DateTime.UtcNow - lastHeartbeatUtc) > TimeSpan.FromSeconds(20))
+                {
+                    await cloud.HeartbeatAsync(PendingCount, token).ConfigureAwait(false);
+                    lastHeartbeatUtc = DateTime.UtcNow;
+                }
+                cloudFailures = 0;
+                nextCloudAttemptUtc = DateTime.MinValue;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                cloudFailures++;
+                var seconds = Math.Min(300, 5 * Math.Pow(2, Math.Min(cloudFailures - 1, 6)));
+                nextCloudAttemptUtc = DateTime.UtcNow.AddSeconds(seconds);
+                Log.Error("CafeQR cloud cycle failed; local printing remains active", ex);
             }
         }
 

@@ -1844,6 +1844,9 @@ function SalesContent() {
     if (!paymentOrder) return;
     setActionBusy('settle');
     try {
+      if (payload?.updatedOrder) {
+        await api.put(`/api/v1/orders/${paymentOrder.id}`, payload.updatedOrder);
+      }
       const endpoint = payload?.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${paymentOrder.id}/complete-credit`
         : `/api/v1/orders/${paymentOrder.id}/settle`;

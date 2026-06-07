@@ -39,6 +39,14 @@ namespace CafeQR.PrintService
             "https://cafe-qr-frontend.vercel.app"
         };
         public JObject EffectiveConfiguration { get; set; } = new JObject();
+        public int ConfigurationStateVersion { get; set; }
+        public long ConfigurationRevision { get; set; }
+        public int CloudRevision { get; set; }
+        public bool ConfigurationDirty { get; set; }
+        public DateTime? ConfigurationUpdatedAtUtc { get; set; }
+        public DateTime? LastCloudSyncAtUtc { get; set; }
+        public string LastCloudError { get; set; }
+        public string CloudStatus { get; set; } = "UNPAIRED";
     }
 
     internal sealed class PrinterProfile

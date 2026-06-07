@@ -23,7 +23,20 @@ namespace CafeQR.PrintService
             http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         }
 
-        public bool IsPaired => !string.IsNullOrWhiteSpace(OptionsStore.Unprotect(options.StationTokenProtected));
+        public bool HasCredentials =>
+            !string.IsNullOrWhiteSpace(OptionsStore.Unprotect(optionsStore.Load().StationTokenProtected));
+
+        public bool IsPaired
+        {
+            get
+            {
+                var snapshot = optionsStore.Load();
+                return !string.IsNullOrWhiteSpace(OptionsStore.Unprotect(snapshot.StationTokenProtected))
+                    && !string.Equals(snapshot.CloudStatus, "AUTH_REQUIRED", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        public bool ConfigurationDirty => optionsStore.Load().ConfigurationDirty;
 
         public async Task<JObject> EnrollAsync(string cloudBaseUrl, string pairingCode, CancellationToken token)
         {
@@ -49,12 +62,30 @@ namespace CafeQR.PrintService
                 throw new InvalidOperationException("Enrollment response did not include a station token");
 
             options = optionsStore.Load();
+            var existingConfiguration = options.EffectiveConfiguration?.DeepClone() as JObject ?? new JObject();
+            var preserveLocalConfiguration = HasProfiles(existingConfiguration);
+            var cloudConfiguration = response["configuration"] as JObject ?? new JObject();
             options.CloudBaseUrl = enrollmentBaseUrl;
             options.StationTokenProtected = OptionsStore.Protect(stationToken);
             options.LocalClientTokenProtected = OptionsStore.Protect(RandomToken());
             options.StationId = response.Value<string>("id");
             options.TerminalId = response.Value<string>("terminalId");
-            options.EffectiveConfiguration = response["configuration"] as JObject ?? new JObject();
+            options.CloudRevision = ReadCloudRevision(cloudConfiguration);
+            if (preserveLocalConfiguration)
+            {
+                options.EffectiveConfiguration = existingConfiguration;
+                options.ConfigurationDirty = true;
+                options.CloudStatus = "SYNC_PENDING";
+            }
+            else
+            {
+                options.EffectiveConfiguration = StripMetadata(cloudConfiguration);
+                options.ConfigurationRevision = Math.Max(1L, options.ConfigurationRevision);
+                options.ConfigurationDirty = false;
+                options.CloudStatus = "SYNCED";
+                options.LastCloudSyncAtUtc = DateTime.UtcNow;
+            }
+            options.LastCloudError = null;
             optionsStore.Save(options);
 
             response["localClientToken"] = OptionsStore.Unprotect(options.LocalClientTokenProtected);
@@ -91,15 +122,55 @@ namespace CafeQR.PrintService
                 token).ConfigureAwait(false);
             if (response["configuration"] is JObject configuration)
             {
-                options.EffectiveConfiguration = configuration;
+                options = optionsStore.Load();
+                options.CloudRevision = ReadCloudRevision(configuration);
+                if (!options.ConfigurationDirty)
+                {
+                    options.EffectiveConfiguration = StripMetadata(configuration);
+                    options.ConfigurationRevision = Math.Max(1L, options.ConfigurationRevision);
+                    options.LastCloudSyncAtUtc = DateTime.UtcNow;
+                    options.CloudStatus = "SYNCED";
+                }
+                else
+                {
+                    options.CloudStatus = "SYNC_PENDING";
+                }
+                options.LastCloudError = null;
                 optionsStore.Save(options);
             }
         }
 
-        public Task ReportAsync(LocalPrintTask task, string status, string message, string failureCode,
+        public async Task SyncConfigurationAsync(CancellationToken token)
+        {
+            options = optionsStore.Load();
+            if (!options.ConfigurationDirty || !IsPaired) return;
+            var payload = new JObject
+            {
+                ["localRevision"] = options.ConfigurationRevision,
+                ["cloudRevision"] = options.CloudRevision,
+                ["settings"] = StripMetadata(options.EffectiveConfiguration)
+            };
+            var response = (JObject)await SendAsync(
+                HttpMethod.Put,
+                "/api/v1/public/print-stations/configuration",
+                payload,
+                true,
+                token).ConfigureAwait(false);
+
+            options = optionsStore.Load();
+            options.EffectiveConfiguration = StripMetadata(response);
+            options.CloudRevision = ReadCloudRevision(response);
+            options.ConfigurationDirty = false;
+            options.CloudStatus = "SYNCED";
+            options.LastCloudSyncAtUtc = DateTime.UtcNow;
+            options.LastCloudError = null;
+            optionsStore.Save(options);
+        }
+
+        public async Task ReportAsync(LocalPrintTask task, string status, string message, string failureCode,
             bool ambiguous, CancellationToken token)
         {
-            if (!IsPaired || string.IsNullOrWhiteSpace(task.CloudJobId)) return Task.CompletedTask;
+            if (!IsPaired || string.IsNullOrWhiteSpace(task.CloudJobId)) return;
             var payload = new JObject
             {
                 ["status"] = status,
@@ -111,21 +182,65 @@ namespace CafeQR.PrintService
                 ["failureCode"] = failureCode,
                 ["ambiguous"] = ambiguous
             };
-            return SendAsync(
-                HttpMethod.Post,
-                "/api/v1/public/print-stations/jobs/" + task.CloudJobId + "/status",
-                payload,
-                true,
-                token);
+            try
+            {
+                await SendAsync(
+                    HttpMethod.Post,
+                    "/api/v1/public/print-stations/jobs/" + task.CloudJobId + "/status",
+                    payload,
+                    true,
+                    token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Unable to report local print status to CafeQR cloud", ex);
+            }
         }
 
         public ServiceOptions Snapshot() => optionsStore.Load();
 
-        public void SaveConfiguration(JObject configuration)
+        public JObject ConfigurationSnapshot()
         {
             options = optionsStore.Load();
-            options.EffectiveConfiguration = configuration ?? new JObject();
+            return new JObject
+            {
+                ["configuration"] = options.EffectiveConfiguration?.DeepClone() ?? new JObject(),
+                ["localRevision"] = options.ConfigurationRevision,
+                ["cloudRevision"] = options.CloudRevision,
+                ["dirty"] = options.ConfigurationDirty,
+                ["updatedAtUtc"] = options.ConfigurationUpdatedAtUtc,
+                ["lastCloudSyncAtUtc"] = options.LastCloudSyncAtUtc,
+                ["lastCloudError"] = options.LastCloudError,
+                ["cloudStatus"] = options.CloudStatus
+            };
+        }
+
+        public JObject SaveConfiguration(JObject configuration)
+        {
+            options = optionsStore.Load();
+            options.EffectiveConfiguration = StripMetadata(configuration);
+            options.ConfigurationRevision = Math.Max(1L, options.ConfigurationRevision + 1L);
+            options.ConfigurationDirty = true;
+            options.ConfigurationUpdatedAtUtc = DateTime.UtcNow;
+            options.CloudStatus = HasCredentials ? "SYNC_PENDING" : "UNPAIRED";
+            options.LastCloudError = null;
             optionsStore.Save(options);
+            return ConfigurationSnapshot();
+        }
+
+        public JObject AcceptCloudConfiguration(JObject configuration, int cloudRevision)
+        {
+            options = optionsStore.Load();
+            options.EffectiveConfiguration = StripMetadata(configuration);
+            options.ConfigurationRevision = Math.Max(1L, options.ConfigurationRevision + 1L);
+            options.CloudRevision = Math.Max(0, cloudRevision);
+            options.ConfigurationDirty = false;
+            options.ConfigurationUpdatedAtUtc = DateTime.UtcNow;
+            options.LastCloudSyncAtUtc = DateTime.UtcNow;
+            options.CloudStatus = HasCredentials ? "SYNCED" : "UNPAIRED";
+            options.LastCloudError = null;
+            optionsStore.Save(options);
+            return ConfigurationSnapshot();
         }
 
         private async Task<JToken> SendAsync(HttpMethod method, string path, JToken payload, bool authenticated,
@@ -135,32 +250,98 @@ namespace CafeQR.PrintService
             var baseUrl = string.IsNullOrWhiteSpace(baseUrlOverride)
                 ? options.CloudBaseUrl
                 : baseUrlOverride;
-            using (var request = new HttpRequestMessage(method, baseUrl.TrimEnd('/') + path))
+            try
             {
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                if (authenticated)
+                using (var request = new HttpRequestMessage(method, baseUrl.TrimEnd('/') + path))
                 {
-                    var stationToken = OptionsStore.Unprotect(options.StationTokenProtected);
-                    if (string.IsNullOrWhiteSpace(stationToken))
-                        throw new InvalidOperationException("Print station is not paired");
-                    request.Headers.Add("X-CafeQR-Station-Token", stationToken);
-                }
-                if (payload != null)
-                {
-                    request.Content = new StringContent(payload.ToString(Formatting.None), Encoding.UTF8, "application/json");
-                }
-                using (var response = await http.SendAsync(request, token).ConfigureAwait(false))
-                {
-                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    if (!response.IsSuccessStatusCode)
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (authenticated)
                     {
-                        throw new InvalidOperationException("Cloud print API failed: " + (int)response.StatusCode + " " + body);
+                        var stationToken = OptionsStore.Unprotect(options.StationTokenProtected);
+                        if (string.IsNullOrWhiteSpace(stationToken))
+                            throw new InvalidOperationException("Print station is not paired");
+                        request.Headers.Add("X-CafeQR-Station-Token", stationToken);
                     }
-                    var root = string.IsNullOrWhiteSpace(body) ? new JObject() : JToken.Parse(body);
-                    return root["data"] ?? root;
+                    if (payload != null)
+                    {
+                        request.Content = new StringContent(payload.ToString(Formatting.None), Encoding.UTF8, "application/json");
+                    }
+                    using (var response = await http.SendAsync(request, token).ConfigureAwait(false))
+                    {
+                        var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            var failure = new CloudPrintApiException((int)response.StatusCode, body);
+                            RecordCloudFailure(failure);
+                            throw failure;
+                        }
+                        RecordCloudSuccess();
+                        var root = string.IsNullOrWhiteSpace(body) ? new JObject() : JToken.Parse(body);
+                        return root["data"] ?? root;
+                    }
                 }
             }
+            catch (CloudPrintApiException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                RecordTransportFailure(ex);
+                throw;
+            }
         }
+
+        private void RecordCloudSuccess()
+        {
+            options = optionsStore.Load();
+            if (!options.ConfigurationDirty)
+                options.CloudStatus = "SYNCED";
+            else if (!string.Equals(options.CloudStatus, "SYNC_CONFLICT", StringComparison.OrdinalIgnoreCase))
+                options.CloudStatus = "SYNC_PENDING";
+            options.LastCloudError = null;
+            optionsStore.Save(options);
+        }
+
+        private void RecordCloudFailure(CloudPrintApiException failure)
+        {
+            options = optionsStore.Load();
+            options.LastCloudError = failure.Message;
+            if (failure.IsAuthenticationFailure)
+                options.CloudStatus = "AUTH_REQUIRED";
+            else if (failure.IsConflict)
+                options.CloudStatus = "SYNC_CONFLICT";
+            else if (options.ConfigurationDirty)
+                options.CloudStatus = "SYNC_PENDING";
+            else
+                options.CloudStatus = "OFFLINE";
+            optionsStore.Save(options);
+        }
+
+        private void RecordTransportFailure(Exception failure)
+        {
+            options = optionsStore.Load();
+            options.LastCloudError = failure.Message;
+            options.CloudStatus = options.ConfigurationDirty ? "SYNC_PENDING" : "OFFLINE";
+            optionsStore.Save(options);
+        }
+
+        private static bool HasProfiles(JObject configuration) =>
+            configuration?["profiles"] is JArray profiles && profiles.Count > 0;
+
+        private static JObject StripMetadata(JObject configuration)
+        {
+            var clean = configuration?.DeepClone() as JObject ?? new JObject();
+            clean.Remove("_meta");
+            return clean;
+        }
+
+        private static int ReadCloudRevision(JObject configuration) =>
+            configuration?["_meta"]?["terminalRevision"]?.Value<int>() ?? 0;
 
         private static JObject Capabilities()
         {

@@ -178,7 +178,13 @@ export default function Reports() {
     String(tx?.orderStatus || '').toUpperCase() === s
   );
   const branchLabel = (tx) => tx?.branchName || tx?.branchCode || (tx?.branchId ? String(tx.branchId).slice(0, 8) : '—');
-  const visibleTabs = useMemo(() => (config?.creditEnabled ? [...TABS, CREDIT_TAB] : TABS), [config]);
+  const visibleTabs = useMemo(() => {
+    let list = TABS;
+    if (config && !config.taxEnabled) {
+      list = TABS.filter(t => t.key !== 'tax');
+    }
+    return config?.creditEnabled ? [...list, CREDIT_TAB] : list;
+  }, [config]);
 
   const exportCSV = (headers, rows, filename) => {
     if (!rows.length) return notify('error', 'No data to export');
@@ -244,9 +250,9 @@ export default function Reports() {
       { label: 'Total Orders', val: summary.totalOrders, color: '#3b82f6', bg: '#eff6ff' },
       { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff' },
       { label: 'Items Sold', val: summary.itemsSold, color: '#f97316', bg: '#fff7ed' },
-      { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2' },
+      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2' },
       { label: 'Discounts', val: `${SYM}${fmt(discounts)}`, color: '#ec4899', bg: '#fdf2f8' },
-    ];
+    ].filter(Boolean);
     return (
       <>
         <div className="rpt-toolbar">
@@ -337,7 +343,7 @@ export default function Reports() {
             <thead><tr>
               <th>Order No</th><th>Invoice No</th><th>Date / Time</th><th>Branch</th><th>Customer</th><th>Type / Table</th>
               <th>Order</th><th>Invoice</th><th>Payment</th><th>Method</th>
-              <th className="r">Tax</th><th className="r">Discount</th><th className="r">Total</th><th className="r">Due</th><th></th><th></th>
+              {config?.taxEnabled !== false && <th className="r">Tax</th>}<th className="r">Discount</th><th className="r">Total</th><th className="r">Due</th><th></th><th></th>
             </tr></thead>
             <tbody>{salesInvoices.map(tx => {
               const rowId = tx.id || tx.orderId || tx.invoiceId;
@@ -362,7 +368,7 @@ export default function Reports() {
                     <td><span className={`rpt-st ${String(tx.invoiceStatus || 'unknown').toLowerCase()}`} title={tx.voidReason ? `Reason: ${tx.voidReason}` : undefined}>{tx.invoiceStatus || '—'}</span></td>
                     <td><span className={`rpt-st ${String(tx.paymentStatus || 'unknown').toLowerCase()}`}>{tx.paymentStatus || '—'}</span></td>
                     <td><span className="rpt-pill">{tx.paymentMethod || '—'}</span></td>
-                    <td className="r">{SYM}{fmt(tx.totalTaxAmount)}</td>
+                    {config?.taxEnabled !== false && <td className="r">{SYM}{fmt(tx.totalTaxAmount)}</td>}
                     <td className="r">{SYM}{fmt(tx.totalDiscountAmount)}</td>
                     <td className="r rpt-amt">{SYM}{fmt(tx.grandTotal)}</td>
                     <td className="r">{fmtMaybe(tx.amountDue)}</td>
@@ -370,7 +376,7 @@ export default function Reports() {
                     <td>{canExpand ? (expanded ? <FaChevronDown /> : <FaChevronRight />) : null}</td>
                   </tr>
                   {expanded && (
-                    <tr><td colSpan={16} style={{padding:0}}>
+                    <tr><td colSpan={config?.taxEnabled !== false ? 16 : 15} style={{padding:0}}>
                       <div className="rpt-subrows rpt-line-details">
                         {tx.voidReason && (
                           <div style={{ marginBottom: 12, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '12px', display: 'inline-block' }}>
@@ -384,7 +390,7 @@ export default function Reports() {
                               {l.categoryName && <small>{l.categoryName}</small>}
                             </span>
                             <span>{l.quantity} × {SYM}{fmt(l.unitPrice)}</span>
-                            <span>Tax {SYM}{fmt(l.taxAmount)}</span>
+                            {config?.taxEnabled !== false && <span>Tax {SYM}{fmt(l.taxAmount)}</span>}
                             <span>Disc {SYM}{fmt(l.discountAmount)}</span>
                             <span className="rpt-amt">{SYM}{fmt(l.lineTotal)}</span>
                           </div>
@@ -506,7 +512,7 @@ export default function Reports() {
       { label: 'Gross Sales', val: pnl.grossSales, color: '#10b981', type: '+' },
       { label: 'Discounts', val: pnl.discounts, color: '#ec4899', type: '-' },
       { label: 'Net Sales', val: pnl.netSales, color: '#0ea5e9', type: '=' },
-      { label: 'Output Tax', val: pnl.totalTax, color: '#6366f1', type: 'i' },
+      (config?.taxEnabled !== false) && { label: 'Output Tax', val: pnl.totalTax, color: '#6366f1', type: 'i' },
       { label: 'COGS / Purchases', val: pnl.cogsPurchases, color: '#f97316', type: '-' },
       { label: 'Operating Expenses', val: pnl.operatingExpenses, color: '#ef4444', type: '-' },
       { label: 'Net Profit', val: pnl.netProfit, color: '#0ea5e9', type: '=' },
@@ -518,19 +524,19 @@ export default function Reports() {
         color: Number(cashCollectedAfterExpenses) >= 0 ? '#10b981' : '#ef4444',
         type: '='
       },
-    ];
+    ].filter(Boolean);
 
     const exportData = [
       ['Gross Sales', pnl.grossSales],
       ['Discounts', pnl.discounts],
       ['Net Sales', pnl.netSales],
-      ['Output Tax', pnl.totalTax],
+      config?.taxEnabled !== false ? ['Output Tax', pnl.totalTax] : null,
       ['COGS / Purchases', pnl.cogsPurchases],
       ['Operating Expenses', pnl.operatingExpenses],
       ['Net Profit', pnl.netProfit],
       ['Receivable Balance', pnl.creditOutstanding],
       ['Cash Collected After Expenses', cashCollectedAfterExpenses],
-    ];
+    ].filter(Boolean);
     if (reconciliation) {
       exportData.push(
         ['Billed Sales Total', reconciliation.billedSalesTotal],
@@ -632,9 +638,9 @@ export default function Reports() {
       { label: 'Credit Extended', val: `${SYM}${fmt(creditReport.creditExtended)}`, color: '#0f766e', bg: '#ccfbf1' },
       { label: 'Payments Received', val: `${SYM}${fmt(creditReport.paymentsReceived)}`, color: '#16a34a', bg: '#dcfce7' },
       { label: 'Outstanding', val: `${SYM}${fmt(creditReport.outstanding)}`, color: '#dc2626', bg: '#fee2e2' },
-      { label: 'Output Tax', val: `${SYM}${fmt(creditReport.outputTax)}`, color: '#6366f1', bg: '#eef2ff' },
+      (config?.taxEnabled !== false) && { label: 'Output Tax', val: `${SYM}${fmt(creditReport.outputTax)}`, color: '#6366f1', bg: '#eef2ff' },
       { label: 'Orders / Customers', val: `${Number(creditReport.orderCount || 0)} / ${Number(creditReport.customerCount || 0)}`, color: '#f97316', bg: '#fff7ed' },
-    ];
+    ].filter(Boolean);
     const orders = creditReport.orders || [];
     const paymentsRows = creditReport.payments || [];
     return (
@@ -670,7 +676,7 @@ export default function Reports() {
         {orders.length === 0 ? <div className="rpt-empty">No credit orders</div> : (
           <div className="rpt-tbl-wrap">
             <table className="rpt-tbl rpt-credit-tbl">
-              <thead><tr><th>Order #</th><th>Invoice</th><th>Customer</th><th>Phone</th><th className="r">Amount</th><th className="r">Tax</th><th className="r">Total</th><th className="r">Due</th><th>Date</th><th>Status</th></tr></thead>
+              <thead><tr><th>Order #</th><th>Invoice</th><th>Customer</th><th>Phone</th><th className="r">Amount</th>{config?.taxEnabled !== false && <th className="r">Tax</th>}<th className="r">Total</th><th className="r">Due</th><th>Date</th><th>Status</th></tr></thead>
               <tbody>{orders.map(row => (
                 <tr key={row.invoiceId || row.orderId}>
                   <td><span className="rpt-mono">{row.orderNo || '—'}</span></td>
@@ -678,7 +684,7 @@ export default function Reports() {
                   <td>{row.customerName || '—'}</td>
                   <td>{row.customerPhone || '—'}</td>
                   <td className="r">{SYM}{fmt(row.amount)}</td>
-                  <td className="r">{SYM}{fmt(row.tax)}</td>
+                  {config?.taxEnabled !== false && <td className="r">{SYM}{fmt(row.tax)}</td>}
                   <td className="r rpt-amt">{SYM}{fmt(row.total)}</td>
                   <td className="r">{SYM}{fmt(row.amountDue)}</td>
                   <td>{formatTzDate(row.date, timezone, { format: 'short' })}</td>

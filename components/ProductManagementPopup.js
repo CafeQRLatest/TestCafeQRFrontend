@@ -27,6 +27,8 @@ export default function ProductManagementPopup({
   const [formTab, setFormTab] = useState('basic'); // 'basic', 'inventory', 'pricing', 'variants', 'upsells'
   const [pricingView, setPricingView] = useState('sales'); // 'sales', 'purchase'
   const [recipeSearch, setRecipeSearch] = useState('');
+  const [inventoryEnabled, setInventoryEnabled] = useState(true);
+  const [taxEnabled, setTaxEnabled] = useState(true);
 
   // Dropdown options data state
   const [categories, setCategories] = useState(propCategories || []);
@@ -78,6 +80,22 @@ export default function ProductManagementPopup({
     })();
     return () => { active = false; };
   }, [propCategories, propUoms, propPricelists, propProducts, propVariantGroups]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const resp = await api.get('/api/v1/configurations');
+        if (active && resp.data?.success) {
+          setInventoryEnabled(resp.data.data.inventoryEnabled !== false);
+          setTaxEnabled(resp.data.data.taxEnabled !== false);
+        }
+      } catch (err) {
+        console.warn("Failed to load configuration in ProductManagementPopup:", err);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   // Conversion/Normalizer utilities
   const toNumber = (value, fallback = 0) => {
@@ -311,7 +329,7 @@ export default function ProductManagementPopup({
     >
       <div className="drawer-tabs">
          <button className={`drawer-tab ${formTab === 'basic' ? 'active' : ''}`} onClick={() => setFormTab('basic')}>General</button>
-         <button className={`drawer-tab ${formTab === 'inventory' ? 'active' : ''}`} onClick={() => setFormTab('inventory')}>Inventory</button>
+         {inventoryEnabled && <button className={`drawer-tab ${formTab === 'inventory' ? 'active' : ''}`} onClick={() => setFormTab('inventory')}>Inventory</button>}
          <button className={`drawer-tab ${formTab === 'pricing' ? 'active' : ''}`} onClick={() => setFormTab('pricing')}>Pricing</button>
          <button className={`drawer-tab ${formTab === 'variants' ? 'active' : ''}`} onClick={() => setFormTab('variants')}>Variants</button>
          <button className={`drawer-tab ${formTab === 'upsells' ? 'active' : ''}`} onClick={() => setFormTab('upsells')}>Upsells</button>
@@ -402,22 +420,24 @@ export default function ProductManagementPopup({
                </div>
              </div>
 
-             <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+             <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: inventoryEnabled ? '1fr 1fr' : '1fr', gap: '16px' }}>
                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                    <label style={{ margin: 0 }}>Packaged Good</label>
                    <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
                       <div className="switch-knob"></div>
                    </div>
                 </div>
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                   <label style={{ margin: 0 }}>Is Ingredient</label>
-                   <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
-                     <div className="switch-knob"></div>
-                   </div>
-                </div>
+                {inventoryEnabled && (
+                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                     <label style={{ margin: 0 }}>Is Ingredient</label>
+                     <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
+                       <div className="switch-knob"></div>
+                     </div>
+                  </div>
+                )}
              </div>
 
-             {selectedProduct.isPackagedGood && (
+             {taxEnabled && selectedProduct.isPackagedGood && (
                <div className="erp-section" style={{ marginTop: '12px' }}>
                   <div className="input-row">
                      <div className="input-group"><label>Tax (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
@@ -638,13 +658,15 @@ export default function ProductManagementPopup({
                      <div className="input-group"><label>Base Sale Price</label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
                      <div className="input-group"><label>Global MRP</label><input type="number" value={selectedProduct.mrp || 0} onChange={e => setSelectedProduct({...selectedProduct, mrp: parseFloat(e.target.value)})} /></div>
                   </div>
-                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 16 }}>
-                      <label style={{ margin: 0 }}>Packaged Good (Apply Tax)</label>
-                      <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
-                         <div className="switch-knob"></div>
-                      </div>
-                  </div>
-               </div>
+                   {taxEnabled && (
+                     <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 16 }}>
+                         <label style={{ margin: 0 }}>Packaged Good (Apply Tax)</label>
+                         <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
+                            <div className="switch-knob"></div>
+                         </div>
+                     </div>
+                   )}
+                </div>
              ) : (
                <div className="erp-section" style={{ marginTop: '16px' }}>
                   <div className="section-title"><FaBoxOpen /> Procurement Standards</div>
@@ -652,13 +674,15 @@ export default function ProductManagementPopup({
                </div>
              )}
 
-             <div className="erp-section" style={{ marginTop: '16px' }}>
-                <div className="section-title"><FaClock /> Shared Tax Config</div>
-                <div className="input-row">
-                   <div className="input-group"><label>Tax Rate (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
-                   <div className="input-group"><label>HSN / Tax Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
+             {taxEnabled && (
+                <div className="erp-section" style={{ marginTop: '16px' }}>
+                   <div className="section-title"><FaClock /> Shared Tax Config</div>
+                   <div className="input-row">
+                      <div className="input-group"><label>Tax Rate (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
+                      <div className="input-group"><label>HSN / Tax Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
+                   </div>
                 </div>
-             </div>
+             )}
 
              <div className="erp-section" style={{ marginTop: '16px' }}>
                 <div className="section-title"><FaTags /> Market Specific Prices ({pricingView === 'sales' ? 'Sales' : 'Purchase'})</div>

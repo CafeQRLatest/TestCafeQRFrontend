@@ -111,6 +111,24 @@ export async function updateNativePrintConfiguration(configuration: Record<strin
   }, 10000);
 }
 
+export async function getNativePrintConfiguration() {
+  return request('/v1/configuration', { method: 'GET' }, 5000);
+}
+
+export async function syncNativePrintConfiguration() {
+  return request('/v1/configuration/sync', { method: 'POST' }, 20000);
+}
+
+export async function acceptNativeCloudConfiguration(
+  configuration: Record<string, unknown>,
+  cloudRevision = 0
+) {
+  return request('/v1/configuration/cloud', {
+    method: 'POST',
+    body: JSON.stringify({ configuration, cloudRevision }),
+  }, 10000);
+}
+
 export function forgetNativePrintService() {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(TOKEN_KEY);

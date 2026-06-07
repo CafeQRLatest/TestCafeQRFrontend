@@ -17,7 +17,9 @@ import {
 } from 'react-icons/fa';
 import api from '../utils/api';
 import {
+  acceptNativeCloudConfiguration,
   enrollNativePrintService,
+  getNativePrintConfiguration,
   getLocalPrintJobs,
   getPrintServiceLogs,
   getPrintServiceHealth,
@@ -26,11 +28,13 @@ import {
   resolveLocalPrintJob,
   retryLocalPrintJob,
   submitNativePrintJob,
+  syncNativePrintConfiguration,
   updateNativePrintConfiguration,
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
 
 const newId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const SELECTED_TERMINAL_KEY = 'CAFEQR_PRINT_SELECTED_TERMINAL';
 
 const DEFAULT_CONFIG = {
   profiles: [],
@@ -216,9 +220,19 @@ const assignmentValidationError = (configuration) => {
   return '';
 };
 
+const hasPrinterProfiles = (configuration) => (
+  Array.isArray(configuration?.profiles) && configuration.profiles.length > 0
+);
+
+const cloudRevisionOf = (configuration) => Number(
+  configuration?._meta?.terminalRevision || 0
+);
+
 export default function PrintPlatformSetup({ restaurantId, config: legacyConfig, onConfigChange }) {
   const [tab, setTab] = useState('service');
   const [printConfig, setPrintConfig] = useState(DEFAULT_CONFIG);
+  const [, setLocalConfiguration] = useState(null);
+  const [cloudConfiguration, setCloudConfiguration] = useState(null);
   const [health, setHealth] = useState(null);
   const [localPrinters, setLocalPrinters] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -226,7 +240,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const [terminals, setTerminals] = useState([]);
   const [categories, setCategories] = useState([]);
   const [scopeType, setScopeType] = useState('TERMINAL');
-  const [scopeId, setScopeId] = useState(Cookies.get('terminalId') || '');
+  const [scopeId, setScopeId] = useState(() => (
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem(SELECTED_TERMINAL_KEY) || Cookies.get('terminalId') || ''
+      : Cookies.get('terminalId') || ''
+  ));
   const [stationName, setStationName] = useState(`${Cookies.get('terminalName') || 'POS'} Print Station`);
   const [fallback, setFallback] = useState(false);
   const [pairingCode, setPairingCode] = useState('');
@@ -245,44 +263,97 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     window.setTimeout(() => setMessage(''), 4500);
   };
 
+  const selectTerminal = useCallback((terminalId) => {
+    setScopeId(terminalId || '');
+    if (typeof window !== 'undefined') {
+      if (terminalId) window.localStorage.setItem(SELECTED_TERMINAL_KEY, terminalId);
+      else window.localStorage.removeItem(SELECTED_TERMINAL_KEY);
+    }
+  }, []);
+
   const refreshService = useCallback(async () => {
     try {
       const result = await getPrintServiceHealth();
       setHealth(result);
-      const printers = await getPrintServicePrinters().catch(() => []);
+      if (result?.terminalId) {
+        selectTerminal(result.terminalId);
+      }
+      const [printers, configuration] = await Promise.all([
+        getPrintServicePrinters().catch(() => []),
+        isNativePrintServicePaired()
+          ? getNativePrintConfiguration().catch(() => null)
+          : Promise.resolve(null),
+      ]);
       setLocalPrinters(Array.isArray(printers) ? printers : []);
+      if (configuration) setLocalConfiguration(configuration);
       if (isNativePrintServicePaired()) {
         const rows = await getLocalPrintJobs().catch(() => []);
         setJobs(Array.isArray(rows) ? rows : []);
       }
+      return { health: result, configuration };
     } catch {
       setHealth(null);
       setLocalPrinters([]);
+      return { health: null, configuration: null };
     }
-  }, []);
+  }, [selectTerminal]);
 
-  const loadCloud = useCallback(async () => {
-    const terminalId = Cookies.get('terminalId') || '';
+  const loadCloud = useCallback(async (localState = null) => {
+    const terminalId = localState?.health?.terminalId
+      || scopeId
+      || Cookies.get('terminalId')
+      || '';
     const requests = [
       api.get('/api/v1/print-configurations/effective', {
         params: { terminalId: terminalId || undefined, orgId: currentOrgId || undefined },
-      }),
+      }).catch((error) => ({ error })),
       api.get('/api/v1/print-stations').catch(() => ({ data: { data: [] } })),
       api.get('/api/v1/terminals').catch(() => ({ data: { data: [] } })),
       api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } })),
     ];
     const [configuration, stationRows, terminalRows, categoryRows] = await Promise.all(requests);
-    setPrintConfig(deepMerge(DEFAULT_CONFIG, configuration.data?.data || {}));
+    const cloudSettings = configuration.error ? null : (configuration.data?.data || {});
+    const localSnapshot = localState?.configuration || null;
+    const localSettings = localSnapshot?.configuration || null;
+    const localWins = Boolean(
+      localSettings
+      && (localSnapshot?.dirty
+        || (hasPrinterProfiles(localSettings) && !hasPrinterProfiles(cloudSettings)))
+    );
+
+    if (cloudSettings) setCloudConfiguration(cloudSettings);
+    if (localWins) {
+      setPrintConfig(sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings)));
+    } else if (cloudSettings) {
+      const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudSettings));
+      setPrintConfig(effective);
+      if (localSnapshot && isNativePrintServicePaired()) {
+        acceptNativeCloudConfiguration(effective, cloudRevisionOf(cloudSettings))
+          .then(setLocalConfiguration)
+          .catch(() => {});
+      }
+    } else if (localSettings) {
+      setPrintConfig(sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings)));
+    } else if (configuration.error) {
+      throw configuration.error;
+    }
     setStations(stationRows.data?.data || []);
     setTerminals(terminalRows.data?.data || []);
     setCategories((categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean));
-  }, [currentOrgId]);
+  }, [currentOrgId, scopeId]);
 
   useEffect(() => {
-    refreshService();
-    loadCloud().catch((error) => showMessage(error?.response?.data?.message || error.message));
+    let mounted = true;
+    (async () => {
+      const localState = await refreshService();
+      if (!mounted) return;
+      await loadCloud(localState);
+    })().catch((error) => showMessage(error?.response?.data?.message || error.message));
     const timer = window.setInterval(refreshService, 10000);
-    return () => window.clearInterval(timer);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
   }, [loadCloud, refreshService]);
 
   const sessionAwareMessage = (error, fallback) => {
@@ -302,6 +373,23 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       : scopeType === 'ORGANIZATION'
         ? currentOrgId
         : (scopeId || Cookies.get('terminalId'));
+    if (scopeType === 'TERMINAL' && !resolvedScopeId) {
+      throw new Error('Select the terminal that owns this printing configuration.');
+    }
+
+    if (scopeType === 'TERMINAL' && isNativePrintServicePaired()) {
+      const localSaved = await updateNativePrintConfiguration(settings);
+      setLocalConfiguration(localSaved);
+      setPrintConfig(settings);
+      try {
+        const synchronized = await syncNativePrintConfiguration();
+        setLocalConfiguration(synchronized);
+        return { effective: settings, cloudSynced: true };
+      } catch (cloudError) {
+        return { effective: settings, cloudSynced: false, cloudError };
+      }
+    }
+
     const { data } = await api.put('/api/v1/print-configurations', {
       scopeType,
       scopeId: resolvedScopeId || null,
@@ -310,17 +398,17 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     });
     const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, data?.data || settings));
     setPrintConfig(effective);
-    if (isNativePrintServicePaired()) {
-      await updateNativePrintConfiguration(effective);
-    }
-    return effective;
+    return { effective, cloudSynced: true };
   };
 
   const saveConfiguration = async () => {
     setBusy(true);
     try {
-      await persistConfiguration();
-      showMessage('Printing configuration saved and applied to the Windows Print Service.');
+      const result = await persistConfiguration();
+      showMessage(result.cloudSynced
+        ? 'Printing configuration saved locally and synchronized.'
+        : `${result.cloudError?.message || 'Cloud synchronization is pending.'} Printing continues locally.`);
+      await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
     } finally {
@@ -358,8 +446,8 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setBusy(true);
     try {
       await enrollNativePrintService(apiRoot, pairingCode);
-      await refreshService();
-      await loadCloud();
+      const localState = await refreshService();
+      await loadCloud(localState);
       showMessage('This Windows computer is now paired to the selected terminal.');
     } catch (error) {
       showMessage(error.message || 'Unable to pair the Windows print service.');
@@ -426,7 +514,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const testProfile = async (profile) => {
     setBusy(true);
     try {
-      await persistConfiguration();
+      const saveResult = await persistConfiguration();
       await submitNativePrintJob({
         idempotencyKey: `test:${profile.id}:${Date.now()}`,
         jobKind: 'test',
@@ -443,10 +531,48 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           grandTotal: 0,
         },
       });
-      showMessage(`Saved and queued a test print for ${profileDisplayLabel(profile)}.`);
+      showMessage(saveResult.cloudSynced
+        ? `Saved and queued a test print for ${profileDisplayLabel(profile)}.`
+        : `Test print queued locally. Cloud synchronization remains pending.`);
       await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryCloudSynchronization = async () => {
+    setBusy(true);
+    try {
+      const synchronized = await syncNativePrintConfiguration();
+      setLocalConfiguration(synchronized);
+      await refreshService();
+      showMessage('Printing configuration synchronized with CafeQR.');
+    } catch (error) {
+      showMessage(`${error.message || 'Cloud synchronization failed.'} Printing continues locally.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const useCloudConfiguration = async () => {
+    if (!cloudConfiguration || !window.confirm(
+      'Replace the locally active printer configuration with the cloud version?'
+    )) return;
+    setBusy(true);
+    try {
+      const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudConfiguration));
+      const accepted = await acceptNativeCloudConfiguration(
+        effective,
+        cloudRevisionOf(cloudConfiguration)
+      );
+      setPrintConfig(effective);
+      setLocalConfiguration(accepted);
+      await refreshService();
+      showMessage('Cloud printing configuration applied locally.');
+    } catch (error) {
+      showMessage(error.message || 'Unable to apply the cloud configuration.');
     } finally {
       setBusy(false);
     }
@@ -516,7 +642,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 onClick={() => {
                   setScopeType(value);
                   if (value === 'ORGANIZATION') setScopeId(currentOrgId);
-                  if (value === 'TERMINAL') setScopeId(Cookies.get('terminalId') || terminals[0]?.id || '');
+                  if (value === 'TERMINAL') {
+                    selectTerminal(health?.terminalId || Cookies.get('terminalId') || terminals[0]?.id || '');
+                  }
                 }}
               >
                 {value === 'CLIENT' ? 'Organization' : value === 'ORGANIZATION' ? 'Branch' : 'Terminal'}
@@ -527,7 +655,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         {scopeType === 'TERMINAL' && (
           <label className="field terminal-field">
             <span>Terminal</span>
-            <select value={scopeId} onChange={(event) => setScopeId(event.target.value)}>
+            <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
               <option value="">Select terminal</option>
               {terminals.map((terminal) => (
                 <option key={terminal.id} value={terminal.id}>{terminal.name}</option>
@@ -535,7 +663,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             </select>
           </label>
         )}
-        <button className="primary" onClick={saveConfiguration} disabled={busy || routeConflicts.size > 0}>
+        <button className="primary" onClick={saveConfiguration} disabled={
+          busy || routeConflicts.size > 0 || (scopeType === 'TERMINAL' && !scopeId)
+        }>
           <FaCheckCircle /> Save Printing
         </button>
       </div>
@@ -556,6 +686,16 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
               <p>Persistent local queue, automatic recovery, and silent printing independent of the browser.</p>
             </div>
             <div className="actions">
+              {health?.configurationDirty && (
+                <button className="secondary" onClick={retryCloudSynchronization} disabled={busy}>
+                  <FaSync /> Retry cloud sync
+                </button>
+              )}
+              {health?.cloudStatus === 'SYNC_CONFLICT' && cloudConfiguration && (
+                <button className="secondary" onClick={useCloudConfiguration} disabled={busy}>
+                  Use cloud version
+                </button>
+              )}
               <button className="secondary" onClick={downloadLogs} disabled={!health}>Download logs</button>
               <button className="secondary" onClick={refreshService}><FaSync /> Refresh</button>
             </div>
@@ -563,15 +703,43 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
           <div className="status-grid">
             <Status label="Service" value={health ? 'Online' : 'Not reachable'} ok={Boolean(health)} />
-            <Status label="Pairing" value={health?.paired ? 'Paired' : 'Not paired'} ok={Boolean(health?.paired)} />
+            <Status
+              label="Pairing"
+              value={health?.cloudStatus === 'AUTH_REQUIRED'
+                ? 'Re-pair required'
+                : health?.cloudPaired
+                  ? 'Paired'
+                  : health?.credentialsPresent
+                    ? 'Checking'
+                    : 'Not paired'}
+              ok={Boolean(health?.cloudPaired)}
+            />
+            <Status
+              label="Configuration"
+              value={health?.configurationDirty
+                ? 'Cloud sync pending'
+                : health?.cloudStatus === 'SYNC_CONFLICT'
+                  ? 'Conflict - local active'
+                  : health?.cloudStatus === 'SYNCED'
+                    ? 'Synced'
+                    : 'Saved locally'}
+              ok={Boolean(health) && health?.cloudStatus !== 'AUTH_REQUIRED'}
+            />
             <Status label="Local queue" value={`${health?.queueDepth || 0} jobs`} ok={(health?.queueDepth || 0) === 0} />
             <Status label="Version" value={health?.version || 'Unknown'} ok={Boolean(health?.version)} />
           </div>
 
+          {health?.lastCloudError && (
+            <div className="sync-notice">
+              <FaExclamationTriangle />
+              <span>{health.lastCloudError} Local printer profiles and queued jobs remain available.</span>
+            </div>
+          )}
+
           <div className="form-grid">
             <label className="field">
               <span>Terminal</span>
-              <select value={scopeId} onChange={(event) => setScopeId(event.target.value)}>
+              <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
                 <option value="">Select terminal</option>
                 {terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.name}</option>)}
               </select>
@@ -983,7 +1151,8 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         .print-platform .secondary, .print-platform .download { border: 1px solid #d6deea; background: white; color: #354258; }
         .print-platform button:disabled { opacity: .5; cursor: not-allowed; }
         .print-platform .actions, .print-platform .pairing-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .print-platform .status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #e1e7ef; margin-bottom: 20px; }
+        .print-platform .status-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid #e1e7ef; margin-bottom: 20px; }
+        .print-platform .sync-notice { display: flex; align-items: start; gap: 9px; padding: 10px 12px; margin: -8px 0 18px; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; font-size: 12px; font-weight: 700; }
         .print-platform .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
         .print-platform .form-grid.compact { grid-template-columns: repeat(4, minmax(0,1fr)); }
         .print-platform .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
