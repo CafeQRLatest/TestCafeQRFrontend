@@ -1,6 +1,7 @@
 // components/KotPrint.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { buildReceiptText, buildKotText, downloadTextAndShare, toDisplayItems } from '../utils/printUtils';
+import { bitmapToPngBase64, logoUrlToBitmapGrid } from '../utils/logoBitmap';
 import api from '../utils/api';
 import { printUniversal } from '../utils/printGateway';
 import { Capacitor } from '@capacitor/core';
@@ -172,6 +173,7 @@ function isDesktopPWA() {
   }
 }
 
+// Check if we need offline flags
 function isOfflinePrintOrder(order) {
   return Boolean(order?.offline || order?.offlineOperationId || order?.syncStatus === 'QUEUED');
 }
@@ -300,23 +302,44 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       try {
         const { data: cfgRes } = await api.get('/api/v1/configurations');
         if (alive && cfgRes.data) {
+          const cfg = cfgRes.data;
+          let logoBitmap = cfg.printLogoBitmap;
+          let logoCols = cfg.printLogoCols;
+          let logoRows = cfg.printLogoRows;
+          let logoBase64 = null;
+
+          if (cfg.logoUrl) {
+            try {
+              const grid = await logoUrlToBitmapGrid(cfg.logoUrl);
+              if (grid) {
+                logoBitmap = grid.bitmap;
+                logoCols = grid.cols;
+                logoRows = grid.rows;
+                logoBase64 = cfg.logoUrl;
+              }
+            } catch (err) {
+              console.warn('Failed to convert logoUrl to bitmap grid:', err);
+            }
+          }
+
           setRestaurantProfile({
-            restaurant_name: cfgRes.data.restaurantName || Cookies.get('orgName') || Cookies.get('clientName'),
-            shipping_address_line1: cfgRes.data.shippingAddressLine1,
-            shipping_address_line2: cfgRes.data.shippingAddressLine2,
-            shipping_city: cfgRes.data.shippingCity,
-            shipping_address_state: cfgRes.data.shippingState || cfgRes.data.shippingAddressState,
-            shipping_pincode: cfgRes.data.shippingPincode,
-            phone: cfgRes.data.phone,
-            gstin: cfgRes.data.gstin,
-            gst_enabled: cfgRes.data.taxEnabled,
-            fssai_license: cfgRes.data.fssaiLicense,
-            bill_footer_text: cfgRes.data.billFooter || cfgRes.data.billFooterText,
-            bill_footer_enabled: cfgRes.data.billFooterEnabled !== false,
-            receipt_cols: cfgRes.data.printCols,
-            print_logo_bitmap: cfgRes.data.printLogoBitmap,
-            print_logo_cols: cfgRes.data.printLogoCols,
-            print_logo_rows: cfgRes.data.printLogoRows
+            restaurant_name: cfg.restaurantName || Cookies.get('orgName') || Cookies.get('clientName'),
+            shipping_address_line1: cfg.shippingAddressLine1,
+            shipping_address_line2: cfg.shippingAddressLine2,
+            shipping_city: cfg.shippingCity,
+            shipping_address_state: cfg.shippingState || cfg.shippingAddressState,
+            shipping_pincode: cfg.shippingPincode,
+            phone: cfg.phone,
+            gstin: cfg.gstin,
+            gst_enabled: cfg.taxEnabled,
+            fssai_license: cfg.fssaiLicense,
+            bill_footer_text: cfg.billFooter || cfg.billFooterText,
+            bill_footer_enabled: cfg.billFooterEnabled !== false,
+            receipt_cols: cfg.printCols,
+            print_logo_bitmap: logoBitmap,
+            print_logo_cols: logoCols,
+            print_logo_rows: logoRows,
+            logo_base64: logoBase64 || (logoBitmap ? bitmapToPngBase64(logoBitmap, logoCols, logoRows) : null)
           });
         }
       } catch (err) {

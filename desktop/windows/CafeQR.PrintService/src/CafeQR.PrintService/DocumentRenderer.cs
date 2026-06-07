@@ -14,6 +14,18 @@ namespace CafeQR.PrintService
     {
         public byte[] Thermal(LocalJobSubmission submission, PrinterProfile profile, int attempt)
         {
+            if (!string.IsNullOrWhiteSpace(submission.DataBase64))
+            {
+                try
+                {
+                    return Convert.FromBase64String(submission.DataBase64);
+                }
+                catch
+                {
+                    // Fall back to text rendering if decoding fails
+                }
+            }
+
             var text = !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
                 : BuildText(submission.Document ?? new JObject(), submission.JobKind, profile.Columns);
@@ -168,6 +180,18 @@ namespace CafeQR.PrintService
                 var name = Value(line, "productName", "product_name", "name");
                 var quantity = Value(line, "quantity", "qty");
                 builder.AppendLine(quantity + " x " + name);
+            }
+            var removedItems = order["removed_items"] as JArray ?? order["removedItems"] as JArray;
+            if (removedItems != null && removedItems.Count > 0)
+            {
+                builder.AppendLine(new string('-', Math.Max(8, width)));
+                builder.AppendLine(Center("*** REMOVED ITEMS ***", width));
+                foreach (var line in removedItems.OfType<JObject>())
+                {
+                    var name = Value(line, "productName", "product_name", "name");
+                    var quantity = Value(line, "quantity", "qty");
+                    builder.AppendLine("-" + quantity + " x " + name);
+                }
             }
             if (!(kind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase))
             {

@@ -28,11 +28,11 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 5000) {
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     const token = localToken();
     if (token) headers.set('X-CafeQR-Local-Token', token);
-    const requestInit: RequestInit & { targetAddressSpace?: 'local' } = {
+    const requestInit: RequestInit & { targetAddressSpace?: 'loopback' } = {
       ...init,
       headers,
       signal: controller.signal,
-      targetAddressSpace: 'local',
+      targetAddressSpace: 'loopback',
     };
     const response = await fetch(`${SERVICE_URL}${path}`, requestInit);
     const text = await response.text();
@@ -129,6 +129,7 @@ export async function enrollNativePrintService(cloudBaseUrl: string, pairingCode
   window.localStorage.setItem(TOKEN_KEY, response.localClientToken);
   window.localStorage.setItem(PAIRED_KEY, '1');
   window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+  rememberPrintServiceLocalAccess(true);
   window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
   return response;
 }
