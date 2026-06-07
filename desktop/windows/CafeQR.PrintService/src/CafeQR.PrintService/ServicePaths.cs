@@ -94,6 +94,16 @@ namespace CafeQR.PrintService
                 options.AllowedOrigins = new System.Collections.Generic.List<string>();
                 changed = true;
             }
+
+            var uniqueOrigins = options.AllowedOrigins
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (uniqueOrigins.Count != options.AllowedOrigins.Count)
+            {
+                options.AllowedOrigins = uniqueOrigins;
+                changed = true;
+            }
+
             foreach (var requiredOrigin in ServiceOptions.RequiredAllowedOrigins)
             {
                 if (options.AllowedOrigins.Any(origin =>
