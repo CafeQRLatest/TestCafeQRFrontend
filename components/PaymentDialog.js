@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { FaBook, FaCreditCard, FaExchangeAlt, FaMoneyBillWave, FaPlus, FaTimes, FaTrash, FaWallet } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
+import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 
@@ -309,6 +310,173 @@ const ErrorText = styled.div`
   font-weight: 800;
 `;
 
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
+const DiscountBtn = styled.button`
+  width: 100%;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+  background: white;
+  color: #475569;
+  font-weight: 700;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+`;
+
+const ModalBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const DiscountModalContent = styled.div`
+  background: white;
+  width: min(480px, 94vw);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ${fadeIn} 0.2s ease-out;
+`;
+
+const DiscountModalHeader = styled.div`
+  padding: 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+`;
+
+const DiscountTabHeader = styled.div`
+  display: flex;
+  background: #f8fafc;
+  border-bottom: 1px solid #edf2f7;
+  padding: 0 16px;
+`;
+
+const DiscountTabButton = styled.button`
+  flex: 1;
+  padding: 12px 8px;
+  border: none;
+  background: transparent;
+  color: ${props => props.$active ? props.$themeColor : '#64748b'};
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  font-family: 'Outfit', sans-serif;
+  &:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 25%;
+    right: 25%;
+    height: 3px;
+    border-radius: 99px;
+    background: ${props => props.$active ? props.$themeColor : 'transparent'};
+    transition: all 0.2s;
+  }
+`;
+
+const DiscountModalBody = styled.div`
+  padding: 16px 20px;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const DiscountModalFooter = styled.div`
+  padding: 16px 20px;
+  border-top: 1px solid #edf2f7;
+  display: flex;
+  gap: 10px;
+`;
+
+const DiscountRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #edf2f7;
+`;
+
+const DiscountRowInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  span {
+    display: block;
+    font-weight: 700;
+    font-size: 13px;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  small {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+  }
+`;
+
+const DiscountInputWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 2px;
+  height: 32px;
+  &:focus-within {
+    border-color: ${props => props.$themeColor};
+  }
+`;
+
+const DiscUnitToggle = styled.button`
+  border: none;
+  background: ${props => props.$active ? props.$themeColor : 'transparent'};
+  color: ${props => props.$active ? 'white' : '#64748b'};
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  &:hover {
+    background: ${props => props.$active ? props.$themeColor : '#f1f5f9'};
+  }
+`;
+
 
 
 const toNumber = (value) => {
@@ -342,16 +510,27 @@ export default function PaymentDialog({
   const roundOffMode = config?.roundOffMode || 'automatic';
   const roundOffAutoFactor = Number(config?.roundOffAutoFactor ?? 1);
   const roundOffManualLimit = Number(config?.roundOffManualLimit ?? 10);
+  const discountsEnabled = isDiscountModuleEnabled(config);
 
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentSplits, setPaymentSplits] = useState([]);
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
+  // Discount Modal States
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [localDiscounts, setLocalDiscounts] = useState({});
+  const [localOrderDiscountType, setLocalOrderDiscountType] = useState('amount');
+  const [localOrderDiscountValue, setLocalOrderDiscountValue] = useState(0);
+  const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
 
+  const [cartItems, setCartItems] = useState([]);
+  const [discountType, setDiscountType] = useState('amount');
+  const [discountValue, setDiscountValue] = useState(0);
 
-  const [modifiedOrder, setModifiedOrder] = useState(null);
-  const [totals, setTotals] = useState(null);
+  const cartKeyFor = (item) => {
+    return item.cartKey || item.id || `${item.productId || 'line'}-${item.variantId || 'base'}`;
+  };
 
   const toCartItems = (lines) => {
     return (lines || []).map((line, index) => {
@@ -387,112 +566,147 @@ export default function PaymentDialog({
     });
   };
 
-  const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
-
-  // Startup hook to calculate initial totals and lines using centralized GST math
+  // Seed the cart and discounts on startup
   useEffect(() => {
-    if (order && !modifiedOrder) {
+    if (order) {
       const items = toCartItems(order.lines || []);
-      const configProfile = {
-        gst_enabled: config?.taxEnabled,
-        default_tax_rate: (() => {
-          if (!config?.taxEnabled) return 0;
-          const rates = config?.taxRates || [];
-          const def = rates.find(r => r.id === config?.taxDefaultId);
-          return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
-        })(),
-        prices_include_tax: config?.pricesIncludeTax,
-        round_off_config: {
-          round_off_enabled: config?.roundOffEnabled,
-          round_off_mode: config?.roundOffMode || 'automatic',
-          round_off_auto_factor: Number(config?.roundOffAutoFactor ?? 1),
-        },
-      };
-      
+      setCartItems(items);
+
       const totalLineDisc = items.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
       const totalDisc = Number(order.totalDiscountAmount ?? order.total_discount_amount ?? 0);
-
       const ordDiscType = order.orderDiscount?.type || 'amount';
       const ordDiscVal = order.orderDiscount?.value || Math.max(0, totalDisc - totalLineDisc);
 
-      const orderDisc = {
-        type: ordDiscType === 'percent' ? 'percent' : 'amount',
-        value: ordDiscVal,
-      };
-
-      const calculated = calculateOrderTotals(
-        items.map((line) => ({
-          id: line.cartKey,
-          productId: line.productId,
-          name: line.displayName,
-          price: line.price,
-          quantity: line.qty,
-          tax_rate: line.taxRate || line.tax_rate || 0,
-          is_packaged_good: line.isPackagedGood,
-          is_packaged: line.isPackagedGood,
-          discount_percent: line.discount_percent,
-          discount_amount: line.discount_amount,
-          discount: line.discount,
-        })),
-        orderDisc,
-        configProfile
-      );
-
-      const processedLines = (calculated.processed_items || []).map((processed, idx) => {
-        const original = items[idx];
-        return {
-          ...original,
-          quantity: processed.quantity,
-          unitPrice: processed.unit_price,
-          taxRate: processed.tax_rate,
-          taxAmount: processed.tax_amount,
-          discountAmount: processed.discount_amount,
-          lineTotal: processed.line_total,
-        };
-      });
-
-      setModifiedOrder({
-        ...order,
-        grandTotal: calculated.total_amount,
-        totalTaxAmount: calculated.total_tax,
-        totalAmount: calculated.total_inc_tax,
-        totalDiscountAmount: calculated.discount_amount,
-        lines: processedLines,
-      });
-
-      setTotals({
-        grossTotal: calculated.gross_face_total,
-        discount: calculated.discount_amount,
-        taxable: calculated.taxable_amount,
-        tax: calculated.total_tax,
-        roundOff: calculated.round_off_amount,
-        payable: calculated.total_amount,
-      });
+      setDiscountType(ordDiscType === 'percent' ? 'percent' : 'amount');
+      setDiscountValue(ordDiscVal);
     }
-  }, [order, config, modifiedOrder]);
+  }, [order]);
 
+  // Sync state with local states when discount modal opens
+  useEffect(() => {
+    if (showDiscountModal && cartItems.length > 0) {
+      const initial = {};
+      cartItems.forEach(item => {
+        const key = cartKeyFor(item);
+        if (item.discount_percent > 0) {
+          initial[key] = { type: 'percentage', value: item.discount_percent };
+        } else if (item.discount_amount > 0) {
+          initial[key] = { type: 'amount', value: item.discount_amount };
+        } else if (item.discount) {
+          initial[key] = { type: item.discount.type || 'amount', value: item.discount.value || 0 };
+        } else {
+          initial[key] = { type: 'amount', value: 0 };
+        }
+      });
+      setLocalDiscounts(initial);
+      setLocalOrderDiscountType(discountType || 'amount');
+      setLocalOrderDiscountValue(discountValue || 0);
+      setDiscountModalTab('line');
+    }
+  }, [showDiscountModal, cartItems, discountType, discountValue]);
 
+  const baseTotal = Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
+
+  // Compute reactive totals
+  const totals = useMemo(() => {
+    if (cartItems.length === 0) return null;
+
+    const configProfile = {
+      gst_enabled: config?.taxEnabled,
+      default_tax_rate: (() => {
+        if (!config?.taxEnabled) return 0;
+        const rates = config?.taxRates || [];
+        const def = rates.find(r => r.id === config?.taxDefaultId);
+        return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
+      })(),
+      prices_include_tax: config?.pricesIncludeTax,
+    };
+
+    const calculated = calculateOrderTotals(
+      cartItems.map((line) => ({
+        id: line.cartKey,
+        productId: line.productId,
+        name: line.displayName,
+        price: line.price,
+        quantity: line.qty,
+        tax_rate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : ((line.tax_rate !== undefined && line.tax_rate !== null && line.tax_rate !== '') ? Number(line.tax_rate) : null),
+        is_packaged_good: line.isPackagedGood,
+        is_packaged: line.isPackagedGood,
+        discount_percent: line.discount_percent,
+        discount_amount: line.discount_amount,
+        discount: line.discount,
+      })),
+      { type: discountType, value: discountValue },
+      configProfile
+    );
+
+    const processedLines = (calculated.processed_items || []).map((processed, idx) => {
+      const original = cartItems[idx];
+      return {
+        ...original,
+        quantity: processed.quantity,
+        unitPrice: processed.unit_price,
+        taxRate: processed.tax_rate,
+        taxAmount: processed.tax_amount,
+        discountAmount: processed.discount_amount,
+        lineTotal: processed.line_total,
+        grossLineAmount: processed.gross_line_amount,
+        unitPriceExTax: processed.unit_price_ex_tax,
+        taxableAmount: processed.taxable_amount,
+        taxType: processed.tax_type,
+        taxSnapshotRate: processed.tax_snapshot_rate,
+        taxCode: processed.tax_code,
+        taxName: processed.tax_name,
+        manualDiscountAmount: processed.manual_discount_amount,
+        manualDiscountPercent: processed.manual_discount_percent,
+        allocatedOrderDiscount: processed.allocated_order_discount,
+      };
+    });
+
+    let autoRoundOff = 0;
+    if (roundOffEnabled && roundOffMode === 'automatic') {
+      const factor = roundOffAutoFactor > 0 ? roundOffAutoFactor : 1;
+      const cleanBase = calculated.total_inc_tax || 0;
+      const rounded = Math.round(cleanBase / factor) * factor;
+      autoRoundOff = Number((rounded - cleanBase).toFixed(2));
+    }
+
+    return {
+      grossTotal: calculated.gross_face_total,
+      discount: calculated.discount_amount,
+      taxable: calculated.taxable_amount,
+      tax: calculated.total_tax,
+      basePayable: calculated.total_inc_tax,
+      autoRoundOff,
+      processedLines,
+    };
+  }, [cartItems, discountType, discountValue, config, roundOffEnabled, roundOffMode, roundOffAutoFactor]);
 
   // Derived values from calculated totals
-  const activePayable = totals ? totals.payable : baseTotal;
+  const activeBasePayable = totals ? totals.basePayable : baseTotal;
   const gross = totals ? totals.grossTotal : baseTotal;
   const disc = totals ? totals.discount : Number(order?.totalDiscountAmount ?? 0);
   const tax = totals ? totals.tax : Number(order?.totalTaxAmount ?? 0);
-  const round = totals ? totals.roundOff : 0;
   const subtotal = Math.max(0, gross - disc);
 
   const [roundOffAmount, setRoundOffAmount] = useState('0.00');
 
+  // Seed the round-off input once totals are ready
   useEffect(() => {
-    if (totals) {
-      setRoundOffAmount(String(totals.roundOff));
+    if (!totals) return;
+    if (roundOffMode === 'automatic') {
+      setRoundOffAmount(String(totals.autoRoundOff || 0));
+    } else if (roundOffMode === 'manual') {
+      setRoundOffAmount('0.00');
     }
-  }, [totals]);
+  }, [totals, roundOffMode]);
 
   const roundOff = toNumber(roundOffAmount);
-  const payable = roundOffEnabled && roundOffMode === 'manual'
-    ? Number((subtotal + tax + roundOff).toFixed(2))
-    : activePayable;
+
+  // Payable = clean base + round-off (whatever mode)
+  const payable = roundOffEnabled
+    ? Number((activeBasePayable + roundOff).toFixed(2))
+    : activeBasePayable;
 
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
@@ -553,13 +767,93 @@ export default function PaymentDialog({
     setPaymentSplits((current) => current.filter((_, currentIndex) => currentIndex !== index));
   };
 
+  const handleApplyDiscounts = () => {
+    if (!discountsEnabled) return;
+
+    setCartItems(prev => prev.map(item => {
+      const key = cartKeyFor(item);
+      const disc = localDiscounts[key];
+      if (disc) {
+        if (disc.type === 'percentage') {
+          return {
+            ...item,
+            discount_percent: disc.value,
+            discount_amount: 0,
+            discount: { type: 'percent', value: disc.value }
+          };
+        } else {
+          return {
+            ...item,
+            discount_percent: 0,
+            discount_amount: disc.value,
+            discount: { type: 'amount', value: disc.value }
+          };
+        }
+      }
+      return item;
+    }));
+    setDiscountType(localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 'percent' : 'amount');
+    setDiscountValue(localOrderDiscountValue);
+    setShowDiscountModal(false);
+  };
+
+  const handleClearAllDiscounts = () => {
+    if (!discountsEnabled) return;
+
+    setLocalDiscounts(prev => {
+      const next = {};
+      Object.keys(prev).forEach(key => {
+        next[key] = { type: 'amount', value: 0 };
+      });
+      return next;
+    });
+    setLocalOrderDiscountType('amount');
+    setLocalOrderDiscountValue(0);
+  };
+
   const submit = () => {
     if (mixedInvalid || creditInvalid || !isRoundOffValid) return;
     const finalRoundOff = roundOffEnabled ? roundOff : 0;
-    const finalOrder = modifiedOrder ? {
-      ...modifiedOrder,
-      grandTotal: payable,
-      totalAmount: payable,
+    const finalOrder = totals ? {
+      ...order,
+      lines: totals.processedLines.map(line => ({
+        id: line.id,
+        productId: line.productId || line.id,
+        variantId: line.variantId || null,
+        productName: line.displayName || line.productName || line.name || 'Item',
+        unitPrice: line.price,
+        quantity: line.qty,
+        taxRate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : null,
+        taxAmount: line.taxAmount || 0,
+        discountAmount: line.discountAmount || 0,
+        discountPercent: line.discountPercent || 0,
+        discount: line.discount,
+        lineTotal: line.lineTotal || 0,
+        unitOfMeasure: line.unitOfMeasure || null,
+        description: line.description || null,
+        isPackagedGood: line.isPackagedGood === true || line.is_packaged_good === true,
+        // Enriched line-level GST/discount fields
+        grossLineAmount: line.grossLineAmount,
+        unitPriceExTax: line.unitPriceExTax,
+        taxableAmount: line.taxableAmount,
+        taxType: line.taxType,
+        taxSnapshotRate: line.taxSnapshotRate,
+        taxCode: line.taxCode,
+        taxName: line.taxName,
+        manualDiscountAmount: line.manualDiscountAmount,
+        manualDiscountPercent: line.manualDiscountPercent,
+        allocatedOrderDiscount: line.allocatedOrderDiscount,
+      })),
+      orderDiscount: discountsEnabled ? { type: discountType, value: discountValue } : { type: 'amount', value: 0 },
+      // Enriched order-level GST/discount fields
+      grossAmount: Number((totals.grossTotal || 0).toFixed(2)),
+      orderDiscountType: discountType === 'percentage' || discountType === 'percent' ? 'PERCENT' : 'AMOUNT',
+      orderDiscountValue: Number(discountValue || 0),
+      discountSource: 'MANUAL',
+      totalDiscountAmount: Number((totals.discount || 0).toFixed(2)),
+      totalTaxAmount: Number((totals.tax || 0).toFixed(2)),
+      totalAmount: Number((totals.basePayable || 0).toFixed(2)),
+      grandTotal: payable,       // Final settled total (base + round-off)
       roundOffAmount: finalRoundOff,
     } : null;
 
@@ -623,16 +917,41 @@ export default function PaymentDialog({
           <Row><span>Gross Total</span><strong>{money(gross)}</strong></Row>
           {disc > 0 && <Row style={{ color: '#ea580c' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
           <Row><span>Subtotal</span><strong>{money(subtotal)}</strong></Row>
-          <Row><span>Tax</span><strong>{money(tax)}</strong></Row>
-          {roundOffEnabled && (
-            <Row><span>Round Off</span><strong>{money(roundOff)}</strong></Row>
+          {config?.taxEnabled && <Row><span>Tax</span><strong>{money(tax)}</strong></Row>}
+          <Row style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '2px' }}>
+            <span>Before Round Off</span><strong>{money(activeBasePayable)}</strong>
+          </Row>
+          {roundOffEnabled && roundOff !== 0 && (
+            <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
+              <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>
+              <strong>{roundOff > 0 ? '+' : ''}{money(roundOff)}</strong>
+            </Row>
           )}
         </Breakdown>
+
+        {discountsEnabled && (
+          <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginTop: '4px', height: '36px' }}>
+            {disc > 0 ? `Edit Discounts (${money(disc)})` : 'Apply Discount'}
+          </DiscountBtn>
+        )}
 
         {roundOffEnabled && roundOffMode === 'manual' && (
           <Field>
             Round Off (Limit ±₹{roundOffManualLimit.toFixed(2)})
-            <input type="number" step="0.01" value={roundOffAmount} onChange={(event) => setRoundOffAmount(event.target.value)} />
+            <input
+              type="number"
+              step="0.01"
+              min={-roundOffManualLimit}
+              max={roundOffManualLimit}
+              value={roundOffAmount}
+              onChange={(event) => setRoundOffAmount(event.target.value)}
+            />
+          </Field>
+        )}
+        {roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
+          <Field>
+            Round Off (Auto)
+            <input type="number" step="0.01" value={roundOffAmount} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />
           </Field>
         )}
 
@@ -746,6 +1065,218 @@ export default function PaymentDialog({
           onClose={() => setShowNewCreditCustomer(false)}
           onCreated={handleCreditCustomerCreated}
         />
+        {discountsEnabled && showDiscountModal && (
+          <ModalBackdrop onClick={() => setShowDiscountModal(false)}>
+            <DiscountModalContent onClick={e => e.stopPropagation()}>
+              <DiscountModalHeader>
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountModal(false)}
+                  style={{
+                    border: 'none',
+                    background: '#f1f5f9',
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                  onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+                  aria-label="Close discounts modal"
+                >
+                  <FaTimes size={10} />
+                </button>
+              </DiscountModalHeader>
+              <DiscountTabHeader>
+                <DiscountTabButton
+                  type="button"
+                  $active={discountModalTab === 'line'}
+                  $themeColor="#ea580c"
+                  onClick={() => setDiscountModalTab('line')}
+                >
+                  Line Discounts
+                </DiscountTabButton>
+                <DiscountTabButton
+                  type="button"
+                  $active={discountModalTab === 'total'}
+                  $themeColor="#ea580c"
+                  onClick={() => setDiscountModalTab('total')}
+                >
+                  Total Discount
+                </DiscountTabButton>
+              </DiscountTabHeader>
+              <DiscountModalBody>
+                {discountModalTab === 'line' ? (
+                  cartItems.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontWeight: '600' }}>
+                      Add items to your cart first to apply discounts.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {cartItems.map(item => {
+                        const key = cartKeyFor(item);
+                        const disc = localDiscounts[key] || { type: 'amount', value: 0 };
+                        return (
+                          <DiscountRow key={key}>
+                            <DiscountRowInfo>
+                              <span>{item.displayName || item.name}</span>
+                              <small>₹{Number(item.price || 0).toFixed(2)} x {item.qty}</small>
+                            </DiscountRowInfo>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <DiscountInputWrapper $themeColor="#ea580c">
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  max={disc.type === 'percentage' ? 100 : undefined}
+                                  value={disc.value || ''}
+                                  onChange={e => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], value: val }
+                                    }));
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    outline: 'none',
+                                    width: '60px',
+                                    padding: '0 4px',
+                                    fontSize: '13px',
+                                    fontWeight: '700',
+                                    textAlign: 'right',
+                                    color: '#000000'
+                                  }}
+                                />
+                              </DiscountInputWrapper>
+                              <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                                <DiscUnitToggle 
+                                  type="button"
+                                  $active={disc.type === 'amount'} 
+                                  $themeColor="#ea580c"
+                                  onClick={() => {
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], type: 'amount' }
+                                    }));
+                                  }}
+                                >
+                                  ₹
+                                </DiscUnitToggle>
+                                <DiscUnitToggle 
+                                  type="button"
+                                  $active={disc.type === 'percentage'} 
+                                  $themeColor="#ea580c"
+                                  onClick={() => {
+                                    setLocalDiscounts(prev => ({
+                                      ...prev,
+                                      [key]: { ...prev[key], type: 'percentage' }
+                                    }));
+                                  }}
+                                >
+                                  %
+                                </DiscUnitToggle>
+                              </div>
+                            </div>
+                          </DiscountRow>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  <div style={{ padding: '16px 0' }}>
+                    <DiscountRow style={{ background: '#f8fafc', borderColor: '#edf2f7', justifyContent: 'space-between', padding: '12px 16px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#1e293b' }}>Total Discount</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DiscountInputWrapper $themeColor="#ea580c">
+                          <input 
+                            type="number"
+                            min="0"
+                            max={localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 100 : undefined}
+                            value={localOrderDiscountValue || ''}
+                            onChange={e => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setLocalOrderDiscountValue(val);
+                            }}
+                            style={{
+                              border: 'none',
+                              outline: 'none',
+                              width: '60px',
+                              padding: '0 4px',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              textAlign: 'right',
+                              color: '#000000',
+                              background: 'transparent'
+                            }}
+                          />
+                        </DiscountInputWrapper>
+                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                          <DiscUnitToggle 
+                            type="button"
+                            $active={localOrderDiscountType === 'amount'} 
+                            $themeColor="#ea580c"
+                            onClick={() => setLocalOrderDiscountType('amount')}
+                          >
+                            ₹
+                          </DiscUnitToggle>
+                          <DiscUnitToggle 
+                            type="button"
+                            $active={localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent'} 
+                            $themeColor="#ea580c"
+                            onClick={() => setLocalOrderDiscountType('percentage')}
+                          >
+                            %
+                          </DiscUnitToggle>
+                        </div>
+                      </div>
+                    </DiscountRow>
+                  </div>
+                )}
+              </DiscountModalBody>
+              <DiscountModalFooter>
+                <button 
+                  type="button"
+                  onClick={handleClearAllDiscounts} 
+                  style={{
+                    flex: 1, 
+                    height: '36px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #cbd5e1', 
+                    background: 'white', 
+                    fontWeight: '700', 
+                    fontSize: '13px',
+                    color: '#64748b',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear All
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleApplyDiscounts}
+                  style={{
+                    flex: 1, 
+                    height: '36px', 
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    background: '#ea580c', 
+                    fontWeight: '700', 
+                    fontSize: '13px',
+                    color: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Apply
+                </button>
+              </DiscountModalFooter>
+            </DiscountModalContent>
+          </ModalBackdrop>
+        )}
       </Card>
     </Overlay>
   );

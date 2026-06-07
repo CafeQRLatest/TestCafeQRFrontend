@@ -59,6 +59,7 @@ export default function DocumentViewerPopup({
 }) {
   const [showDiscount, setShowDiscount] = React.useState(false);
   const [discountTab, setDiscountTab] = React.useState('line'); // 'line' | 'total'
+  const taxEnabled = config ? !!config.taxEnabled : true;
   const [localDiscounts, setLocalDiscounts] = React.useState({});
   const [localOrderDiscountType, setLocalOrderDiscountType] = React.useState('amount');
   const [localOrderDiscountValue, setLocalOrderDiscountValue] = React.useState(0);
@@ -66,6 +67,31 @@ export default function DocumentViewerPopup({
 
   const [currentOrder, setCurrentOrder] = React.useState(order);
   React.useEffect(() => { setCurrentOrder(order); }, [order]);
+
+  const [invoiceData, setInvoiceData] = React.useState(null);
+  React.useEffect(() => {
+    if (docType === 'invoice' && currentOrder?.id) {
+      setInvoiceData(null);
+      api.get(`/api/v1/invoices/order/${currentOrder.id}`)
+        .then(res => {
+          if (res.data?.data) {
+            setInvoiceData(res.data.data);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch invoice for order:', err);
+        });
+    } else {
+      setInvoiceData(null);
+    }
+  }, [docType, currentOrder?.id]);
+
+  const activeLines = React.useMemo(() => {
+    if (docType === 'invoice' && invoiceData) {
+      return invoiceData.lines || [];
+    }
+    return currentOrder?.lines || [];
+  }, [docType, invoiceData, currentOrder?.lines]);
 
   // Load defaults when discount panel opens
   React.useEffect(() => {
@@ -129,7 +155,7 @@ export default function DocumentViewerPopup({
           name: line.displayName,
           price: line.price,
           quantity: line.qty,
-          tax_rate: line.taxRate || line.tax_rate || 0,
+          tax_rate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : ((line.tax_rate !== undefined && line.tax_rate !== null && line.tax_rate !== '') ? Number(line.tax_rate) : null),
           is_packaged_good: line.isPackagedGood,
           is_packaged: line.isPackagedGood,
           discount_percent: line.discount_percent,
@@ -142,6 +168,15 @@ export default function DocumentViewerPopup({
 
       const processedLines = (calculatedData.processed_items || []).map((processed, idx) => {
         const original = updatedItems[idx];
+        const gstEnabled = Boolean(config?.taxEnabled);
+        const taxRatePct = Number(processed.tax_rate || 0);
+        const isInclusive = gstEnabled && (processed.is_packaged_good || Boolean(config?.pricesIncludeTax));
+        const discType = original.discount?.type;
+        const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
+        const taxCode = gstEnabled && taxRatePct > 0 ? (matchedRate?.code || `GST_${taxRatePct}`) : null;
+        const taxName = gstEnabled && taxRatePct > 0 ? (matchedRate?.name || `GST ${taxRatePct}%`) : null;
+        const qty = Number(processed.quantity || 1);
+        const unitPrice = Number(processed.unit_price || original.price || 0);
         return {
           ...original,
           quantity: processed.quantity,
@@ -150,6 +185,17 @@ export default function DocumentViewerPopup({
           taxAmount: processed.tax_amount,
           discountAmount: processed.discount_amount,
           lineTotal: processed.line_total,
+          // GST enrichment fields (V1_110)
+          grossLineAmount:        Number((unitPrice * qty).toFixed(2)),
+          unitPriceExTax:         Number((processed.unit_price_ex_tax || processed.unit_price_ex_tax_orig || 0).toFixed(4)),
+          taxableAmount:          Number((processed.taxable_amount || 0).toFixed(2)),
+          taxType:                isInclusive ? 'INCLUSIVE' : (gstEnabled && taxRatePct > 0 ? 'EXCLUSIVE' : 'NONE'),
+          taxSnapshotRate:        taxRatePct,
+          taxCode,
+          taxName,
+          manualDiscountAmount:   discType !== 'percent' ? Number((processed.line_discount_face || 0).toFixed(2)) : null,
+          manualDiscountPercent:  discType === 'percent' ? Number((original.discount?.value || 0).toFixed(4)) : null,
+          allocatedOrderDiscount: Number((processed.order_discount_share || 0).toFixed(2)),
         };
       });
 
@@ -159,6 +205,11 @@ export default function DocumentViewerPopup({
         totalTaxAmount: calculatedData.total_tax,
         totalAmount: calculatedData.total_inc_tax,
         totalDiscountAmount: calculatedData.discount_amount,
+        // GST Discount Engine order-level fields (V1_110)
+        grossAmount: Number((calculatedData.gross_face_total || 0).toFixed(2)),
+        orderDiscountType: orderDisc.type === 'percent' ? 'PERCENT' : 'AMOUNT',
+        orderDiscountValue: Number(orderDisc.value || 0),
+        discountSource: currentOrder.discountSource || 'MANUAL',
         lines: processedLines,
         orderDiscount: orderDisc,
       };
@@ -178,43 +229,91 @@ export default function DocumentViewerPopup({
 
   const calculated = React.useMemo(() => {
     if (!currentOrder) return { subtotal: 0, tax: 0, discount: 0, grandTotal: 0 };
-    let subtotal = 0, taxTotal = 0;
-    const discountTotal = parseFloat(currentOrder.totalDiscountAmount || currentOrder.total_discount_amount || 0);
-    const roundOff = parseFloat(currentOrder.roundOffAmount || currentOrder.round_off_amount || 0);
-    let grandTotal = 0;
 
-    const lines = currentOrder.lines || [];
+    if (docType === 'invoice' && invoiceData) {
+      const hasGstTotals = invoiceData.taxableAmount !== null && invoiceData.taxableAmount !== undefined && 
+                           invoiceData.totalTaxAmount !== null && invoiceData.totalTaxAmount !== undefined;
+      
+      if (hasGstTotals) {
+        return {
+          subtotal: parseFloat(invoiceData.taxableAmount || invoiceData.taxable_amount || 0),
+          tax: parseFloat(invoiceData.totalTaxAmount || invoiceData.total_tax_amount || 0),
+          discount: parseFloat(invoiceData.totalDiscountAmount || invoiceData.total_discount_amount || 0),
+          grandTotal: parseFloat(invoiceData.totalAmount || invoiceData.total_amount || 0),
+          gross: parseFloat(invoiceData.grossAmount || invoiceData.gross_amount || 0),
+          roundOff: 0
+        };
+      }
+    }
+
+    const activeDoc = (docType === 'invoice' && invoiceData) ? invoiceData : currentOrder;
+    let subtotal = 0, taxTotal = 0;
+    const discountTotal = parseFloat(activeDoc.totalDiscountAmount || activeDoc.total_discount_amount || 0);
+    const roundOff = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
+    let grandTotal = 0;
+    let hasTaxableAmount = false;
+
+    const lines = activeLines;
     if (lines.length > 0) {
       lines.forEach(l => {
         const qty = parseFloat(l.quantity || 0);
         const uPrice = parseFloat(l.unitPrice || l.price || 0);
         const lTaxAmount = parseFloat(l.taxAmount || l.tax_amount || 0);
-        const lDiscAmount = parseFloat(l.discountAmount || l.discount_amount || 0);
-        const lTotal = parseFloat(l.lineTotal || l.line_total || (uPrice * qty));
-        const expectedInclTotal = (uPrice * qty) - lDiscAmount;
-        const expectedExclTotal = expectedInclTotal + lTaxAmount;
-        const isInclusive = Math.abs(lTotal - expectedInclTotal) < Math.abs(lTotal - expectedExclTotal);
-        if (isInclusive) { subtotal += (lTotal - lTaxAmount); taxTotal += lTaxAmount; }
-        else { subtotal += (uPrice * qty - lDiscAmount); taxTotal += lTaxAmount; }
+        const lLineTotal = parseFloat(l.lineTotal || l.line_total || (uPrice * qty));
+        // Prefer taxableAmount (authoritative post-discount base) when available.
+        // This avoids the face-discount vs base-discount inflation issue for exclusive GST products.
+        const lTaxableAmount = parseFloat(l.taxableAmount || l.taxable_amount || 0);
+        if (lTaxableAmount > 0) {
+          // Exclusive product: taxableAmount is the base after ALL discounts; lineTotal = taxable + tax
+          // Inclusive product: taxableAmount is the base, lineTotal = lineTotal (face)
+          hasTaxableAmount = true;
+          subtotal += lTaxableAmount;
+          taxTotal += lTaxAmount;
+        } else {
+          // Fallback for old records without taxableAmount
+          const lDiscAmount = parseFloat(l.discountAmount || l.discount_amount || 0);
+          const expectedInclTotal = (uPrice * qty) - lDiscAmount;
+          const expectedExclTotal = expectedInclTotal + lTaxAmount;
+          const isInclusive = Math.abs(lLineTotal - expectedInclTotal) < Math.abs(lLineTotal - expectedExclTotal);
+          if (isInclusive) { subtotal += (lLineTotal - lTaxAmount); taxTotal += lTaxAmount; }
+          else { subtotal += (uPrice * qty - lDiscAmount); taxTotal += lTaxAmount; }
+        }
       });
-      grandTotal = subtotal + taxTotal - discountTotal + roundOff;
-    } else {
-      subtotal = parseFloat(currentOrder.totalAmount || currentOrder.total_amount || 0);
-      taxTotal = parseFloat(currentOrder.totalTaxAmount || currentOrder.total_tax_amount || 0);
-      grandTotal = parseFloat(currentOrder.grandTotal || currentOrder.grand_total || currentOrder.totalAmount || 0);
-      if (Math.abs(grandTotal - subtotal) < 0.05 && taxTotal > 0.05)
+      if (hasTaxableAmount) {
+        grandTotal = subtotal + taxTotal + roundOff;
+        subtotal = grandTotal - taxTotal + discountTotal - roundOff;
+      } else {
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
+      }
+    } else {
+      subtotal = parseFloat(activeDoc.totalAmount || activeDoc.total_amount || 0);
+      taxTotal = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
+      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.totalAmount || 0);
+      // For orders without lines loaded yet, check if database columns indicate new GST engine
+      const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0;
+      if (hasGstFlag) {
+        hasTaxableAmount = true;
+        subtotal = grandTotal - taxTotal + discountTotal - roundOff;
+      } else if (Math.abs(grandTotal - subtotal) < 0.05 && taxTotal > 0.05) {
+        grandTotal = subtotal + taxTotal - discountTotal + roundOff;
+      }
     }
 
-    const dbGrandTotal = parseFloat(currentOrder.grandTotal || currentOrder.grand_total || 0);
-    const dbTotalTax = parseFloat(currentOrder.totalTaxAmount || currentOrder.total_tax_amount || 0);
-    const dbSubtotal = parseFloat(currentOrder.totalAmount || currentOrder.total_amount || 0);
-    const dbGrandTotalIsMissingTax = Math.abs(dbGrandTotal - dbSubtotal) < 0.05 && dbTotalTax > 0.05;
-    if (dbGrandTotal > 0 && !dbGrandTotalIsMissingTax)
-      return { subtotal: dbSubtotal, tax: dbTotalTax, discount: discountTotal, grandTotal: dbGrandTotal };
+    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || 0);
+    const dbTotalTax    = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
+    const dbSubtotal    = parseFloat(activeDoc.totalAmount  || activeDoc.total_amount  || 0);
+    const dbGrossAmount = parseFloat(activeDoc.grossAmount  || activeDoc.gross_amount  || 0);
+    const dbRoundOff    = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
+    const dbGrandTotalIsMissingTax = !hasTaxableAmount && Math.abs(dbGrandTotal - dbSubtotal) < 0.05 && dbTotalTax > 0.05;
+    if (dbGrandTotal > 0 && !dbGrandTotalIsMissingTax) {
+      const displaySubtotal = hasTaxableAmount 
+        ? (dbGrandTotal - dbTotalTax + discountTotal - dbRoundOff)
+        : dbSubtotal;
+      return { subtotal: displaySubtotal, tax: dbTotalTax, discount: discountTotal, grandTotal: dbGrandTotal, gross: dbGrossAmount, roundOff: dbRoundOff };
+    }
 
-    return { subtotal, tax: taxTotal, discount: discountTotal, grandTotal: Math.max(0, grandTotal) };
-  }, [currentOrder]);
+    return { subtotal, tax: taxTotal, discount: discountTotal, grandTotal: Math.max(0, grandTotal), gross: dbGrossAmount, roundOff: roundOff };
+  }, [currentOrder, docType, invoiceData, activeLines]);
 
   const primaryCustomer = React.useMemo(() => {
     if (!currentOrder) return null;
@@ -288,8 +387,24 @@ export default function DocumentViewerPopup({
           </div>
           <div className="dv-cell">
             <span className="dv-lbl">Date</span>
-            <span className="dv-val">{formatTzDate(currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at, timezone, { format: 'date' })}</span>
-            <span className="dv-sub">{formatTzDate(currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at, timezone, { format: 'time' })}</span>
+            <span className="dv-val">
+              {formatTzDate(
+                (docType === 'invoice' && invoiceData)
+                  ? (invoiceData.invoiceDate || invoiceData.invoice_date)
+                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at),
+                timezone,
+                { format: 'date' }
+              )}
+            </span>
+            <span className="dv-sub">
+              {formatTzDate(
+                (docType === 'invoice' && invoiceData)
+                  ? (invoiceData.invoiceDate || invoiceData.invoice_date)
+                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at),
+                timezone,
+                { format: 'time' }
+              )}
+            </span>
           </div>
           <div className="dv-cell">
             <span className="dv-lbl">{isSale ? 'Terminal' : 'Payment Method'}</span>
@@ -368,37 +483,78 @@ export default function DocumentViewerPopup({
             <div className="dv-rule" />
             <div className="dv-items-head">
               <span className="dv-lbl">{docType === 'invoice' ? 'Invoice Items' : 'Order Items'}</span>
-              <span className="dv-count">{(currentOrder.lines || []).length}</span>
+              <span className="dv-count">{activeLines.length}</span>
             </div>
             <div className="dv-tbl-wrap">
               <table className="dv-tbl">
                 <thead>
                   <tr>
-                    <th>Product</th><th>Qty</th><th>Unit Price</th><th>Tax</th><th>Discount</th><th>Total</th>
+                    <th>Product</th><th>Qty</th><th>Unit Price</th>{taxEnabled && <th>GST</th>}<th>Discount</th><th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(currentOrder.lines || []).map((l, i) => (
+                  {activeLines.map((l, i) => (
                     <tr key={l.id || i}>
                       <td>
                         <span className="dv-pname">{l.productName || l.name || '—'}</span>
                         {(l.productCode || l.product_code) && <span className="dv-pcode">{l.productCode || l.product_code}</span>}
+
                       </td>
                       <td>{parseFloat(l.quantity || 0)}{l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}</td>
-                      <td>{currencySymbol}{fmt(l.unitPrice || l.price)}</td>
-                      <td>{parseFloat(l.taxRate || l.tax_rate || 0)}%</td>
                       <td>
-                        {parseFloat(l.discountAmount || l.discount_amount || 0) > 0
-                          ? <span className="dv-disc">−{currencySymbol}{fmt(l.discountAmount || l.discount_amount)}</span>
-                          : '—'}
+                        {currencySymbol}{fmt(l.unitPrice || l.price)}
+                        {taxEnabled && (l.unitPriceExTax || l.unit_price_ex_tax) && parseFloat(l.taxRate || l.tax_rate || 0) > 0 && (
+                          <span className="dv-ex-tax"> (ex: {currencySymbol}{fmt(l.unitPriceExTax || l.unit_price_ex_tax)})</span>
+                        )}
+                      </td>
+                      {taxEnabled && (
+                        <td>
+                          {parseFloat(l.taxRate || l.tax_rate || 0)}%
+                          {(l.taxName || l.tax_name) && <span className="dv-uom"> {l.taxName || l.tax_name}</span>}
+                        </td>
+                      )}
+                      <td>
+                        {(() => {
+                          const grossLine = parseFloat(l.grossLineAmount || l.gross_line_amount || 0) ||
+                            (parseFloat(l.unitPrice || l.price || 0) * parseFloat(l.quantity || 0));
+                          const taxableAmt = parseFloat(l.taxableAmount || l.taxable_amount || 0);
+                          const taxRate = parseFloat(l.taxRate || l.tax_rate || 0);
+                          const isPackaged = l.isPackagedGood || l.is_packaged_good || l.isPackaged || l.is_packaged;
+                          const gstEnabled = taxEnabled && taxRate > 0;
+                          const isInclusive = gstEnabled && (isPackaged || Boolean(config?.pricesIncludeTax));
+                          
+                          // Base discount = gross (before disc) minus taxable base (after all discounts)
+                          // This is the correct GST-invoice discount: reduction applied to the taxable base
+                          let displayDisc = 0;
+                          if (taxableAmt > 0 && grossLine > 0) {
+                            if (isInclusive) {
+                              // For inclusive: gross face = grossLine, taxable base = taxableAmt
+                              // displayed as face = discBase * (1 + rate)
+                              const discBase = grossLine / (1 + taxRate / 100) - taxableAmt;
+                              displayDisc = discBase * (1 + taxRate / 100); // back to face for display
+                            } else {
+                              // For exclusive: gross base = grossLine, taxable = taxableAmt (both exclusive)
+                              displayDisc = grossLine - taxableAmt;
+                            }
+                          } else {
+                            // Fallback: use stored discountAmount
+                            displayDisc = parseFloat(l.discountAmount || l.discount_amount || 0);
+                          }
+                          
+                          return displayDisc > 0.005 ? (
+                            <span className="dv-disc">
+                              −{currencySymbol}{fmt(displayDisc)}
+                            </span>
+                          ) : '—';
+                        })()}
                       </td>
                       <td className="dv-line-tot">
                         {currencySymbol}{fmt(l.lineTotal || l.line_total || (parseFloat(l.price || l.unitPrice || 0) * parseFloat(l.quantity || 0)))}
                       </td>
                     </tr>
                   ))}
-                  {(!currentOrder.lines || currentOrder.lines.length === 0) && (
-                    <tr><td colSpan="6" className="dv-empty">No items in this order</td></tr>
+                  {activeLines.length === 0 && (
+                    <tr><td colSpan={taxEnabled ? 6 : 5} className="dv-empty">No items in this document</td></tr>
                   )}
                 </tbody>
               </table>
@@ -423,10 +579,27 @@ export default function DocumentViewerPopup({
                 {!showDiscount && parseFloat(calculated.discount || 0) > 0 && ` (−${currencySymbol}${fmt(calculated.discount)})`}
               </button>
             )}
+            {parseFloat(calculated.gross || 0) > 0 && parseFloat(calculated.discount || 0) > 0 && (
+              <div className="dv-trow dv-trow-muted"><span>Gross Amount</span><span>{currencySymbol}{fmt(calculated.gross)}</span></div>
+            )}
             <div className="dv-trow"><span>Subtotal</span><span>{currencySymbol}{fmt(calculated.subtotal)}</span></div>
-            <div className="dv-trow"><span>Tax</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
+            {taxEnabled && (
+              <div className="dv-trow"><span>Tax</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
+            )}
             {parseFloat(calculated.discount || 0) > 0 && (
-              <div className="dv-trow dv-trow-disc"><span>Discount</span><span>−{currencySymbol}{fmt(calculated.discount)}</span></div>
+              <div className="dv-trow dv-trow-disc">
+                <span>
+                  Discount
+
+                </span>
+                <span>−{currencySymbol}{fmt(calculated.discount)}</span>
+              </div>
+            )}
+            {docType === 'payment' && parseFloat(calculated.roundOff || 0) !== 0 && (
+              <div className="dv-trow dv-trow-muted">
+                <span>Round Off</span>
+                <span>{parseFloat(calculated.roundOff) > 0 ? '+' : ''}{currencySymbol}{fmt(calculated.roundOff)}</span>
+              </div>
             )}
             <div className="dv-trow dv-trow-grand">
               <span>{docType === 'payment' ? 'Amount Paid' : 'Grand Total'}</span>
@@ -584,6 +757,22 @@ export default function DocumentViewerPopup({
         .dv-disc  { color:#ef4444;font-weight:600; }
         .dv-line-tot { font-weight:700;color:#0f172a; }
         .dv-empty { text-align:center!important;padding:24px 0!important;color:#cbd5e1;font-style:italic; }
+
+        /* GST enrichment badges */
+        .dv-tax-badge {
+          display:inline-block;margin-top:2px;padding:1px 5px;
+          background:#f0fdf4;border:1px solid #86efac;color:#16a34a;
+          border-radius:4px;font-size:10px;font-weight:700;font-family:monospace;
+        }
+        .dv-ex-tax { font-size:10px;color:#94a3b8;display:block;margin-top:1px; }
+        .dv-alloc-disc { font-size:10px;color:#f97316;display:block;margin-top:1px; }
+        .dv-source-badge {
+          display:inline-block;margin-left:6px;padding:1px 6px;
+          background:#fef3c7;border:1px solid #fcd34d;color:#92400e;
+          border-radius:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;vertical-align:middle;
+        }
+        .dv-trow-muted { color:#94a3b8 !important; font-size:12px !important; }
+
 
         /* ── bottom area: totals + discount panel side by side ── */
         .dv-bottom {

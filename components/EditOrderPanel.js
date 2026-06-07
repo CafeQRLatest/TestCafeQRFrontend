@@ -418,7 +418,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         name: line.displayName || line.productName,
         price: line.unitPrice,
         quantity: line.quantity,
-        tax_rate: line.taxRate || 0,
+        tax_rate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : null,
         is_packaged_good: line.isPackagedGood,
         is_packaged: line.isPackagedGood,
       })),
@@ -591,10 +591,20 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   };
 
   const submit = () => {
+    const gstEnabled = Boolean(config?.taxEnabled);
+
     const processedLines = (totals.processed_items || []).map((processed, index) => {
       const original = lines.find((line) => line.cartKey === processed.id) || lines[index];
       const quantity = toNumber(processed.quantity || original?.quantity || 1) || 1;
       const unitPrice = toNumber(processed.unit_price ?? original?.unitPrice);
+      const taxRatePct = Number(toNumber(processed.tax_rate || original?.taxRate).toFixed(2));
+      const isInclusive = gstEnabled && (Boolean(original?.isPackagedGood) || Boolean(config?.pricesIncludeTax));
+
+      // Resolve tax code/name snapshot from config rates
+      const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
+      const taxCode = gstEnabled && taxRatePct > 0 ? (matchedRate?.code || `GST_${taxRatePct}`) : null;
+      const taxName = gstEnabled && taxRatePct > 0 ? (matchedRate?.name || `GST ${taxRatePct}%`) : null;
+
       return {
         productId: original?.productId || null,
         variantId: original?.variantId || null,
@@ -604,10 +614,22 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         quantity,
         unitPrice: Number(unitPrice.toFixed(2)),
         unitOfMeasure: original?.unitOfMeasure || 'units',
-        taxRate: Number(toNumber(processed.tax_rate || original?.taxRate).toFixed(2)),
+        taxRate: taxRatePct,
         taxAmount: Number(toNumber(processed.tax_amount).toFixed(2)),
         discountAmount: Number(toNumber(processed.discount_amount).toFixed(2)),
         lineTotal: Number(toNumber(processed.line_total || unitPrice * quantity).toFixed(2)),
+
+        // ─── GST Enrichment fields (V1_110) ───────────────────────────
+        grossLineAmount:        Number((unitPrice * quantity).toFixed(2)),
+        unitPriceExTax:         Number((processed.unit_price_ex_tax || processed.unit_price_ex_tax_orig || 0).toFixed(4)),
+        taxableAmount:          Number((processed.taxable_amount || 0).toFixed(2)),
+        taxType:                isInclusive ? 'INCLUSIVE' : (gstEnabled && taxRatePct > 0 ? 'EXCLUSIVE' : 'NONE'),
+        taxSnapshotRate:        taxRatePct,
+        taxCode,
+        taxName,
+        manualDiscountAmount:   Number((processed.line_discount_face || 0).toFixed(2)),
+        manualDiscountPercent:  null,
+        allocatedOrderDiscount: Number((processed.order_discount_share || 0).toFixed(2)),
       };
     });
 
@@ -623,6 +645,11 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       totalTaxAmount: Number(toNumber(totals.total_tax).toFixed(2)),
       totalAmount: Number(toNumber(totals.total_inc_tax).toFixed(2)),
       totalDiscountAmount: Number(toNumber(totals.discount_amount).toFixed(2)),
+      // ─── GST Discount Engine order-level fields (V1_110) ───────────
+      grossAmount:        Number((totals.gross_face_total || 0).toFixed(2)),
+      orderDiscountType:  'AMOUNT',
+      orderDiscountValue: 0,
+      discountSource:     'MANUAL',
       lines: processedLines,
     });
   };

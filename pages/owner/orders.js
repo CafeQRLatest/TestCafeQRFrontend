@@ -1025,24 +1025,25 @@ const ModalContent = styled.div`
 const OrderDetailsModal = styled(ModalContent)`
   background: white;
   width: 95%;
-  max-width: 340px;
+  max-width: 350px;
   border-radius: 16px;
-  border-top: 4px solid ${props => props.$accent || '#f97316'};
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border-top: 5px solid ${props => props.$accent || '#f97316'};
+  box-shadow: 0 15px 30px -10px rgba(15, 23, 42, 0.15), 0 5px 10px -5px rgba(15, 23, 42, 0.05);
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
   margin: 0 auto;
-  max-height: 90vh;
+  max-height: 85vh;
+  font-family: 'Outfit', 'Inter', sans-serif;
   
   .detail-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
-    background: white;
+    padding: 12px 16px;
+    background: #ffffff;
     color: #0f172a;
     border-bottom: 1px solid #f1f5f9;
   }
@@ -1050,7 +1051,7 @@ const OrderDetailsModal = styled(ModalContent)`
   .detail-title {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
   }
 
@@ -1058,14 +1059,16 @@ const OrderDetailsModal = styled(ModalContent)`
     margin: 0;
     color: #0f172a;
     font-size: 16px;
-    font-weight: 900;
+    font-weight: 800;
+    letter-spacing: -0.01em;
   }
 
   .detail-sub {
-    color: #0284c7;
-    font-size: 11px;
-    font-weight: 850;
+    color: #f97316;
+    font-size: 10px;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.02em;
   }
 
   .detail-status-chip {
@@ -1073,11 +1076,14 @@ const OrderDetailsModal = styled(ModalContent)`
     align-items: center;
     width: fit-content;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: 6px;
     background: ${props => props.$accent || '#f97316'}15;
     color: ${props => props.$accent || '#f97316'};
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-top: 2px;
   }
 
   .close-btn {
@@ -1085,14 +1091,24 @@ const OrderDetailsModal = styled(ModalContent)`
     height: 28px;
     border-radius: 50%;
     border: none;
-    background: #f8fafc;
+    background: #f1f5f9;
     color: #64748b;
     cursor: pointer;
     font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+      transform: rotate(90deg);
+    }
   }
 
   .detail-body {
-    padding: 10px 14px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1103,24 +1119,30 @@ const OrderDetailsModal = styled(ModalContent)`
 
   .meta-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
     background: #f8fafc;
-    border: 1px solid #f1f5f9;
-    padding: 8px;
+    border: 1px solid #e2e8f0;
+    padding: 8px 10px;
     border-radius: 10px;
   }
 
   .meta-box {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
+    align-items: center;
+    text-align: center;
+    border-right: 1px solid #e2e8f0;
+    &:last-child {
+      border-right: none;
+    }
   }
 
   .meta-box span {
     color: #64748b;
     font-size: 8px;
-    font-weight: 800;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -1128,23 +1150,39 @@ const OrderDetailsModal = styled(ModalContent)`
   .meta-box strong {
     color: #0f172a;
     font-size: 11px;
-    font-weight: 850;
+    font-weight: 700;
   }
 
   .detail-items {
     display: flex;
     flex-direction: column;
     gap: 0;
-    max-height: 180px;
+    max-height: 140px;
     overflow-y: auto;
+    padding-right: 4px;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
   }
 
   .detail-item {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 5px 0;
-    border-bottom: 1px solid #eef2f7;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    
+    &:last-child {
+      border-bottom: none;
+    }
   }
 
   .detail-item .qty {
@@ -1153,35 +1191,47 @@ const OrderDetailsModal = styled(ModalContent)`
     border-radius: 4px;
     padding: 1px 5px;
     font-size: 10px;
-    font-weight: 850;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
   }
 
   .line-main {
     flex: 1;
     display: flex;
     flex-direction: column;
+    gap: 1px;
   }
 
   .detail-item .name {
     color: #1e293b;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .line-meta {
     color: #64748b;
-    font-size: 9.5px;
-    font-weight: 700;
+    font-size: 9px;
+    font-weight: 500;
+    
+    .discount {
+      color: #10b981;
+      font-weight: 600;
+    }
+    
+    .tax {
+      color: #475569;
+    }
   }
 
   .line-total {
     color: #0f172a;
-    font-size: 12.5px;
-    font-weight: 900;
+    font-size: 12px;
+    font-weight: 700;
   }
 
   .detail-footer {
-    padding: 10px 14px;
+    padding: 12px 16px;
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
     display: flex;
@@ -1193,6 +1243,10 @@ const OrderDetailsModal = styled(ModalContent)`
     display: flex;
     flex-direction: column;
     gap: 4px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 8px 12px;
+    border-radius: 10px;
   }
 
   .breakdown-row {
@@ -1201,23 +1255,24 @@ const OrderDetailsModal = styled(ModalContent)`
     align-items: center;
     color: #475569;
     font-size: 11.5px;
-    font-weight: 700;
+    font-weight: 500;
   }
 
   .breakdown-row.discount {
-    color: #ef4444;
+    color: #10b981;
+    font-weight: 600;
   }
 
   .breakdown-divider {
     height: 1px;
     background: #e2e8f0;
-    margin: 2px 0;
+    margin: 4px 0;
   }
 
   .breakdown-row.total {
     color: #0f172a;
-    font-size: 15px;
-    font-weight: 950;
+    font-size: 14.5px;
+    font-weight: 800;
   }
 
   .detail-actions {
@@ -1241,7 +1296,20 @@ const OrderDetailsModal = styled(ModalContent)`
     padding: 6px 12px;
     font-size: 11px;
     border-radius: 8px;
+    font-weight: 700;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 5px -1px rgba(0,0,0,0.08);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
   }
+
 
 `;
 
@@ -1433,6 +1501,9 @@ export default function OrdersPage() {
   const handleConfirmPayment = async (settlementPayload) => {
     if (!paymentOrder) return;
     try {
+      if (settlementPayload?.updatedOrder) {
+        await api.put(`/api/v1/orders/${paymentOrder.id}`, settlementPayload.updatedOrder);
+      }
       const url = settlementPayload?.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${paymentOrder.id}/complete-credit`
         : `/api/v1/orders/${paymentOrder.id}/settle`;
@@ -1862,7 +1933,7 @@ export default function OrdersPage() {
                             <span className="line-meta">
                               {metaParts.join(' - ')}
                               {discount > 0 && <span className="discount"> - Discount &#8377;{discount.toFixed(2)}</span>}
-                              {tax > 0 && <span className="tax"> - Tax &#8377;{tax.toFixed(2)}</span>}
+                              {config?.taxEnabled && tax > 0 && <span className="tax"> - Tax &#8377;{tax.toFixed(2)}</span>}
                             </span>
                           </div>
                           <span className="line-total">&#8377;{lineTotal.toFixed(2)}</span>
@@ -1884,12 +1955,20 @@ export default function OrdersPage() {
                         <span>-&#8377;{Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0).toFixed(2)}</span>
                       </div>
                     )}
-                    {Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0) > 0 && (
-                      <div className="breakdown-row">
-                        <span>Tax</span>
-                        <span>&#8377;{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
-                      </div>
-                    )}
+                    {config?.taxEnabled && Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0) > 0 && (() => {
+                      const orderLines = selectedTableOrder.lines || selectedTableOrder.orderLines || selectedTableOrder.order_items || selectedTableOrder.orderItems || [];
+                      const hasLineTaxType = orderLines.some(l => (l.taxType !== undefined && l.taxType !== null) || (l.tax_type !== undefined && l.tax_type !== null));
+                      const isInclusiveOrder = hasLineTaxType
+                        ? orderLines.some(l => String(l.taxType || l.tax_type || '').toUpperCase() === 'INCLUSIVE')
+                        : config?.pricesIncludeTax === true;
+                      
+                      return (
+                        <div className="breakdown-row">
+                          <span>Tax ({isInclusiveOrder ? 'Inclusive' : 'Exclusive'})</span>
+                          <span>&#8377;{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="breakdown-divider" />
                     <div className="breakdown-row total">
                       <span>Total</span>
@@ -1898,7 +1977,8 @@ export default function OrdersPage() {
                         const tax = Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0);
                         const disc = Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0);
                         const dbGrand = Number(selectedTableOrder.grandTotal || selectedTableOrder.grand_total || 0);
-                        if (Math.abs(dbGrand - sub) < 0.05 && tax > 0.05) {
+                        const isGstEngine = !!(selectedTableOrder.discountCalculationVersion || selectedTableOrder.discount_calculation_version || selectedTableOrder.grossAmount || selectedTableOrder.gross_amount);
+                        if (!isGstEngine && Math.abs(dbGrand - sub) < 0.05 && tax > 0.05) {
                           return (sub + tax - disc).toFixed(2);
                         }
                         return (dbGrand || sub || 0).toFixed(2);
@@ -1908,7 +1988,7 @@ export default function OrdersPage() {
 
                   <div className="detail-actions">
                     <div className="actions-row-primary">
-                      <ActionBtn $variant="success" style={{ width: '100%', padding: '6px 12px', fontSize: '11px' }} onClick={() => {
+                      <ActionBtn $variant="success" style={{ width: '100%' }} onClick={() => {
                         setPaymentOrder(selectedTableOrder);
                         setSelectedTableOrder(null);
                       }}>
