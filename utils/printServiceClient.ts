@@ -129,6 +129,7 @@ export async function enrollNativePrintService(cloudBaseUrl: string, pairingCode
   window.localStorage.setItem(TOKEN_KEY, response.localClientToken);
   window.localStorage.setItem(PAIRED_KEY, '1');
   window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+  rememberPrintServiceLocalAccess(true);
   window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
   return response;
 }

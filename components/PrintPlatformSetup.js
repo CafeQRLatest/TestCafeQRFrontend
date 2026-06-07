@@ -32,6 +32,7 @@ import {
   submitNativePrintJob,
   syncNativePrintConfiguration,
   updateNativePrintConfiguration,
+  acceptNativeCloudConfiguration,
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
 
