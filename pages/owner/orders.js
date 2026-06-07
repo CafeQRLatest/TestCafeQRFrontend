@@ -16,6 +16,7 @@ import {
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
+import { isPrintStationEnabled, enqueueCloudPrintJob } from '../../utils/cloudPrintStation';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
@@ -1515,12 +1516,30 @@ export default function OrdersPage() {
     }
   };
 
-  const handlePrintKot = (order) => {
+  const handlePrintKot = async (order) => {
+    if (!isPrintStationEnabled()) {
+      try {
+        await enqueueCloudPrintJob(order, 'kot');
+        alert('KOT print job enqueued to print station');
+      } catch (e) {
+        alert('Failed to queue print job: ' + (e.response?.data?.message || e.message));
+      }
+      return;
+    }
     setPrintKind('kot');
     setPrintOrder(order);
   };
 
   const handlePrintBill = async (order) => {
+    if (!isPrintStationEnabled()) {
+      try {
+        await enqueueCloudPrintJob(order, 'bill');
+        alert('Bill print job enqueued to print station');
+      } catch (e) {
+        alert('Failed to queue print job: ' + (e.response?.data?.message || e.message));
+      }
+      return;
+    }
     setPrintKind('bill');
     setPrintOrder(order);
   };
