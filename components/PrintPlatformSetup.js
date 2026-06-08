@@ -484,11 +484,20 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       throw finalConfiguration.error;
     }
 
-    const availableTerminals = terminalRows.data?.data || [];
-    setStations(stationRows.data?.data || []);
-    setTerminals(availableTerminals);
-    setCategories((categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean));
+    setStations((prev) => {
+      const next = stationRows.data?.data || [];
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+    setTerminals((prev) => {
+      const next = terminalRows.data?.data || [];
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+    setCategories((prev) => {
+      const next = (categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
 
+    const availableTerminals = terminalRows.data?.data || [];
     if (scopeId && availableTerminals.length > 0) {
       const exists = availableTerminals.some((t) => t.id === scopeId);
       if (!exists) {
@@ -740,6 +749,63 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  
+  const testDocType = async (profile, kind) => {
+    setBusy(true);
+    try {
+      console.log(`[print-test] Starting test print of type "${kind}" for printer profile:`, profile);
+      const saveResult = await persistConfiguration();
+      
+      if (!isNativePrintServicePaired() && saveResult.effective) {
+        console.log('[print-test] Syncing configuration to local storage...');
+        syncPrintConfigToLocalStorage(saveResult.effective);
+      }
+
+      const text = kind === 'KOT'
+        ? `--- TEST KOT ---\nTerminal: 1\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item\n1    Paneer Butter Masala\n2    Butter Naan\n----------------\n\n\n\n\n`
+        : `--- TEST BILL ---\nCafeQR Restaurant\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item              Price\n1    Paneer Masala    180.00\n2    Butter Naan       80.00\n----------------\nTotal:                260.00\nGST 5%:                13.00\nGrand Total:          273.00\n----------------\nThank you for visiting!\n\n\n\n\n`;
+
+      if (isNativePrintServicePaired()) {
+        console.log('[print-test] Device is paired, submitting job to native print service...');
+        await submitNativePrintJob({
+          idempotencyKey: `test-${kind.toLowerCase()}:${profile.id}:${Date.now()}`,
+          jobKind: kind.toLowerCase(),
+          outputFormat: profile.format,
+          printerProfileId: profile.id,
+          text,
+          document: {
+            restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
+            orderNo: 'TEST',
+            invoiceNo: 'TEST',
+            orderType: 'TEST',
+            orderDate: new Date().toISOString(),
+            lines: [
+              { productName: 'Paneer Butter Masala', quantity: 1, unitPrice: 180, taxAmount: 9, lineTotal: 180 },
+              { productName: 'Butter Naan', quantity: 2, unitPrice: 40, taxAmount: 4, lineTotal: 80 }
+            ],
+            grandTotal: 260,
+          },
+        });
+        showMessage(`Saved and queued a test ${kind} print for ${profileDisplayLabel(profile)}.`);
+      } else {
+        // Unpaired / Direct Loopback Mode
+        console.log('[print-test] Device is unpaired (Loopback Mode), sending raw text to printer...');
+        await printUniversal({
+          text,
+          jobKind: kind.toLowerCase(),
+          winPrinterNames: [profile.windowsPrinterName],
+          outputFormat: profile.format,
+        });
+        showMessage(`Saved and sent test ${kind} print directly to ${profile.windowsPrinterName || 'local printer'}.`);
+      }
+      await refreshService();
+    } catch (error) {
+      console.error('[print-test] Test print failed:', error);
+      showMessage(sessionAwareMessage(error, `Unable to save and submit the test ${kind} print.`));
     } finally {
       setBusy(false);
     }
@@ -1183,7 +1249,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                     </label>
                   ))}
                   <span className="profile-destination">{profileDestination(profile)}</span>
-                  <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
+                  <div className="test-buttons-group" style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                    <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
+                    <button className="secondary test" onClick={() => testDocType(profile, 'KOT')} disabled={!health || busy} style={{ backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' }}>Test KOT</button>
+                    <button className="secondary test" onClick={() => testDocType(profile, 'BILL')} disabled={!health || busy} style={{ backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>Test Bill</button>
+                  </div>
                 </div>
               </div>
             ))}

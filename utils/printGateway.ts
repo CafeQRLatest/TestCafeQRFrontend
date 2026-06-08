@@ -234,11 +234,18 @@ async function printUniversalNow(opts: Options) {
       : localOpts.jobKind === 'invoice'
         ? 'invoice'
         : 'bill';
+    console.log('[print-gateway] printWinspool triggered. Job kind:', kind);
     const { url, names } = winCfg(kind);
+    console.log('[print-gateway] Retrieved configuration from winCfg:', { url, configuredNames: names });
 
     const forced = uniq(localOpts.winPrinterNames || []);
     const targets = forced.length ? forced : names;
-    if (!targets.length) throw new Error('NO_WIN_PRINTER');
+    console.log('[print-gateway] Resolved target printers:', { forced, fallbackNames: names, finalTargets: targets });
+    
+    if (!targets.length) {
+      console.error('[print-gateway] No target printers found! Throwing NO_WIN_PRINTER.');
+      throw new Error('NO_WIN_PRINTER');
+    }
 
     const base64Plain = base64;
 
@@ -247,6 +254,7 @@ async function printUniversalNow(opts: Options) {
       const t = setTimeout(() => ctrl.abort(), 8000);
       let resp: Response;
 
+      console.log(`[print-gateway] Hitting local print service endpoint ${url} for printer: ${printerName}`);
       try {
         resp = await fetch(url, {
           method: 'POST',
@@ -254,7 +262,9 @@ async function printUniversalNow(opts: Options) {
           body: JSON.stringify({ printerName, dataBase64: base64Plain }),
           signal: ctrl.signal,
         });
+        console.log(`[print-gateway] Print service response for ${printerName}: Status ${resp.status}`);
       } catch (error: any) {
+        console.error(`[print-gateway] Failed to reach local print service for ${printerName}:`, error);
         throw new Error(`PRINT_HUB_UNREACHABLE ${printerName} ${error?.message || ''}`.trim());
       } finally {
         clearTimeout(t);
@@ -262,10 +272,12 @@ async function printUniversalNow(opts: Options) {
 
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
+        console.error(`[print-gateway] Print service returned error for ${printerName}:`, text);
         throw new Error(`PRINT_HUB_FAILED ${printerName} ${text}`.trim());
       }
     }
 
+    console.log('[print-gateway] printWinspool completed successfully for all targets.');
     return { via: 'winspool' as const };
   }
 
