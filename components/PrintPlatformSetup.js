@@ -36,6 +36,7 @@ import {
   forgetNativePrintService,
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
+import { printUniversal } from '../utils/printGateway';
 
 const newId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const SELECTED_TERMINAL_KEY = 'CAFEQR_PRINT_SELECTED_TERMINAL';
@@ -701,25 +702,41 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setBusy(true);
     try {
       const saveResult = await persistConfiguration();
-      await submitNativePrintJob({
-        idempotencyKey: `test:${profile.id}:${Date.now()}`,
-        jobKind: 'test',
-        outputFormat: profile.format,
-        printerProfileId: profile.id,
-        text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}`,
-        document: {
-          restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
-          orderNo: 'TEST',
-          invoiceNo: 'TEST',
-          orderType: 'TEST',
-          orderDate: new Date().toISOString(),
-          lines: [{ productName: 'Printer alignment test', quantity: 1, unitPrice: 0, taxAmount: 0, lineTotal: 0 }],
-          grandTotal: 0,
-        },
-      });
-      showMessage(saveResult.cloudSynced
-        ? `Saved and queued a test print for ${profileDisplayLabel(profile)}.`
-        : `Test print queued locally. Cloud synchronization remains pending.`);
+      
+      if (!isNativePrintServicePaired() && saveResult.effective) {
+        syncPrintConfigToLocalStorage(saveResult.effective);
+      }
+
+      if (isNativePrintServicePaired()) {
+        await submitNativePrintJob({
+          idempotencyKey: `test:${profile.id}:${Date.now()}`,
+          jobKind: 'test',
+          outputFormat: profile.format,
+          printerProfileId: profile.id,
+          text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}`,
+          document: {
+            restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
+            orderNo: 'TEST',
+            invoiceNo: 'TEST',
+            orderType: 'TEST',
+            orderDate: new Date().toISOString(),
+            lines: [{ productName: 'Printer alignment test', quantity: 1, unitPrice: 0, taxAmount: 0, lineTotal: 0 }],
+            grandTotal: 0,
+          },
+        });
+        showMessage(saveResult.cloudSynced
+          ? `Saved and queued a test print for ${profileDisplayLabel(profile)}.`
+          : `Test print queued locally. Cloud synchronization remains pending.`);
+      } else {
+        // Unpaired / Direct Loopback Mode
+        await printUniversal({
+          text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}\n\n\n\n\n`,
+          jobKind: 'bill',
+          winPrinterNames: [profile.windowsPrinterName],
+          outputFormat: profile.format,
+        });
+        showMessage(`Saved and sent test print directly to ${profile.windowsPrinterName || 'local printer'}.`);
+      }
       await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
@@ -1166,7 +1183,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                     </label>
                   ))}
                   <span className="profile-destination">{profileDestination(profile)}</span>
-                  <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health?.paired || busy}>Save & Test</button>
+                  <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
                 </div>
               </div>
             ))}
