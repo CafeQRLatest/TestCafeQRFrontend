@@ -258,6 +258,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const [localAccessState, setLocalAccessState] = useState('IDLE');
   const [localAccessError, setLocalAccessError] = useState('');
   const [serviceTerminalSynced, setServiceTerminalSynced] = useState(false);
+  const [localTokenInvalid, setLocalTokenInvalid] = useState(false);
 
   const currentOrgId = Cookies.get('orgId') || '';
   const currentClientId = Cookies.get('clientId') || '';
@@ -305,18 +306,28 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           setServiceTerminalSynced(true);
         }
       }
+
+      let isTokenInvalid = false;
+      const handleLocalError = (err) => {
+        if (err?.status === 401 || err?.code === 'LOCAL_AUTH_REQUIRED') {
+          isTokenInvalid = true;
+        }
+        return null;
+      };
+
       const [printers, configuration] = await Promise.all([
         getPrintServicePrinters().catch(() => []),
         isNativePrintServicePaired()
-          ? getNativePrintConfiguration().catch(() => null)
+          ? getNativePrintConfiguration().catch(handleLocalError)
           : Promise.resolve(null),
       ]);
       setLocalPrinters(Array.isArray(printers) ? printers : []);
       if (configuration) setLocalConfiguration(configuration);
       if (isNativePrintServicePaired()) {
-        const rows = await getLocalPrintJobs().catch(() => []);
+        const rows = await getLocalPrintJobs().catch(handleLocalError);
         setJobs(Array.isArray(rows) ? rows : []);
       }
+      setLocalTokenInvalid(isTokenInvalid);
       return { health: result, configuration };
     } catch (error) {
       setHealth(null);
@@ -534,6 +545,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setBusy(true);
     try {
       await enrollNativePrintService(apiRoot, pairingCode);
+      setLocalTokenInvalid(false);
       const localState = await refreshService();
       await loadCloud(localState);
       showMessage('This Windows computer is now paired to the selected terminal.');
@@ -835,14 +847,16 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             />
             <Status
               label="Pairing"
-              value={health?.cloudStatus === 'AUTH_REQUIRED'
-                ? 'Re-pair required'
-                : health?.cloudPaired
-                  ? 'Paired'
-                  : health?.credentialsPresent
-                    ? 'Checking'
-                    : 'Not paired'}
-              ok={Boolean(health?.cloudPaired)}
+              value={localTokenInvalid
+                ? 'Token invalid (Re-pair)'
+                : health?.cloudStatus === 'AUTH_REQUIRED'
+                  ? 'Re-pair required'
+                  : health?.cloudPaired
+                    ? 'Paired'
+                    : health?.credentialsPresent
+                      ? 'Checking'
+                      : 'Not paired'}
+              ok={Boolean(health?.cloudPaired) && !localTokenInvalid}
             />
             <Status
               label="Configuration"
