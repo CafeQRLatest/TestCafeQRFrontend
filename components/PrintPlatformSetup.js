@@ -213,6 +213,24 @@ const syncPrintConfigToLocalStorage = (config) => {
   });
 };
 
+const getMissingPrinterWarnings = (config) => {
+  const profileMap = new Map((config.profiles || []).map((p) => [p.id, p]));
+  const warnings = {};
+  DOCUMENT_DEFAULTS.forEach(({ type, profileKey }) => {
+    const ids = config.defaults?.[profileKey] || [];
+    const missing = ids.filter((id) => {
+      const profile = profileMap.get(id);
+      if (!profile) return false;
+      if (profile.connectionType === 'WINDOWS_QUEUE') return !profile.windowsPrinterName;
+      if (profile.connectionType === 'NETWORK') return !profile.host;
+      if (profile.connectionType === 'BLUETOOTH_COM') return !profile.comPort;
+      return false;
+    });
+    if (missing.length) warnings[type] = missing.map((id) => profileMap.get(id)?.name || id);
+  });
+  return warnings;
+};
+
 const DOCUMENT_DEFAULTS = [
   {
     type: 'KOT',
@@ -430,7 +448,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } })),
     ];
     const [configuration, stationRows, terminalRows, categoryRows] = await Promise.all(requests);
-    
+
     let cloudSettings = configuration.error ? null : (configuration.data?.data || {});
     let finalConfiguration = configuration;
 
@@ -482,6 +500,13 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       }
     } else if (finalConfiguration.error) {
       throw finalConfiguration.error;
+    } else {
+      // No cloud, no local, no error — fresh machine.
+      // Set PRINTER_MODE and PRINT_WIN_URL so the gateway doesn't throw
+      // PRINT_HUB_UNREACHABLE before any profile is saved.
+      if (!isNativePrintServicePaired()) {
+        syncPrintConfigToLocalStorage(DEFAULT_CONFIG);
+      }
     }
 
     setStations((prev) => {
@@ -711,7 +736,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setBusy(true);
     try {
       const saveResult = await persistConfiguration();
-      
+
       if (!isNativePrintServicePaired() && saveResult.effective) {
         syncPrintConfigToLocalStorage(saveResult.effective);
       }
@@ -753,13 +778,13 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       setBusy(false);
     }
   };
-  
+
   const testDocType = async (profile, kind) => {
     setBusy(true);
     try {
       console.log(`[print-test] Starting test print of type "${kind}" for printer profile:`, profile);
       const saveResult = await persistConfiguration();
-      
+
       if (!isNativePrintServicePaired() && saveResult.effective) {
         console.log('[print-test] Syncing configuration to local storage...');
         syncPrintConfigToLocalStorage(saveResult.effective);
@@ -1271,6 +1296,40 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             </div>
             <button className="secondary" onClick={() => setTab('profiles')}><FaPlus /> Manage profiles</button>
           </header>
+          {(() => {
+            const warnings = getMissingPrinterWarnings(printConfig);
+            const entries = Object.entries(warnings);
+            if (!entries.length) return null;
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                background: '#fffbeb', border: '1px solid #fcd34d',
+                borderRadius: '6px', padding: '12px 16px', marginBottom: '16px',
+                color: '#92400e', fontSize: '0.875rem',
+              }}>
+                <FaExclamationTriangle style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong>Printer queue not set — printing will fail</strong>
+                  <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
+                    {entries.map(([type, names]) => (
+                      <li key={type}>
+                        <strong>{type}</strong>: {names.join(', ')} {names.length === 1 ? 'has' : 'have'} no
+                        Windows printer queue selected. Go to{' '}
+                        <button onClick={() => setTab('profiles')}
+                          style={{
+                            background: 'none', border: 'none', padding: 0, color: '#92400e',
+                            textDecoration: 'underline', cursor: 'pointer', font: 'inherit'
+                          }}>
+                          Printer Profiles
+                        </button>{' '}
+                        and pick a printer from the "Windows printer" dropdown, then click <strong>Save Printing</strong>.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
           <div className="assignment-list">
             {DOCUMENT_DEFAULTS.map(({ type, title, description, profileKey, outputKey, modeKey }) => {
               const compatible = printConfig.profiles.filter((profile) => (
