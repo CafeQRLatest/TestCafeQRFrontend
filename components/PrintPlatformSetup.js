@@ -170,10 +170,16 @@ const syncPrintConfigToLocalStorage = (config) => {
   const billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
   const kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
 
+  // ✅ FIX: If no explicit assignment, fall back to all thermal WINDOWS_QUEUE profiles
+  const allWindowsThermal = profiles
+    .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName)
+    .map((p) => p.windowsPrinterName);
+
+  if (!billPrinters.length) billPrinters = allWindowsThermal;
+  if (!kotPrinters.length) kotPrinters = allWindowsThermal;
+
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_BILL', JSON.stringify(billPrinters));
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_KOT', JSON.stringify(kotPrinters));
-
-  // Backward compatible single keys
   localStorage.setItem('PRINT_WIN_PRINTER_NAME', billPrinters[0] || '');
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_KOT', kotPrinters[0] || '');
 
