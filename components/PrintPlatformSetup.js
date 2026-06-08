@@ -17,7 +17,6 @@ import {
 } from 'react-icons/fa';
 import api from '../utils/api';
 import {
-  acceptNativeCloudConfiguration,
   connectNativePrintService,
   enrollNativePrintService,
   getNativePrintConfiguration,
@@ -33,6 +32,7 @@ import {
   submitNativePrintJob,
   syncNativePrintConfiguration,
   updateNativePrintConfiguration,
+  acceptNativeCloudConfiguration,
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
 
@@ -258,6 +258,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const [localAccessState, setLocalAccessState] = useState('IDLE');
   const [localAccessError, setLocalAccessError] = useState('');
   const [serviceTerminalSynced, setServiceTerminalSynced] = useState(false);
+  const [localTokenInvalid, setLocalTokenInvalid] = useState(false);
 
   const currentOrgId = Cookies.get('orgId') || '';
   const currentClientId = Cookies.get('clientId') || '';
@@ -305,18 +306,28 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           setServiceTerminalSynced(true);
         }
       }
+
+      let isTokenInvalid = false;
+      const handleLocalError = (err) => {
+        if (err?.status === 401 || err?.code === 'LOCAL_AUTH_REQUIRED') {
+          isTokenInvalid = true;
+        }
+        return null;
+      };
+
       const [printers, configuration] = await Promise.all([
         getPrintServicePrinters().catch(() => []),
         isNativePrintServicePaired()
-          ? getNativePrintConfiguration().catch(() => null)
+          ? getNativePrintConfiguration().catch(handleLocalError)
           : Promise.resolve(null),
       ]);
       setLocalPrinters(Array.isArray(printers) ? printers : []);
       if (configuration) setLocalConfiguration(configuration);
       if (isNativePrintServicePaired()) {
-        const rows = await getLocalPrintJobs().catch(() => []);
+        const rows = await getLocalPrintJobs().catch(handleLocalError);
         setJobs(Array.isArray(rows) ? rows : []);
       }
+      setLocalTokenInvalid(isTokenInvalid);
       return { health: result, configuration };
     } catch (error) {
       setHealth(null);
@@ -534,6 +545,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setBusy(true);
     try {
       await enrollNativePrintService(apiRoot, pairingCode);
+      setLocalTokenInvalid(false);
       const localState = await refreshService();
       await loadCloud(localState);
       showMessage('This Windows computer is now paired to the selected terminal.');
@@ -835,14 +847,16 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             />
             <Status
               label="Pairing"
-              value={health?.cloudStatus === 'AUTH_REQUIRED'
-                ? 'Re-pair required'
-                : health?.cloudPaired
-                  ? 'Paired'
-                  : health?.credentialsPresent
-                    ? 'Checking'
-                    : 'Not paired'}
-              ok={Boolean(health?.cloudPaired)}
+              value={localTokenInvalid
+                ? 'Token invalid (Re-pair)'
+                : health?.cloudStatus === 'AUTH_REQUIRED'
+                  ? 'Re-pair required'
+                  : health?.cloudPaired
+                    ? 'Paired'
+                    : health?.credentialsPresent
+                      ? 'Checking'
+                      : 'Not paired'}
+              ok={Boolean(health?.cloudPaired) && !localTokenInvalid}
             />
             <Status
               label="Configuration"
@@ -1119,10 +1133,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
       {tab === 'routing' && (
         <section className="surface">
-          <header>
-            <div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div>
-            <button className="secondary" onClick={addRoute}><FaPlus /> Add route</button>
-          </header>
+          <header><div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div><button className="secondary" onClick={addRoute}><FaPlus /> Add route</button></header>
           <div className="route-list">
             {printConfig.routes.map((route) => (
               <div className={`route ${routeConflicts.has(route.id) ? 'conflict' : ''}`} key={route.id}>
@@ -1296,7 +1307,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         .print-platform .local-access-notice span, .print-platform .local-access-notice small { font-size: 12px; line-height: 1.45; }
         .print-platform .local-access-notice a { color: inherit; font-weight: 800; }
         .print-platform .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
-        .print-platform .form-grid.compact { grid-template-columns: repeat(4, minmax(0,1fr)); }
+        .print-platform .form-grid.compact { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
         .print-platform .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
         .print-platform input, .print-platform select, .print-platform textarea { width: 100%; min-height: 40px; border: 1px solid #d6deea; border-radius: 7px; padding: 8px 10px; background: white; color: #172033; font: inherit; box-sizing: border-box; }
         .print-platform input:focus, .print-platform select:focus, .print-platform textarea:focus { outline: 2px solid #fed7aa; border-color: #f97316; }
