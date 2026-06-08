@@ -620,919 +620,919 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     const effective = sanitizeConfiguration(merged);
     setPrintConfig(effective);
     return { effective, cloudSynced: true };
-
-    const saveConfiguration = async () => {
-      setBusy(true);
-      try {
-        const result = await persistConfiguration();
-        showMessage(result.cloudSynced
-          ? 'Printing configuration saved locally and synchronized.'
-          : `${result.cloudError?.message || 'Cloud synchronization is pending.'} Printing continues locally.`);
-        if (!isNativePrintServicePaired() && result.effective) {
-          // Merge current printConfig (has profiles) with effective (has saved defaults)
-          // to ensure localStorage always gets complete data with both profiles and profileIds
-          const toSync = sanitizeConfiguration(deepMerge(printConfig, result.effective));
-          syncPrintConfigToLocalStorage(toSync);
-        }
-        await refreshService();
-      } catch (error) {
-        showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
-      } finally {
-        setBusy(false);
+  }
+  const saveConfiguration = async () => {
+    setBusy(true);
+    try {
+      const result = await persistConfiguration();
+      showMessage(result.cloudSynced
+        ? 'Printing configuration saved locally and synchronized.'
+        : `${result.cloudError?.message || 'Cloud synchronization is pending.'} Printing continues locally.`);
+      if (!isNativePrintServicePaired() && result.effective) {
+        // Merge current printConfig (has profiles) with effective (has saved defaults)
+        // to ensure localStorage always gets complete data with both profiles and profileIds
+        const toSync = sanitizeConfiguration(deepMerge(printConfig, result.effective));
+        syncPrintConfigToLocalStorage(toSync);
       }
-    };
-
-    const createEnrollment = async () => {
-      if (!scopeId) {
-        showMessage('Select the terminal that owns this print station.');
-        return;
-      }
-      setBusy(true);
-      try {
-        const { data } = await api.post('/api/v1/print-stations/enrollment', {
-          terminalId: scopeId,
-          name: stationName,
-          fallbackForBranch: fallback,
-        });
-        setPairingCode(data?.data?.pairingCode || '');
-        setStations((previous) => [data?.data, ...previous.filter((row) => row.id !== data?.data?.id)]);
-        showMessage('Pairing code created. It expires in 10 minutes.');
-      } catch (error) {
-        showMessage(error?.response?.data?.message || error.message);
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const pairThisComputer = async () => {
-      if (!pairingCode) {
-        showMessage('Create or enter a pairing code first.');
-        return;
-      }
-      setBusy(true);
-      try {
-        await enrollNativePrintService(apiRoot, pairingCode);
-        setLocalTokenInvalid(false);
-        const localState = await refreshService();
-        await loadCloud(localState);
-        showMessage('This Windows computer is now paired to the selected terminal.');
-      } catch (error) {
-        showMessage(error.message || 'Unable to pair the Windows print service.');
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const addProfile = (format) => {
-      setPrintConfig((previous) => ({
-        ...previous,
-        profiles: [...previous.profiles, profileDefaults(format)],
-      }));
-    };
-
-    const updateProfile = (id, changes) => {
-      setPrintConfig((previous) => sanitizeConfiguration({
-        ...previous,
-        profiles: previous.profiles.map((profile) => profile.id === id ? { ...profile, ...changes } : profile),
-      }));
-    };
-
-    const deleteProfile = (id) => {
-      setPrintConfig((previous) => sanitizeConfiguration({
-        ...previous,
-        profiles: previous.profiles.filter((profile) => profile.id !== id),
-        routes: previous.routes.map((route) => ({
-          ...route,
-          profileIds: route.profileIds.filter((profileId) => profileId !== id),
-        })),
-      }));
-    };
-
-    const addRoute = () => setPrintConfig((previous) => ({
-      ...previous,
-      routes: [...previous.routes, routeDefaults()],
-    }));
-
-    const updateRoute = (id, changes) => setPrintConfig((previous) => ({
-      ...previous,
-      routes: previous.routes.map((route) => route.id === id ? { ...route, ...changes } : route),
-    }));
-
-    const routeConflicts = useMemo(() => {
-      const seen = new Map();
-      const conflicts = new Set();
-      printConfig.routes.filter((route) => route.enabled).forEach((route) => {
-        const key = JSON.stringify({
-          priority: Number(route.priority || 0),
-          documents: [...route.documentTypes].sort(),
-          categories: [...route.categories].sort(),
-          orderTypes: [...route.orderTypes].sort(),
-        });
-        if (seen.has(key)) {
-          conflicts.add(route.id);
-          conflicts.add(seen.get(key));
-        } else {
-          seen.set(key, route.id);
-        }
-      });
-      return conflicts;
-    }, [printConfig.routes]);
-
-    const testProfile = async (profile) => {
-      setBusy(true);
-      try {
-        const saveResult = await persistConfiguration();
-
-        if (!isNativePrintServicePaired() && saveResult.effective) {
-          const toSync = sanitizeConfiguration(deepMerge(printConfig, saveResult.effective));
-          syncPrintConfigToLocalStorage(toSync);
-        }
-
-        if (isNativePrintServicePaired()) {
-          await submitNativePrintJob({
-            idempotencyKey: `test:${profile.id}:${Date.now()}`,
-            jobKind: 'test',
-            outputFormat: profile.format,
-            printerProfileId: profile.id,
-            text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}`,
-            document: {
-              restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
-              orderNo: 'TEST',
-              invoiceNo: 'TEST',
-              orderType: 'TEST',
-              orderDate: new Date().toISOString(),
-              lines: [{ productName: 'Printer alignment test', quantity: 1, unitPrice: 0, taxAmount: 0, lineTotal: 0 }],
-              grandTotal: 0,
-            },
-          });
-          showMessage(saveResult.cloudSynced
-            ? `Saved and queued a test print for ${profileDisplayLabel(profile)}.`
-            : `Test print queued locally. Cloud synchronization remains pending.`);
-        } else {
-          // Unpaired / Direct Loopback Mode
-          await printUniversal({
-            text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}\n\n\n\n\n`,
-            jobKind: 'bill',
-            winPrinterNames: [profile.windowsPrinterName],
-            outputFormat: profile.format,
-          });
-          showMessage(`Saved and sent test print directly to ${profile.windowsPrinterName || 'local printer'}.`);
-        }
-        await refreshService();
-      } catch (error) {
-        showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const testDocType = async (profile, kind) => {
-      setBusy(true);
-      try {
-        console.log(`[print-test] Starting test print of type "${kind}" for printer profile:`, profile);
-        const saveResult = await persistConfiguration();
-
-        if (!isNativePrintServicePaired() && saveResult.effective) {
-          console.log('[print-test] Syncing configuration to local storage...');
-          const toSync = sanitizeConfiguration(deepMerge(printConfig, saveResult.effective));
-          syncPrintConfigToLocalStorage(toSync);
-        }
-
-        const text = kind === 'KOT'
-          ? `--- TEST KOT ---\nTerminal: 1\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item\n1    Paneer Butter Masala\n2    Butter Naan\n----------------\n\n\n\n\n`
-          : `--- TEST BILL ---\nCafeQR Restaurant\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item              Price\n1    Paneer Masala    180.00\n2    Butter Naan       80.00\n----------------\nTotal:                260.00\nGST 5%:                13.00\nGrand Total:          273.00\n----------------\nThank you for visiting!\n\n\n\n\n`;
-
-        if (isNativePrintServicePaired()) {
-          console.log('[print-test] Device is paired, submitting job to native print service...');
-          await submitNativePrintJob({
-            idempotencyKey: `test-${kind.toLowerCase()}:${profile.id}:${Date.now()}`,
-            jobKind: kind.toLowerCase(),
-            outputFormat: profile.format,
-            printerProfileId: profile.id,
-            text,
-            document: {
-              restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
-              orderNo: 'TEST',
-              invoiceNo: 'TEST',
-              orderType: 'TEST',
-              orderDate: new Date().toISOString(),
-              lines: [
-                { productName: 'Paneer Butter Masala', quantity: 1, unitPrice: 180, taxAmount: 9, lineTotal: 180 },
-                { productName: 'Butter Naan', quantity: 2, unitPrice: 40, taxAmount: 4, lineTotal: 80 }
-              ],
-              grandTotal: 260,
-            },
-          });
-          showMessage(`Saved and queued a test ${kind} print for ${profileDisplayLabel(profile)}.`);
-        } else {
-          // Unpaired / Direct Loopback Mode
-          console.log('[print-test] Device is unpaired (Loopback Mode), sending raw text to printer...');
-          await printUniversal({
-            text,
-            jobKind: kind.toLowerCase(),
-            winPrinterNames: [profile.windowsPrinterName],
-            outputFormat: profile.format,
-          });
-          showMessage(`Saved and sent test ${kind} print directly to ${profile.windowsPrinterName || 'local printer'}.`);
-        }
-        await refreshService();
-      } catch (error) {
-        console.error('[print-test] Test print failed:', error);
-        showMessage(sessionAwareMessage(error, `Unable to save and submit the test ${kind} print.`));
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const retryCloudSynchronization = async () => {
-      setBusy(true);
-      try {
-        const synchronized = await syncNativePrintConfiguration();
-        setLocalConfiguration(synchronized);
-        await refreshService();
-        showMessage('Printing configuration synchronized with CafeQR.');
-      } catch (error) {
-        showMessage(`${error.message || 'Cloud synchronization failed.'} Printing continues locally.`);
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const useCloudConfiguration = async () => {
-      if (!cloudConfiguration || !window.confirm(
-        'Replace the locally active printer configuration with the cloud version?'
-      )) return;
-      setBusy(true);
-      try {
-        const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudConfiguration));
-        const accepted = await acceptNativeCloudConfiguration(
-          effective,
-          cloudRevisionOf(cloudConfiguration)
-        );
-        setPrintConfig(effective);
-        setLocalConfiguration(accepted);
-        await refreshService();
-        showMessage('Cloud printing configuration applied locally.');
-      } catch (error) {
-        showMessage(error.message || 'Unable to apply the cloud configuration.');
-      } finally {
-        setBusy(false);
-      }
-    };
-
-    const refreshInstalledPrinters = async () => {
       await refreshService();
-      showMessage('Installed Windows printers and COM ports refreshed.');
-    };
+    } catch (error) {
+      showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
-    const downloadLogs = async () => {
-      try {
-        const lines = await getPrintServiceLogs();
-        const blob = new Blob([(Array.isArray(lines) ? lines : []).join('\r\n')], { type: 'text/plain' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `CafeQR-PrintService-${new Date().toISOString().slice(0, 10)}.log`;
-        link.click();
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        showMessage(error.message || 'Unable to download Print Service logs.');
-      }
-    };
+  const createEnrollment = async () => {
+    if (!scopeId) {
+      showMessage('Select the terminal that owns this print station.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data } = await api.post('/api/v1/print-stations/enrollment', {
+        terminalId: scopeId,
+        name: stationName,
+        fallbackForBranch: fallback,
+      });
+      setPairingCode(data?.data?.pairingCode || '');
+      setStations((previous) => [data?.data, ...previous.filter((row) => row.id !== data?.data?.id)]);
+      showMessage('Pairing code created. It expires in 10 minutes.');
+    } catch (error) {
+      showMessage(error?.response?.data?.message || error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
-    const updateLocalJob = async (job, action) => {
-      const id = job.Id || job.id;
-      try {
-        if (action === 'retry') await retryLocalPrintJob(id);
-        else await resolveLocalPrintJob(id, action === 'complete' ? 'COMPLETED' : 'CANCELLED');
-        await refreshService();
-      } catch (error) {
-        showMessage(error.message || 'Unable to update the local print job.');
-      }
-    };
+  const pairThisComputer = async () => {
+    if (!pairingCode) {
+      showMessage('Create or enter a pairing code first.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await enrollNativePrintService(apiRoot, pairingCode);
+      setLocalTokenInvalid(false);
+      const localState = await refreshService();
+      await loadCloud(localState);
+      showMessage('This Windows computer is now paired to the selected terminal.');
+    } catch (error) {
+      showMessage(error.message || 'Unable to pair the Windows print service.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
-    const setDefault = (key, value) => setPrintConfig((previous) => ({
+  const addProfile = (format) => {
+    setPrintConfig((previous) => ({
       ...previous,
-      defaults: { ...previous.defaults, [key]: value },
+      profiles: [...previous.profiles, profileDefaults(format)],
     }));
+  };
 
-    const setTemplate = (kind, key, value) => setPrintConfig((previous) => ({
+  const updateProfile = (id, changes) => {
+    setPrintConfig((previous) => sanitizeConfiguration({
       ...previous,
-      [kind]: { ...previous[kind], [key]: value },
+      profiles: previous.profiles.map((profile) => profile.id === id ? { ...profile, ...changes } : profile),
     }));
+  };
 
-    const tabs = [
-      ['service', 'Print Service', <FaServer key="service" />],
-      ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
-      ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
-      ['routing', 'Routing', <FaRoute key="routing" />],
-      ['templates', 'Templates & Paper', <FaCog key="templates" />],
-      ['queue', 'Print Queue', <FaSync key="queue" />],
-      ['android', 'Android', <FaAndroid key="android" />],
-    ];
+  const deleteProfile = (id) => {
+    setPrintConfig((previous) => sanitizeConfiguration({
+      ...previous,
+      profiles: previous.profiles.filter((profile) => profile.id !== id),
+      routes: previous.routes.map((route) => ({
+        ...route,
+        profileIds: route.profileIds.filter((profileId) => profileId !== id),
+      })),
+    }));
+  };
 
-    return (
-      <div className="print-platform">
-        <div className="platform-toolbar">
-          <div className="scope-control">
-            <label>Configuration level</label>
-            <div className="segmented">
-              {['CLIENT', 'ORGANIZATION', 'TERMINAL'].map((value) => (
-                <button
-                  key={value}
-                  className={scopeType === value ? 'active' : ''}
-                  onClick={() => {
-                    setScopeType(value);
-                    if (value === 'ORGANIZATION') setScopeId(currentOrgId);
-                    if (value === 'TERMINAL') {
-                      selectTerminal(health?.terminalId || Cookies.get('terminalId') || terminals[0]?.id || '');
-                    }
-                  }}
-                >
-                  {value === 'CLIENT' ? 'Organization' : value === 'ORGANIZATION' ? 'Branch' : 'Terminal'}
-                </button>
-              ))}
-            </div>
+  const addRoute = () => setPrintConfig((previous) => ({
+    ...previous,
+    routes: [...previous.routes, routeDefaults()],
+  }));
+
+  const updateRoute = (id, changes) => setPrintConfig((previous) => ({
+    ...previous,
+    routes: previous.routes.map((route) => route.id === id ? { ...route, ...changes } : route),
+  }));
+
+  const routeConflicts = useMemo(() => {
+    const seen = new Map();
+    const conflicts = new Set();
+    printConfig.routes.filter((route) => route.enabled).forEach((route) => {
+      const key = JSON.stringify({
+        priority: Number(route.priority || 0),
+        documents: [...route.documentTypes].sort(),
+        categories: [...route.categories].sort(),
+        orderTypes: [...route.orderTypes].sort(),
+      });
+      if (seen.has(key)) {
+        conflicts.add(route.id);
+        conflicts.add(seen.get(key));
+      } else {
+        seen.set(key, route.id);
+      }
+    });
+    return conflicts;
+  }, [printConfig.routes]);
+
+  const testProfile = async (profile) => {
+    setBusy(true);
+    try {
+      const saveResult = await persistConfiguration();
+
+      if (!isNativePrintServicePaired() && saveResult.effective) {
+        const toSync = sanitizeConfiguration(deepMerge(printConfig, saveResult.effective));
+        syncPrintConfigToLocalStorage(toSync);
+      }
+
+      if (isNativePrintServicePaired()) {
+        await submitNativePrintJob({
+          idempotencyKey: `test:${profile.id}:${Date.now()}`,
+          jobKind: 'test',
+          outputFormat: profile.format,
+          printerProfileId: profile.id,
+          text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}`,
+          document: {
+            restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
+            orderNo: 'TEST',
+            invoiceNo: 'TEST',
+            orderType: 'TEST',
+            orderDate: new Date().toISOString(),
+            lines: [{ productName: 'Printer alignment test', quantity: 1, unitPrice: 0, taxAmount: 0, lineTotal: 0 }],
+            grandTotal: 0,
+          },
+        });
+        showMessage(saveResult.cloudSynced
+          ? `Saved and queued a test print for ${profileDisplayLabel(profile)}.`
+          : `Test print queued locally. Cloud synchronization remains pending.`);
+      } else {
+        // Unpaired / Direct Loopback Mode
+        await printUniversal({
+          text: `CafeQR ${profile.format === 'REGULAR' ? 'Regular' : 'Thermal'} Test Print\n${profile.name}\n${new Date().toLocaleString()}\n\n\n\n\n`,
+          jobKind: 'bill',
+          winPrinterNames: [profile.windowsPrinterName],
+          outputFormat: profile.format,
+        });
+        showMessage(`Saved and sent test print directly to ${profile.windowsPrinterName || 'local printer'}.`);
+      }
+      await refreshService();
+    } catch (error) {
+      showMessage(sessionAwareMessage(error, 'Unable to save and submit the test print.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const testDocType = async (profile, kind) => {
+    setBusy(true);
+    try {
+      console.log(`[print-test] Starting test print of type "${kind}" for printer profile:`, profile);
+      const saveResult = await persistConfiguration();
+
+      if (!isNativePrintServicePaired() && saveResult.effective) {
+        console.log('[print-test] Syncing configuration to local storage...');
+        const toSync = sanitizeConfiguration(deepMerge(printConfig, saveResult.effective));
+        syncPrintConfigToLocalStorage(toSync);
+      }
+
+      const text = kind === 'KOT'
+        ? `--- TEST KOT ---\nTerminal: 1\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item\n1    Paneer Butter Masala\n2    Butter Naan\n----------------\n\n\n\n\n`
+        : `--- TEST BILL ---\nCafeQR Restaurant\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item              Price\n1    Paneer Masala    180.00\n2    Butter Naan       80.00\n----------------\nTotal:                260.00\nGST 5%:                13.00\nGrand Total:          273.00\n----------------\nThank you for visiting!\n\n\n\n\n`;
+
+      if (isNativePrintServicePaired()) {
+        console.log('[print-test] Device is paired, submitting job to native print service...');
+        await submitNativePrintJob({
+          idempotencyKey: `test-${kind.toLowerCase()}:${profile.id}:${Date.now()}`,
+          jobKind: kind.toLowerCase(),
+          outputFormat: profile.format,
+          printerProfileId: profile.id,
+          text,
+          document: {
+            restaurant: { restaurantName: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR' },
+            orderNo: 'TEST',
+            invoiceNo: 'TEST',
+            orderType: 'TEST',
+            orderDate: new Date().toISOString(),
+            lines: [
+              { productName: 'Paneer Butter Masala', quantity: 1, unitPrice: 180, taxAmount: 9, lineTotal: 180 },
+              { productName: 'Butter Naan', quantity: 2, unitPrice: 40, taxAmount: 4, lineTotal: 80 }
+            ],
+            grandTotal: 260,
+          },
+        });
+        showMessage(`Saved and queued a test ${kind} print for ${profileDisplayLabel(profile)}.`);
+      } else {
+        // Unpaired / Direct Loopback Mode
+        console.log('[print-test] Device is unpaired (Loopback Mode), sending raw text to printer...');
+        await printUniversal({
+          text,
+          jobKind: kind.toLowerCase(),
+          winPrinterNames: [profile.windowsPrinterName],
+          outputFormat: profile.format,
+        });
+        showMessage(`Saved and sent test ${kind} print directly to ${profile.windowsPrinterName || 'local printer'}.`);
+      }
+      await refreshService();
+    } catch (error) {
+      console.error('[print-test] Test print failed:', error);
+      showMessage(sessionAwareMessage(error, `Unable to save and submit the test ${kind} print.`));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryCloudSynchronization = async () => {
+    setBusy(true);
+    try {
+      const synchronized = await syncNativePrintConfiguration();
+      setLocalConfiguration(synchronized);
+      await refreshService();
+      showMessage('Printing configuration synchronized with CafeQR.');
+    } catch (error) {
+      showMessage(`${error.message || 'Cloud synchronization failed.'} Printing continues locally.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const useCloudConfiguration = async () => {
+    if (!cloudConfiguration || !window.confirm(
+      'Replace the locally active printer configuration with the cloud version?'
+    )) return;
+    setBusy(true);
+    try {
+      const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudConfiguration));
+      const accepted = await acceptNativeCloudConfiguration(
+        effective,
+        cloudRevisionOf(cloudConfiguration)
+      );
+      setPrintConfig(effective);
+      setLocalConfiguration(accepted);
+      await refreshService();
+      showMessage('Cloud printing configuration applied locally.');
+    } catch (error) {
+      showMessage(error.message || 'Unable to apply the cloud configuration.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refreshInstalledPrinters = async () => {
+    await refreshService();
+    showMessage('Installed Windows printers and COM ports refreshed.');
+  };
+
+  const downloadLogs = async () => {
+    try {
+      const lines = await getPrintServiceLogs();
+      const blob = new Blob([(Array.isArray(lines) ? lines : []).join('\r\n')], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `CafeQR-PrintService-${new Date().toISOString().slice(0, 10)}.log`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      showMessage(error.message || 'Unable to download Print Service logs.');
+    }
+  };
+
+  const updateLocalJob = async (job, action) => {
+    const id = job.Id || job.id;
+    try {
+      if (action === 'retry') await retryLocalPrintJob(id);
+      else await resolveLocalPrintJob(id, action === 'complete' ? 'COMPLETED' : 'CANCELLED');
+      await refreshService();
+    } catch (error) {
+      showMessage(error.message || 'Unable to update the local print job.');
+    }
+  };
+
+  const setDefault = (key, value) => setPrintConfig((previous) => ({
+    ...previous,
+    defaults: { ...previous.defaults, [key]: value },
+  }));
+
+  const setTemplate = (kind, key, value) => setPrintConfig((previous) => ({
+    ...previous,
+    [kind]: { ...previous[kind], [key]: value },
+  }));
+
+  const tabs = [
+    ['service', 'Print Service', <FaServer key="service" />],
+    ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
+    ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
+    ['routing', 'Routing', <FaRoute key="routing" />],
+    ['templates', 'Templates & Paper', <FaCog key="templates" />],
+    ['queue', 'Print Queue', <FaSync key="queue" />],
+    ['android', 'Android', <FaAndroid key="android" />],
+  ];
+
+  return (
+    <div className="print-platform">
+      <div className="platform-toolbar">
+        <div className="scope-control">
+          <label>Configuration level</label>
+          <div className="segmented">
+            {['CLIENT', 'ORGANIZATION', 'TERMINAL'].map((value) => (
+              <button
+                key={value}
+                className={scopeType === value ? 'active' : ''}
+                onClick={() => {
+                  setScopeType(value);
+                  if (value === 'ORGANIZATION') setScopeId(currentOrgId);
+                  if (value === 'TERMINAL') {
+                    selectTerminal(health?.terminalId || Cookies.get('terminalId') || terminals[0]?.id || '');
+                  }
+                }}
+              >
+                {value === 'CLIENT' ? 'Organization' : value === 'ORGANIZATION' ? 'Branch' : 'Terminal'}
+              </button>
+            ))}
           </div>
-          {scopeType === 'TERMINAL' && (
-            <label className="field terminal-field">
+        </div>
+        {scopeType === 'TERMINAL' && (
+          <label className="field terminal-field">
+            <span>Terminal</span>
+            <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
+              <option value="">Select terminal</option>
+              {terminals.map((terminal) => (
+                <option key={terminal.id} value={terminal.id}>{terminal.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button className="primary" onClick={saveConfiguration} disabled={
+          busy || routeConflicts.size > 0 || (scopeType === 'TERMINAL' && !scopeId)
+        }>
+          <FaCheckCircle /> Save Printing
+        </button>
+      </div>
+
+      <div className="platform-tabs">
+        {tabs.map(([id, label, icon]) => (
+          <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
+            {icon}<span>{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'service' && (
+        <section className="surface">
+          <header>
+            <div>
+              <h3>Windows Print Service</h3>
+              <p>Persistent local queue, automatic recovery, and silent printing independent of the browser.</p>
+            </div>
+            <div className="actions">
+              {health?.configurationDirty && (
+                <button className="secondary" onClick={retryCloudSynchronization} disabled={busy}>
+                  <FaSync /> Retry cloud sync
+                </button>
+              )}
+              {health?.cloudStatus === 'SYNC_CONFLICT' && cloudConfiguration && (
+                <button className="secondary" onClick={useCloudConfiguration} disabled={busy}>
+                  Use cloud version
+                </button>
+              )}
+              <button className="secondary" onClick={downloadLogs} disabled={!health}>Download logs</button>
+              <button
+                className="secondary"
+                onClick={() => refreshService()}
+                disabled={secureContext !== true}
+              >
+                <FaSync /> Refresh
+              </button>
+            </div>
+          </header>
+
+          {secureContext === false && (
+            <div className="local-access-notice error">
+              <FaExclamationTriangle />
+              <div>
+                <strong>HTTPS is required for Windows printing</strong>
+                <span>Open CafeQR at <a href={PRODUCTION_APP_URL}>{PRODUCTION_APP_URL}</a>. Chrome and Edge block public HTTP pages from connecting to this computer.</span>
+              </div>
+            </div>
+          )}
+
+          {secureContext === true && localAccessState !== 'CONNECTED' && (
+            <div className="local-access-notice">
+              <FaNetworkWired />
+              <div>
+                <strong>Connect this browser to the Windows Print Service</strong>
+                <span>
+                  Chrome or Edge will ask for Local network access. Allow it to reach the service running only on this computer.
+                </span>
+                {localAccessError && <small>{localAccessError}</small>}
+              </div>
+              <button className="primary" onClick={connectPrintService} disabled={busy || localAccessState === 'CONNECTING'}>
+                <FaNetworkWired /> {localAccessState === 'CONNECTING' ? 'Connecting...' : 'Connect Print Service'}
+              </button>
+            </div>
+          )}
+
+          <div className="status-grid">
+            <Status
+              label="Service"
+              value={health
+                ? 'Online'
+                : localAccessState === 'INSECURE'
+                  ? 'HTTPS required'
+                  : localAccessState === 'IDLE'
+                    ? 'Connect required'
+                    : 'Not reachable'}
+              ok={Boolean(health)}
+            />
+            <Status
+              label="Pairing"
+              value={localTokenInvalid
+                ? 'Token invalid (Re-pair)'
+                : health?.cloudStatus === 'AUTH_REQUIRED'
+                  ? 'Re-pair required'
+                  : health?.cloudPaired
+                    ? 'Paired'
+                    : health?.credentialsPresent
+                      ? 'Checking'
+                      : 'Not paired'}
+              ok={Boolean(health?.cloudPaired) && !localTokenInvalid}
+            />
+            <Status
+              label="Configuration"
+              value={health?.configurationDirty
+                ? 'Cloud sync pending'
+                : health?.cloudStatus === 'SYNC_CONFLICT'
+                  ? 'Conflict - local active'
+                  : health?.cloudStatus === 'SYNCED'
+                    ? 'Synced'
+                    : 'Saved locally'}
+              ok={Boolean(health) && health?.cloudStatus !== 'AUTH_REQUIRED'}
+            />
+            <Status label="Local queue" value={`${health?.queueDepth || 0} jobs`} ok={(health?.queueDepth || 0) === 0} />
+            <Status label="Version" value={health?.version || 'Unknown'} ok={Boolean(health?.version)} />
+          </div>
+
+          {health?.lastCloudError && (
+            <div className="sync-notice">
+              <FaExclamationTriangle />
+              <span>{health.lastCloudError} Local printer profiles and queued jobs remain available.</span>
+            </div>
+          )}
+
+          <div className="form-grid">
+            <label className="field">
               <span>Terminal</span>
               <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
                 <option value="">Select terminal</option>
-                {terminals.map((terminal) => (
-                  <option key={terminal.id} value={terminal.id}>{terminal.name}</option>
-                ))}
+                {terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.name}</option>)}
               </select>
             </label>
-          )}
-          <button className="primary" onClick={saveConfiguration} disabled={
-            busy || routeConflicts.size > 0 || (scopeType === 'TERMINAL' && !scopeId)
-          }>
-            <FaCheckCircle /> Save Printing
-          </button>
-        </div>
+            <label className="field">
+              <span>Station name</span>
+              <input value={stationName} onChange={(event) => setStationName(event.target.value)} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={fallback} onChange={(event) => setFallback(event.target.checked)} />
+              <span>Use as branch fallback for jobs without a source terminal</span>
+            </label>
+          </div>
 
-        <div className="platform-tabs">
-          {tabs.map(([id, label, icon]) => (
-            <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
-              {icon}<span>{label}</span>
+          <div className="pairing-row">
+            <button className="secondary" onClick={createEnrollment} disabled={busy}>Create pairing code</button>
+            <input
+              className="pair-code"
+              value={pairingCode}
+              onChange={(event) => setPairingCode(event.target.value.toUpperCase())}
+              placeholder="000-000"
+            />
+            <button
+              className="primary"
+              onClick={pairThisComputer}
+              disabled={busy || !health || localAccessState !== 'CONNECTED'}
+            >
+              Pair this computer
             </button>
-          ))}
-        </div>
-
-        {tab === 'service' && (
-          <section className="surface">
-            <header>
-              <div>
-                <h3>Windows Print Service</h3>
-                <p>Persistent local queue, automatic recovery, and silent printing independent of the browser.</p>
-              </div>
-              <div className="actions">
-                {health?.configurationDirty && (
-                  <button className="secondary" onClick={retryCloudSynchronization} disabled={busy}>
-                    <FaSync /> Retry cloud sync
-                  </button>
-                )}
-                {health?.cloudStatus === 'SYNC_CONFLICT' && cloudConfiguration && (
-                  <button className="secondary" onClick={useCloudConfiguration} disabled={busy}>
-                    Use cloud version
-                  </button>
-                )}
-                <button className="secondary" onClick={downloadLogs} disabled={!health}>Download logs</button>
-                <button
-                  className="secondary"
-                  onClick={() => refreshService()}
-                  disabled={secureContext !== true}
-                >
-                  <FaSync /> Refresh
-                </button>
-              </div>
-            </header>
-
-            {secureContext === false && (
-              <div className="local-access-notice error">
-                <FaExclamationTriangle />
-                <div>
-                  <strong>HTTPS is required for Windows printing</strong>
-                  <span>Open CafeQR at <a href={PRODUCTION_APP_URL}>{PRODUCTION_APP_URL}</a>. Chrome and Edge block public HTTP pages from connecting to this computer.</span>
-                </div>
-              </div>
-            )}
-
-            {secureContext === true && localAccessState !== 'CONNECTED' && (
-              <div className="local-access-notice">
-                <FaNetworkWired />
-                <div>
-                  <strong>Connect this browser to the Windows Print Service</strong>
-                  <span>
-                    Chrome or Edge will ask for Local network access. Allow it to reach the service running only on this computer.
-                  </span>
-                  {localAccessError && <small>{localAccessError}</small>}
-                </div>
-                <button className="primary" onClick={connectPrintService} disabled={busy || localAccessState === 'CONNECTING'}>
-                  <FaNetworkWired /> {localAccessState === 'CONNECTING' ? 'Connecting...' : 'Connect Print Service'}
-                </button>
-              </div>
-            )}
-
-            <div className="status-grid">
-              <Status
-                label="Service"
-                value={health
-                  ? 'Online'
-                  : localAccessState === 'INSECURE'
-                    ? 'HTTPS required'
-                    : localAccessState === 'IDLE'
-                      ? 'Connect required'
-                      : 'Not reachable'}
-                ok={Boolean(health)}
-              />
-              <Status
-                label="Pairing"
-                value={localTokenInvalid
-                  ? 'Token invalid (Re-pair)'
-                  : health?.cloudStatus === 'AUTH_REQUIRED'
-                    ? 'Re-pair required'
-                    : health?.cloudPaired
-                      ? 'Paired'
-                      : health?.credentialsPresent
-                        ? 'Checking'
-                        : 'Not paired'}
-                ok={Boolean(health?.cloudPaired) && !localTokenInvalid}
-              />
-              <Status
-                label="Configuration"
-                value={health?.configurationDirty
-                  ? 'Cloud sync pending'
-                  : health?.cloudStatus === 'SYNC_CONFLICT'
-                    ? 'Conflict - local active'
-                    : health?.cloudStatus === 'SYNCED'
-                      ? 'Synced'
-                      : 'Saved locally'}
-                ok={Boolean(health) && health?.cloudStatus !== 'AUTH_REQUIRED'}
-              />
-              <Status label="Local queue" value={`${health?.queueDepth || 0} jobs`} ok={(health?.queueDepth || 0) === 0} />
-              <Status label="Version" value={health?.version || 'Unknown'} ok={Boolean(health?.version)} />
-            </div>
-
-            {health?.lastCloudError && (
-              <div className="sync-notice">
-                <FaExclamationTriangle />
-                <span>{health.lastCloudError} Local printer profiles and queued jobs remain available.</span>
-              </div>
-            )}
-
-            <div className="form-grid">
-              <label className="field">
-                <span>Terminal</span>
-                <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
-                  <option value="">Select terminal</option>
-                  {terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.name}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                <span>Station name</span>
-                <input value={stationName} onChange={(event) => setStationName(event.target.value)} />
-              </label>
-              <label className="check">
-                <input type="checkbox" checked={fallback} onChange={(event) => setFallback(event.target.checked)} />
-                <span>Use as branch fallback for jobs without a source terminal</span>
-              </label>
-            </div>
-
-            <div className="pairing-row">
-              <button className="secondary" onClick={createEnrollment} disabled={busy}>Create pairing code</button>
-              <input
-                className="pair-code"
-                value={pairingCode}
-                onChange={(event) => setPairingCode(event.target.value.toUpperCase())}
-                placeholder="000-000"
-              />
+            {isNativePrintServicePaired() && (
               <button
-                className="primary"
-                onClick={pairThisComputer}
-                disabled={busy || !health || localAccessState !== 'CONNECTED'}
+                className="secondary"
+                style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
+                onClick={() => {
+                  if (window.confirm('Disconnect this print service and switch to Direct Local Loopback Mode?')) {
+                    forgetNativePrintService();
+                    setLocalTokenInvalid(false);
+                    syncPrintConfigToLocalStorage(printConfig);
+                    refreshService();
+                    showMessage('Disconnected print service. Browser will now print directly to localhost.');
+                  }
+                }}
               >
-                Pair this computer
+                Disconnect / Switch to Loopback
               </button>
-              {isNativePrintServicePaired() && (
-                <button
-                  className="secondary"
-                  style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
-                  onClick={() => {
-                    if (window.confirm('Disconnect this print service and switch to Direct Local Loopback Mode?')) {
-                      forgetNativePrintService();
-                      setLocalTokenInvalid(false);
-                      syncPrintConfigToLocalStorage(printConfig);
-                      refreshService();
-                      showMessage('Disconnected print service. Browser will now print directly to localhost.');
-                    }
-                  }}
-                >
-                  Disconnect / Switch to Loopback
-                </button>
-              )}
-              <a className="download" href="/desktop/Windows/CafeQR-PrintService.msi" download>
-                <FaDownload /> Windows 7 SP1, 8.1, 10, 11
-              </a>
-              <a className="download" href="/desktop/Windows/CafeQR-PrintService-Windows8.msi" download>
-                <FaDownload /> Windows 8.0
-              </a>
-              <a className="download" href="/desktop/Windows/CafeQR-Test-CodeSigning.cer" download>
-                <FaDownload /> Test signing certificate
-              </a>
-            </div>
+            )}
+            <a className="download" href="/desktop/Windows/CafeQR-PrintService.msi" download>
+              <FaDownload /> Windows 7 SP1, 8.1, 10, 11
+            </a>
+            <a className="download" href="/desktop/Windows/CafeQR-PrintService-Windows8.msi" download>
+              <FaDownload /> Windows 8.0
+            </a>
+            <a className="download" href="/desktop/Windows/CafeQR-Test-CodeSigning.cer" download>
+              <FaDownload /> Test signing certificate
+            </a>
+          </div>
 
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Station</th><th>Terminal</th><th>Status</th><th>Version</th><th>Last heartbeat</th><th>Fallback</th></tr></thead>
-                <tbody>
-                  {stations.map((station) => (
-                    <tr key={station.id}>
-                      <td>{station.name}</td>
-                      <td>{terminals.find((row) => row.id === station.terminalId)?.name || station.terminalId}</td>
-                      <td><span className={`state ${station.status === 'ONLINE' ? 'ok' : ''}`}>{station.status}</span></td>
-                      <td>{station.serviceVersion || '—'}</td>
-                      <td>{station.lastHeartbeatAt ? new Date(station.lastHeartbeatAt).toLocaleString() : 'Never'}</td>
-                      <td>{station.fallbackForBranch ? 'Yes' : 'No'}</td>
-                    </tr>
-                  ))}
-                  {!stations.length && <tr><td colSpan="6" className="empty">No print stations have been paired.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Station</th><th>Terminal</th><th>Status</th><th>Version</th><th>Last heartbeat</th><th>Fallback</th></tr></thead>
+              <tbody>
+                {stations.map((station) => (
+                  <tr key={station.id}>
+                    <td>{station.name}</td>
+                    <td>{terminals.find((row) => row.id === station.terminalId)?.name || station.terminalId}</td>
+                    <td><span className={`state ${station.status === 'ONLINE' ? 'ok' : ''}`}>{station.status}</span></td>
+                    <td>{station.serviceVersion || '—'}</td>
+                    <td>{station.lastHeartbeatAt ? new Date(station.lastHeartbeatAt).toLocaleString() : 'Never'}</td>
+                    <td>{station.fallbackForBranch ? 'Yes' : 'No'}</td>
+                  </tr>
+                ))}
+                {!stations.length && <tr><td colSpan="6" className="empty">No print stations have been paired.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
-        {tab === 'profiles' && (
-          <section className="surface">
-            <header>
-              <div><h3>Printer Profiles</h3><p>Every physical printer has its own transport, format, paper, and document capabilities.</p></div>
-              <div className="actions">
-                <button className="secondary" onClick={refreshInstalledPrinters}><FaSync /> Refresh installed printers</button>
-                <button className="secondary" onClick={() => addProfile('THERMAL')}><FaPlus /> Thermal</button>
-                <button className="secondary" onClick={() => addProfile('REGULAR')}><FaPlus /> Regular</button>
-              </div>
-            </header>
-            <div className="profile-list">
-              {printConfig.profiles.map((profile) => (
-                <div className="profile" key={profile.id}>
-                  <div className="profile-head">
-                    <div className={`format-icon ${profile.format.toLowerCase()}`}><FaPrint /></div>
-                    <input value={profile.name} onChange={(event) => updateProfile(profile.id, { name: event.target.value })} />
-                    <span className="format-label">{profile.format}</span>
-                    <button className="icon" title="Delete profile" onClick={() => deleteProfile(profile.id)}><FaTrash /></button>
-                  </div>
-                  <div className="form-grid compact">
-                    <Field label="Connection">
-                      <select value={profile.connectionType} onChange={(event) => updateProfile(profile.id, { connectionType: event.target.value })}>
-                        <option value="WINDOWS_QUEUE">Windows queue (USB/Bluetooth/LAN)</option>
-                        <option value="NETWORK">Direct LAN/Wi-Fi TCP</option>
-                        <option value="BLUETOOTH_COM">Bluetooth COM</option>
+      {tab === 'profiles' && (
+        <section className="surface">
+          <header>
+            <div><h3>Printer Profiles</h3><p>Every physical printer has its own transport, format, paper, and document capabilities.</p></div>
+            <div className="actions">
+              <button className="secondary" onClick={refreshInstalledPrinters}><FaSync /> Refresh installed printers</button>
+              <button className="secondary" onClick={() => addProfile('THERMAL')}><FaPlus /> Thermal</button>
+              <button className="secondary" onClick={() => addProfile('REGULAR')}><FaPlus /> Regular</button>
+            </div>
+          </header>
+          <div className="profile-list">
+            {printConfig.profiles.map((profile) => (
+              <div className="profile" key={profile.id}>
+                <div className="profile-head">
+                  <div className={`format-icon ${profile.format.toLowerCase()}`}><FaPrint /></div>
+                  <input value={profile.name} onChange={(event) => updateProfile(profile.id, { name: event.target.value })} />
+                  <span className="format-label">{profile.format}</span>
+                  <button className="icon" title="Delete profile" onClick={() => deleteProfile(profile.id)}><FaTrash /></button>
+                </div>
+                <div className="form-grid compact">
+                  <Field label="Connection">
+                    <select value={profile.connectionType} onChange={(event) => updateProfile(profile.id, { connectionType: event.target.value })}>
+                      <option value="WINDOWS_QUEUE">Windows queue (USB/Bluetooth/LAN)</option>
+                      <option value="NETWORK">Direct LAN/Wi-Fi TCP</option>
+                      <option value="BLUETOOTH_COM">Bluetooth COM</option>
+                    </select>
+                  </Field>
+                  <Field label="Format">
+                    <select value={profile.format} onChange={(event) => updateProfile(profile.id, { format: event.target.value })}>
+                      <option value="THERMAL">Thermal</option>
+                      <option value="REGULAR">Regular page</option>
+                    </select>
+                  </Field>
+                  {profile.connectionType === 'WINDOWS_QUEUE' && (
+                    <Field label="Windows printer">
+                      <select value={profile.windowsPrinterName || ''} onChange={(event) => updateProfile(profile.id, { windowsPrinterName: event.target.value })}>
+                        <option value="">Select installed printer</option>
+                        {localPrinters.filter((row) => row.connectionType === 'WINDOWS_QUEUE').map((row) => (
+                          <option key={row.name} value={row.name}>{row.name}</option>
+                        ))}
                       </select>
                     </Field>
-                    <Field label="Format">
-                      <select value={profile.format} onChange={(event) => updateProfile(profile.id, { format: event.target.value })}>
-                        <option value="THERMAL">Thermal</option>
-                        <option value="REGULAR">Regular page</option>
-                      </select>
-                    </Field>
-                    {profile.connectionType === 'WINDOWS_QUEUE' && (
-                      <Field label="Windows printer">
-                        <select value={profile.windowsPrinterName || ''} onChange={(event) => updateProfile(profile.id, { windowsPrinterName: event.target.value })}>
-                          <option value="">Select installed printer</option>
-                          {localPrinters.filter((row) => row.connectionType === 'WINDOWS_QUEUE').map((row) => (
+                  )}
+                  {profile.connectionType === 'NETWORK' && (
+                    <>
+                      <Field label="IP / Host"><input value={profile.host || ''} onChange={(event) => updateProfile(profile.id, { host: event.target.value })} /></Field>
+                      <Field label="Port"><input type="number" value={profile.port || 9100} onChange={(event) => updateProfile(profile.id, { port: Number(event.target.value) })} /></Field>
+                    </>
+                  )}
+                  {profile.connectionType === 'BLUETOOTH_COM' && (
+                    <>
+                      <Field label="COM port">
+                        <select value={profile.comPort || ''} onChange={(event) => updateProfile(profile.id, { comPort: event.target.value })}>
+                          <option value="">Select paired COM port</option>
+                          {localPrinters.filter((row) => row.connectionType === 'BLUETOOTH_COM').map((row) => (
                             <option key={row.name} value={row.name}>{row.name}</option>
                           ))}
                         </select>
                       </Field>
-                    )}
-                    {profile.connectionType === 'NETWORK' && (
-                      <>
-                        <Field label="IP / Host"><input value={profile.host || ''} onChange={(event) => updateProfile(profile.id, { host: event.target.value })} /></Field>
-                        <Field label="Port"><input type="number" value={profile.port || 9100} onChange={(event) => updateProfile(profile.id, { port: Number(event.target.value) })} /></Field>
-                      </>
-                    )}
-                    {profile.connectionType === 'BLUETOOTH_COM' && (
-                      <>
-                        <Field label="COM port">
-                          <select value={profile.comPort || ''} onChange={(event) => updateProfile(profile.id, { comPort: event.target.value })}>
-                            <option value="">Select paired COM port</option>
-                            {localPrinters.filter((row) => row.connectionType === 'BLUETOOTH_COM').map((row) => (
-                              <option key={row.name} value={row.name}>{row.name}</option>
-                            ))}
-                          </select>
-                        </Field>
-                        <Field label="Baud rate"><input type="number" value={profile.baudRate || 9600} onChange={(event) => updateProfile(profile.id, { baudRate: Number(event.target.value) })} /></Field>
-                      </>
-                    )}
-                    <Field label="Paper">
-                      <select value={profile.paperPreset} onChange={(event) => {
-                        const presets = {
-                          '58MM': { widthMm: 58, columns: 32, printableDots: 384 },
-                          '80MM': { widthMm: 80, columns: 48, printableDots: 576 },
-                          '4IN': { widthMm: 101.6, columns: 64, printableDots: 832 },
-                          A4: { widthMm: 210, heightMm: 297 },
-                          A5: { widthMm: 148, heightMm: 210 },
-                          LETTER: { widthMm: 215.9, heightMm: 279.4 },
-                          LEGAL: { widthMm: 215.9, heightMm: 355.6 },
-                          CUSTOM: {},
-                        };
-                        updateProfile(profile.id, { paperPreset: event.target.value, ...presets[event.target.value] });
-                      }}>
-                        {profile.format === 'THERMAL' ? (
-                          <>
-                            <option value="58MM">2 inch / 58 mm</option>
-                            <option value="80MM">3 inch / 80 mm</option>
-                            <option value="4IN">4 inch</option>
-                            <option value="CUSTOM">Custom</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value="A4">A4</option><option value="A5">A5</option>
-                            <option value="LETTER">Letter</option><option value="LEGAL">Legal</option>
-                            <option value="CUSTOM">Driver custom form</option>
-                          </>
-                        )}
-                      </select>
-                    </Field>
-                    <Field label="Width (mm)"><input type="number" value={profile.widthMm || ''} onChange={(event) => updateProfile(profile.id, { widthMm: Number(event.target.value) })} /></Field>
-                    {profile.format === 'REGULAR' && <Field label="Height (mm)"><input type="number" value={profile.heightMm || ''} onChange={(event) => updateProfile(profile.id, { heightMm: Number(event.target.value) })} /></Field>}
-                    {profile.format === 'THERMAL' && <Field label="Columns"><input type="number" value={profile.columns || 32} onChange={(event) => updateProfile(profile.id, { columns: Number(event.target.value) })} /></Field>}
-                    <Field label="Copies"><input type="number" min="1" max="10" value={profile.copies || 1} onChange={(event) => updateProfile(profile.id, { copies: Number(event.target.value) })} /></Field>
-                  </div>
-                  <div className="document-toggles">
-                    {['KOT', 'BILL', 'INVOICE'].map((documentType) => (
-                      <label className="check" key={documentType}>
-                        <input
-                          type="checkbox"
-                          checked={profileSupportsDocument(profile, documentType)}
-                          onChange={(event) => {
-                            const currentDocuments = Array.isArray(profile.documents) && profile.documents.length > 0
-                              ? profile.documents
-                              : ['KOT', 'BILL', 'INVOICE'];
-                            updateProfile(profile.id, {
-                              documents: event.target.checked
-                                ? Array.from(new Set([...currentDocuments, documentType]))
-                                : currentDocuments.filter((value) => value !== documentType),
-                            });
-                          }}
-                        />
-                        <span>{documentType}</span>
-                      </label>
-                    ))}
-                    <span className="profile-destination">{profileDestination(profile)}</span>
-                    <div className="test-buttons-group" style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
-                      <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
-                      <button className="secondary test" onClick={() => testDocType(profile, 'KOT')} disabled={!health || busy} style={{ backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' }}>Test KOT</button>
-                      <button className="secondary test" onClick={() => testDocType(profile, 'BILL')} disabled={!health || busy} style={{ backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>Test Bill</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {!printConfig.profiles.length && <div className="empty-state"><FaPrint /><strong>No printer profiles</strong><span>Add the first thermal or regular printer.</span></div>}
-            </div>
-          </section>
-        )}
-
-        {tab === 'assignments' && (
-          <section className="surface">
-            <header>
-              <div>
-                <h3>Default Document Printers</h3>
-                <p>Select the exact printer profiles used by KOT, Bill, and Invoice jobs. Every selected profile receives a mirrored copy.</p>
-              </div>
-              <button className="secondary" onClick={() => setTab('profiles')}><FaPlus /> Manage profiles</button>
-            </header>
-            {(() => {
-              const warnings = getMissingPrinterWarnings(printConfig);
-              const entries = Object.entries(warnings);
-              if (!entries.length) return null;
-              return (
-                <div style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px',
-                  background: '#fffbeb', border: '1px solid #fcd34d',
-                  borderRadius: '6px', padding: '12px 16px', marginBottom: '16px',
-                  color: '#92400e', fontSize: '0.875rem',
-                }}>
-                  <FaExclamationTriangle style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <div>
-                    <strong>Printer queue not set — printing will fail</strong>
-                    <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
-                      {entries.map(([type, names]) => (
-                        <li key={type}>
-                          <strong>{type}</strong>: {names.join(', ')} {names.length === 1 ? 'has' : 'have'} no
-                          Windows printer queue selected. Go to{' '}
-                          <button onClick={() => setTab('profiles')}
-                            style={{
-                              background: 'none', border: 'none', padding: 0, color: '#92400e',
-                              textDecoration: 'underline', cursor: 'pointer', font: 'inherit'
-                            }}>
-                            Printer Profiles
-                          </button>{' '}
-                          and pick a printer from the "Windows printer" dropdown, then click <strong>Save Printing</strong>.
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              );
-            })()}
-            <div className="assignment-list">
-              {DOCUMENT_DEFAULTS.map(({ type, title, description, profileKey, outputKey, modeKey }) => {
-                const compatible = printConfig.profiles.filter((profile) => (
-                  profile.enabled !== false && profileSupportsDocument(profile, type)
-                ));
-                const labels = Object.fromEntries(compatible.map((profile) => [profile.id, profileDisplayLabel(profile)]));
-                return (
-                  <div className="assignment" key={type}>
-                    <div className="assignment-head">
-                      <div>
-                        <h4>{title}</h4>
-                        <p>{description}</p>
-                      </div>
-                      <span className="mirror-badge">Mirror to all selected</span>
-                    </div>
-                    <div className="assignment-output">
-                      <Field label="Output format">
-                        <select value={printConfig.defaults[outputKey]} onChange={(event) => setDefault(outputKey, event.target.value)}>
-                          <option value="THERMAL">Thermal</option>
-                          <option value="REGULAR">Regular</option>
-                          <option value="BOTH">Both</option>
-                        </select>
-                      </Field>
-                    </div>
-                    <TagSelector
-                      label="Assigned printer profiles"
-                      values={compatible.map((profile) => profile.id)}
-                      selected={printConfig.defaults[profileKey] || []}
-                      onChange={(values) => setPrintConfig((previous) => ({
-                        ...previous,
-                        defaults: {
-                          ...previous.defaults,
-                          [profileKey]: values,
-                          [modeKey]: 'MIRROR',
-                        },
-                      }))}
-                      labels={labels}
-                    />
-                    {!compatible.length && (
-                      <div className="assignment-warning">
-                        <FaExclamationTriangle /> No enabled profile supports {type}. Create a printer profile and enable {type}.
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {tab === 'routing' && (
-          <section className="surface">
-            <header><div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div><button className="secondary" onClick={addRoute}><FaPlus /> Add route</button></header>
-            <div className="route-list">
-              {printConfig.routes.map((route) => (
-                <div className={`route ${routeConflicts.has(route.id) ? 'conflict' : ''}`} key={route.id}>
-                  <div className="route-head">
-                    <input value={route.name} onChange={(event) => updateRoute(route.id, { name: event.target.value })} />
-                    {routeConflicts.has(route.id) && <span className="warning"><FaExclamationTriangle /> Conflicting rule</span>}
-                    <button className="icon" onClick={() => setPrintConfig((previous) => ({ ...previous, routes: previous.routes.filter((row) => row.id !== route.id) }))}><FaTrash /></button>
-                  </div>
-                  <div className="form-grid compact">
-                    <Field label="Priority"><input type="number" value={route.priority} onChange={(event) => updateRoute(route.id, { priority: Number(event.target.value) })} /></Field>
-                    <Field label="Delivery mode">
-                      <select value={route.mode} onChange={(event) => updateRoute(route.id, { mode: event.target.value })}>
-                        <option value="FAILOVER">Failover in order</option><option value="MIRROR">Print to all</option>
-                      </select>
-                    </Field>
-                    <Field label="Copies"><input type="number" min="1" max="10" value={route.copies} onChange={(event) => updateRoute(route.id, { copies: Number(event.target.value) })} /></Field>
-                  </div>
-                  <TagSelector label="Documents" values={['KOT', 'BILL', 'INVOICE']} selected={route.documentTypes} onChange={(values) => updateRoute(route.id, { documentTypes: values })} />
-                  <TagSelector label="Order types" values={['DINE_IN', 'TAKEAWAY', 'DELIVERY']} selected={route.orderTypes} onChange={(values) => updateRoute(route.id, { orderTypes: values })} />
-                  <TagSelector label="Categories" values={categories} selected={route.categories} onChange={(values) => updateRoute(route.id, { categories: values })} />
-                  <TagSelector label="Printer targets" values={printConfig.profiles.map((profile) => profile.id)} selected={route.profileIds} onChange={(values) => updateRoute(route.id, { profileIds: values })} labels={Object.fromEntries(printConfig.profiles.map((profile) => [profile.id, profile.name]))} />
-                </div>
-              ))}
-              {!printConfig.routes.length && <div className="empty-state"><FaRoute /><strong>No custom routes</strong><span>Default KOT, Bill, and Invoice assignments will be used.</span></div>}
-            </div>
-          </section>
-        )}
-
-        {tab === 'templates' && (
-          <section className="surface">
-            <header><div><h3>Templates & Paper</h3><p>Configure width-aware thermal output and the detailed regular tax invoice.</p></div></header>
-            <div className="template-grid">
-              <div className="template-editor">
-                <h4>Thermal printer</h4>
-                <div className="paper-presets">
-                  {[['58MM', '2 inch', 58, 32, 384], ['80MM', '3 inch', 80, 48, 576], ['4IN', '4 inch', 101.6, 64, 832], ['CUSTOM', 'Custom', printConfig.thermalTemplate.widthMm, printConfig.thermalTemplate.columns, printConfig.thermalTemplate.printableDots]].map(([preset, label, width, columns, dots]) => (
-                    <button key={preset} className={printConfig.thermalTemplate.preset === preset ? 'active' : ''} onClick={() => setPrintConfig((previous) => ({
-                      ...previous,
-                      thermalTemplate: { ...previous.thermalTemplate, preset, widthMm: width, columns, printableDots: dots },
-                    }))}>{label}</button>
-                  ))}
-                </div>
-                <div className="form-grid compact">
-                  <Field label="Width (mm)"><input type="number" value={printConfig.thermalTemplate.widthMm} onChange={(event) => setTemplate('thermalTemplate', 'widthMm', Number(event.target.value))} /></Field>
-                  <Field label="Columns"><input type="number" value={printConfig.thermalTemplate.columns} onChange={(event) => setTemplate('thermalTemplate', 'columns', Number(event.target.value))} /></Field>
-                  <Field label="Printable dots"><input type="number" value={printConfig.thermalTemplate.printableDots} onChange={(event) => setTemplate('thermalTemplate', 'printableDots', Number(event.target.value))} /></Field>
-                  <Field label="Feed lines"><input type="number" value={printConfig.thermalTemplate.feedLines} onChange={(event) => setTemplate('thermalTemplate', 'feedLines', Number(event.target.value))} /></Field>
-                </div>
-                <label className="check"><input type="checkbox" checked={printConfig.thermalTemplate.autoCut} onChange={(event) => setTemplate('thermalTemplate', 'autoCut', event.target.checked)} /><span>Auto-cut after print</span></label>
-                <ThermalPreview settings={printConfig.thermalTemplate} />
-              </div>
-              <div className="template-editor">
-                <h4>Regular printer</h4>
-                <div className="form-grid compact">
+                      <Field label="Baud rate"><input type="number" value={profile.baudRate || 9600} onChange={(event) => updateProfile(profile.id, { baudRate: Number(event.target.value) })} /></Field>
+                    </>
+                  )}
                   <Field label="Paper">
-                    <select value={printConfig.regularTemplate.paperPreset} onChange={(event) => setTemplate('regularTemplate', 'paperPreset', event.target.value)}>
-                      <option value="A4">A4</option><option value="A5">A5</option><option value="LETTER">Letter</option><option value="LEGAL">Legal</option><option value="CUSTOM">Custom driver form</option>
+                    <select value={profile.paperPreset} onChange={(event) => {
+                      const presets = {
+                        '58MM': { widthMm: 58, columns: 32, printableDots: 384 },
+                        '80MM': { widthMm: 80, columns: 48, printableDots: 576 },
+                        '4IN': { widthMm: 101.6, columns: 64, printableDots: 832 },
+                        A4: { widthMm: 210, heightMm: 297 },
+                        A5: { widthMm: 148, heightMm: 210 },
+                        LETTER: { widthMm: 215.9, heightMm: 279.4 },
+                        LEGAL: { widthMm: 215.9, heightMm: 355.6 },
+                        CUSTOM: {},
+                      };
+                      updateProfile(profile.id, { paperPreset: event.target.value, ...presets[event.target.value] });
+                    }}>
+                      {profile.format === 'THERMAL' ? (
+                        <>
+                          <option value="58MM">2 inch / 58 mm</option>
+                          <option value="80MM">3 inch / 80 mm</option>
+                          <option value="4IN">4 inch</option>
+                          <option value="CUSTOM">Custom</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="A4">A4</option><option value="A5">A5</option>
+                          <option value="LETTER">Letter</option><option value="LEGAL">Legal</option>
+                          <option value="CUSTOM">Driver custom form</option>
+                        </>
+                      )}
                     </select>
                   </Field>
-                  <Field label="Orientation">
-                    <select value={printConfig.regularTemplate.orientation} onChange={(event) => setTemplate('regularTemplate', 'orientation', event.target.value)}>
-                      <option value="PORTRAIT">Portrait</option><option value="LANDSCAPE">Landscape</option>
-                    </select>
-                  </Field>
-                  <Field label="Width (mm)"><input type="number" value={printConfig.regularTemplate.widthMm} onChange={(event) => setTemplate('regularTemplate', 'widthMm', Number(event.target.value))} /></Field>
-                  <Field label="Height (mm)"><input type="number" value={printConfig.regularTemplate.heightMm} onChange={(event) => setTemplate('regularTemplate', 'heightMm', Number(event.target.value))} /></Field>
-                  <Field label="Margins (mm)"><input type="number" value={printConfig.regularTemplate.marginMm} onChange={(event) => setTemplate('regularTemplate', 'marginMm', Number(event.target.value))} /></Field>
-                  <Field label="Paper source"><input value={printConfig.regularTemplate.paperSource || ''} onChange={(event) => setTemplate('regularTemplate', 'paperSource', event.target.value)} placeholder="Driver default" /></Field>
-                  <Field label="Scaling (%)"><input type="number" min="50" max="200" value={printConfig.regularTemplate.scaling || 100} onChange={(event) => setTemplate('regularTemplate', 'scaling', Number(event.target.value))} /></Field>
-                  <Field label="Colour mode">
-                    <select value={printConfig.regularTemplate.colorMode} onChange={(event) => setTemplate('regularTemplate', 'colorMode', event.target.value)}>
-                      <option value="GRAYSCALE">Grayscale</option><option value="COLOR">Colour</option>
-                    </select>
-                  </Field>
+                  <Field label="Width (mm)"><input type="number" value={profile.widthMm || ''} onChange={(event) => updateProfile(profile.id, { widthMm: Number(event.target.value) })} /></Field>
+                  {profile.format === 'REGULAR' && <Field label="Height (mm)"><input type="number" value={profile.heightMm || ''} onChange={(event) => updateProfile(profile.id, { heightMm: Number(event.target.value) })} /></Field>}
+                  {profile.format === 'THERMAL' && <Field label="Columns"><input type="number" value={profile.columns || 32} onChange={(event) => updateProfile(profile.id, { columns: Number(event.target.value) })} /></Field>}
+                  <Field label="Copies"><input type="number" min="1" max="10" value={profile.copies || 1} onChange={(event) => updateProfile(profile.id, { copies: Number(event.target.value) })} /></Field>
                 </div>
-                <div className="option-grid">
-                  {[
-                    ['showLogo', 'Logo'], ['showCustomer', 'Customer'], ['showTax', 'GST / Tax'],
-                    ['showHsnSac', 'HSN / SAC'], ['showUnits', 'Units'], ['showDiscounts', 'Discounts'],
-                    ['showPayment', 'Payment'], ['showAmountInWords', 'Amount in words'],
-                    ['showTerms', 'Terms'], ['showFooter', 'Footer'], ['showSignature', 'Signature'],
-                  ].map(([key, label]) => (
-                    <label className="check" key={key}>
-                      <input type="checkbox" checked={printConfig.regularTemplate[key]} onChange={(event) => setTemplate('regularTemplate', key, event.target.checked)} />
-                      <span>{label}</span>
+                <div className="document-toggles">
+                  {['KOT', 'BILL', 'INVOICE'].map((documentType) => (
+                    <label className="check" key={documentType}>
+                      <input
+                        type="checkbox"
+                        checked={profileSupportsDocument(profile, documentType)}
+                        onChange={(event) => {
+                          const currentDocuments = Array.isArray(profile.documents) && profile.documents.length > 0
+                            ? profile.documents
+                            : ['KOT', 'BILL', 'INVOICE'];
+                          updateProfile(profile.id, {
+                            documents: event.target.checked
+                              ? Array.from(new Set([...currentDocuments, documentType]))
+                              : currentDocuments.filter((value) => value !== documentType),
+                          });
+                        }}
+                      />
+                      <span>{documentType}</span>
                     </label>
                   ))}
+                  <span className="profile-destination">{profileDestination(profile)}</span>
+                  <div className="test-buttons-group" style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                    <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
+                    <button className="secondary test" onClick={() => testDocType(profile, 'KOT')} disabled={!health || busy} style={{ backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' }}>Test KOT</button>
+                    <button className="secondary test" onClick={() => testDocType(profile, 'BILL')} disabled={!health || busy} style={{ backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>Test Bill</button>
+                  </div>
                 </div>
-                <div className="form-grid template-copy">
-                  <Field label="Terms"><textarea rows="3" value={printConfig.regularTemplate.terms || ''} onChange={(event) => setTemplate('regularTemplate', 'terms', event.target.value)} /></Field>
-                  <Field label="Footer"><textarea rows="3" value={printConfig.regularTemplate.footer || ''} onChange={(event) => setTemplate('regularTemplate', 'footer', event.target.value)} /></Field>
-                </div>
-                <RegularPreview settings={printConfig.regularTemplate} />
               </div>
+            ))}
+            {!printConfig.profiles.length && <div className="empty-state"><FaPrint /><strong>No printer profiles</strong><span>Add the first thermal or regular printer.</span></div>}
+          </div>
+        </section>
+      )}
+
+      {tab === 'assignments' && (
+        <section className="surface">
+          <header>
+            <div>
+              <h3>Default Document Printers</h3>
+              <p>Select the exact printer profiles used by KOT, Bill, and Invoice jobs. Every selected profile receives a mirrored copy.</p>
             </div>
-          </section>
-        )}
+            <button className="secondary" onClick={() => setTab('profiles')}><FaPlus /> Manage profiles</button>
+          </header>
+          {(() => {
+            const warnings = getMissingPrinterWarnings(printConfig);
+            const entries = Object.entries(warnings);
+            if (!entries.length) return null;
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                background: '#fffbeb', border: '1px solid #fcd34d',
+                borderRadius: '6px', padding: '12px 16px', marginBottom: '16px',
+                color: '#92400e', fontSize: '0.875rem',
+              }}>
+                <FaExclamationTriangle style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong>Printer queue not set — printing will fail</strong>
+                  <ul style={{ margin: '6px 0 0', paddingLeft: '18px' }}>
+                    {entries.map(([type, names]) => (
+                      <li key={type}>
+                        <strong>{type}</strong>: {names.join(', ')} {names.length === 1 ? 'has' : 'have'} no
+                        Windows printer queue selected. Go to{' '}
+                        <button onClick={() => setTab('profiles')}
+                          style={{
+                            background: 'none', border: 'none', padding: 0, color: '#92400e',
+                            textDecoration: 'underline', cursor: 'pointer', font: 'inherit'
+                          }}>
+                          Printer Profiles
+                        </button>{' '}
+                        and pick a printer from the "Windows printer" dropdown, then click <strong>Save Printing</strong>.
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
+          <div className="assignment-list">
+            {DOCUMENT_DEFAULTS.map(({ type, title, description, profileKey, outputKey, modeKey }) => {
+              const compatible = printConfig.profiles.filter((profile) => (
+                profile.enabled !== false && profileSupportsDocument(profile, type)
+              ));
+              const labels = Object.fromEntries(compatible.map((profile) => [profile.id, profileDisplayLabel(profile)]));
+              return (
+                <div className="assignment" key={type}>
+                  <div className="assignment-head">
+                    <div>
+                      <h4>{title}</h4>
+                      <p>{description}</p>
+                    </div>
+                    <span className="mirror-badge">Mirror to all selected</span>
+                  </div>
+                  <div className="assignment-output">
+                    <Field label="Output format">
+                      <select value={printConfig.defaults[outputKey]} onChange={(event) => setDefault(outputKey, event.target.value)}>
+                        <option value="THERMAL">Thermal</option>
+                        <option value="REGULAR">Regular</option>
+                        <option value="BOTH">Both</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <TagSelector
+                    label="Assigned printer profiles"
+                    values={compatible.map((profile) => profile.id)}
+                    selected={printConfig.defaults[profileKey] || []}
+                    onChange={(values) => setPrintConfig((previous) => ({
+                      ...previous,
+                      defaults: {
+                        ...previous.defaults,
+                        [profileKey]: values,
+                        [modeKey]: 'MIRROR',
+                      },
+                    }))}
+                    labels={labels}
+                  />
+                  {!compatible.length && (
+                    <div className="assignment-warning">
+                      <FaExclamationTriangle /> No enabled profile supports {type}. Create a printer profile and enable {type}.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-        {tab === 'queue' && (
-          <section className="surface">
-            <header><div><h3>Local Print Queue</h3><p>Recent durable jobs stored by the Windows service.</p></div><button className="secondary" onClick={refreshService}><FaSync /> Refresh</button></header>
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Job</th><th>Kind</th><th>Printer</th><th>Status</th><th>Attempts</th><th>Spool job</th><th>Error</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job.Id || job.id}>
-                      <td>{job.Id || job.id}</td><td>{job.JobKind || job.jobKind}</td>
-                      <td>{(() => {
-                        const profile = printConfig.profiles.find((row) => row.id === (job.ProfileId || job.profileId));
-                        return profile ? profileDisplayLabel(profile) : (job.ProfileId || job.profileId);
-                      })()}</td>
-                      <td><span className={`state ${['SPOOLED', 'COMPLETED', 'PRINTED'].includes(job.Status || job.status) ? 'ok' : ''}`}>{job.Status || job.status}</span></td>
-                      <td>{job.Attempts ?? job.attempts}</td><td>{job.SpoolJobId || job.spoolJobId || '—'}</td>
-                      <td>{job.ErrorMessage || job.errorMessage || '—'}</td>
-                      <td>
-                        <div className="queue-actions">
-                          {['FAILED', 'RETRY_WAIT'].includes(job.Status || job.status) && <button onClick={() => updateLocalJob(job, 'retry')}>Retry</button>}
-                          {(job.Status || job.status) === 'HELD_AMBIGUOUS' && (
-                            <>
-                              <button onClick={() => updateLocalJob(job, 'complete')}>Printed</button>
-                              <button onClick={() => updateLocalJob(job, 'cancel')}>Cancel</button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!jobs.length && <tr><td colSpan="8" className="empty">No local print jobs are available.</td></tr>}
-                </tbody>
-              </table>
+      {tab === 'routing' && (
+        <section className="surface">
+          <header><div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div><button className="secondary" onClick={addRoute}><FaPlus /> Add route</button></header>
+          <div className="route-list">
+            {printConfig.routes.map((route) => (
+              <div className={`route ${routeConflicts.has(route.id) ? 'conflict' : ''}`} key={route.id}>
+                <div className="route-head">
+                  <input value={route.name} onChange={(event) => updateRoute(route.id, { name: event.target.value })} />
+                  {routeConflicts.has(route.id) && <span className="warning"><FaExclamationTriangle /> Conflicting rule</span>}
+                  <button className="icon" onClick={() => setPrintConfig((previous) => ({ ...previous, routes: previous.routes.filter((row) => row.id !== route.id) }))}><FaTrash /></button>
+                </div>
+                <div className="form-grid compact">
+                  <Field label="Priority"><input type="number" value={route.priority} onChange={(event) => updateRoute(route.id, { priority: Number(event.target.value) })} /></Field>
+                  <Field label="Delivery mode">
+                    <select value={route.mode} onChange={(event) => updateRoute(route.id, { mode: event.target.value })}>
+                      <option value="FAILOVER">Failover in order</option><option value="MIRROR">Print to all</option>
+                    </select>
+                  </Field>
+                  <Field label="Copies"><input type="number" min="1" max="10" value={route.copies} onChange={(event) => updateRoute(route.id, { copies: Number(event.target.value) })} /></Field>
+                </div>
+                <TagSelector label="Documents" values={['KOT', 'BILL', 'INVOICE']} selected={route.documentTypes} onChange={(values) => updateRoute(route.id, { documentTypes: values })} />
+                <TagSelector label="Order types" values={['DINE_IN', 'TAKEAWAY', 'DELIVERY']} selected={route.orderTypes} onChange={(values) => updateRoute(route.id, { orderTypes: values })} />
+                <TagSelector label="Categories" values={categories} selected={route.categories} onChange={(values) => updateRoute(route.id, { categories: values })} />
+                <TagSelector label="Printer targets" values={printConfig.profiles.map((profile) => profile.id)} selected={route.profileIds} onChange={(values) => updateRoute(route.id, { profileIds: values })} labels={Object.fromEntries(printConfig.profiles.map((profile) => [profile.id, profile.name]))} />
+              </div>
+            ))}
+            {!printConfig.routes.length && <div className="empty-state"><FaRoute /><strong>No custom routes</strong><span>Default KOT, Bill, and Invoice assignments will be used.</span></div>}
+          </div>
+        </section>
+      )}
+
+      {tab === 'templates' && (
+        <section className="surface">
+          <header><div><h3>Templates & Paper</h3><p>Configure width-aware thermal output and the detailed regular tax invoice.</p></div></header>
+          <div className="template-grid">
+            <div className="template-editor">
+              <h4>Thermal printer</h4>
+              <div className="paper-presets">
+                {[['58MM', '2 inch', 58, 32, 384], ['80MM', '3 inch', 80, 48, 576], ['4IN', '4 inch', 101.6, 64, 832], ['CUSTOM', 'Custom', printConfig.thermalTemplate.widthMm, printConfig.thermalTemplate.columns, printConfig.thermalTemplate.printableDots]].map(([preset, label, width, columns, dots]) => (
+                  <button key={preset} className={printConfig.thermalTemplate.preset === preset ? 'active' : ''} onClick={() => setPrintConfig((previous) => ({
+                    ...previous,
+                    thermalTemplate: { ...previous.thermalTemplate, preset, widthMm: width, columns, printableDots: dots },
+                  }))}>{label}</button>
+                ))}
+              </div>
+              <div className="form-grid compact">
+                <Field label="Width (mm)"><input type="number" value={printConfig.thermalTemplate.widthMm} onChange={(event) => setTemplate('thermalTemplate', 'widthMm', Number(event.target.value))} /></Field>
+                <Field label="Columns"><input type="number" value={printConfig.thermalTemplate.columns} onChange={(event) => setTemplate('thermalTemplate', 'columns', Number(event.target.value))} /></Field>
+                <Field label="Printable dots"><input type="number" value={printConfig.thermalTemplate.printableDots} onChange={(event) => setTemplate('thermalTemplate', 'printableDots', Number(event.target.value))} /></Field>
+                <Field label="Feed lines"><input type="number" value={printConfig.thermalTemplate.feedLines} onChange={(event) => setTemplate('thermalTemplate', 'feedLines', Number(event.target.value))} /></Field>
+              </div>
+              <label className="check"><input type="checkbox" checked={printConfig.thermalTemplate.autoCut} onChange={(event) => setTemplate('thermalTemplate', 'autoCut', event.target.checked)} /><span>Auto-cut after print</span></label>
+              <ThermalPreview settings={printConfig.thermalTemplate} />
             </div>
-          </section>
-        )}
+            <div className="template-editor">
+              <h4>Regular printer</h4>
+              <div className="form-grid compact">
+                <Field label="Paper">
+                  <select value={printConfig.regularTemplate.paperPreset} onChange={(event) => setTemplate('regularTemplate', 'paperPreset', event.target.value)}>
+                    <option value="A4">A4</option><option value="A5">A5</option><option value="LETTER">Letter</option><option value="LEGAL">Legal</option><option value="CUSTOM">Custom driver form</option>
+                  </select>
+                </Field>
+                <Field label="Orientation">
+                  <select value={printConfig.regularTemplate.orientation} onChange={(event) => setTemplate('regularTemplate', 'orientation', event.target.value)}>
+                    <option value="PORTRAIT">Portrait</option><option value="LANDSCAPE">Landscape</option>
+                  </select>
+                </Field>
+                <Field label="Width (mm)"><input type="number" value={printConfig.regularTemplate.widthMm} onChange={(event) => setTemplate('regularTemplate', 'widthMm', Number(event.target.value))} /></Field>
+                <Field label="Height (mm)"><input type="number" value={printConfig.regularTemplate.heightMm} onChange={(event) => setTemplate('regularTemplate', 'heightMm', Number(event.target.value))} /></Field>
+                <Field label="Margins (mm)"><input type="number" value={printConfig.regularTemplate.marginMm} onChange={(event) => setTemplate('regularTemplate', 'marginMm', Number(event.target.value))} /></Field>
+                <Field label="Paper source"><input value={printConfig.regularTemplate.paperSource || ''} onChange={(event) => setTemplate('regularTemplate', 'paperSource', event.target.value)} placeholder="Driver default" /></Field>
+                <Field label="Scaling (%)"><input type="number" min="50" max="200" value={printConfig.regularTemplate.scaling || 100} onChange={(event) => setTemplate('regularTemplate', 'scaling', Number(event.target.value))} /></Field>
+                <Field label="Colour mode">
+                  <select value={printConfig.regularTemplate.colorMode} onChange={(event) => setTemplate('regularTemplate', 'colorMode', event.target.value)}>
+                    <option value="GRAYSCALE">Grayscale</option><option value="COLOR">Colour</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="option-grid">
+                {[
+                  ['showLogo', 'Logo'], ['showCustomer', 'Customer'], ['showTax', 'GST / Tax'],
+                  ['showHsnSac', 'HSN / SAC'], ['showUnits', 'Units'], ['showDiscounts', 'Discounts'],
+                  ['showPayment', 'Payment'], ['showAmountInWords', 'Amount in words'],
+                  ['showTerms', 'Terms'], ['showFooter', 'Footer'], ['showSignature', 'Signature'],
+                ].map(([key, label]) => (
+                  <label className="check" key={key}>
+                    <input type="checkbox" checked={printConfig.regularTemplate[key]} onChange={(event) => setTemplate('regularTemplate', key, event.target.checked)} />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="form-grid template-copy">
+                <Field label="Terms"><textarea rows="3" value={printConfig.regularTemplate.terms || ''} onChange={(event) => setTemplate('regularTemplate', 'terms', event.target.value)} /></Field>
+                <Field label="Footer"><textarea rows="3" value={printConfig.regularTemplate.footer || ''} onChange={(event) => setTemplate('regularTemplate', 'footer', event.target.value)} /></Field>
+              </div>
+              <RegularPreview settings={printConfig.regularTemplate} />
+            </div>
+          </div>
+        </section>
+      )}
 
-        {tab === 'android' && (
-          <PrinterSetupCard androidOnly restaurantId={restaurantId} config={legacyConfig} onConfigChange={onConfigChange} />
-        )}
+      {tab === 'queue' && (
+        <section className="surface">
+          <header><div><h3>Local Print Queue</h3><p>Recent durable jobs stored by the Windows service.</p></div><button className="secondary" onClick={refreshService}><FaSync /> Refresh</button></header>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Job</th><th>Kind</th><th>Printer</th><th>Status</th><th>Attempts</th><th>Spool job</th><th>Error</th><th>Actions</th></tr></thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.Id || job.id}>
+                    <td>{job.Id || job.id}</td><td>{job.JobKind || job.jobKind}</td>
+                    <td>{(() => {
+                      const profile = printConfig.profiles.find((row) => row.id === (job.ProfileId || job.profileId));
+                      return profile ? profileDisplayLabel(profile) : (job.ProfileId || job.profileId);
+                    })()}</td>
+                    <td><span className={`state ${['SPOOLED', 'COMPLETED', 'PRINTED'].includes(job.Status || job.status) ? 'ok' : ''}`}>{job.Status || job.status}</span></td>
+                    <td>{job.Attempts ?? job.attempts}</td><td>{job.SpoolJobId || job.spoolJobId || '—'}</td>
+                    <td>{job.ErrorMessage || job.errorMessage || '—'}</td>
+                    <td>
+                      <div className="queue-actions">
+                        {['FAILED', 'RETRY_WAIT'].includes(job.Status || job.status) && <button onClick={() => updateLocalJob(job, 'retry')}>Retry</button>}
+                        {(job.Status || job.status) === 'HELD_AMBIGUOUS' && (
+                          <>
+                            <button onClick={() => updateLocalJob(job, 'complete')}>Printed</button>
+                            <button onClick={() => updateLocalJob(job, 'cancel')}>Cancel</button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!jobs.length && <tr><td colSpan="8" className="empty">No local print jobs are available.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
-        {message && <div className="platform-toast">{message}</div>}
+      {tab === 'android' && (
+        <PrinterSetupCard androidOnly restaurantId={restaurantId} config={legacyConfig} onConfigChange={onConfigChange} />
+      )}
 
-        <style jsx global>{`
+      {message && <div className="platform-toast">{message}</div>}
+
+      <style jsx global>{`
         .print-platform { display: flex; flex-direction: column; gap: 16px; min-width: 0; color: #172033; }
         .print-platform .platform-toolbar { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid #dfe5ee; background: #fff; border-radius: 8px; }
         .print-platform .scope-control { display: flex; flex-direction: column; gap: 6px; }
@@ -1634,20 +1634,20 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           .print-platform .template-copy { grid-template-columns: 1fr; }
         }
       `}</style>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
-  function Field({ label, children }) {
-    return <label className="field"><span>{label}</span>{children}</label>;
-  }
+function Field({ label, children }) {
+  return <label className="field"><span>{label}</span>{children}</label>;
+}
 
-  function Status({ label, value, ok }) {
-    return (
-      <div className="status-item">
-        <FaCircle className={ok ? 'ok' : 'bad'} />
-        <div><span>{label}</span><strong>{value}</strong></div>
-        <style jsx>{`
+function Status({ label, value, ok }) {
+  return (
+    <div className="status-item">
+      <FaCircle className={ok ? 'ok' : 'bad'} />
+      <div><span>{label}</span><strong>{value}</strong></div>
+      <style jsx>{`
         .status-item { min-height: 74px; display: flex; align-items: center; gap: 10px; padding: 13px; border-right: 1px solid #e1e7ef; }
         .status-item:last-child { border-right: 0; }
         .status-item :global(svg) { font-size: 9px; color: #dc2626; }
@@ -1655,26 +1655,26 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         span { display: block; color: #748299; font-size: 10px; font-weight: 800; text-transform: uppercase; }
         strong { display: block; margin-top: 4px; color: #172033; font-size: 13px; }
       `}</style>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
-  function TagSelector({ label, values, selected, onChange, labels = {} }) {
-    const toggle = (value) => onChange(selected.includes(value)
-      ? selected.filter((item) => item !== value)
-      : [...selected, value]);
-    return (
-      <div className="tags">
-        <span>{label}</span>
-        <div>
-          {values.map((value) => (
-            <button type="button" key={value} className={selected.includes(value) ? 'active' : ''} onClick={() => toggle(value)}>
-              {labels[value] || value}
-            </button>
-          ))}
-          {!values.length && <em>No options available</em>}
-        </div>
-        <style jsx>{`
+function TagSelector({ label, values, selected, onChange, labels = {} }) {
+  const toggle = (value) => onChange(selected.includes(value)
+    ? selected.filter((item) => item !== value)
+    : [...selected, value]);
+  return (
+    <div className="tags">
+      <span>{label}</span>
+      <div>
+        {values.map((value) => (
+          <button type="button" key={value} className={selected.includes(value) ? 'active' : ''} onClick={() => toggle(value)}>
+            {labels[value] || value}
+          </button>
+        ))}
+        {!values.length && <em>No options available</em>}
+      </div>
+      <style jsx>{`
         .tags { margin-top: 12px; }
         .tags > span { display: block; margin-bottom: 6px; color: #60708a; font-size: 10px; font-weight: 800; text-transform: uppercase; }
         .tags > div { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1682,46 +1682,46 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         button.active { border-color: #f97316; background: #fff7ed; color: #c2410c; }
         em { color: #8996a8; font-size: 12px; }
       `}</style>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
-  function ThermalPreview({ settings }) {
-    const width = Math.max(180, Math.min(360, Number(settings.widthMm || 58) * 3.2));
-    return (
-      <div className="thermal-preview" style={{ width }}>
-        <strong>{Cookies.get('orgName') || 'CAFEQR RESTAURANT'}</strong>
-        <span>*** KOT / RECEIPT PREVIEW ***</span>
-        <hr />
-        <p>1 x Sample menu item</p>
-        <p>2 x Kitchen preparation item</p>
-        <hr />
-        <b>TOTAL ₹ 350.00</b>
-        <small>{settings.columns} columns · {settings.widthMm} mm</small>
-        <style jsx>{`
+function ThermalPreview({ settings }) {
+  const width = Math.max(180, Math.min(360, Number(settings.widthMm || 58) * 3.2));
+  return (
+    <div className="thermal-preview" style={{ width }}>
+      <strong>{Cookies.get('orgName') || 'CAFEQR RESTAURANT'}</strong>
+      <span>*** KOT / RECEIPT PREVIEW ***</span>
+      <hr />
+      <p>1 x Sample menu item</p>
+      <p>2 x Kitchen preparation item</p>
+      <hr />
+      <b>TOTAL ₹ 350.00</b>
+      <small>{settings.columns} columns · {settings.widthMm} mm</small>
+      <style jsx>{`
         .thermal-preview { max-width: 100%; margin: 18px auto 0; padding: 20px 14px; background: white; border: 1px solid #cfd7e3; box-shadow: 0 5px 14px rgba(15,23,42,.08); font-family: monospace; text-align: center; box-sizing: border-box; }
         span, small { display: block; margin-top: 7px; font-size: 10px; } p { margin: 7px 0; text-align: left; font-size: 11px; } hr { border: 0; border-top: 1px dashed #64748b; }
       `}</style>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
-  function RegularPreview({ settings }) {
-    return (
-      <div className={`regular-preview ${settings.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}>
-        {settings.showLogo && <div className="logo">C</div>}
-        <strong>{Cookies.get('orgName') || 'CafeQR Restaurant'}</strong>
-        <span>TAX INVOICE</span>
-        <div className="meta"><b>Invoice:</b> INV-000001 <b>Date:</b> 06 Jun 2026</div>
-        {settings.showCustomer && <div className="meta"><b>Customer:</b> Sample Customer</div>}
-        <table><tbody>
-          <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Tax</th><th>Amount</th></tr>
-          <tr><td>Sample menu item</td><td>2</td><td>150.00</td><td>15.00</td><td>315.00</td></tr>
-        </tbody></table>
-        <div className="total">Total ₹315.00</div>
-        {settings.showTerms && <small>Terms and conditions</small>}
-        {settings.showFooter && <small>{settings.footer}</small>}
-        <style jsx>{`
+function RegularPreview({ settings }) {
+  return (
+    <div className={`regular-preview ${settings.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}>
+      {settings.showLogo && <div className="logo">C</div>}
+      <strong>{Cookies.get('orgName') || 'CafeQR Restaurant'}</strong>
+      <span>TAX INVOICE</span>
+      <div className="meta"><b>Invoice:</b> INV-000001 <b>Date:</b> 06 Jun 2026</div>
+      {settings.showCustomer && <div className="meta"><b>Customer:</b> Sample Customer</div>}
+      <table><tbody>
+        <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Tax</th><th>Amount</th></tr>
+        <tr><td>Sample menu item</td><td>2</td><td>150.00</td><td>15.00</td><td>315.00</td></tr>
+      </tbody></table>
+      <div className="total">Total ₹315.00</div>
+      {settings.showTerms && <small>Terms and conditions</small>}
+      {settings.showFooter && <small>{settings.footer}</small>}
+      <style jsx>{`
         .regular-preview { width: min(100%, 390px); aspect-ratio: 210 / 297; margin: 18px auto 0; border: 1px solid #cfd7e3; background: white; padding: 22px; box-sizing: border-box; box-shadow: 0 5px 14px rgba(15,23,42,.08); text-align: center; font-size: 9px; }
         .regular-preview.landscape { aspect-ratio: 297 / 210; }
         .logo { width: 28px; height: 28px; display: grid; place-items: center; margin: auto auto 5px; background: #f97316; color: white; font-weight: 900; }
@@ -1729,6 +1729,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         table { width: 100%; border-collapse: collapse; margin-top: 12px; } th, td { border-bottom: 1px solid #cfd7e3; padding: 5px 2px; text-align: right; } th:first-child, td:first-child { text-align: left; }
         .total { margin-top: 12px; text-align: right; font-size: 12px; font-weight: 900; }
       `}</style>
-      </div>
-    );
-  }
+    </div>
+  );
+}
