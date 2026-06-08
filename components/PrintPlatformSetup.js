@@ -167,8 +167,8 @@ const syncPrintConfigToLocalStorage = (config) => {
   };
 
   // 2. Map default bill, KOT, and invoice printer names
-  const billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
-  const kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
+  let billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
+  let kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
 
   // ✅ FIX: If no explicit assignment, fall back to all thermal WINDOWS_QUEUE profiles
   const allWindowsThermal = profiles
