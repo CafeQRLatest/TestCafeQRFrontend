@@ -33,6 +33,7 @@ import {
   syncNativePrintConfiguration,
   updateNativePrintConfiguration,
   acceptNativeCloudConfiguration,
+  forgetNativePrintService,
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
 
@@ -138,6 +139,78 @@ const routeDefaults = () => ({
   orderTypes: [],
   profileIds: [],
 });
+
+const syncPrintConfigToLocalStorage = (config) => {
+  if (typeof window === 'undefined' || !config) return;
+
+  // 1. Basic flags
+  localStorage.setItem('PRINTER_MODE', 'winspool');
+  localStorage.setItem('PRINTER_READY', '1');
+  localStorage.setItem('PRINT_WIN_URL', 'http://127.0.0.1:3333/printRaw');
+  localStorage.setItem('PRINT_WIN_LIST_URL', 'http://127.0.0.1:3333/printers');
+
+  const profiles = Array.isArray(config.profiles) ? config.profiles : [];
+  const defaults = config.defaults || {};
+
+  // Helper to find windowsPrinterName by profile ID
+  const getPrinterName = (profileId) => {
+    const profile = profiles.find((p) => p.id === profileId);
+    return profile?.connectionType === 'WINDOWS_QUEUE' ? (profile.windowsPrinterName || '') : '';
+  };
+
+  // Helper to get active profiles of connectionType WINDOWS_QUEUE for a document type
+  const getPrinterNamesForDoc = (profileIds) => {
+    return (Array.isArray(profileIds) ? profileIds : [])
+      .map(getPrinterName)
+      .filter(Boolean);
+  };
+
+  // 2. Map default bill, KOT, and invoice printer names
+  const billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
+  const kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
+
+  localStorage.setItem('PRINT_WIN_PRINTER_NAMES_BILL', JSON.stringify(billPrinters));
+  localStorage.setItem('PRINT_WIN_PRINTER_NAMES_KOT', JSON.stringify(kotPrinters));
+
+  // Backward compatible single keys
+  localStorage.setItem('PRINT_WIN_PRINTER_NAME', billPrinters[0] || '');
+  localStorage.setItem('PRINT_WIN_PRINTER_NAME_KOT', kotPrinters[0] || '');
+
+  // 3. Map Routing
+  const routes = Array.isArray(config.routes) ? config.routes : [];
+  const legacyRoutes = routes.map((r) => {
+    const printerNames = (Array.isArray(r.profileIds) ? r.profileIds : [])
+      .map(getPrinterName)
+      .filter(Boolean);
+    return {
+      id: r.id || Math.random().toString(16).slice(2),
+      label: r.name || 'Route',
+      enabled: r.enabled !== false,
+      categories: Array.isArray(r.categories) ? r.categories : [],
+      printerNames: printerNames,
+      netPrinterIds: [],
+    };
+  });
+
+  const routingEnabled = legacyRoutes.some(r => r.enabled && r.categories.length > 0 && r.printerNames.length > 0);
+  localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0');
+  localStorage.setItem('PRINT_KOT_ROUTES_V1', JSON.stringify(legacyRoutes));
+
+  // 4. Map paper settings
+  const thermalProfile = profiles.find(p => p.format === 'THERMAL') || {};
+  const paperMm = thermalProfile.paperPreset === '58MM' ? '58' : '80';
+  const cols = thermalProfile.columns || (paperMm === '58' ? '32' : '48');
+
+  localStorage.setItem('PRINT_PAPER_MM', String(paperMm));
+  localStorage.setItem('PRINT_WIDTH_COLS', String(cols));
+
+  console.log('[print-sync] Local storage synced for loopback mode:', {
+    billPrinters,
+    kotPrinters,
+    routingEnabled,
+    legacyRoutes
+  });
+};
 
 const DOCUMENT_DEFAULTS = [
   {
@@ -385,7 +458,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
     if (cloudSettings) setCloudConfiguration(cloudSettings);
     if (localWins) {
-      setPrintConfig(sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings)));
+      const config = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings));
+      setPrintConfig(config);
+      if (!isNativePrintServicePaired()) {
+        syncPrintConfigToLocalStorage(config);
+      }
     } else if (cloudSettings) {
       const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudSettings));
       setPrintConfig(effective);
@@ -393,9 +470,15 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         acceptNativeCloudConfiguration(effective, cloudRevisionOf(cloudSettings))
           .then(setLocalConfiguration)
           .catch(() => { });
+      } else if (!isNativePrintServicePaired()) {
+        syncPrintConfigToLocalStorage(effective);
       }
     } else if (localSettings) {
-      setPrintConfig(sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings)));
+      const config = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, localSettings));
+      setPrintConfig(config);
+      if (!isNativePrintServicePaired()) {
+        syncPrintConfigToLocalStorage(config);
+      }
     } else if (finalConfiguration.error) {
       throw finalConfiguration.error;
     }
@@ -507,6 +590,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       showMessage(result.cloudSynced
         ? 'Printing configuration saved locally and synchronized.'
         : `${result.cloudError?.message || 'Cloud synchronization is pending.'} Printing continues locally.`);
+      if (!isNativePrintServicePaired() && result.effective) {
+        syncPrintConfigToLocalStorage(result.effective);
+      }
       await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
@@ -913,6 +999,23 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             >
               Pair this computer
             </button>
+            {isNativePrintServicePaired() && (
+              <button
+                className="secondary"
+                style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
+                onClick={() => {
+                  if (window.confirm('Disconnect this print service and switch to Direct Local Loopback Mode?')) {
+                    forgetNativePrintService();
+                    setLocalTokenInvalid(false);
+                    syncPrintConfigToLocalStorage(printConfig);
+                    refreshService();
+                    showMessage('Disconnected print service. Browser will now print directly to localhost.');
+                  }
+                }}
+              >
+                Disconnect / Switch to Loopback
+              </button>
+            )}
             <a className="download" href="/desktop/Windows/CafeQR-PrintService.msi" download>
               <FaDownload /> Windows 7 SP1, 8.1, 10, 11
             </a>
