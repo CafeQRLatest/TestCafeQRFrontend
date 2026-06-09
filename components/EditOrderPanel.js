@@ -43,27 +43,30 @@ const Panel = styled.div`
 const Header = styled.div`
   background: white;
   border-bottom: 1px solid #f1f5f9;
-  padding: 18px 24px;
+  padding: 10px 16px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   min-width: 0;
 
   h2 {
     margin: 0;
     color: #0f172a;
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     overflow-wrap: anywhere;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 
   span {
     display: block;
     color: #64748b;
-    font-size: 11px;
-    font-weight: 500;
-    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 400;
+    margin-top: 1px;
     letter-spacing: 0.5px;
   }
 `;
@@ -73,13 +76,16 @@ const CloseButton = styled.button`
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.2s;
+  transition: all 0.2s;
+  padding: 4px;
+  border-radius: 4px;
   &:hover {
     color: #ef4444;
+    background: #f1f5f9;
   }
 `;
 
@@ -116,7 +122,7 @@ const SectionHead = styled.div`
   strong {
     color: #334155;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
   }
 `;
 
@@ -137,7 +143,7 @@ const SearchBox = styled.div`
     border: 1px solid #e2e8f0;
     border-radius: 10px;
     padding: 10px 12px 10px 34px;
-    font-weight: 500;
+    font-weight: 400;
     color: #0f172a;
     outline: none;
     font-size: 13px;
@@ -180,7 +186,7 @@ const ProductButton = styled.button`
     display: block;
     color: #0f172a;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   span {
@@ -199,7 +205,7 @@ const ProductAction = styled.div`
   gap: 6px;
   color: #f97316;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
 `;
 
@@ -232,7 +238,7 @@ const LineInfo = styled.div`
     display: block;
     color: #0f172a;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     overflow-wrap: anywhere;
   }
 
@@ -248,9 +254,9 @@ const LineInfo = styled.div`
 const QtyGroup = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 1px;
+  border-radius: 6px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
 
@@ -260,11 +266,31 @@ const QtyGroup = styled.div`
   }
 `;
 
-const IconButton = styled.button`
-  width: 26px;
-  height: 26px;
+const QtyInput = styled.input`
   border: 0;
-  border-radius: 6px;
+  background: transparent;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 500;
+  width: 20px;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  -moz-appearance: textfield;
+  
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+`;
+
+const IconButton = styled.button`
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
   background: ${props => props.$danger ? '#fee2e2' : 'white'};
   color: ${props => props.$danger ? '#dc2626' : '#475569'};
   border: ${props => props.$danger ? '0' : '1px solid #e2e8f0'};
@@ -272,6 +298,7 @@ const IconButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 9px;
   transition: all 0.2s;
 
   &:hover:not(:disabled) {
@@ -302,11 +329,28 @@ const Footer = styled.div`
   }
 `;
 
-const Total = styled.div`
-  color: #0f172a;
-  font-size: 16px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+const SummaryDetails = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #64748b;
+  min-width: 180px;
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .total-row {
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 4px;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 4px;
+  }
 `;
 
 const SaveButton = styled.button`
@@ -321,7 +365,7 @@ const SaveButton = styled.button`
   gap: 8px;
   align-items: center;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   transition: background 0.2s, transform 0.1s;
 
   &:hover:not(:disabled) {
@@ -348,7 +392,7 @@ const EmptyState = styled.div`
   text-align: center;
   color: #94a3b8;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
 `;
 
 const LoadingBubble = styled.div`
@@ -364,7 +408,7 @@ const LoadingBubble = styled.div`
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   color: #0f172a;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
 `;
 
 const toNumber = (value) => {
@@ -462,18 +506,21 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     if (!lines.length) {
       return { total_amount: 0, total_tax: 0, total_inc_tax: 0, line_subtotal: 0, processed_items: [] };
     }
+    const discountType = (fullOrder?.orderDiscountType || fullOrder?.order_discount_type || 'AMOUNT').toLowerCase() === 'percent' ? 'percent' : 'amount';
+    const discountVal = toNumber(fullOrder?.orderDiscountValue || fullOrder?.order_discount_value || fullOrder?.discount_value || 0);
+
     return calculateOrderTotals(
       lines.map((line) => ({
         id: line.cartKey,
         productId: line.productId,
         name: line.displayName || line.productName,
         price: line.unitPrice,
-        quantity: line.quantity,
+        quantity: toNumber(line.quantity),
         tax_rate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : null,
         is_packaged_good: line.isPackagedGood,
         is_packaged: line.isPackagedGood,
       })),
-      { type: 'amount', value: 0 },
+      { type: discountType, value: discountVal },
       {
         gst_enabled: config?.taxEnabled,
         default_tax_rate: (() => {
@@ -487,7 +534,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         round_off_config: { round_off_enabled: config?.roundOffEnabled },
       }
     );
-  }, [config, lines]);
+  }, [config, lines, fullOrder]);
 
   const upsertLine = (newLine) => {
     setLines((current) => {
@@ -700,9 +747,9 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       totalDiscountAmount: Number(toNumber(totals.discount_amount).toFixed(dp)),
       // ─── GST Discount Engine order-level fields (V1_110) ───────────
       grossAmount:        Number((totals.gross_face_total || 0).toFixed(dp)),
-      orderDiscountType:  'AMOUNT',
-      orderDiscountValue: 0,
-      discountSource:     'MANUAL',
+      orderDiscountType:  fullOrder?.orderDiscountType || fullOrder?.order_discount_type || 'AMOUNT',
+      orderDiscountValue: toNumber(fullOrder?.orderDiscountValue || fullOrder?.order_discount_value || fullOrder?.discount_value || 0),
+      discountSource:     fullOrder?.discountSource || 'MANUAL',
       lines: processedLines,
     });
   };
@@ -784,7 +831,43 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                   </LineInfo>
                   <QtyGroup>
                     <IconButton type="button" onClick={() => updateQty(line.cartKey, -1)}><FaMinus /></IconButton>
-                    <strong>{line.quantity}</strong>
+                    <QtyInput
+                      type="number"
+                      value={line.quantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val)) {
+                          setLines((current) =>
+                            current.map((lineItem) =>
+                              lineItem.cartKey === line.cartKey
+                                ? { ...lineItem, quantity: Math.max(0, val) }
+                                : lineItem
+                            )
+                          );
+                        } else {
+                          setLines((current) =>
+                            current.map((lineItem) =>
+                              lineItem.cartKey === line.cartKey
+                                ? { ...lineItem, quantity: '' }
+                                : lineItem
+                            )
+                          );
+                        }
+                      }}
+                      onBlur={() => {
+                        setLines((current) =>
+                          current
+                            .map((lineItem) => {
+                              if (lineItem.cartKey === line.cartKey) {
+                                const q = toNumber(lineItem.quantity);
+                                return { ...lineItem, quantity: q <= 0 ? 0 : q };
+                              }
+                              return lineItem;
+                            })
+                            .filter((lineItem) => lineItem.quantity > 0)
+                        );
+                      }}
+                    />
                     <IconButton type="button" onClick={() => updateQty(line.cartKey, 1)}><FaPlus /></IconButton>
                   </QtyGroup>
                   <IconButton type="button" $danger onClick={() => removeLine(line.cartKey)}><FaTrash /></IconButton>
@@ -797,7 +880,34 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         </Body>
 
         <Footer>
-          <Total>Total ₹{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</Total>
+          <SummaryDetails>
+            <div className="row">
+              <span>Subtotal:</span>
+              <span>₹{Number(totals.gross_face_total || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+            </div>
+            {totals.discount_amount > 0 && (
+              <div className="row" style={{ color: '#16a34a' }}>
+                <span>Discount:</span>
+                <span>-₹{Number(totals.discount_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+              </div>
+            )}
+            {config?.taxEnabled && totals.total_tax > 0 && (
+              <div className="row">
+                <span>Tax:</span>
+                <span>₹{Number(totals.total_tax).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+              </div>
+            )}
+            {totals.round_off_amount !== 0 && (
+              <div className="row">
+                <span>Round Off:</span>
+                <span>₹{Number(totals.round_off_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+              </div>
+            )}
+            <div className="row total-row">
+              <span>Payable:</span>
+              <strong>₹{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
+            </div>
+          </SummaryDetails>
           <SaveButton type="button" disabled={saving || lines.length === 0} onClick={submit}>
             <FaSave /> {saving ? 'Saving...' : 'Save Order'}
           </SaveButton>

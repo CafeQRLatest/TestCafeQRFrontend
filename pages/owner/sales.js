@@ -2064,7 +2064,9 @@ function SalesContent() {
     try {
       const { data } = await api.put(`/api/v1/orders/${editingOrder.id}`, payload);
       const savedOrder = data.data || payload;
-      setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id)]);
+      // Backend voids old order and creates new one with a fresh UUID.
+      // Remove OLD order (by original ID), insert new order at front.
+      setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id && order.id !== savedOrder.id)]);
       showToast('Order updated');
       setEditingOrder(null);
       if (hasAccountingImpact(savedOrder)) {

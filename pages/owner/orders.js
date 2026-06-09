@@ -1503,11 +1503,20 @@ export default function OrdersPage() {
 
   const handleSaveEditedOrder = async (editedPayload) => {
     try {
-      await api.put(`/api/v1/orders/${editingOrder.id}`, editedPayload);
+      setActionBusy(editingOrder.id);
+      // Backend voids the old order and creates a new one with a fresh UUID.
+      // The response will have the new order's data.
+      const res = await api.put(`/api/v1/orders/${editingOrder.id}`, editedPayload);
+      const newOrder = res?.data?.data;
       setEditingOrder(null);
       await loadOrders();
+      if (newOrder?.id) {
+        notify('success', `Order updated (new ID: #${String(newOrder.id).slice(0, 8)})`);
+      }
     } catch (e) {
       notify('error', 'Failed to update order: ' + (e.response?.data?.message || e.message));
+    } finally {
+      setActionBusy(null);
     }
   };
 
@@ -2106,6 +2115,7 @@ export default function OrdersPage() {
               order={editingOrder}
               onClose={() => setEditingOrder(null)}
               onSave={handleSaveEditedOrder}
+              saving={!!actionBusy && actionBusy === editingOrder?.id}
             />
           )}
 
