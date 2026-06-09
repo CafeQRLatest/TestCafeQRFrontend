@@ -65,8 +65,12 @@ export default function DocumentViewerPopup({
   const [localOrderDiscountValue, setLocalOrderDiscountValue] = React.useState(0);
   const [updating, setUpdating] = React.useState(false);
 
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [revisions, setRevisions] = React.useState([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+
   const [currentOrder, setCurrentOrder] = React.useState(order);
-  React.useEffect(() => { setCurrentOrder(order); }, [order]);
+  React.useEffect(() => { setCurrentOrder(order); setRevisions([]); setShowHistory(false); }, [order]);
 
   const [invoiceData, setInvoiceData] = React.useState(null);
   React.useEffect(() => {
@@ -115,7 +119,7 @@ export default function DocumentViewerPopup({
       setLocalOrderDiscountType(ordDiscType === 'percent' ? 'percentage' : 'amount');
       setLocalOrderDiscountValue(ordDiscVal);
     }
-  }, [showDiscount]);
+  }, [showDiscount, currentOrder]);
 
   const handleApplyDiscounts = async () => {
     try {
@@ -352,6 +356,22 @@ export default function DocumentViewerPopup({
     && currentOrder.orderStatus !== 'CANCELLED'
     && currentOrder.orderStatus !== 'PAID';
 
+  const hasRevisions = Number(currentOrder.revisionNumber ?? currentOrder.revision_number ?? 0) > 0;
+
+  const openHistory = async () => {
+    if (revisions.length > 0) { setShowHistory(true); return; }
+    setHistoryLoading(true);
+    setShowHistory(true);
+    try {
+      const res = await api.get(`/api/v1/orders/${currentOrder.id}/revisions`);
+      setRevisions(res.data?.data || []);
+    } catch (e) {
+      console.error('Failed to load order history', e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   return (
     <CafeQRPopup
       title={hdr.title}
@@ -469,6 +489,22 @@ export default function DocumentViewerPopup({
           </div>
         </div>
 
+        {/* ── Order History link (shown when order has been edited/revised) ── */}
+        {docType === 'order' && hasRevisions && (
+          <>
+            <div className="dv-rule" />
+            <div className="dv-cell" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <span className="dv-lbl" style={{ marginBottom: 0 }}>Order History</span>
+              <button
+                className="dv-history-btn"
+                onClick={openHistory}
+              >
+                📋 View {Number(currentOrder.revisionNumber ?? 0)} revision{Number(currentOrder.revisionNumber ?? 0) !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </>
+        )}
+
         {/* ── comments ── */}
         {currentOrder.description && (
           <>
@@ -478,6 +514,74 @@ export default function DocumentViewerPopup({
               <span className="dv-comment">{currentOrder.description}</span>
             </div>
           </>
+        )}
+
+        {/* ── Order History Modal ── */}
+        {showHistory && (
+          <div className="dv-history-overlay" onClick={() => setShowHistory(false)}>
+            <div className="dv-history-modal" onClick={e => e.stopPropagation()}>
+              <div className="dv-history-header">
+                <span>📋 Order History — {currentOrder.orderNo}</span>
+                <button className="dv-history-close" onClick={() => setShowHistory(false)}>✕</button>
+              </div>
+              {historyLoading ? (
+                <div className="dv-history-loading">Loading history...</div>
+              ) : revisions.length === 0 ? (
+                <div className="dv-history-loading">No history found.</div>
+              ) : (
+                <div className="dv-history-list">
+                  {revisions.map((rev, idx) => {
+                    const isVoid = String(rev.orderStatus || '').toUpperCase() === 'VOID';
+                    const isCurrent = !isVoid;
+                    const revNo = rev.revisionNumber ?? idx;
+                    const revDate = rev.orderDate || rev.createdAt || rev.created_at;
+                    const fmtDate = revDate ? new Date(revDate).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+                    return (
+                      <div key={rev.id} className={`dv-history-card ${isVoid ? 'dv-history-void' : 'dv-history-current'}`}>
+                        <div className="dv-history-card-head">
+                          <span className="dv-history-rev">
+                            {isCurrent ? '✅ Current' : `🔁 Rev ${revNo}`}
+                          </span>
+                          <span className={`dv-history-badge ${isVoid ? 'void' : 'active'}`}>
+                            {isVoid ? 'VOIDED' : (rev.orderStatus || 'ACTIVE')}
+                          </span>
+                          <span className="dv-history-date">{fmtDate}</span>
+                        </div>
+                        <div className="dv-history-card-ref">
+                          <span className="dv-history-mono">{rev.orderNo}</span>
+                        </div>
+                        {Array.isArray(rev.lines) && rev.lines.length > 0 && (
+                          <table className="dv-history-tbl">
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rev.lines.map((l, li) => (
+                                <tr key={l.id || li}>
+                                  <td>{l.productName || l.name || '—'}</td>
+                                  <td>{parseFloat(l.quantity || 0)}</td>
+                                  <td>₹{parseFloat(l.unitPrice || 0).toFixed(2)}</td>
+                                  <td>₹{parseFloat(l.lineTotal || 0).toFixed(2)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        <div className="dv-history-total">
+                          Grand Total: <strong>₹{parseFloat(rev.grandTotal ?? rev.grand_total ?? 0).toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {docType !== 'payment' && (
@@ -743,6 +847,34 @@ export default function DocumentViewerPopup({
         .dv-link:hover { color:#ea580c; }
         .dv-invoice-btn { background:#fff;border:1px solid #FF7A00;color:#FF7A00;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s; }
         .dv-invoice-btn:hover { background:#FF7A00;color:#fff; }
+        .dv-history-btn { background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:5px; }
+        .dv-history-btn:hover { background:#e2e8f0;color:#0f172a; }
+        .dv-history-overlay { position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
+        .dv-history-modal { background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+        .dv-history-header { display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:700;color:#0f172a; }
+        .dv-history-close { background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;line-height:1;padding:0; }
+        .dv-history-close:hover { color:#0f172a; }
+        .dv-history-loading { padding:32px;text-align:center;color:#94a3b8;font-size:13px; }
+        .dv-history-list { overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px; }
+        .dv-history-card { border-radius:10px;padding:14px;border:1px solid #e2e8f0; }
+        .dv-history-void { background:#fafafa;opacity:.85; }
+        .dv-history-current { background:#f0fdf4;border-color:#86efac; }
+        .dv-history-card-head { display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap; }
+        .dv-history-rev { font-size:12px;font-weight:700;color:#0f172a; }
+        .dv-history-badge { font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;text-transform:uppercase; }
+        .dv-history-badge.void { background:#fee2e2;color:#dc2626; }
+        .dv-history-badge.active { background:#dcfce7;color:#16a34a; }
+        .dv-history-date { font-size:11px;color:#94a3b8;margin-left:auto; }
+        .dv-history-card-ref { margin-bottom:8px; }
+        .dv-history-mono { font-family:'SF Mono','Fira Mono',monospace;font-size:11px;color:#94a3b8; }
+        .dv-history-tbl { width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px; }
+        .dv-history-tbl th { padding:4px 8px 4px 0;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;border-bottom:1px solid #f1f5f9; }
+        .dv-history-tbl th:not(:first-child) { text-align:right; }
+        .dv-history-tbl td { padding:5px 8px 5px 0;color:#475569;border-bottom:1px solid #f8fafc; }
+        .dv-history-tbl td:not(:first-child) { text-align:right; }
+        .dv-history-tbl tbody tr:last-child td { border-bottom:none; }
+        .dv-history-total { font-size:12px;color:#475569;text-align:right;padding-top:6px;border-top:1px solid #f1f5f9; }
+        .dv-history-total strong { color:#0f172a;font-size:13px; }
         .dv-comment { font-size:13.5px;color:#334155;line-height:1.65; }
         .dv-items-head { display:flex;align-items:center;gap:8px; }
         .dv-count { background:#f1f5f9;color:#64748b;padding:1px 8px;border-radius:100px;font-size:11px;font-weight:700; }
