@@ -2115,6 +2115,7 @@ export default function OrdersPage() {
               creditCustomers={creditCustomers}
               onClose={() => setPaymentOrder(null)}
               onConfirm={handleConfirmPayment}
+              themeColor="orange"
             />
           )}
 

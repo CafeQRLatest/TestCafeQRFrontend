@@ -3683,6 +3683,7 @@ export default function CounterSale({
               handlePlaceOrder(paymentPayload);
             }}
             onCreditCustomerCreated={onCreditCustomerCreated}
+            themeColor="green"
           />
         )}
       </ModalContent>

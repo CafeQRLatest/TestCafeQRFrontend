@@ -2227,6 +2227,7 @@ function SalesContent() {
             onClose={() => setPaymentOrder(null)}
             onConfirm={handleConfirmPayment}
             onCreditCustomerCreated={handleCreditCustomerCreated}
+            themeColor="green"
           />
         )}
 
