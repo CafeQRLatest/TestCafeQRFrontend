@@ -2,6 +2,28 @@ import React from 'react';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { calculateOrderTotals } from '../../utils/orderCalculations';
+import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck } from 'react-icons/fa';
+
+function parseDeliveryDetails(description) {
+  if (!description) return null;
+  const emailMatch = description.match(/email:(.*?)(?=\s+\w+:|$)/);
+  const nameMatch = description.match(/name:(.*?)(?=\s+\w+:|$)/);
+  const phoneMatch = description.match(/phone:(.*?)(?=\s+\w+:|$)/);
+  const addressMatch = description.match(/address:(.*?)(?=\s+\w+:|$)/);
+  const noteMatch = description.match(/note:(.*?)(?=\s+\w+:|$)/);
+  
+  if (!emailMatch && !nameMatch && !phoneMatch && !addressMatch && !noteMatch) {
+    return null;
+  }
+  
+  return {
+    email: emailMatch ? emailMatch[1].trim() : '',
+    name: nameMatch ? nameMatch[1].trim() : '',
+    phone: phoneMatch ? phoneMatch[1].trim() : '',
+    address: addressMatch ? addressMatch[1].trim() : '',
+    note: noteMatch ? noteMatch[1].trim() : ''
+  };
+}
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -32,7 +54,11 @@ const toCartItems = (lines) => {
     return {
       ...line,
       cartKey: key,
-      displayName: line.productName || line.product_name || line.name || 'Item',
+      displayName: (() => {
+        const base = line.productName || line.product_name || line.name || 'Item';
+        const variant = line.variantName || line.variant_name || '';
+        return variant ? `${base} (${variant})` : base;
+      })(),
       price,
       qty,
       discount_percent: initialType === 'percent' ? initialVal : 0,
@@ -490,6 +516,27 @@ export default function DocumentViewerPopup({
           </div>
         </div>
 
+        {/* ── Created/Updated auditing info ── */}
+        {(currentOrder.createdBy || currentOrder.updatedBy) && (
+          <>
+            <div className="dv-rule" />
+            <div className="dv-row2">
+              {currentOrder.createdBy && (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Created By</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy}</span>
+                </div>
+              )}
+              {currentOrder.updatedBy && (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Last Updated By</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
         {/* ── Order History link (shown when order has been edited/revised) ── */}
         {docType === 'order' && hasRevisions && (
           <>
@@ -507,15 +554,79 @@ export default function DocumentViewerPopup({
         )}
 
         {/* ── comments ── */}
-        {currentOrder.description && (
-          <>
-            <div className="dv-rule" />
-            <div className="dv-cell">
-              <span className="dv-lbl">Comments</span>
-              <span className="dv-comment">{currentOrder.description}</span>
-            </div>
-          </>
-        )}
+        {currentOrder.description && (() => {
+          const details = parseDeliveryDetails(currentOrder.description);
+          if (details) {
+            return (
+              <>
+                <div className="dv-rule" />
+                <div className="dv-cell">
+                  <span className="dv-lbl" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7' }}>
+                    <FaTruck /> Delivery Details
+                  </span>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '12px',
+                    background: '#f0f9ff',
+                    border: '1px solid #bae6fd',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginTop: '6px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                      <FaUser style={{ color: '#0284c7' }} />
+                      <span><strong>Name:</strong> {details.name || 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                      <FaPhoneAlt style={{ color: '#0284c7' }} />
+                      <span><strong>Phone:</strong> {details.phone || 'N/A'}</span>
+                    </div>
+                    {details.email && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                        <FaEnvelope style={{ color: '#0284c7' }} />
+                        <span><strong>Email:</strong> {details.email}</span>
+                      </div>
+                    )}
+                    {details.address && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: '#0c4a6e', gridColumn: '1 / -1' }}>
+                        <FaMapMarkerAlt style={{ color: '#0284c7', marginTop: '2px' }} />
+                        <span><strong>Address:</strong> {details.address}</span>
+                      </div>
+                    )}
+                    {details.note && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '8px',
+                        fontSize: '12px',
+                        color: '#78350f',
+                        background: '#fffbeb',
+                        border: '1px solid #fde68a',
+                        borderRadius: '6px',
+                        padding: '8px 10px',
+                        gridColumn: '1 / -1',
+                        marginTop: '4px'
+                      }}>
+                        <FaStickyNote style={{ color: '#d97706', marginTop: '2px' }} />
+                        <span><strong>Note:</strong> {details.note}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            );
+          }
+          return (
+            <>
+              <div className="dv-rule" />
+              <div className="dv-cell">
+                <span className="dv-lbl">Comments</span>
+                <span className="dv-comment">{currentOrder.description}</span>
+              </div>
+            </>
+          );
+        })()}
 
         {/* ── Order History Modal ── */}
         {showHistory && (
@@ -548,8 +659,14 @@ export default function DocumentViewerPopup({
                           </span>
                           <span className="dv-history-date">{fmtDate}</span>
                         </div>
-                        <div className="dv-history-card-ref">
+                        <div className="dv-history-card-ref" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                           <span className="dv-history-mono">{rev.orderNo}</span>
+                          {(rev.createdBy || rev.updatedBy) && (
+                            <span className="dv-history-meta" style={{ fontSize: '11px', color: '#64748b' }}>
+                              {rev.createdBy && <span>Created by: <strong>{rev.createdBy}</strong></span>}
+                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{rev.updatedBy}</strong></span>}
+                            </span>
+                          )}
                         </div>
                         {Array.isArray(rev.lines) && rev.lines.length > 0 && (
                           <table className="dv-history-tbl">
@@ -562,14 +679,19 @@ export default function DocumentViewerPopup({
                               </tr>
                             </thead>
                             <tbody>
-                              {rev.lines.map((l, li) => (
+                              {rev.lines.map((l, li) => {
+                                const baseName = l.productName || l.name || '—';
+                                const variantName = l.variantName || l.variant_name || '';
+                                const displayName = variantName ? `${baseName} (${variantName})` : baseName;
+                                return (
                                 <tr key={l.id || li}>
-                                  <td>{l.productName || l.name || '—'}</td>
+                                  <td>{displayName}</td>
                                   <td>{parseFloat(l.quantity || 0)}</td>
                                   <td>₹{parseFloat(l.unitPrice || 0).toFixed(2)}</td>
                                   <td>₹{parseFloat(l.lineTotal || 0).toFixed(2)}</td>
                                 </tr>
-                              ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         )}
@@ -603,7 +725,13 @@ export default function DocumentViewerPopup({
                   {activeLines.map((l, i) => (
                     <tr key={l.id || i}>
                       <td>
-                        <span className="dv-pname">{l.productName || l.name || '—'}</span>
+                        <span className="dv-pname">
+                          {(() => {
+                            const base = l.productName || l.name || '—';
+                            const variant = l.variantName || l.variant_name || '';
+                            return variant ? `${base} (${variant})` : base;
+                          })()}
+                        </span>
                         {(l.productCode || l.product_code) && <span className="dv-pcode">{l.productCode || l.product_code}</span>}
 
                       </td>
@@ -837,6 +965,7 @@ export default function DocumentViewerPopup({
         .dv-rule { height:1px; background:#f1f5f9; }
         .dv-row4 { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
         .dv-row3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+        .dv-row2 { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
         .dv-cell { display:flex; flex-direction:column; gap:3px; }
         .dv-lbl  { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8; }
         .dv-val  { font-size:14px;font-weight:600;color:#0f172a; }
@@ -848,8 +977,8 @@ export default function DocumentViewerPopup({
         .dv-link:hover { color:#ea580c; }
         .dv-invoice-btn { background:#fff;border:1px solid #FF7A00;color:#FF7A00;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s; }
         .dv-invoice-btn:hover { background:#FF7A00;color:#fff; }
-        .dv-history-btn { background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;display:inline-flex;align-items:center;gap:5px; }
-        .dv-history-btn:hover { background:#e2e8f0;color:#0f172a; }
+        .dv-history-btn { background:none;border:none;padding:0;color:#FF7A00;font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:rgba(255,122,0,.3);transition:all 0.15s;display:inline-flex;align-items:center;gap:4px; }
+        .dv-history-btn:hover { color:#ea580c;text-decoration-color:#ea580c; }
         .dv-history-overlay { position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
         .dv-history-modal { background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2); }
         .dv-history-header { display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:700;color:#0f172a; }

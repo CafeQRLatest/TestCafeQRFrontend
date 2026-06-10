@@ -2139,15 +2139,24 @@ function SalesContent() {
       // Backend voids old order and creates new one with a fresh UUID.
       // Remove OLD order (by original ID), insert new order at front.
       setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id && order.id !== savedOrder.id)]);
+      // Also update historyOrders so the history view reflects the change immediately
+      setHistoryOrders((current) => {
+        const filtered = current.filter((order) => order.id !== editingOrder.id && order.id !== savedOrder.id);
+        // Insert the updated order at the front only if it was originally from history
+        const wasInHistory = current.some((order) => order.id === editingOrder.id);
+        return wasInHistory ? [savedOrder, ...filtered] : filtered;
+      });
       showToast('Order updated');
       setEditingOrder(null);
       if (hasAccountingImpact(savedOrder)) {
         publishAccountingRefresh('order-updated', savedOrder);
       }
+      // Always refresh history orders to get the latest state from server
+      fetchHistoryOrders(historyPage.number || 0);
       refreshSalesState();
     } catch (e) {
       console.error('Failed to update order', e);
-      showToast('Failed to update order', 'error');
+      showToast(e?.response?.data?.message || 'Failed to update order', 'error');
     } finally {
       setEditSaving(false);
     }

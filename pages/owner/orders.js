@@ -12,7 +12,8 @@ import {
   FaReceipt, FaPrint, FaCheck, FaExclamationCircle,
   FaSearch, FaEdit, FaTimes, FaFire, FaHistory, FaCheckCircle, FaChevronRight, FaTimesCircle,
   FaUtensils, FaShoppingBag, FaTruck, FaArrowLeft, FaArrowRight, FaClock,
-  FaUser, FaPhoneAlt, FaMapMarkerAlt
+  FaUser, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaStickyNote,
+  FaVolumeUp, FaVolumeMute, FaBell, FaBellSlash
 } from 'react-icons/fa';
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
@@ -115,6 +116,27 @@ function localInputToIso(value) {
   if (!value) return undefined;
   const date = new Date(`${value}:00`);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function parseDeliveryDetails(description) {
+  if (!description) return null;
+  const emailMatch = description.match(/email:(.*?)(?=\s+\w+:|$)/);
+  const nameMatch = description.match(/name:(.*?)(?=\s+\w+:|$)/);
+  const phoneMatch = description.match(/phone:(.*?)(?=\s+\w+:|$)/);
+  const addressMatch = description.match(/address:(.*?)(?=\s+\w+:|$)/);
+  const noteMatch = description.match(/note:(.*?)(?=\s+\w+:|$)/);
+  
+  if (!emailMatch && !nameMatch && !phoneMatch && !addressMatch && !noteMatch) {
+    return null;
+  }
+  
+  return {
+    email: emailMatch ? emailMatch[1].trim() : '',
+    name: nameMatch ? nameMatch[1].trim() : '',
+    phone: phoneMatch ? phoneMatch[1].trim() : '',
+    address: addressMatch ? addressMatch[1].trim() : '',
+    note: noteMatch ? noteMatch[1].trim() : ''
+  };
 }
 
 const OrdersWrap = styled.div`
@@ -527,6 +549,32 @@ const HistPagerBtn = styled.button`
   cursor: pointer; padding: 0 16px; transition: all 0.25s;
   &:hover { background: #f97316; color: white; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+
+const AlertToggleBtn = styled.button`
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid ${props => props.$active ? props.$color : '#cbd5e1'};
+  background: ${props => props.$active ? props.$color + '10' : 'white'};
+  color: ${props => props.$active ? props.$color : '#64748b'};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  &:hover {
+    border-color: ${props => props.$color};
+    color: ${props => props.$color};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 `;
 
 const OrdersGrid = styled.div`
@@ -1031,6 +1079,264 @@ const ModalContent = styled.div`
   }
 `;
 
+const DeliveryDetailsCard = styled.div`
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.05);
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #0369a1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #bae6fd;
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .detail-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #0c4a6e;
+    line-height: 1.35;
+
+    svg {
+      margin-top: 2px;
+      color: #0284c7;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+    
+    strong {
+      color: #0369a1;
+    }
+  }
+
+  .note-block {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #78350f;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin-top: 4px;
+    
+    svg {
+      color: #d97706;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
+  }
+`;
+
+const IncomingOrderModal = styled(ModalContent)`
+  background: white;
+  width: 95%;
+  max-width: 450px;
+  border-radius: 20px;
+  border-top: 6px solid #ef4444;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  max-height: 90vh;
+  
+  .incoming-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: #fef2f2;
+    border-bottom: 1px solid #fee2e2;
+    
+    svg {
+      font-size: 24px;
+      color: #ef4444;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
+    h3 {
+      margin: 0;
+      color: #991b1b;
+      font-size: 18px;
+      font-weight: 800;
+      flex: 1;
+    }
+    
+    .incoming-type {
+      background: #ef4444;
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+    }
+  }
+
+  .incoming-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .incoming-cust-box, .incoming-items-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    
+    h4 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    p {
+      margin: 0;
+      font-size: 13.5px;
+      color: #1e293b;
+      line-height: 1.4;
+    }
+    
+    .incoming-note {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #78350f;
+      margin-top: 4px;
+      font-size: 12.5px;
+    }
+  }
+
+  .incoming-items-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .incoming-item-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    
+    &:last-child {
+      border-bottom: none;
+    }
+    
+    .item-qty {
+      color: #ef4444;
+      margin-right: 8px;
+      min-width: 24px;
+    }
+    
+    .item-name {
+      flex: 1;
+    }
+    
+    .item-price {
+      color: #475569;
+    }
+  }
+
+  .incoming-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    padding: 8px 4px 0;
+  }
+
+  .incoming-actions {
+    display: flex;
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    gap: 12px;
+    
+    .incoming-btn {
+      flex: 1;
+      height: 44px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      
+      &.accept {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+        
+        &:hover {
+          transform: translateY(-1.5px);
+          box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
+        }
+      }
+      
+      &.decline {
+        background: white;
+        border: 1px solid #cbd5e1;
+        color: #64748b;
+        
+        &:hover {
+          background: #f1f5f9;
+          color: #0f172a;
+          border-color: #94a3b8;
+        }
+      }
+      
+      &:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+  }
+`;
+
 const OrderDetailsModal = styled(ModalContent)`
   background: white;
   width: 95%;
@@ -1329,6 +1635,96 @@ export default function OrdersPage() {
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
 
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [incomingOrder, setIncomingOrder] = useState(null);
+  const seenOrderIdsRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSoundEnabled(localStorage.getItem('cafeqr_sound_enabled') !== 'false');
+      setNotifEnabled(localStorage.getItem('cafeqr_notifications_enabled') === 'true');
+    }
+  }, []);
+
+  const toggleSound = () => {
+    const nextVal = !soundEnabled;
+    setSoundEnabled(nextVal);
+    localStorage.setItem('cafeqr_sound_enabled', String(nextVal));
+  };
+
+  const toggleNotif = async () => {
+    if (!notifEnabled) {
+      if ('Notification' in window) {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          setNotifEnabled(true);
+          localStorage.setItem('cafeqr_notifications_enabled', 'true');
+        } else {
+          alert('Permission for notifications was denied. Please enable them in your browser settings.');
+        }
+      } else {
+        alert('Browser notifications are not supported by this browser.');
+      }
+    } else {
+      setNotifEnabled(false);
+      localStorage.setItem('cafeqr_notifications_enabled', 'false');
+    }
+  };
+
+  const triggerAlert = (order) => {
+    // 1. Play Sound
+    const soundOn = typeof window !== 'undefined' ? localStorage.getItem('cafeqr_sound_enabled') !== 'false' : true;
+    if (soundOn) {
+      const audio = new Audio('/beep.mp3');
+      audio.play().catch(e => console.log('Failed to play alert sound:', e));
+    }
+    
+    // 2. Browser notification
+    const notifsOn = typeof window !== 'undefined' ? localStorage.getItem('cafeqr_notifications_enabled') === 'true' : false;
+    if (notifsOn && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      const ftLabel = order.fulfillmentType === 'DELIVERY' ? 'Delivery' : (order.fulfillmentType === 'TAKEAWAY' ? 'Takeaway' : 'Dine-in');
+      const bodyText = `New ${ftLabel} Order: ${order.orderNo || ''}\nTotal: ₹${Number(order.grandTotal || order.grand_total || order.totalAmount || 0).toFixed(2)}`;
+      new Notification(`New Order Received!`, {
+        body: bodyText,
+        icon: '/logo.png',
+      });
+    }
+  };
+
+  // Check for new orders to alert and update incomingOrder state
+  useEffect(() => {
+    if (liveOrders.length === 0) {
+      setIncomingOrder(null);
+      return;
+    }
+
+    // Identify first pending order
+    const pending = liveOrders.find(o => o.fulfillmentType === 'DELIVERY' && o.orderStatus === 'PENDING');
+    setIncomingOrder(pending || null);
+
+    // Initial load: populate seen ref without triggering sound/notif
+    if (seenOrderIdsRef.current === null) {
+      seenOrderIdsRef.current = new Set(liveOrders.map(o => o.id));
+      return;
+    }
+
+    let newOrderFound = false;
+    let newOrderObj = null;
+
+    for (const order of liveOrders) {
+      if (!seenOrderIdsRef.current.has(order.id)) {
+        seenOrderIdsRef.current.add(order.id);
+        newOrderFound = true;
+        newOrderObj = order;
+      }
+    }
+
+    if (newOrderFound && newOrderObj) {
+      triggerAlert(newOrderObj);
+    }
+  }, [liveOrders]);
+
   const [activeSegment, setActiveSegment] = useState('table');
   const [liveOrders, setLiveOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1612,8 +2008,27 @@ export default function OrdersPage() {
       <PageContainer>
         <OrdersWrap>
           <OrdersHeader>
-            {/* Invisible spacer that matches button width to keep tabs centered */}
-            <div style={{ minWidth: 130 }} />
+            {/* Alert settings controls */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 130 }}>
+              <AlertToggleBtn
+                type="button"
+                $active={soundEnabled}
+                $color="#10b981"
+                onClick={toggleSound}
+                title={soundEnabled ? "Mute Sound Alerts" : "Unmute Sound Alerts"}
+              >
+                {soundEnabled ? <FaVolumeUp size={16} /> : <FaVolumeMute size={16} />}
+              </AlertToggleBtn>
+              <AlertToggleBtn
+                type="button"
+                $active={notifEnabled}
+                $color="#0ea5e9"
+                onClick={toggleNotif}
+                title={notifEnabled ? "Disable Browser Notifications" : "Enable Browser Notifications"}
+              >
+                {notifEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
+              </AlertToggleBtn>
+            </div>
 
             <SegmentedWrapper>
               {config?.tableManagementEnabled !== false && (
@@ -1972,6 +2387,44 @@ export default function OrdersPage() {
                     </div>
                   </div>
 
+                  {selectedTableOrder.fulfillmentType === 'DELIVERY' && (() => {
+                    const details = parseDeliveryDetails(selectedTableOrder.description);
+                    if (!details) return null;
+                    return (
+                      <DeliveryDetailsCard>
+                        <div className="section-title">
+                          <FaTruck /> Delivery Details
+                        </div>
+                        <div className="detail-row">
+                          <FaUser />
+                          <span><strong>Name:</strong> {details.name || 'N/A'}</span>
+                        </div>
+                        <div className="detail-row">
+                          <FaPhoneAlt />
+                          <span><strong>Phone:</strong> {details.phone || 'N/A'}</span>
+                        </div>
+                        {details.address && (
+                          <div className="detail-row">
+                            <FaMapMarkerAlt />
+                            <span><strong>Address:</strong> {details.address}</span>
+                          </div>
+                        )}
+                        {details.email && (
+                          <div className="detail-row">
+                            <FaEnvelope />
+                            <span><strong>Email:</strong> {details.email}</span>
+                          </div>
+                        )}
+                        {details.note && (
+                          <div className="note-block">
+                            <FaStickyNote />
+                            <span><strong>Note:</strong> {details.note}</span>
+                          </div>
+                        )}
+                      </DeliveryDetailsCard>
+                    );
+                  })()}
+
                   <div className="detail-items">
                     {toDisplayItems(selectedTableOrder).map((line, i) => {
                       const qty = Number(line.quantity || 1);
@@ -2086,6 +2539,86 @@ export default function OrdersPage() {
                   </div>
                 </div>
               </OrderDetailsModal>
+            </ModalOverlay>
+          )}
+
+          {incomingOrder && (
+            <ModalOverlay>
+              <IncomingOrderModal onClick={e => e.stopPropagation()}>
+                <div className="incoming-head">
+                  <FaBell />
+                  <h3>New Incoming Order</h3>
+                  <span className="incoming-type">Delivery</span>
+                </div>
+                
+                <div className="incoming-body">
+                  {(() => {
+                    const details = parseDeliveryDetails(incomingOrder.description);
+                    const items = toDisplayItems(incomingOrder);
+                    return (
+                      <>
+                        {details && (
+                          <div className="incoming-cust-box">
+                            <h4>Customer Details</h4>
+                            <p><strong>Name:</strong> {details.name || 'N/A'}</p>
+                            <p><strong>Phone:</strong> {details.phone || 'N/A'}</p>
+                            <p><strong>Address:</strong> {details.address || 'N/A'}</p>
+                            {details.email && <p><strong>Email:</strong> {details.email}</p>}
+                            {details.note && (
+                              <div className="incoming-note">
+                                <strong>Note:</strong> {details.note}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="incoming-items-box">
+                          <h4>Items Ordered</h4>
+                          <div className="incoming-items-list">
+                            {items.map((line, idx) => {
+                              const qty = Number(line.quantity || 1);
+                              const displayName = line.variant_name ? `${line.name} (${line.variant_name})` : (line.name || line.productName || 'Item');
+                              const unitPrice = Number(line.price || line.unitPrice || 0);
+                              const lineTotal = Number(line.line_total || line.lineTotal || (unitPrice * qty) || 0);
+                              return (
+                                <div key={idx} className="incoming-item-row">
+                                  <span className="item-qty">{qty}x</span>
+                                  <span className="item-name">{displayName}</span>
+                                  <span className="item-price">&#8377;{lineTotal.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          
+                          <div className="incoming-total-row">
+                            <span>Total Amount</span>
+                            <span>&#8377;{Number(incomingOrder.grandTotal || incomingOrder.grand_total || incomingOrder.totalAmount || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                
+                <div className="incoming-actions">
+                  <button 
+                    className="incoming-btn decline" 
+                    type="button"
+                    disabled={actionBusy === incomingOrder.id}
+                    onClick={() => updateStatus(incomingOrder.id, 'CANCELLED')}
+                  >
+                    Decline
+                  </button>
+                  <button 
+                    className="incoming-btn accept" 
+                    type="button"
+                    disabled={actionBusy === incomingOrder.id}
+                    onClick={() => updateStatus(incomingOrder.id, 'CONFIRMED')}
+                  >
+                    Accept
+                  </button>
+                </div>
+              </IncomingOrderModal>
             </ModalOverlay>
           )}
 
