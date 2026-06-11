@@ -1,134 +1,175 @@
-// /public/firebase-messaging-sw.js
+/* global self, clients, importScripts */
 
-/* global importScripts, firebase, self, clients */
+const DEFAULT_ICON = '/icons/icon-192.png';
+const DEFAULT_BADGE = '/icons/icon-192.png';
+const DEFAULT_URL = '/owner/orders';
+
 try {
   importScripts('/api/push/sw-config');
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 } catch (e) {
-  // If CDN fails, keep SW alive (no push), but do not crash install/activate.
-  console.warn('[fcm-sw] importScripts failed:', e?.message || e);
+  console.warn('[fcm-sw] Failed to import scripts:', e);
 }
 
-// No-op install/activate to avoid uncaught rejections blocking activation
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(Promise.resolve());
 });
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients?.claim?.() || Promise.resolve());
 });
 
-let messaging;
-try {
-  const cfg = self.__FIREBASE_SW_CONFIG || {};
-  if (cfg.apiKey && cfg.projectId && cfg.messagingSenderId && cfg.appId) {
-    firebase?.initializeApp?.(cfg);
-    messaging = firebase?.messaging?.();
-  } else {
-    console.warn('[fcm-sw] Missing Firebase config; background push disabled.');
+function parsePushData(event) {
+  if (!event?.data) return {};
+  try {
+    return event.data.json() || {};
+  } catch {
+    try {
+      const text = event.data.text();
+      return text ? JSON.parse(text) : {};
+    } catch {
+      return {};
+    }
   }
-} catch (e) {
-  // Still allow SW to run without FCM
-  console.warn('[fcm-sw] firebase init failed:', e?.message || e);
 }
 
-// Helper to safely show notifications without throwing
+function normalizeUrl(rawUrl) {
+  const candidate = String(rawUrl || '').trim();
+  if (!candidate) return DEFAULT_URL;
+  try {
+    const normalized = new URL(candidate, self.location.origin);
+    return `${normalized.pathname}${normalized.search}`;
+  } catch {
+    return DEFAULT_URL;
+  }
+}
+
+function normalizePushPayload(raw) {
+  const payload = raw && typeof raw === 'object' ? raw : {};
+  const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+  const notification = payload.notification && typeof payload.notification === 'object'
+    ? payload.notification
+    : {};
+
+  const title = String(data.title || notification.title || 'New Order');
+  const body = String(data.body || notification.body || 'You have a new order.');
+  const orderId = String(data.orderId || data.order_id || '');
+  const restaurantId = String(data.restaurantId || data.restaurant_id || data.rid || '');
+  const itemsSummary = String(data.itemsSummary || payload.itemsSummary || '').trim();
+  const type = String(data.type || 'new_order').toLowerCase();
+  const url = normalizeUrl(data.url || payload?.fcmOptions?.link || DEFAULT_URL);
+
+  return {
+    title,
+    body,
+    url,
+    orderId,
+    restaurantId,
+    itemsSummary,
+    type,
+    data: {
+      ...data,
+      title,
+      body,
+      url,
+      orderId,
+      restaurantId,
+      itemsSummary,
+      type,
+    },
+  };
+}
+
+function buildNotificationOptions(detail) {
+  const tag = detail.orderId ? `new-order-${detail.orderId}` : 'new-order';
+  const body = detail.itemsSummary ? `${detail.body}\n${detail.itemsSummary}` : detail.body;
+  const options = {
+    body,
+    icon: DEFAULT_ICON,
+    badge: DEFAULT_BADGE,
+    tag,
+    silent: false,
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [220, 120, 220, 120, 220],
+    data: {
+      ...detail.data,
+      url: detail.url,
+      orderId: detail.orderId,
+      restaurantId: detail.restaurantId,
+      itemsSummary: detail.itemsSummary,
+      type: detail.type,
+    },
+  };
+
+  return options;
+}
+
 async function safeShowNotification(title, options) {
   try {
-    // Fallback assets if custom ones are missing
-    const finalOptions = {
-      icon: options?.icon || '/icons/icon-192.png',
-      badge: options?.badge || '/icons/icon-192.png',
-      tag: options?.tag || 'new-order',
-      renotify: true,
-      ...options
-    };
-    return await self.registration.showNotification(title, finalOptions);
+    await self.registration.showNotification(title || 'New Order', options || {});
   } catch (e) {
     console.warn('[fcm-sw] showNotification failed:', e?.message || e);
-    return null;
   }
 }
 
-// Background payload handler
-try {
-  messaging?.onBackgroundMessage?.((payload) => {
-    try {
-      const title = payload?.data?.title || payload?.notification?.title || 'New Order';
-      const body = payload?.data?.body || payload?.notification?.body || 'You have a new order.';
-      const url = payload?.data?.url || '/owner/orders';
-      const orderId = payload?.data?.orderId || '';
-      const restaurantId = payload?.data?.restaurantId || '';
-      const type = payload?.data?.type || 'new_order';
-      const notificationTag = orderId ? `new-order-${orderId}` : 'new-order';
-      const isDeliveryPending = type === 'delivery_pending';
-
-      const options = {
-        body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        tag: notificationTag,
-        vibrate: isDeliveryPending
-          ? [500, 200, 500, 200, 500, 200, 500, 200, 500]
-          : [200, 100, 200, 100, 200],
-        silent: false,
-        requireInteraction: true,
-        data: { url, orderId, restaurantId, type, ...payload?.data },
-      };
-
-      // Add Accept/Decline action buttons for delivery orders
-      if (isDeliveryPending) {
-        options.actions = [
-          { action: 'accept', title: '\u2705 Accept' },
-          { action: 'decline', title: '\u274c Decline' },
-        ];
-      }
-
-      // In some browsers, playing audio in the background SW context might be blocked without interaction.
-      // But we can still attempt it or rely on the OS's native webpush sound when sent by FCM.
-      try {
-        if (typeof Audio !== 'undefined') {
-          const snd = new Audio('/beep.mp3');
-          snd.play().catch(() => { });
-        }
-      } catch (e) { }
-
-      return safeShowNotification(title, options);
-    } catch (e) {
-      console.warn('[fcm-sw] onBackgroundMessage error:', e?.message || e);
-      return null;
+async function postToClients(message) {
+  try {
+    const list = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of list) {
+      client.postMessage(message);
     }
-  });
-} catch (e) {
-  console.warn('[fcm-sw] registering background listener failed:', e?.message || e);
+  } catch (e) {
+    console.warn('[fcm-sw] postToClients failed:', e?.message || e);
+  }
 }
 
-// Click → focus or open (handles action buttons too)
+self.addEventListener('push', (event) => {
+  const raw = parsePushData(event);
+  const detail = normalizePushPayload(raw);
+  const options = buildNotificationOptions(detail);
+
+  event.waitUntil(
+    (async () => {
+      await postToClients({ type: 'new-order-push', payload: detail });
+      await safeShowNotification(detail.title, options);
+    })()
+  );
+});
+
+self.addEventListener('notificationclose', (event) => {
+  const data = event?.notification?.data || {};
+  event.waitUntil(
+    postToClients({
+      type: 'stop-order-alarm',
+      orderId: String(data.orderId || ''),
+    })
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event?.notification?.data || {};
-  const orderId = data.orderId || '';
-  const type = data.type || '';
-  const action = event.action; // 'accept', 'decline', or '' (body click)
-
-  // Build URL with action if it's a delivery notification button tap
-  let relativeUrl = data.url || '/owner/orders';
-  if (type === 'delivery_pending' && action) {
-    relativeUrl = `/owner/orders?highlight=${encodeURIComponent(orderId)}&action=${action}`;
-  }
+  const orderId = String(data.orderId || '');
+  const relativeUrl = data.url || DEFAULT_URL;
 
   const urlToOpen = new URL(relativeUrl, self.location.origin).toString();
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    (async () => {
+      await postToClients({ type: 'stop-order-alarm', orderId });
+      const list = await clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const c of list) {
         if ('focus' in c && c.url?.includes(self.location.origin)) {
-          return c.focus().then(() => (c.navigate ? c.navigate(urlToOpen) : null));
+          await c.focus();
+          if (c.navigate) await c.navigate(urlToOpen);
+          return;
         }
       }
-      if (clients.openWindow) return clients.openWindow(urlToOpen);
-      return null;
-    })
+      if (clients.openWindow) {
+        await clients.openWindow(urlToOpen);
+      }
+    })()
   );
 });

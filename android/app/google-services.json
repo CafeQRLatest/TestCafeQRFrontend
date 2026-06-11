@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "620603470804",
+    "project_id": "cafe-qr-notifications",
+    "storage_bucket": "cafe-qr-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620603470804:android:650bc6006dcf41cbd1dc41",
+        "android_client_info": {
+          "package_name": "com.cafeqr.delivery.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA91-Yp-QQrKEHilYAelbGTMcqAC4fEQKY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -24,6 +24,12 @@ import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
+import { getFCMToken } from '../../lib/firebase/messaging';
+import {
+  getStoredPushToken,
+  clearStoredPushToken,
+  detectPushPlatform
+} from '../../lib/push/tokenStore';
 
 const slideIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
@@ -1637,6 +1643,12 @@ export default function OrdersPage() {
 
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [notifEnabled, setNotifEnabled] = useState(false);
+
+  const [notifyKitchen, setNotifyKitchen] = useState(true);
+  const [notifyTakeaway, setNotifyTakeaway] = useState(true);
+  const [notifyDelivery, setNotifyDelivery] = useState(true);
+  const [notifySettled, setNotifySettled] = useState(true);
+
   const [incomingOrder, setIncomingOrder] = useState(null);
   const seenOrderIdsRef = useRef(null);
 
@@ -1680,6 +1692,10 @@ export default function OrdersPage() {
     if (typeof window !== 'undefined') {
       setSoundEnabled(localStorage.getItem('cafeqr_sound_enabled') !== 'false');
       setNotifEnabled(localStorage.getItem('cafeqr_notifications_enabled') === 'true');
+      setNotifyKitchen(localStorage.getItem('push_notify_kitchen') !== '0');
+      setNotifyTakeaway(localStorage.getItem('push_notify_takeaway') !== '0');
+      setNotifyDelivery(localStorage.getItem('push_notify_delivery') !== '0');
+      setNotifySettled(localStorage.getItem('push_notify_settled') !== '0');
     }
   }, []);
 
@@ -1689,76 +1705,102 @@ export default function OrdersPage() {
     localStorage.setItem('cafeqr_sound_enabled', String(nextVal));
   };
 
+  const updatePushPreferences = async (updates) => {
+    const token = getStoredPushToken();
+    if (token) {
+      try {
+        await api.put('/api/v1/push/preferences', {
+          deviceToken: token,
+          notifyKitchen: updates.kitchen ?? notifyKitchen,
+          notifyTakeaway: updates.takeaway ?? notifyTakeaway,
+          notifyDelivery: updates.delivery ?? notifyDelivery,
+          notifySettled: updates.settled ?? notifySettled,
+        });
+      } catch (err) {
+        console.warn('Failed to sync preferences to backend:', err);
+      }
+    }
+  };
+
+  const toggleKitchenPref = () => {
+    const val = !notifyKitchen;
+    setNotifyKitchen(val);
+    localStorage.setItem('push_notify_kitchen', val ? '1' : '0');
+    updatePushPreferences({ kitchen: val });
+  };
+
+  const toggleTakeawayPref = () => {
+    const val = !notifyTakeaway;
+    setNotifyTakeaway(val);
+    localStorage.setItem('push_notify_takeaway', val ? '1' : '0');
+    updatePushPreferences({ takeaway: val });
+  };
+
+  const toggleDeliveryPref = () => {
+    const val = !notifyDelivery;
+    setNotifyDelivery(val);
+    localStorage.setItem('push_notify_delivery', val ? '1' : '0');
+    updatePushPreferences({ delivery: val });
+  };
+
+  const toggleSettledPref = () => {
+    const val = !notifySettled;
+    setNotifySettled(val);
+    localStorage.setItem('push_notify_settled', val ? '1' : '0');
+    updatePushPreferences({ settled: val });
+  };
+
   const toggleNotif = async () => {
     if (!notifEnabled) {
-      if ('Notification' in window) {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
+      try {
+        const token = await getFCMToken({ requestPermission: true });
+        if (token) {
           setNotifEnabled(true);
           localStorage.setItem('cafeqr_notifications_enabled', 'true');
+          
+          await api.post('/api/v1/push/subscribe', {
+            deviceToken: token,
+            platform: detectPushPlatform(),
+            notifyKitchen,
+            notifyTakeaway,
+            notifyDelivery,
+            notifySettled
+          });
+          notify('success', 'Push notifications enabled successfully!');
         } else {
-          alert('Permission for notifications was denied. Please enable them in your browser settings.');
+          alert('Failed to register notifications or permission denied.');
         }
-      } else {
-        alert('Browser notifications are not supported by this browser.');
+      } catch (err) {
+        console.error('Failed to enable push notifications:', err);
+        alert('Error enabling notifications: ' + err?.message);
       }
     } else {
-      setNotifEnabled(false);
-      localStorage.setItem('cafeqr_notifications_enabled', 'false');
+      try {
+        const token = getStoredPushToken();
+        if (token) {
+          await api.post('/api/v1/push/unsubscribe', { deviceToken: token });
+        }
+        clearStoredPushToken();
+        setNotifEnabled(false);
+        localStorage.setItem('cafeqr_notifications_enabled', 'false');
+        notify('info', 'Push notifications disabled.');
+      } catch (err) {
+        console.error('Failed to disable push:', err);
+        setNotifEnabled(false);
+        localStorage.setItem('cafeqr_notifications_enabled', 'false');
+      }
     }
   };
 
-  const triggerAlert = (order) => {
-    // 1. Play Sound
-    const soundOn = typeof window !== 'undefined' ? localStorage.getItem('cafeqr_sound_enabled') !== 'false' : true;
-    if (soundOn) {
-      const audio = new Audio('/beep.mp3');
-      audio.play().catch(e => console.log('Failed to play alert sound:', e));
-    }
-    
-    // 2. Browser notification
-    const notifsOn = typeof window !== 'undefined' ? localStorage.getItem('cafeqr_notifications_enabled') === 'true' : false;
-    if (notifsOn && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      const ftLabel = order.fulfillmentType === 'DELIVERY' ? 'Delivery' : (order.fulfillmentType === 'TAKEAWAY' ? 'Takeaway' : 'Dine-in');
-      const bodyText = `New ${ftLabel} Order: ${order.orderNo || ''}\nTotal: ₹${Number(order.grandTotal || order.grand_total || order.totalAmount || 0).toFixed(2)}`;
-      new Notification(`New Order Received!`, {
-        body: bodyText,
-        icon: '/logo.png',
-      });
-    }
-  };
-
-  // Check for new orders to alert and update incomingOrder state
+  // Identify first pending delivery order to show incoming KDS banner
   useEffect(() => {
     if (liveOrders.length === 0) {
       setIncomingOrder(null);
       return;
     }
 
-    // Identify first pending order
     const pending = liveOrders.find(o => o.fulfillmentType === 'DELIVERY' && o.orderStatus === 'PENDING');
     setIncomingOrder(pending || null);
-
-    // Initial load: populate seen ref without triggering sound/notif
-    if (seenOrderIdsRef.current === null) {
-      seenOrderIdsRef.current = new Set(liveOrders.map(o => o.id));
-      return;
-    }
-
-    let newOrderFound = false;
-    let newOrderObj = null;
-
-    for (const order of liveOrders) {
-      if (!seenOrderIdsRef.current.has(order.id)) {
-        seenOrderIdsRef.current.add(order.id);
-        newOrderFound = true;
-        newOrderObj = order;
-      }
-    }
-
-    if (newOrderFound && newOrderObj) {
-      triggerAlert(newOrderObj);
-    }
   }, [liveOrders]);
 
   useEffect(() => {
@@ -2032,7 +2074,7 @@ export default function OrdersPage() {
         <OrdersWrap>
           <OrdersHeader>
             {/* Alert settings controls */}
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 130 }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <AlertToggleBtn
                 type="button"
                 $active={soundEnabled}
@@ -2047,10 +2089,56 @@ export default function OrdersPage() {
                 $active={notifEnabled}
                 $color="#0ea5e9"
                 onClick={toggleNotif}
-                title={notifEnabled ? "Disable Browser Notifications" : "Enable Browser Notifications"}
+                title={notifEnabled ? "Disable Push Notifications" : "Enable Push Notifications"}
               >
                 {notifEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
               </AlertToggleBtn>
+              
+              {/* Category Toggles */}
+              {notifEnabled && (
+                <>
+                  <AlertToggleBtn
+                    type="button"
+                    $active={notifyKitchen}
+                    $color="#16a34a"
+                    onClick={toggleKitchenPref}
+                    title={notifyKitchen ? "Disable Kitchen Push Alerts" : "Enable Kitchen Push Alerts"}
+                    style={{ fontSize: '11px', padding: '0 6px', fontWeight: 'bold' }}
+                  >
+                    <span>Kit</span>
+                  </AlertToggleBtn>
+                  <AlertToggleBtn
+                    type="button"
+                    $active={notifyTakeaway}
+                    $color="#ea580c"
+                    onClick={toggleTakeawayPref}
+                    title={notifyTakeaway ? "Disable Takeaway Push Alerts" : "Enable Takeaway Push Alerts"}
+                    style={{ fontSize: '11px', padding: '0 6px', fontWeight: 'bold' }}
+                  >
+                    <span>Tak</span>
+                  </AlertToggleBtn>
+                  <AlertToggleBtn
+                    type="button"
+                    $active={notifyDelivery}
+                    $color="#0284c7"
+                    onClick={toggleDeliveryPref}
+                    title={notifyDelivery ? "Disable Delivery Push Alerts" : "Enable Delivery Push Alerts"}
+                    style={{ fontSize: '11px', padding: '0 6px', fontWeight: 'bold' }}
+                  >
+                    <span>Del</span>
+                  </AlertToggleBtn>
+                  <AlertToggleBtn
+                    type="button"
+                    $active={notifySettled}
+                    $color="#8b5cf6"
+                    onClick={toggleSettledPref}
+                    title={notifySettled ? "Disable Settle Push Alerts" : "Enable Settle Push Alerts"}
+                    style={{ fontSize: '11px', padding: '0 6px', fontWeight: 'bold' }}
+                  >
+                    <span>Set</span>
+                  </AlertToggleBtn>
+                </>
+              )}
             </div>
 
             <SegmentedWrapper>
@@ -2307,17 +2395,23 @@ export default function OrdersPage() {
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               <HistActionGroup>
-                                <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
-                                  <FaPrint style={{ fontSize: 10 }} /> Print
-                                </HistActionBtn>
-                                <HistActionBtn type="button" onClick={() => setEditingOrder(order)}>
-                                  <FaEdit style={{ fontSize: 10 }} /> Edit
-                                </HistActionBtn>
                                 {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
                                  String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
-                                  <HistActionBtn type="button" onClick={() => setCancelOrder(order)} style={{ color: '#ef4444' }}>
-                                    <FaTimesCircle style={{ fontSize: 10, color: '#ef4444' }} /> Cancel
-                                  </HistActionBtn>
+                                  <>
+                                    <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
+                                      <FaPrint style={{ fontSize: 10 }} /> Print
+                                    </HistActionBtn>
+                                    <HistActionBtn type="button" onClick={() => setEditingOrder(order)}>
+                                      <FaEdit style={{ fontSize: 10 }} /> Edit
+                                    </HistActionBtn>
+                                    <HistActionBtn type="button" onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCancelReason('');
+                                      setCancelOrder(order);
+                                    }} style={{ color: '#ef4444' }}>
+                                      <FaTimesCircle style={{ fontSize: 10, color: '#ef4444' }} /> Cancel
+                                    </HistActionBtn>
+                                  </>
                                 )}
                               </HistActionGroup>
                             </td>
@@ -2551,7 +2645,9 @@ export default function OrdersPage() {
                       }}>
                         <FaReceipt /> Bill
                       </ActionBtn>
-                      <ActionBtn $variant="danger" onClick={() => {
+                      <ActionBtn $variant="danger" onClick={(e) => {
+                        e.stopPropagation();
+                        setCancelReason('');
                         setCancelOrder(selectedTableOrder);
                         setSelectedTableOrder(null);
                       }}>
