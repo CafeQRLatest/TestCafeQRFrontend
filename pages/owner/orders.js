@@ -2315,7 +2315,11 @@ export default function OrdersPage() {
                                 </HistActionBtn>
                                 {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
                                  String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
-                                  <HistActionBtn type="button" onClick={() => setCancelOrder(order)} style={{ color: '#ef4444' }}>
+                                  <HistActionBtn type="button" onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCancelReason('');
+                                    setCancelOrder(order);
+                                  }} style={{ color: '#ef4444' }}>
                                     <FaTimesCircle style={{ fontSize: 10, color: '#ef4444' }} /> Cancel
                                   </HistActionBtn>
                                 )}
@@ -2545,7 +2549,9 @@ export default function OrdersPage() {
                       }}>
                         <FaReceipt /> Bill
                       </ActionBtn>
-                      <ActionBtn $variant="danger" onClick={() => {
+                      <ActionBtn $variant="danger" onClick={(e) => {
+                        e.stopPropagation();
+                        setCancelReason('');
                         setCancelOrder(selectedTableOrder);
                         setSelectedTableOrder(null);
                       }}>
