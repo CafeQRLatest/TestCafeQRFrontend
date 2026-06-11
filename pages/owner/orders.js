@@ -1640,6 +1640,42 @@ export default function OrdersPage() {
   const [incomingOrder, setIncomingOrder] = useState(null);
   const seenOrderIdsRef = useRef(null);
 
+  const [activeSegment, setActiveSegment] = useState('table');
+  const [liveOrders, setLiveOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // ── History tab state ──
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
+  const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange('Asia/Kolkata'));
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [terminals, setTerminals] = useState([]);
+
+  const [paymentOrder, setPaymentOrder] = useState(null);
+  const [cancelOrder, setCancelOrder] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [selectedTableOrder, setSelectedTableOrder] = useState(null);
+  const [viewingDoc, setViewingDoc] = useState(null);
+
+  // KDS checklist state
+  const [checkedItems, setCheckedItems] = useState({});
+  const toggleItemCheck = (orderId, itemIndex) => {
+    const key = `${orderId}-${itemIndex}`;
+    setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const [printOrder, setPrintOrder] = useState(null);
+  const [printKind, setPrintKind] = useState('kot');
+
+  const [config, setConfig] = useState(null);
+  const [creditCustomers, setCreditCustomers] = useState([]);
+  const [actionBusy, setActionBusy] = useState(null);
+
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSoundEnabled(localStorage.getItem('cafeqr_sound_enabled') !== 'false');
@@ -1724,42 +1760,6 @@ export default function OrdersPage() {
       triggerAlert(newOrderObj);
     }
   }, [liveOrders]);
-
-  const [activeSegment, setActiveSegment] = useState('table');
-  const [liveOrders, setLiveOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // ── History tab state ──
-  const [historyOrders, setHistoryOrders] = useState([]);
-  const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
-  const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange('Asia/Kolkata'));
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [branches, setBranches] = useState([]);
-  const [terminals, setTerminals] = useState([]);
-
-  const [paymentOrder, setPaymentOrder] = useState(null);
-  const [cancelOrder, setCancelOrder] = useState(null);
-  const [cancelReason, setCancelReason] = useState('');
-  const [editingOrder, setEditingOrder] = useState(null);
-  const [selectedTableOrder, setSelectedTableOrder] = useState(null);
-  const [viewingDoc, setViewingDoc] = useState(null);
-
-  // KDS checklist state
-  const [checkedItems, setCheckedItems] = useState({});
-  const toggleItemCheck = (orderId, itemIndex) => {
-    const key = `${orderId}-${itemIndex}`;
-    setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const [printOrder, setPrintOrder] = useState(null);
-  const [printKind, setPrintKind] = useState('kot');
-
-  const [config, setConfig] = useState(null);
-  const [creditCustomers, setCreditCustomers] = useState([]);
-  const [actionBusy, setActionBusy] = useState(null);
-
-  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 10000);
