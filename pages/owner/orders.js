@@ -2226,10 +2226,9 @@ export default function OrdersPage() {
                     className="nice-select"
                     options={[
                       { value: '', label: 'All Status' },
-                      { value: 'DRAFT', label: 'Draft' },
+                      { value: 'KITCHEN', label: 'Kitchen Order' },
                       { value: 'BILLED', label: 'Billed' },
                       { value: 'COMPLETED', label: 'Completed' },
-                      { value: 'PAID', label: 'Paid' },
                       { value: 'CANCELLED', label: 'Cancelled' },
                     ]}
                     value={historyFilters.status || ''}
