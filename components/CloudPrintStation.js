@@ -20,17 +20,24 @@ export default function CloudPrintStation({ onJobsChanged }) {
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
+    let doneTimeoutId = null;
+
     const handleActive = () => {
+      if (doneTimeoutId) clearTimeout(doneTimeoutId);
       localPrintActiveRef.current = true;
     };
     const handleDone = () => {
-      localPrintActiveRef.current = false;
+      if (doneTimeoutId) clearTimeout(doneTimeoutId);
+      doneTimeoutId = setTimeout(() => {
+        localPrintActiveRef.current = false;
+      }, 10000); // 10s cooldown safety buffer
     };
 
     window.addEventListener('cafeqr-local-print-active', handleActive);
     window.addEventListener('cafeqr-local-print-done', handleDone);
 
     return () => {
+      if (doneTimeoutId) clearTimeout(doneTimeoutId);
       window.removeEventListener('cafeqr-local-print-active', handleActive);
       window.removeEventListener('cafeqr-local-print-done', handleDone);
     };

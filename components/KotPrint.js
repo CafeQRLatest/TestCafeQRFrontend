@@ -10,7 +10,7 @@ import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { printKotByStation } from '../utils/kotRouter';
 
 const PRINT_DEDUP_KEY = 'KOTPRINT_PRINTED_V1';
-const PRINT_DEDUP_TTL_MS = 15_000; // 15 seconds
+const PRINT_DEDUP_TTL_MS = 120_000; // 2 minutes
 
 const uniq = (arr) => Array.from(new Set((Array.isArray(arr) ? arr : []).filter(Boolean)));
 

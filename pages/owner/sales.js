@@ -1775,6 +1775,11 @@ function SalesContent() {
       setPrintOrder(order);
       setPrintKind(kind);
       showToast(kind === 'kot' ? 'KOT created — printing now...' : 'Bill created — printing now...');
+      if (order?.id) {
+        markCloudPrintJobPrinted(order, kind).catch((error) => {
+          console.warn('Unable to pre-emptively mark cloud print job printed on creation:', error?.message || error);
+        });
+      }
     } else {
       showToast(
         kind === 'kot'
@@ -1873,6 +1878,11 @@ function SalesContent() {
       setPrintOrder(fullOrder || order);
       setPrintKind(kind);
       showToast(kind === 'kot' ? 'KOT sent to printer' : 'Bill sent to printer');
+      if (order?.id) {
+        markCloudPrintJobPrinted(order, kind).catch((error) => {
+          console.warn('Unable to pre-emptively mark cloud print job printed on manual trigger:', error?.message || error);
+        });
+      }
     } catch (e) {
       console.error('Print preparation failed', e);
       showToast('Print preparation failed', 'error');
