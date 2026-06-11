@@ -18,7 +18,7 @@ import {
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
-import { isPrintStationEnabled, enqueueCloudPrintJob } from '../../utils/cloudPrintStation';
+import { isPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
@@ -1953,6 +1953,11 @@ export default function OrdersPage() {
     }
     setPrintKind('kot');
     setPrintOrder(order);
+    if (order?.id) {
+      markCloudPrintJobPrinted(order, 'kot').catch((error) => {
+        console.warn('Unable to pre-emptively mark cloud print job printed on KOT print:', error?.message || error);
+      });
+    }
   };
 
   const handlePrintBill = async (order) => {
@@ -1967,7 +1972,25 @@ export default function OrdersPage() {
     }
     setPrintKind('bill');
     setPrintOrder(order);
+    if (order?.id) {
+      markCloudPrintJobPrinted(order, 'bill').catch((error) => {
+        console.warn('Unable to pre-emptively mark cloud print job printed on bill print:', error?.message || error);
+      });
+    }
   };
+
+  const handleLocalPrintDone = useCallback(() => {
+    const printedOrder = printOrder;
+    const printedKind = printKind;
+    setPrintOrder(null);
+
+    if (printedOrder && !printedOrder.offline) {
+      markCloudPrintJobPrinted(printedOrder, printedKind)
+        .catch((error) => {
+          console.warn('Unable to mark cloud print job printed on print done:', error?.message || error);
+        });
+    }
+  }, [printKind, printOrder]);
 
   const slideLeft = () => {
     sliderRef.current?.scrollBy({ left: -400, behavior: 'smooth' });
@@ -2670,6 +2693,7 @@ export default function OrdersPage() {
               kind={printKind}
               autoPrint={true}
               onClose={() => setPrintOrder(null)}
+              onPrint={handleLocalPrintDone}
             />
           )}
         </OrdersWrap>
