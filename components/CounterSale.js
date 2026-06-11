@@ -1611,11 +1611,19 @@ export default function CounterSale({
 
   const refreshProductsList = async (updatedProduct = null) => {
     try {
-      const resp = await api.get('/api/v1/products');
-      if (resp.data.success) {
-        const pList = resp.data.data || [];
+      const [pResp, catResp] = await Promise.all([
+        api.get('/api/v1/products'),
+        api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } }))
+      ]);
+      if (pResp.data.success) {
+        const pList = pResp.data.data || [];
         setProducts(pList);
-        const cats = ['ALL', ...new Set(pList.map(p => p.categoryName).filter(Boolean))];
+        const currentOrgId = orgId && orgId !== '0' ? orgId : null;
+        const activeCats = (catResp?.data?.data || [])
+          .filter(c => c.isActive !== false && (!c.orgId || (currentOrgId && String(c.orgId) === String(currentOrgId))))
+          .map(c => c.name);
+        const productCats = pList.map(p => p.categoryName).filter(Boolean);
+        const cats = ['ALL', ...new Set([...activeCats, ...productCats])];
         setCategories(cats);
 
         if (updatedProduct) {
@@ -1951,9 +1959,10 @@ export default function CounterSale({
           currentPropConfig ? Promise.resolve({ data: { data: currentPropConfig } }) : api.get('/api/v1/configurations'),
           api.get('/api/v1/purchasing/customers').catch(() => ({ data: { data: [] } })),
           currentCreditCustomers ? Promise.resolve({ data: { data: currentCreditCustomers } }) : api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } }).catch(() => ({ data: { data: [] } })),
-          api.get('/api/v1/purchasing/pricelists/type/SALE').catch(() => ({ data: { data: [] } }))
+          api.get('/api/v1/purchasing/pricelists/type/SALE').catch(() => ({ data: { data: [] } })),
+          api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } }))
         ];
-        const [pRes, cRes, custRes, creditRes, pricelistRes] = await Promise.all(promises);
+        const [pRes, cRes, custRes, creditRes, pricelistRes, catRes] = await Promise.all(promises);
         const pList = pRes.data.data || [];
         setProducts(pList);
         const nextConfig = cRes.data.data;
@@ -1975,7 +1984,12 @@ export default function CounterSale({
             setDefaultPricelistId(def.id);
           }
         }
-        const cats = ['ALL', ...new Set(pList.map(p => p.categoryName).filter(Boolean))];
+        const currentOrgId = orgId && orgId !== '0' ? orgId : null;
+        const activeCats = (catRes?.data?.data || [])
+          .filter(c => c.isActive !== false && (!c.orgId || (currentOrgId && String(c.orgId) === String(currentOrgId))))
+          .map(c => c.name);
+        const productCats = pList.map(p => p.categoryName).filter(Boolean);
+        const cats = ['ALL', ...new Set([...activeCats, ...productCats])];
         setCategories(cats);
       } catch (e) {
         if (e?.code === 'OFFLINE_CACHE_MISS') {
