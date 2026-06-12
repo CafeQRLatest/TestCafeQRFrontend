@@ -1698,6 +1698,25 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, [loadOrders]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'order-updated') {
+        console.log('[push:web] Order updated message received from service worker:', event.data);
+        loadOrders();
+        if (activeSegment === 'completed') {
+          fetchHistoryOrders(historyPage.number || 0);
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
+  }, [loadOrders, activeSegment, fetchHistoryOrders, historyPage.number]);
+
   const updateStatus = async (id, nextStatus) => {
     try {
       setActionBusy(id);

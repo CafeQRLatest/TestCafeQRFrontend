@@ -102,6 +102,15 @@ function buildNotificationOptions(detail) {
     },
   };
 
+  // Add Accept/Decline action buttons exclusively for Delivery orders
+  const category = String(detail.data?.category || '').toUpperCase();
+  if (category === 'DELIVERY') {
+    options.actions = [
+      { action: 'accept', title: 'Accept' },
+      { action: 'decline', title: 'Decline' }
+    ];
+  }
+
   return options;
 }
 
@@ -154,6 +163,60 @@ self.addEventListener('notificationclick', (event) => {
   const orderId = String(data.orderId || '');
   const relativeUrl = data.url || DEFAULT_URL;
 
+  // Handle Accept Action
+  if (event.action === 'accept' && orderId) {
+    event.waitUntil(
+      (async () => {
+        try {
+          await postToClients({ type: 'stop-order-alarm', orderId });
+          const response = await fetch(`${self.location.origin}/api/v1/orders/${orderId}/status?status=CONFIRMED`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`Failed to accept order: ${response.status}`);
+          }
+          console.log('[fcm-sw] Successfully accepted order:', orderId);
+          await postToClients({ type: 'order-updated', orderId, status: 'CONFIRMED' });
+        } catch (e) {
+          console.error('[fcm-sw] Error accepting order:', e);
+        }
+      })()
+    );
+    return;
+  }
+
+  // Handle Decline Action
+  if (event.action === 'decline' && orderId) {
+    event.waitUntil(
+      (async () => {
+        try {
+          await postToClients({ type: 'stop-order-alarm', orderId });
+          const response = await fetch(`${self.location.origin}/api/v1/orders/${orderId}/cancel`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ reason: 'Declined via push notification' })
+          });
+          if (!response.ok) {
+            throw new Error(`Failed to decline order: ${response.status}`);
+          }
+          console.log('[fcm-sw] Successfully declined order:', orderId);
+          await postToClients({ type: 'order-updated', orderId, status: 'CANCELLED' });
+        } catch (e) {
+          console.error('[fcm-sw] Error declining order:', e);
+        }
+      })()
+    );
+    return;
+  }
+
+  // Default notification click behavior (focus and navigate)
   const urlToOpen = new URL(relativeUrl, self.location.origin).toString();
 
   event.waitUntil(
