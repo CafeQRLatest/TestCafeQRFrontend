@@ -1092,6 +1092,7 @@ const DeliveryDetailsCard = styled.div`
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 8px;
   margin-top: 4px;
   box-shadow: 0 2px 6px rgba(2, 132, 199, 0.05);
@@ -1284,6 +1285,7 @@ const OrderDetailsModal = styled(ModalContent)`
   .detail-items {
     display: flex;
     flex-direction: column;
+    flex-shrink: 0;
     gap: 0;
     max-height: 140px;
     overflow-y: auto;
