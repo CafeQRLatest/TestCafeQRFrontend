@@ -82,7 +82,10 @@ function normalizePushPayload(raw) {
 
 function buildNotificationOptions(detail) {
   const tag = detail.orderId ? `new-order-${detail.orderId}` : 'new-order';
-  const body = detail.itemsSummary ? `${detail.body}\n${detail.itemsSummary}` : detail.body;
+  let body = detail.body;
+  if (detail.itemsSummary && !body.includes(detail.itemsSummary)) {
+    body = `${body}\n${detail.itemsSummary}`;
+  }
   const options = {
     body,
     icon: DEFAULT_ICON,
