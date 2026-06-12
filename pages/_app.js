@@ -7,7 +7,6 @@ import GlobalUI from '../components/GlobalUI';
 import PwaLifecycle from '../components/PwaLifecycle';
 import CloudPrintStation from '../components/CloudPrintStation';
 import PushNotificationBridge from '../components/PushNotificationBridge';
-import PushBanner from '../components/PushBanner';
 
 function GlobalPrintStation() {
   const { isAuthenticated } = useAuth();
@@ -29,7 +28,6 @@ export default function App({ Component, pageProps }) {
         <PwaLifecycle />
         <GlobalUI />
         <PushNotificationBridge />
-        <PushBanner />
       </NotificationProvider>
     </AuthProvider>
   );
