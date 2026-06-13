@@ -47,6 +47,9 @@ self.addEventListener('message', (event) => {
 
 function shouldBypass(request) {
   const url = new URL(request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return true;
+  }
   return request.method !== 'GET'
     || url.pathname.endsWith('.mp3')
     || url.pathname.startsWith('/api/')
