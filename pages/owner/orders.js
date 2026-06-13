@@ -26,6 +26,7 @@ import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import { getFCMToken } from '../../lib/firebase/messaging';
+import { stopDeliveryAlarm } from '../../utils/audio';
 import {
   getStoredPushToken,
   clearStoredPushToken,
@@ -1705,11 +1706,21 @@ export default function OrdersPage() {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const handleMessage = (event) => {
-      if (event.data && event.data.type === 'order-updated') {
+      if (!event.data) return;
+
+      if (event.data.type === 'order-updated') {
         console.log('[push:web] Order updated message received from service worker:', event.data);
         loadOrders();
         if (activeSegment === 'completed') {
           fetchHistoryOrders(historyPage.number || 0);
+        }
+      } else if (event.data.type === 'new-order-push') {
+        console.log('[push:web] New order push received from service worker:', event.data);
+        loadOrders();
+      } else if (event.data.type === 'stop-order-alarm') {
+        const orderId = event.data.orderId;
+        if (orderId) {
+          stopDeliveryAlarm(orderId);
         }
       }
     };
@@ -1721,6 +1732,7 @@ export default function OrdersPage() {
   }, [loadOrders, activeSegment, fetchHistoryOrders, historyPage.number]);
 
   const updateStatus = async (id, nextStatus) => {
+    stopDeliveryAlarm(id);
     try {
       setActionBusy(id);
       await api.patch(`/api/v1/orders/${id}/status`, null, {
@@ -1736,6 +1748,7 @@ export default function OrdersPage() {
 
   const triggerCancelOrder = async () => {
     if (!cancelOrder) return;
+    stopDeliveryAlarm(cancelOrder.id);
     try {
       setActionBusy(cancelOrder.id);
       await api.post(`/api/v1/orders/${cancelOrder.id}/cancel`, {
@@ -1775,6 +1788,7 @@ export default function OrdersPage() {
 
   const handleConfirmPayment = async (settlementPayload) => {
     if (!paymentOrder) return;
+    stopDeliveryAlarm(paymentOrder.id);
     try {
       // settleId starts as the original order ID.
       // If we PUT an updated order first, the backend voids the old record and

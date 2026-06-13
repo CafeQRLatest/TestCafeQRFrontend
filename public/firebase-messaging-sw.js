@@ -86,12 +86,24 @@ function buildNotificationOptions(detail) {
   if (detail.itemsSummary && !body.includes(detail.itemsSummary)) {
     body = `${body}\n${detail.itemsSummary}`;
   }
+  const type = String(detail.type || '').toLowerCase();
+  const category = String(detail.data?.category || '').toUpperCase();
+  let soundPath = '/sounds/kitchen.mp3';
+  if (type === 'order_settled') {
+    soundPath = '/sounds/settle.mp3';
+  } else if (category === 'DELIVERY') {
+    soundPath = '/sounds/delivery.mp3';
+  } else if (category === 'TAKEAWAY' || category === 'PARCEL') {
+    soundPath = '/sounds/takeaway.mp3';
+  }
+
   const options = {
     body,
     icon: DEFAULT_ICON,
     badge: DEFAULT_BADGE,
     tag,
     silent: false,
+    sound: soundPath,
     renotify: true,
     requireInteraction: true,
     vibrate: [220, 120, 220, 120, 220],
