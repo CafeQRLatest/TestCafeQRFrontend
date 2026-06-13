@@ -1,4 +1,4 @@
-const isNativeBuild = process.env.NEXT_PUBLIC_NATIVE_BUILD === 'true';
+const isStaticExport = process.env.NEXT_PUBLIC_NATIVE_BUILD === 'true' || process.env.CF_PAGES === '1';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,7 +9,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  ...(isNativeBuild
+  ...(isStaticExport
     ? {
         output: 'export',
         images: { unoptimized: true },
