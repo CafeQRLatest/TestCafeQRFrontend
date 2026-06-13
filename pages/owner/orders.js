@@ -13,7 +13,8 @@ import {
   FaSearch, FaEdit, FaTimes, FaFire, FaHistory, FaCheckCircle, FaChevronRight, FaTimesCircle,
   FaUtensils, FaShoppingBag, FaTruck, FaArrowLeft, FaArrowRight, FaClock,
   FaUser, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaStickyNote,
-  FaVolumeUp, FaVolumeMute, FaBell, FaBellSlash
+  FaVolumeUp, FaVolumeMute, FaBell, FaBellSlash,
+  FaWhatsapp, FaCopy
 } from 'react-icons/fa';
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
@@ -2364,6 +2365,78 @@ export default function OrdersPage() {
                             <span><strong>Note:</strong> {details.note}</span>
                           </div>
                         )}
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '6px', borderTop: '1px solid #bae6fd', paddingTop: '10px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const lat = selectedTableOrder.latitude;
+                              const lng = selectedTableOrder.longitude;
+                              const mapsUrl = lat && lng 
+                                ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+                                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(details.address || '')}`;
+                              
+                              navigator.clipboard.writeText(mapsUrl);
+                              notify('success', 'Google Maps link copied!');
+                            }}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #0284c7',
+                              background: 'white',
+                              color: '#0284c7',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <FaCopy size={12} /> Copy Location
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const lat = selectedTableOrder.latitude;
+                              const lng = selectedTableOrder.longitude;
+                              const mapsUrl = lat && lng 
+                                ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+                                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(details.address || '')}`;
+                              
+                              const text = `🛵 *Delivery Location Link*\n` +
+                                `*Order:* #${selectedTableOrder.orderNo || selectedTableOrder.id.slice(0, 8)}\n` +
+                                `*Customer:* ${details.name || 'N/A'}\n` +
+                                `*Phone:* ${details.phone || 'N/A'}\n` +
+                                `*Address:* ${details.address || 'N/A'}\n\n` +
+                                `*Google Maps Link:* ${mapsUrl}`;
+                              
+                              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                            }}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: '#25D366',
+                              color: 'white',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <FaWhatsapp size={13} /> Share Location
+                          </button>
+                        </div>
                       </DeliveryDetailsCard>
                     );
                   })()}
