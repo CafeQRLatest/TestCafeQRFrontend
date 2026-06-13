@@ -118,7 +118,6 @@ function buildNotificationOptions(detail) {
   };
 
   // Add Accept/Decline action buttons exclusively for Delivery orders
-  const category = String(detail.data?.category || '').toUpperCase();
   if (category === 'DELIVERY') {
     options.actions = [
       { action: 'accept', title: 'Accept' },
