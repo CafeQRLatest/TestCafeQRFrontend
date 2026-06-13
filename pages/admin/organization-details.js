@@ -329,14 +329,48 @@ function OrganizationSettingsContent() {
                   <div className="block-content">
                     <div className="v2-input-group">
                       <label>Local Delivery Range (km)</label>
-                      <div className="slider-box">
+                      <div className="range-combo-box">
+                        <div className="range-input-row">
+                          <input 
+                            type="number" 
+                            min="0.5" 
+                            max="20000" 
+                            step={selectedOrg.deliveryRadiusKm < 100 ? 0.5 : 10}
+                            value={selectedOrg.deliveryRadiusKm || 5}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0.5;
+                              setSelectedOrg({...selectedOrg, deliveryRadiusKm: Math.min(20000, Math.max(0.5, val))});
+                            }}
+                            className="radius-number-input"
+                          />
+                          <span className="unit-label">km</span>
+                          <button 
+                            type="button" 
+                            className="quick-set-btn"
+                            onClick={() => setSelectedOrg({...selectedOrg, deliveryRadiusKm: 20000})}
+                          >
+                            🌍 Worldwide
+                          </button>
+                        </div>
                         <input 
                           type="range" 
-                          min="0.5" max="50" step="0.5"
+                          min="0.5" 
+                          max="20000" 
+                          step={selectedOrg.deliveryRadiusKm < 100 ? 0.5 : 10}
                           value={selectedOrg.deliveryRadiusKm || 5}
                           onChange={(e) => setSelectedOrg({...selectedOrg, deliveryRadiusKm: parseFloat(e.target.value)})}
+                          className="radius-slider"
                         />
-                        <span className="slider-value">{selectedOrg.deliveryRadiusKm || 5} km</span>
+                        <div className="range-smart-label">
+                          {(() => {
+                            const r = selectedOrg.deliveryRadiusKm || 5;
+                            if (r >= 20000) return "🌍 Worldwide Delivery Service";
+                            if (r >= 2000) return `🌐 Continental / Nationwide (${r.toFixed(0)} km)`;
+                            if (r >= 500) return `🚆 Regional / State-wide (${r.toFixed(0)} km)`;
+                            if (r >= 50) return `🚗 City-wide (${r.toFixed(0)} km)`;
+                            return `🚲 Local Delivery (${r.toFixed(1)} km)`;
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -531,6 +565,18 @@ function OrganizationSettingsContent() {
         .slider-box { display: flex; align-items: center; gap: 16px; }
         .slider-box input { flex: 1; accent-color: #f97316; }
         .slider-value { font-size: 14px; font-weight: 800; color: #1e293b; min-width: 50px; background: #f8fafc; padding: 6px 10px; border-radius: 8px; text-align: center; }
+        .range-combo-box { display: flex; flex-direction: column; gap: 12px; }
+        .range-input-row { display: flex; align-items: center; gap: 8px; }
+        .radius-number-input { width: 100px !important; text-align: right; font-weight: 800 !important; color: #1e293b; }
+        .unit-label { font-size: 14px; font-weight: 800; color: #64748b; margin-right: auto; }
+        .quick-set-btn { 
+          background: #fff7ed; border: 1px solid #ffedd5; padding: 8px 14px; border-radius: 10px; 
+          font-size: 12px; font-weight: 800; color: #c2410c; cursor: pointer; display: flex; align-items: center; gap: 4px;
+          transition: all 0.2s;
+        }
+        .quick-set-btn:hover { background: #ffedd5; transform: scale(1.02); }
+        .radius-slider { width: 100%; accent-color: #f97316; cursor: pointer; }
+        .range-smart-label { font-size: 11px; font-weight: 700; color: #f97316; background: #fff7ed; padding: 6px 12px; border-radius: 8px; width: fit-content; }
 
         .v2-toast {
           position: fixed; bottom: 32px; right: 32px; padding: 16px 24px; border-radius: 12px;
