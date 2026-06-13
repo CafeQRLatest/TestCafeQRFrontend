@@ -12,6 +12,9 @@ export default function PushNotificationBridge() {
     if (!isAuthenticated) return;
 
     const initPush = async () => {
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        document.cookie = `api_url=${encodeURIComponent(process.env.NEXT_PUBLIC_API_URL)}; path=/; max-age=31536000; SameSite=Lax`;
+      }
       try {
         // Retrieve current token silently (requestPermission = false)
         const token = await getFCMToken({ requestPermission: false });

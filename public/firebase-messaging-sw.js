@@ -33,6 +33,34 @@ function parsePushData(event) {
   }
 }
 
+async function getCookieValue(cookieName) {
+  if (typeof self.cookieStore !== 'undefined') {
+    try {
+      const cookie = await self.cookieStore.get(cookieName);
+      return cookie ? decodeURIComponent(cookie.value) : null;
+    } catch (e) {
+      console.warn(`[fcm-sw] Failed to read cookie ${cookieName}:`, e);
+    }
+  }
+  return null;
+}
+
+async function getApiBaseUrl() {
+  const config = self.__FIREBASE_SW_CONFIG;
+  if (config && config.apiUrl) {
+    return config.apiUrl.replace(/\/$/, '');
+  }
+  const cookieUrl = await getCookieValue('api_url');
+  if (cookieUrl) {
+    return cookieUrl.replace(/\/$/, '');
+  }
+  return self.location.origin;
+}
+
+async function getAccessToken() {
+  return getCookieValue('access_token');
+}
+
 function normalizeUrl(rawUrl) {
   const candidate = String(rawUrl || '').trim();
   if (!candidate) return DEFAULT_URL;
@@ -183,12 +211,18 @@ self.addEventListener('notificationclick', (event) => {
       (async () => {
         try {
           await postToClients({ type: 'stop-order-alarm', orderId });
-          const response = await fetch(`${self.location.origin}/api/v1/orders/${orderId}/status?status=CONFIRMED`, {
+          const apiBaseUrl = await getApiBaseUrl();
+          const token = await getAccessToken();
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+          const response = await fetch(`${apiBaseUrl}/api/v1/orders/${orderId}/status?status=CONFIRMED`, {
             method: 'PATCH',
             credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json'
-            }
+            headers
           });
           if (!response.ok) {
             throw new Error(`Failed to accept order: ${response.status}`);
@@ -209,12 +243,18 @@ self.addEventListener('notificationclick', (event) => {
       (async () => {
         try {
           await postToClients({ type: 'stop-order-alarm', orderId });
-          const response = await fetch(`${self.location.origin}/api/v1/orders/${orderId}/cancel`, {
+          const apiBaseUrl = await getApiBaseUrl();
+          const token = await getAccessToken();
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+          const response = await fetch(`${apiBaseUrl}/api/v1/orders/${orderId}/cancel`, {
             method: 'POST',
             credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify({ reason: 'Declined via push notification' })
           });
           if (!response.ok) {
