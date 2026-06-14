@@ -3016,7 +3016,7 @@ export default function CounterSale({
                         {renderCustomerSelectionPanel()}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Subtotal</div>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Gross Total</div>
                           <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                         </div>
 
@@ -3029,21 +3029,21 @@ export default function CounterSale({
 
                         {config?.taxEnabled && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Taxable Value</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Subtotal</div>
                             <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
                         
                         {totals.total_tax_added > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Exclusive)</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Excl.)</div>
                             <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
 
                         {totals.total_tax_included > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Inclusive)</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Incl.)</div>
                             <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
@@ -3056,7 +3056,7 @@ export default function CounterSale({
                         )}
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Total Amount</div>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Grand Total</div>
                           <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                         </div>
                       </div>
@@ -3254,7 +3254,7 @@ export default function CounterSale({
 
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.02)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                              <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal</span>
+                              <span style={{ color: '#64748b', fontWeight: 600 }}>Gross Total</span>
                               <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                             </div>
 
@@ -3267,21 +3267,21 @@ export default function CounterSale({
 
                             {config?.taxEnabled && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Taxable Value</span>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal</span>
                                 <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
                             
                             {totals.total_tax_added > 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Exclusive)</span>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Excl.)</span>
                                 <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
 
                             {totals.total_tax_included > 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Inclusive)</span>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Incl.)</span>
                                 <span style={{ color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
@@ -3296,7 +3296,7 @@ export default function CounterSale({
                             <div style={{ height: '1px', borderTop: '1px dashed #cbd5e1', margin: '4px 0' }} />
                             
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '12px' }}>Net Payable</span>
+                              <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '12px' }}>Grand Total</span>
                               <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                             </div>
                           </div>
@@ -3415,24 +3415,24 @@ export default function CounterSale({
 
             <CartFooter>
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <SummaryRow><span>Subtotal</span><span>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                <SummaryRow><span>Gross Total</span><span>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 {totals.discount_amount > 0 && (
                   <SummaryRow style={{ color: '#dc2626' }}><span>Discount</span><span>-₹{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.taxEnabled && (
-                  <SummaryRow><span>Taxable Value</span><span>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow><span>Subtotal</span><span>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {totals.total_tax_added > 0 && (
                   <SummaryRow><span>Tax (Excl.)</span><span>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {totals.total_tax_included > 0 && (
-                  <SummaryRow style={{ color: '#64748b' }}><span>Tax (Inclusive)</span><span>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow style={{ color: '#64748b' }}><span>Tax (Incl.)</span><span>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                   <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off (est.)</span><span>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }}/>
-                <SummaryRow $bold><span>Total</span><span>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                <SummaryRow $bold><span>Grand Total</span><span>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
               </div>
 
               {discountsEnabled && activeOrderMode === 'settle' && (

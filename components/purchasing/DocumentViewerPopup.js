@@ -86,6 +86,8 @@ export default function DocumentViewerPopup({
   const [showDiscount, setShowDiscount] = React.useState(false);
   const [discountTab, setDiscountTab] = React.useState('line'); // 'line' | 'total'
   const taxEnabled = config ? !!config.taxEnabled : true;
+  const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
+  const isInclusiveTax = !!config?.pricesIncludeTax;
   const [localDiscounts, setLocalDiscounts] = React.useState({});
   const [localOrderDiscountType, setLocalOrderDiscountType] = React.useState('amount');
   const [localOrderDiscountValue, setLocalOrderDiscountValue] = React.useState(0);
@@ -318,9 +320,9 @@ export default function DocumentViewerPopup({
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
       }
     } else {
-      subtotal = parseFloat(activeDoc.totalAmount || activeDoc.total_amount || 0);
+      subtotal = parseFloat(activeDoc.totalAmount || activeDoc.total_amount || activeDoc.amount || 0);
       taxTotal = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.totalAmount || 0);
+      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.totalAmount || activeDoc.amount || 0);
       // For orders without lines loaded yet, check if database columns indicate new GST engine
       const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0;
       if (hasGstFlag) {
@@ -331,9 +333,9 @@ export default function DocumentViewerPopup({
       }
     }
 
-    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || 0);
+    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || activeDoc.amount || 0);
     const dbTotalTax    = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-    const dbSubtotal    = parseFloat(activeDoc.totalAmount  || activeDoc.total_amount  || 0);
+    const dbSubtotal    = parseFloat(activeDoc.totalAmount  || activeDoc.total_amount  || activeDoc.amount || 0);
     const dbGrossAmount = parseFloat(activeDoc.grossAmount  || activeDoc.gross_amount  || 0);
     const dbRoundOff    = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
     const dbGrandTotalIsMissingTax = !hasTaxableAmount && Math.abs(dbGrandTotal - dbSubtotal) < 0.05 && dbTotalTax > 0.05;
@@ -361,17 +363,17 @@ export default function DocumentViewerPopup({
 
   if (!currentOrder) return null;
 
-  const isSale = currentOrder.orderType === 'SALE';
+  const isSale = currentOrder.orderType === 'SALE' || docType === 'payment';
   const vendor = !isSale && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId)) : null;
   const warehouse = !isSale && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId)) : null;
-  const cfg = STATUS_CFG[currentOrder.orderStatus] || STATUS_CFG.DRAFT;
-  const isPaid = currentOrder.paymentStatus === 'PAID';
+  const cfg = (currentOrder.orderStatus && STATUS_CFG[currentOrder.orderStatus]) || STATUS_CFG.PAID || STATUS_CFG.DRAFT;
+  const isPaid = currentOrder.paymentStatus === 'PAID' || docType === 'payment';
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const HEADER = {
     order:   { subtitle: isSale ? 'Sale Order' : 'Purchase Order', title: currentOrder.orderNo || currentOrder.order_no || '—' },
     invoice: { subtitle: 'Invoice', title: currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.orderNo || currentOrder.order_no || '—' },
-    payment: { subtitle: 'Payment', title: currentOrder.paymentNo || currentOrder.orderNo || currentOrder.order_no || '—' },
+    payment: { subtitle: 'Payment', title: currentOrder.paymentNo || currentOrder.referenceNo || currentOrder.orderNo || currentOrder.order_no || '—' },
   };
   const hdr = HEADER[docType] || HEADER.order;
 
@@ -440,7 +442,7 @@ export default function DocumentViewerPopup({
               {formatTzDate(
                 (docType === 'invoice' && invoiceData)
                   ? (invoiceData.invoiceDate || invoiceData.invoice_date)
-                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at),
+                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.transactionDate || currentOrder.createdAt || currentOrder.created_at),
                 timezone,
                 { format: 'date' }
               )}
@@ -449,18 +451,18 @@ export default function DocumentViewerPopup({
               {formatTzDate(
                 (docType === 'invoice' && invoiceData)
                   ? (invoiceData.invoiceDate || invoiceData.invoice_date)
-                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at),
+                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.transactionDate || currentOrder.createdAt || currentOrder.created_at),
                 timezone,
                 { format: 'time' }
               )}
             </span>
           </div>
           <div className="dv-cell">
-            <span className="dv-lbl">{isSale ? 'Terminal' : 'Payment Method'}</span>
+            <span className="dv-lbl">{(docType === 'payment' || !isSale) ? 'Payment Method' : 'Terminal'}</span>
             <span className="dv-val">
-              {isSale
-                ? (currentOrder.terminalCode || currentOrder.terminalName || currentOrder.terminal_code || '-')
-                : (currentOrder.paymentMethod || 'Credit')}
+              {(docType === 'payment' || !isSale)
+                ? (currentOrder.paymentMethod || 'Credit')
+                : (currentOrder.terminalCode || currentOrder.terminalName || currentOrder.terminal_code || '-')}
             </span>
           </div>
         </div>
@@ -471,7 +473,7 @@ export default function DocumentViewerPopup({
         <div className="dv-row3">
           <div className="dv-cell">
             <span className="dv-lbl">Reference</span>
-            <span className="dv-val dv-mono">{currentOrder.reference || '—'}</span>
+            <span className="dv-val dv-mono">{currentOrder.referenceNo || currentOrder.reference || '—'}</span>
           </div>
           <div className="dv-cell">
             {docType === 'order' ? (
@@ -814,21 +816,18 @@ export default function DocumentViewerPopup({
                 {!showDiscount && parseFloat(calculated.discount || 0) > 0 && ` (−${currencySymbol}${fmt(calculated.discount)})`}
               </button>
             )}
-            {parseFloat(calculated.gross || 0) > 0 && parseFloat(calculated.discount || 0) > 0 && (
-              <div className="dv-trow dv-trow-muted"><span>Gross Amount</span><span>{currencySymbol}{fmt(calculated.gross)}</span></div>
-            )}
-            <div className="dv-trow"><span>Subtotal</span><span>{currencySymbol}{fmt(calculated.subtotal)}</span></div>
-            {taxEnabled && (
-              <div className="dv-trow"><span>Tax</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
+            {parseFloat(calculated.gross || 0) > 0 && (
+              <div className="dv-trow dv-trow-muted"><span>Gross Total</span><span>{currencySymbol}{fmt(calculated.gross)}</span></div>
             )}
             {parseFloat(calculated.discount || 0) > 0 && (
               <div className="dv-trow dv-trow-disc">
-                <span>
-                  Discount
-
-                </span>
+                <span>Discount</span>
                 <span>−{currencySymbol}{fmt(calculated.discount)}</span>
               </div>
+            )}
+            <div className="dv-trow"><span>Subtotal</span><span>{currencySymbol}{fmt(calculated.subtotal)}</span></div>
+            {taxEnabled && (
+              <div className="dv-trow"><span>{taxLabel}</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
             )}
             {parseFloat(calculated.roundOff || 0) !== 0 && (
               <div className="dv-trow dv-trow-muted">

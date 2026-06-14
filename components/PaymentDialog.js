@@ -717,6 +717,8 @@ export default function PaymentDialog({
   const gross = totals ? totals.grossTotal : baseTotal;
   const disc = totals ? totals.discount : Number(order?.totalDiscountAmount ?? 0);
   const tax = totals ? totals.tax : Number(order?.totalTaxAmount ?? 0);
+  const taxableSubtotal = totals ? totals.taxable : Math.max(0, gross - disc - tax);
+  const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
   const subtotal = Math.max(0, gross - disc);
 
   const [manualFinalAmount, setManualFinalAmount] = useState('');
@@ -955,17 +957,17 @@ export default function PaymentDialog({
         <Breakdown>
           <Row><span>Gross Total</span><strong>{money(gross)}</strong></Row>
           {disc > 0 && <Row style={{ color: theme.primaryDark }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
-          <Row><span>Subtotal</span><strong>{money(subtotal)}</strong></Row>
-          {config?.taxEnabled && <Row><span>Tax</span><strong>{money(tax)}</strong></Row>}
-          <Row style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '2px' }}>
-            <span>Before Round Off</span><strong>{money(activeBasePayable)}</strong>
-          </Row>
+          <Row><span>Subtotal</span><strong>{money(taxableSubtotal)}</strong></Row>
+          {config?.taxEnabled && <Row><span>{taxLabel}</span><strong>{money(tax)}</strong></Row>}
           {roundOffEnabled && roundOff !== 0 && (
             <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
               <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>
               <strong>{roundOff > 0 ? '+' : ''}{money(roundOff)}</strong>
             </Row>
           )}
+          <Row style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '2px' }}>
+            <span>Grand Total</span><strong>{money(payable)}</strong>
+          </Row>
         </Breakdown>
 
         {discountsEnabled && !disableEditDiscount && (

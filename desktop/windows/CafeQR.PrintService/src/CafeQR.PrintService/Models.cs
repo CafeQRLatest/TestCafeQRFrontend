@@ -30,7 +30,12 @@ namespace CafeQR.PrintService
             "http://127.0.0.1:3001",
             "https://cafe-test-qr-frontend.vercel.app",
             "https://cafe-qr-frontend.vercel.app",
-            "https://app.cafeqr.in"
+            "https://app.cafeqr.in",
+            "https://cafeqr-frontend.pages.dev",
+            "https://*.pages.dev",
+            "https://*.vercel.app",
+            "http://69.62.83.147",
+            "https://69.62.83.147"
         };
 
         public string CloudBaseUrl { get; set; } = "https://api.cafeqr.in";

@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import { refreshOfflineChanges, registerOfflineSyncListeners } from '../utils/offlineSync';
 import { isKnownOffline } from '../utils/networkState';
+import { FaTimes } from 'react-icons/fa';
 
 const PUBLIC_ROUTE_PREFIXES = [
   '/login',
@@ -26,6 +27,7 @@ export default function PwaLifecycle() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [updateReady, setUpdateReady] = useState(false);
   const [waitingWorker, setWaitingWorker] = useState(null);
+  const [dismissed, setDismissed] = useState(false);
   const router = useRouter();
   const auth = useAuth();
 
@@ -123,7 +125,7 @@ export default function PwaLifecycle() {
     window.location.reload();
   };
 
-  if (!installPrompt && !updateReady) {
+  if ((!installPrompt && !updateReady) || dismissed) {
     return null;
   }
 
@@ -132,13 +134,23 @@ export default function PwaLifecycle() {
       <span className="font-semibold text-slate-800">
         {updateReady ? 'A new CafeQR version is ready.' : 'Install CafeQR for offline use.'}
       </span>
-      <button
-        type="button"
-        onClick={updateReady ? applyUpdate : installApp}
-        className="rounded-md bg-orange-500 px-3 py-2 text-xs font-bold text-white"
-      >
-        {updateReady ? 'Refresh' : 'Install'}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={updateReady ? applyUpdate : installApp}
+          className="rounded-md bg-orange-500 px-3 py-2 text-xs font-bold text-white"
+        >
+          {updateReady ? 'Refresh' : 'Install'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+          aria-label="Close"
+        >
+          <FaTimes />
+        </button>
+      </div>
     </div>
   );
 }
