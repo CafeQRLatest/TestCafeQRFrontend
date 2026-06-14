@@ -244,9 +244,27 @@ export default function Reports() {
     } catch { notify('error', 'Excel export failed'); }
   };
 
+  const viewDocument = async (tx, type) => {
+    if (tx.orderId) {
+      try {
+        const { data } = await api.get(`/api/v1/orders/${tx.orderId}`);
+        if (data?.data) {
+          setViewingDoc({ order: data.data, type });
+        } else {
+          setViewingDoc({ order: tx, type });
+        }
+      } catch (err) {
+        console.warn('Failed to load full order details:', err);
+        setViewingDoc({ order: tx, type });
+      }
+    } else {
+      setViewingDoc({ order: tx, type });
+    }
+  };
+
   const handleVoid = (inv) => {
     const invoiceId = inv.invoiceId || inv.id;
-    if (!invoiceId) return notify('error', 'No invoice is linked to this row');
+    if (!invoiceId) return notify('error', 'No order/invoice is linked to this row');
     setVoidingInvoice(inv);
     setVoidReason('');
   };
@@ -257,7 +275,7 @@ export default function Reports() {
     setVoidingInProgress(true);
     try {
       await api.post(`/api/v1/reports/invoices/${invoiceId}/void`, { reason: voidReason });
-      notify('success', 'Invoice voided');
+      notify('success', 'Order cancelled successfully');
       publishAccountingDataChanged({
         source: 'reports',
         reason: 'invoice-voided',
@@ -267,7 +285,7 @@ export default function Reports() {
       setVoidingInvoice(null);
       loadTab('salesInvoices');
     } catch (e) {
-      notify('error', e.response?.data?.message || 'Void failed');
+      notify('error', e.response?.data?.message || 'Cancellation failed');
     } finally {
       setVoidingInProgress(false);
     }
@@ -386,11 +404,8 @@ export default function Reports() {
               <th style={{ width: '1%' }}>Invoice No</th>
               <th style={{ width: '1%' }}>Date / Time</th>
               <th style={{ width: '1%' }}>Branch</th>
-              <th>Customer</th>
-              <th style={{ width: '1%' }}>Type / Table</th>
               <th style={{ width: '1%' }}>Order</th>
               <th style={{ width: '1%' }}>Invoice</th>
-              <th style={{ width: '1%' }}>Payment</th>
               <th style={{ width: '1%' }}>Method</th>
               {config?.taxEnabled !== false && <th className="r" style={{ width: '1%' }}>Tax</th>}
               <th className="r" style={{ width: '1%' }}>Discount</th>
@@ -405,40 +420,39 @@ export default function Reports() {
                 <tr
                   key={rowId}
                   className={isVoidTransaction(tx) ? 'voided' : ''}
-                  onClick={async () => {
-                    if (tx.orderId) {
-                      try {
-                        const { data } = await api.get(`/api/v1/orders/${tx.orderId}`);
-                        if (data?.data) {
-                          setViewingDoc({ order: data.data, type: 'order' });
-                        } else {
-                          setViewingDoc({ order: tx, type: 'order' });
-                        }
-                      } catch (err) {
-                        console.warn('Failed to load full order details:', err);
-                        setViewingDoc({ order: tx, type: 'order' });
-                      }
-                    } else {
-                      setViewingDoc({ order: tx, type: 'order' });
-                    }
-                  }}
+                  onClick={() => viewDocument(tx, 'order')}
                   style={{cursor: 'pointer'}}
                 >
-                  <td><span className="rpt-mono">{tx.orderNo || '—'}</span></td>
-                  <td><span className="rpt-mono">{tx.invoiceNo || '—'}</span></td>
+                  <td onClick={(e) => {
+                    if (tx.orderNo) {
+                      e.stopPropagation();
+                      viewDocument(tx, 'order');
+                    }
+                  }}>
+                    <span className={tx.orderNo ? 'rpt-mono-link' : 'rpt-mono'}>
+                      {tx.orderNo || '—'}
+                    </span>
+                  </td>
+                  <td onClick={(e) => {
+                    if (tx.invoiceNo) {
+                      e.stopPropagation();
+                      viewDocument(tx, 'invoice');
+                    }
+                  }}>
+                    <span className={tx.invoiceNo ? 'rpt-mono-link' : 'rpt-mono'}>
+                      {tx.invoiceNo || '—'}
+                    </span>
+                  </td>
                   <td>{formatTzDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt, timezone, { format: 'short' })}</td>
                   <td><span className="rpt-branch">{branchLabel(tx)}</span></td>
-                  <td>{tx.customerName || '—'}</td>
-                  <td><span className="rpt-pill">{typeLabel}</span></td>
                   <td><span className={`rpt-st ${String(tx.orderStatus || 'unknown').toLowerCase()}`}>{tx.orderStatus || '—'}</span></td>
                   <td><span className={`rpt-st ${String(tx.invoiceStatus || 'unknown').toLowerCase()}`} title={tx.voidReason ? `Reason: ${tx.voidReason}` : undefined}>{tx.invoiceStatus || '—'}</span></td>
-                  <td><span className={`rpt-st ${String(tx.paymentStatus || 'unknown').toLowerCase()}`}>{tx.paymentStatus || '—'}</span></td>
                   <td><span className="rpt-pill">{tx.paymentMethod || '—'}</span></td>
                   {config?.taxEnabled !== false && <td className="r">{SYM}{fmt(tx.totalTaxAmount)}</td>}
                   <td className="r">{SYM}{fmt(tx.totalDiscountAmount)}</td>
                   <td className="r rpt-amt">{SYM}{fmt(tx.grandTotal)}</td>
                   <td className="r">{fmtMaybe(tx.amountDue)}</td>
-                  <td>{tx.voidable && <button className="rpt-void-btn" onClick={(e) => { e.stopPropagation(); handleVoid(tx); }} title="Void"><FaBan /></button>}</td>
+                   <td>{tx.voidable && <button className="rpt-void-btn" onClick={(e) => { e.stopPropagation(); handleVoid(tx); }} title="Cancel Order"><FaBan /></button>}</td>
                 </tr>
               );
             })}</tbody>
@@ -1040,8 +1054,26 @@ export default function Reports() {
               <thead><tr><th>Order #</th><th>Invoice</th><th>Customer</th><th>Phone</th><th className="r">Amount</th>{config?.taxEnabled !== false && <th className="r">Tax</th>}<th className="r">Total</th><th className="r">Due</th><th>Date</th><th>Status</th></tr></thead>
               <tbody>{orders.map(row => (
                 <tr key={row.invoiceId || row.orderId}>
-                  <td><span className="rpt-mono">{row.orderNo || '—'}</span></td>
-                  <td><span className="rpt-mono">{row.invoiceNo || '—'}</span></td>
+                  <td onClick={(e) => {
+                    if (row.orderNo) {
+                      e.stopPropagation();
+                      viewDocument(row, 'order');
+                    }
+                  }}>
+                    <span className={row.orderNo ? 'rpt-mono-link' : 'rpt-mono'}>
+                      {row.orderNo || '—'}
+                    </span>
+                  </td>
+                  <td onClick={(e) => {
+                    if (row.invoiceNo) {
+                      e.stopPropagation();
+                      viewDocument(row, 'invoice');
+                    }
+                  }}>
+                    <span className={row.invoiceNo ? 'rpt-mono-link' : 'rpt-mono'}>
+                      {row.invoiceNo || '—'}
+                    </span>
+                  </td>
                   <td>{row.customerName || '—'}</td>
                   <td>{row.customerPhone || '—'}</td>
                   <td className="r">{SYM}{fmt(row.amount)}</td>
@@ -1059,14 +1091,23 @@ export default function Reports() {
         {paymentsRows.length === 0 ? <div className="rpt-empty">No credit payments</div> : (
           <div className="rpt-tbl-wrap">
             <table className="rpt-tbl">
-              <thead><tr><th>Date</th><th>Customer</th><th>Method</th><th className="r">Amount</th><th>Reference</th><th>Description</th></tr></thead>
+              <thead><tr><th>Payment No</th><th>Date</th><th>Customer</th><th>Method</th><th className="r">Amount</th><th>Description</th></tr></thead>
               <tbody>{paymentsRows.map(row => (
                 <tr key={row.paymentId}>
+                  <td onClick={(e) => {
+                    if (row.paymentId) {
+                      e.stopPropagation();
+                      viewDocument(row, 'payment');
+                    }
+                  }}>
+                    <span className={row.paymentId ? 'rpt-mono-link' : 'rpt-mono'}>
+                      {row.referenceNo || '—'}
+                    </span>
+                  </td>
                   <td>{formatTzDate(row.transactionDate, timezone, { format: 'short' })}</td>
                   <td>{row.customerName || '—'}</td>
                   <td><span className="rpt-pill">{row.paymentMethod || '—'}</span></td>
                   <td className="r rpt-amt">{SYM}{fmt(row.amount)}</td>
-                  <td><span className="rpt-mono">{row.referenceNo || '—'}</span></td>
                   <td>{row.description || '—'}</td>
                 </tr>
               ))}</tbody>
@@ -1125,8 +1166,8 @@ export default function Reports() {
       {voidingInvoice && (
         <div className="rpt-modal-overlay" onClick={() => setVoidingInvoice(null)}>
           <div className="rpt-modal" onClick={e => e.stopPropagation()}>
-            <h3>Void Invoice</h3>
-            <p>Are you sure you want to void invoice <strong>{voidingInvoice.invoiceNo || 'this invoice'}</strong>? This will cancel the linked order.</p>
+            <h3>Cancel Order</h3>
+            <p>Are you sure you want to cancel order <strong>{voidingInvoice.orderNo || 'this order'}</strong>? This will cancel the order and void the invoice.</p>
             <label>Reason</label>
             <textarea
               value={voidReason}
@@ -1208,6 +1249,8 @@ export default function Reports() {
         .rpt-tbl .r{text-align:right}
         .rpt-tbl .voided td{opacity:.5;background:#fef2f2}
         .rpt-mono{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:#64748b;background:#f1f5f9;padding:4px 8px;border-radius:6px}
+         .rpt-mono-link{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:#f97316;background:#fff7ed;padding:4px 8px;border-radius:6px;cursor:pointer;transition:all 0.2s;display:inline-block}
+        .rpt-mono-link:hover{background:#ffedd5;color:#ea580c}
         .rpt-branch{font-size:10px;font-weight:800;color:#334155;background:#eef2ff;padding:4px 8px;border-radius:6px;white-space:nowrap}
         .rpt-pill{font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;background:#f1f5f9;color:#475569;text-transform:uppercase}
         .rpt-pill.tax{background:#eff6ff;color:#3b82f6}
