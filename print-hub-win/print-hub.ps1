@@ -137,6 +137,7 @@ function Set-Cors([System.Net.HttpListenerResponse]$resp) {
   $resp.Headers["Access-Control-Allow-Origin"]  = "*"
   $resp.Headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
   $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type"
+  $resp.Headers["Access-Control-Allow-Private-Network"] = "true"
 }
 
 function Send-Json($ctx, [int]$status, $obj) {
