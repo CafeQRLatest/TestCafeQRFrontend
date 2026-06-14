@@ -165,3 +165,35 @@ export function forgetNativePrintService() {
   window.localStorage.removeItem(PAIRED_KEY);
   window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
 }
+
+// Auto-recovery mechanism for paired print stations (caches, localStorage wipes, etc.)
+if (typeof window !== 'undefined') {
+  const token = window.localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 2000);
+    
+    fetch(`${SERVICE_URL}/v1/health`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data?.localClientToken && data?.paired) {
+          window.localStorage.setItem(TOKEN_KEY, data.localClientToken);
+          window.localStorage.setItem(PAIRED_KEY, '1');
+          window.localStorage.setItem(LOCAL_ACCESS_KEY, '1');
+          window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+          window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
+          console.log('[print-recovery] Auto-restored pairing token from local Windows Service');
+        }
+      })
+      .catch(() => {
+        // Silently catch connection errors if the service is not installed/running
+      })
+      .finally(() => {
+        window.clearTimeout(timer);
+      });
+  }
+}

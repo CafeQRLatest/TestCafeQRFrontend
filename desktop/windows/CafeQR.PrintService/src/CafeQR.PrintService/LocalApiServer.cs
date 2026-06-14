@@ -239,7 +239,8 @@ namespace CafeQR.PrintService
                 ["terminalId"] = options.TerminalId,
                 ["queueDepth"] = coordinator.PendingCount,
                 ["status"] = "ONLINE",
-                ["serverTimeUtc"] = DateTime.UtcNow
+                ["serverTimeUtc"] = DateTime.UtcNow,
+                ["localClientToken"] = OptionsStore.Unprotect(options.LocalClientTokenProtected)
             };
         }
 
@@ -307,7 +308,7 @@ namespace CafeQR.PrintService
             var origin = context.Request.Headers["Origin"];
             var allowed = optionsStore.Load().AllowedOrigins;
             if (!string.IsNullOrWhiteSpace(origin)
-                && allowed.Any(value => value.Equals(origin, StringComparison.OrdinalIgnoreCase)))
+                && allowed.Any(value => MatchOrigin(value, origin)))
             {
                 context.Response.Headers["Access-Control-Allow-Origin"] = origin;
                 context.Response.Headers["Vary"] = "Origin";
@@ -323,6 +324,21 @@ namespace CafeQR.PrintService
                     context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
                 }
             }
+        }
+
+        private static bool MatchOrigin(string allowed, string origin)
+        {
+            if (string.Equals(allowed, origin, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (allowed.Contains("*"))
+            {
+                var pattern = "^" + System.Text.RegularExpressions.Regex.Escape(allowed)
+                    .Replace("\\*", ".*") + "$";
+                return System.Text.RegularExpressions.Regex.IsMatch(origin, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            }
+
+            return false;
         }
 
         private static bool SlowEquals(string left, string right)

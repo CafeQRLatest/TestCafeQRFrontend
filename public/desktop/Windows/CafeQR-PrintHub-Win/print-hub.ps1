@@ -136,7 +136,7 @@ function Set-Cors([System.Net.HttpListenerResponse]$resp) {
   if (-not $resp) { return }
   $resp.Headers["Access-Control-Allow-Origin"]  = "*"
   $resp.Headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-  $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type"
+  $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key"
   $resp.Headers["Access-Control-Allow-Private-Network"] = "true"
 }
 
@@ -186,7 +186,7 @@ while ($true) {
         continue
       }
 
-      if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/health*') {
+      if ($req.HttpMethod -eq 'GET' -and ($req.RawUrl -like '/health*' -or $req.RawUrl -like '/v1/health*')) {
         Send-Json $ctx 200 @{
           ok   = $true
           host = [string]$env:COMPUTERNAME
@@ -195,14 +195,14 @@ while ($true) {
         continue
       }
 
-      if ($req.HttpMethod -eq 'GET' -and $req.RawUrl -like '/printers*') {
+      if ($req.HttpMethod -eq 'GET' -and ($req.RawUrl -like '/printers*' -or $req.RawUrl -like '/v1/printers*')) {
         # Return ONLY strings (printer names), not WMI objects. [web:558]
         $names = @(Get-InstalledPrinters) | ForEach-Object { [string]$_ }
         Send-Json $ctx 200 $names
         continue
       }
 
-      if ($req.HttpMethod -eq 'POST' -and $req.RawUrl -like '/printRaw*') {
+      if ($req.HttpMethod -eq 'POST' -and ($req.RawUrl -like '/printRaw*' -or $req.RawUrl -like '/v1/printRaw*')) {
         $sr   = New-Object IO.StreamReader $req.InputStream, [Text.Encoding]::UTF8
         $raw  = $sr.ReadToEnd()
         $body = From-JsonCompat $raw
