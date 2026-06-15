@@ -20,6 +20,7 @@ import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
 import { isPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
@@ -1813,7 +1814,7 @@ export default function OrdersPage() {
   };
 
   const handlePrintKot = async (order) => {
-    if (!isPrintStationEnabled()) {
+    if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
       try {
         await enqueueCloudPrintJob(order, 'kot');
         notify('success', 'KOT print job enqueued to print station');
@@ -1832,7 +1833,7 @@ export default function OrdersPage() {
   };
 
   const handlePrintBill = async (order) => {
-    if (!isPrintStationEnabled()) {
+    if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
       try {
         await enqueueCloudPrintJob(order, 'bill');
         notify('success', 'Bill print job enqueued to print station');

@@ -118,13 +118,34 @@ namespace CafeQR.PrintService
                 var claimed = await cloud.ClaimAsync(10, token).ConfigureAwait(false);
                 foreach (var job in claimed)
                 {
-                    await SubmitAsync(new LocalJobSubmission
+                    try
                     {
-                        IdempotencyKey = "cloud:" + job.Id,
-                        JobKind = job.JobKind,
-                        Document = job.Payload,
-                        Metadata = job.Payload
-                    }, job, token).ConfigureAwait(false);
+                        await SubmitAsync(new LocalJobSubmission
+                        {
+                            IdempotencyKey = "cloud:" + job.Id,
+                            JobKind = job.JobKind,
+                            Document = job.Payload,
+                            Metadata = job.Payload
+                        }, job, token).ConfigureAwait(false);
+                    }
+                    catch (Exception jobEx)
+                    {
+                        Log.Error($"Failed to process claimed cloud job {job.Id}", jobEx);
+                        try
+                        {
+                            var mockTask = new LocalPrintTask
+                            {
+                                CloudJobId = job.Id,
+                                LeaseToken = job.LeaseToken,
+                                ProfileId = "N/A"
+                            };
+                            await cloud.ReportAsync(mockTask, "FAILED", jobEx.Message, "SUBMISSION_FAILED", false, token).ConfigureAwait(false);
+                        }
+                        catch (Exception reportEx)
+                        {
+                            Log.Error($"Failed to report failure status for job {job.Id}", reportEx);
+                        }
+                    }
                 }
                 if ((DateTime.UtcNow - lastHeartbeatUtc) > TimeSpan.FromSeconds(20))
                 {
@@ -141,7 +162,7 @@ namespace CafeQR.PrintService
             catch (Exception ex)
             {
                 cloudFailures++;
-                var seconds = Math.Min(300, 5 * Math.Pow(2, Math.Min(cloudFailures - 1, 6)));
+                var seconds = Math.Min(60, 5 * Math.Pow(2, Math.Min(cloudFailures - 1, 4)));
                 nextCloudAttemptUtc = DateTime.UtcNow.AddSeconds(seconds);
                 Log.Error("CafeQR cloud cycle failed; local printing remains active", ex);
             }

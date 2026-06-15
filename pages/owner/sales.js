@@ -24,6 +24,7 @@ import { isKnownOffline } from '../../utils/networkState';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
 import { enqueueCloudPrintJob, fetchCloudPrintJobs, isPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 
@@ -1771,7 +1772,7 @@ function SalesContent() {
     }
 
     // Online order: if this device is a print station, print immediately locally
-    if (isPrintStationEnabled()) {
+    if (isPrintStationEnabled() || isNativePrintServicePaired()) {
       setPrintOrder(order);
       setPrintKind(kind);
       showToast(kind === 'kot' ? 'KOT created — printing now...' : 'Bill created — printing now...');
@@ -1867,7 +1868,7 @@ function SalesContent() {
         return;
       }
 
-      if (!isPrintStationEnabled()) {
+      if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
         await enqueueCloudPrintJob(order, kind);
         await loadOfflineOrderState();
         showToast(kind === 'kot' ? 'KOT queued for the main print station' : 'Bill queued for the main print station');

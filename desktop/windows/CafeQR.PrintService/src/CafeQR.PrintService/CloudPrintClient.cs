@@ -31,8 +31,7 @@ namespace CafeQR.PrintService
             get
             {
                 var snapshot = optionsStore.Load();
-                return !string.IsNullOrWhiteSpace(OptionsStore.Unprotect(snapshot.StationTokenProtected))
-                    && !string.Equals(snapshot.CloudStatus, "AUTH_REQUIRED", StringComparison.OrdinalIgnoreCase);
+                return !string.IsNullOrWhiteSpace(OptionsStore.Unprotect(snapshot.StationTokenProtected));
             }
         }
 

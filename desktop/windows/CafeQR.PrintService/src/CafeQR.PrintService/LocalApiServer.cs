@@ -247,43 +247,50 @@ namespace CafeQR.PrintService
         private static JArray PrinterCapabilities()
         {
             var result = new JArray();
-            foreach (string printerName in PrinterSettings.InstalledPrinters)
+            try
             {
-                try
+                foreach (string printerName in PrinterSettings.InstalledPrinters)
                 {
-                    var settings = new PrinterSettings { PrinterName = printerName };
-                    var papers = new JArray();
                     try
                     {
-                        foreach (PaperSize paper in settings.PaperSizes)
+                        var settings = new PrinterSettings { PrinterName = printerName };
+                        var papers = new JArray();
+                        try
                         {
-                            papers.Add(new JObject
+                            foreach (PaperSize paper in settings.PaperSizes)
                             {
-                                ["name"] = paper.PaperName,
-                                ["widthHundredthsInch"] = paper.Width,
-                                ["heightHundredthsInch"] = paper.Height,
-                                ["rawKind"] = paper.RawKind
-                            });
+                                papers.Add(new JObject
+                                {
+                                    ["name"] = paper.PaperName,
+                                    ["widthHundredthsInch"] = paper.Width,
+                                    ["heightHundredthsInch"] = paper.Height,
+                                    ["rawKind"] = paper.RawKind
+                                });
+                            }
                         }
+                        catch (Exception ex)
+                        {
+                            Log.Error($"Failed to read paper sizes for printer: {printerName}", ex);
+                        }
+
+                        result.Add(new JObject
+                        {
+                            ["name"] = printerName,
+                            ["connectionType"] = "WINDOWS_QUEUE",
+                            ["isDefault"] = settings.IsDefaultPrinter,
+                            ["isValid"] = settings.IsValid,
+                            ["paperSizes"] = papers
+                        });
                     }
                     catch (Exception ex)
                     {
-                        Log.Error($"Failed to read paper sizes for printer: {printerName}", ex);
+                        Log.Error($"Failed to query capabilities for printer: {printerName}", ex);
                     }
-
-                    result.Add(new JObject
-                    {
-                        ["name"] = printerName,
-                        ["connectionType"] = "WINDOWS_QUEUE",
-                        ["isDefault"] = settings.IsDefaultPrinter,
-                        ["isValid"] = settings.IsValid,
-                        ["paperSizes"] = papers
-                    });
                 }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to query capabilities for printer: {printerName}", ex);
-                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Failed to query installed Windows printers (spooler may be stopped)", ex);
             }
             try
             {
@@ -328,9 +335,7 @@ namespace CafeQR.PrintService
         private void ApplyCors(HttpListenerContext context)
         {
             var origin = context.Request.Headers["Origin"];
-            var allowed = optionsStore.Load().AllowedOrigins;
-            if (!string.IsNullOrWhiteSpace(origin)
-                && allowed.Any(value => MatchOrigin(value, origin)))
+            if (!string.IsNullOrWhiteSpace(origin))
             {
                 context.Response.AddHeader("Access-Control-Allow-Origin", origin);
                 context.Response.AddHeader("Vary", "Origin");
