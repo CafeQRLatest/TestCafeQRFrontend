@@ -310,18 +310,17 @@ namespace CafeQR.PrintService
             if (!string.IsNullOrWhiteSpace(origin)
                 && allowed.Any(value => MatchOrigin(value, origin)))
             {
-                context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-                context.Response.Headers["Vary"] = "Origin";
-                context.Response.Headers["Access-Control-Allow-Headers"] =
-                    "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key";
-                context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, OPTIONS";
-                context.Response.Headers["Access-Control-Max-Age"] = "600";
+                context.Response.AddHeader("Access-Control-Allow-Origin", origin);
+                context.Response.AddHeader("Vary", "Origin");
+                context.Response.AddHeader("Access-Control-Allow-Headers", "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key");
+                context.Response.AddHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+                context.Response.AddHeader("Access-Control-Max-Age", "600");
                 if (string.Equals(
                     context.Request.Headers["Access-Control-Request-Private-Network"],
                     "true",
                     StringComparison.OrdinalIgnoreCase))
                 {
-                    context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+                    context.Response.AddHeader("Access-Control-Allow-Private-Network", "true");
                 }
             }
         }

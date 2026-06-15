@@ -134,12 +134,10 @@ function New-HubListener {
 
 function Set-Cors([System.Net.HttpListenerResponse]$resp) {
   if (-not $resp) { return }
-  $resp.Headers["Access-Control-Allow-Origin"]  = "*"
-  $resp.Headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-  $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type"
-  $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key"
-  $resp.Headers["Access-Control-Allow-Headers"] = "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key"
-  $resp.Headers["Access-Control-Allow-Private-Network"] = "true"
+  $resp.AddHeader("Access-Control-Allow-Origin", "*")
+  $resp.AddHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+  $resp.AddHeader("Access-Control-Allow-Headers", "Content-Type, X-CafeQR-Local-Token, X-CafeQR-Idempotency-Key")
+  $resp.AddHeader("Access-Control-Allow-Private-Network", "true")
 }
 
 function Send-Json($ctx, [int]$status, $obj) {

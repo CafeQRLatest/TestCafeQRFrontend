@@ -52,7 +52,7 @@ export default function GlobalUI() {
           position: fixed;
           top: 32px;
           right: 32px;
-          z-index: 9999;
+          z-index: 99999;
           display: flex;
           flex-direction: column;
           gap: 12px;

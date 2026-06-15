@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const APP_SHELL_CACHE = `cafeqr-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `cafeqr-runtime-${CACHE_VERSION}`;
 const OFFLINE_FALLBACK_URL = '/offline.html';
@@ -48,6 +48,10 @@ self.addEventListener('message', (event) => {
 function shouldBypass(request) {
   const url = new URL(request.url);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return true;
+  }
+  // Bypass local loopback requests (e.g. print service on 127.0.0.1 / localhost)
+  if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
     return true;
   }
   return request.method !== 'GET'
