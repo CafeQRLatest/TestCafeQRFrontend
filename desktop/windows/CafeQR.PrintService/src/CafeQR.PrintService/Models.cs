@@ -31,6 +31,8 @@ namespace CafeQR.PrintService
             "https://cafe-test-qr-frontend.vercel.app",
             "https://cafe-qr-frontend.vercel.app",
             "https://app.cafeqr.in",
+            "https://cafeqr.in",
+            "https://*.cafeqr.in",
             "https://cafeqr-frontend.pages.dev",
             "https://*.pages.dev",
             "https://*.vercel.app",
