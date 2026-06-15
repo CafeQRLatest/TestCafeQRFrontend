@@ -249,35 +249,57 @@ namespace CafeQR.PrintService
             var result = new JArray();
             foreach (string printerName in PrinterSettings.InstalledPrinters)
             {
-                var settings = new PrinterSettings { PrinterName = printerName };
-                var papers = new JArray();
-                foreach (PaperSize paper in settings.PaperSizes)
+                try
                 {
-                    papers.Add(new JObject
+                    var settings = new PrinterSettings { PrinterName = printerName };
+                    var papers = new JArray();
+                    try
                     {
-                        ["name"] = paper.PaperName,
-                        ["widthHundredthsInch"] = paper.Width,
-                        ["heightHundredthsInch"] = paper.Height,
-                        ["rawKind"] = paper.RawKind
+                        foreach (PaperSize paper in settings.PaperSizes)
+                        {
+                            papers.Add(new JObject
+                            {
+                                ["name"] = paper.PaperName,
+                                ["widthHundredthsInch"] = paper.Width,
+                                ["heightHundredthsInch"] = paper.Height,
+                                ["rawKind"] = paper.RawKind
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error($"Failed to read paper sizes for printer: {printerName}", ex);
+                    }
+
+                    result.Add(new JObject
+                    {
+                        ["name"] = printerName,
+                        ["connectionType"] = "WINDOWS_QUEUE",
+                        ["isDefault"] = settings.IsDefaultPrinter,
+                        ["isValid"] = settings.IsValid,
+                        ["paperSizes"] = papers
                     });
                 }
-                result.Add(new JObject
+                catch (Exception ex)
                 {
-                    ["name"] = printerName,
-                    ["connectionType"] = "WINDOWS_QUEUE",
-                    ["isDefault"] = settings.IsDefaultPrinter,
-                    ["isValid"] = settings.IsValid,
-                    ["paperSizes"] = papers
-                });
+                    Log.Error($"Failed to query capabilities for printer: {printerName}", ex);
+                }
             }
-            foreach (var port in SerialPort.GetPortNames().OrderBy(value => value))
+            try
             {
-                result.Add(new JObject
+                foreach (var port in SerialPort.GetPortNames().OrderBy(value => value))
                 {
-                    ["name"] = port,
-                    ["connectionType"] = "BLUETOOTH_COM",
-                    ["paperSizes"] = new JArray()
-                });
+                    result.Add(new JObject
+                    {
+                        ["name"] = port,
+                        ["connectionType"] = "BLUETOOTH_COM",
+                        ["paperSizes"] = new JArray()
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Failed to query serial ports", ex);
             }
             return result;
         }
