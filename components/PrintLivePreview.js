@@ -192,6 +192,10 @@ export default function PrintLivePreview({ config }) {
                     <span>Discount:</span>
                     <span>-77.00</span>
                   </div>
+                  <div className="total-row">
+                    <span>Subtotal:</span>
+                    <span>693.00</span>
+                  </div>
                   
                   {receiptTemplate.showGstBreakdown !== false && (
                     <>
@@ -205,6 +209,11 @@ export default function PrintLivePreview({ config }) {
                       </div>
                     </>
                   )}
+
+                  <div className="total-row">
+                    <span>TOTAL:</span>
+                    <span>727.66</span>
+                  </div>
                   
                   <div className="total-row">
                     <span>Round Off:</span>
