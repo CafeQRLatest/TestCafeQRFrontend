@@ -3,7 +3,10 @@ import { FaPrint, FaUtensils, FaReceipt } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
 
 export default function PrintLivePreview({ config }) {
-  const [activePreview, setActivePreview] = useState('receipt'); // 'receipt' or 'kot'
+  const [activePreview, setActivePreview] = useState('receipt'); // 'receipt', 'kot', 'regular'
+
+  const thermalTemplate = config?.thermalTemplate || {};
+  const regularTemplate = config?.regularTemplate || {};
 
   // Convert logo bitmap to image data URL if present
   const logoSrc = useMemo(() => {
@@ -36,23 +39,29 @@ export default function PrintLivePreview({ config }) {
           className={`preview-tab-btn ${activePreview === 'receipt' ? 'active' : ''}`}
           onClick={() => setActivePreview('receipt')}
         >
-          <FaReceipt /> Receipt
+          <FaReceipt /> Receipt (Thermal)
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'kot' ? 'active' : ''}`}
           onClick={() => setActivePreview('kot')}
         >
-          <FaUtensils /> KOT
+          <FaUtensils /> KOT (Thermal)
+        </button>
+        <button 
+          className={`preview-tab-btn ${activePreview === 'regular' ? 'active' : ''}`}
+          onClick={() => setActivePreview('regular')}
+        >
+          <FaPrint /> Invoice (A4)
         </button>
       </div>
 
-      {/* Simulated Thermal Paper Strip */}
-      <div className="paper-viewport">
-        <div className="paper-strip">
-          <div className="paper-edge-top"></div>
+      {/* Simulated Viewport */}
+      <div className={`paper-viewport ${activePreview === 'regular' ? 'viewport-regular' : ''}`}>
+        <div className={`paper-strip ${activePreview === 'regular' ? 'regular-page-strip' : ''} ${activePreview === 'regular' && regularTemplate.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}>
+          {activePreview !== 'regular' && <div className="paper-edge-top"></div>}
           
           <div className="paper-content">
-            {activePreview === 'receipt' ? (
+            {activePreview === 'receipt' && (
               /* ================= RECEIPT VIEW ================= */
               <div className="receipt-view">
                 
@@ -64,8 +73,8 @@ export default function PrintLivePreview({ config }) {
                 )}
 
                 {/* Restaurant Name */}
-                {config.pt_show_restaurant_name && (
-                  <div className={`restaurant-name ${getFontClass(config.pt_receipt_title_font)}`}>
+                {thermalTemplate.showRestaurantName !== false && (
+                  <div className={`restaurant-name ${getFontClass(thermalTemplate.titleFontSize)}`}>
                     MY CAFE RESTAURANT
                   </div>
                 )}
@@ -74,10 +83,10 @@ export default function PrintLivePreview({ config }) {
                 <div className="restaurant-details text-center font-small">
                   <div>123 Gourmet Boulevard, Food District</div>
                   <div>Phone: +91 98765 43210</div>
-                  {config.pt_show_fssai && (
+                  {thermalTemplate.showFssai !== false && (
                     <div className="license-info">FSSAI: 12345678901234</div>
                   )}
-                  {config.pt_show_gst_breakdown && (
+                  {thermalTemplate.showGstBreakdown !== false && (
                     <div className="license-info">GSTIN: 29AAAAA1111A1Z1</div>
                   )}
                 </div>
@@ -89,13 +98,13 @@ export default function PrintLivePreview({ config }) {
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>Invoice: INV-2026-0842</div>
                   <div>Bill No: B-941</div>
-                  {config.pt_show_daily_bill_no && (
+                  {thermalTemplate.showDailyBillNo !== false && (
                     <div className="highlight-line">Daily Bill No: #042</div>
                   )}
-                  {config.pt_show_table_label && (
+                  {thermalTemplate.showTableLabel !== false && (
                     <div className="highlight-line">Order Type: Dine in (Table 5)</div>
                   )}
-                  {config.pt_show_customer_details && (
+                  {thermalTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
                       Customer: John Doe (+91 99999 88888)
                     </div>
@@ -105,13 +114,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Header Custom Text */}
-                {config.pt_receipt_header && (
+                {thermalTemplate.receiptHeader && (
                   <div className="custom-header-text text-center">
-                    {config.pt_receipt_header}
+                    {thermalTemplate.receiptHeader}
                   </div>
                 )}
 
-                {config.pt_receipt_header && (
+                {thermalTemplate.receiptHeader && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -125,7 +134,7 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Items Table Body */}
-                <div className={`items-list ${getFontClass(config.pt_receipt_body_font)}`}>
+                <div className={`items-list ${getFontClass(thermalTemplate.fontSize)}`}>
                   <div className="items-row">
                     <div className="col-item text-left">
                       Chicken Biryani
@@ -169,7 +178,7 @@ export default function PrintLivePreview({ config }) {
                     <span>-77.00</span>
                   </div>
                   
-                  {config.pt_show_gst_breakdown && (
+                  {thermalTemplate.showGstBreakdown !== false && (
                     <>
                       <div className="total-row">
                         <span>CGST (2.5%):</span>
@@ -198,9 +207,9 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Footer Custom Texts */}
-                {config.pt_receipt_footer && (
+                {thermalTemplate.receiptFooter && (
                   <div className="custom-footer-text text-center">
-                    {config.pt_receipt_footer}
+                    {thermalTemplate.receiptFooter}
                   </div>
                 )}
                 
@@ -215,13 +224,15 @@ export default function PrintLivePreview({ config }) {
                 </div>
 
               </div>
-            ) : (
+            )}
+
+            {activePreview === 'kot' && (
               /* ================= KOT VIEW ================= */
               <div className="kot-view">
                 
                 {/* Restaurant Name on KOT */}
-                {config.pt_show_restaurant_name && (
-                  <div className={`restaurant-name ${getFontClass(config.pt_kot_title_font)}`}>
+                {thermalTemplate.showRestaurantName !== false && (
+                  <div className={`restaurant-name ${getFontClass(thermalTemplate.kotTitleFontSize)}`}>
                     MY CAFE RESTAURANT
                   </div>
                 )}
@@ -229,13 +240,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 
                 {/* KOT Custom Header */}
-                {config.pt_kot_header && (
+                {thermalTemplate.kotHeader && (
                   <div className="custom-header-text text-center">
-                    {config.pt_kot_header}
+                    {thermalTemplate.kotHeader}
                   </div>
                 )}
                 
-                {config.pt_kot_header && (
+                {thermalTemplate.kotHeader && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -243,11 +254,11 @@ export default function PrintLivePreview({ config }) {
                 <div className="order-meta text-left font-small">
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>KOT Ref: KOT-842A</div>
-                  {config.pt_show_daily_bill_no && (
+                  {thermalTemplate.showDailyBillNo !== false && (
                     <div>Daily Bill No: #042</div>
                   )}
                   <div>Attended by: Cashier Sam</div>
-                  {config.pt_show_customer_details && (
+                  {thermalTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
                       Customer: John Doe
                     </div>
@@ -263,13 +274,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Table Highlight (KOT Title Font) */}
-                {config.pt_show_table_label && (
-                  <div className={`kot-table-label text-center ${getFontClass(config.pt_kot_title_font)}`}>
+                {thermalTemplate.showTableLabel !== false && (
+                  <div className={`kot-table-label text-center ${getFontClass(thermalTemplate.kotTitleFontSize)}`}>
                     TABLE: 5
                   </div>
                 )}
 
-                {config.pt_show_table_label && (
+                {thermalTemplate.showTableLabel !== false && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -282,7 +293,7 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* KOT Items Table Body */}
-                <div className={`kot-items-list ${getFontClass(config.pt_kot_body_font)}`}>
+                <div className={`kot-items-list ${getFontClass(thermalTemplate.kotFontSize)}`}>
                   <div className="items-row font-bold">
                     <div className="col-item text-left">
                       Chicken Biryani
@@ -310,17 +321,144 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* KOT Custom Footer */}
-                {config.pt_kot_footer && (
+                {thermalTemplate.kotFooter && (
                   <div className="custom-footer-text text-center">
-                    {config.pt_kot_footer}
+                    {thermalTemplate.kotFooter}
                   </div>
                 )}
 
               </div>
             )}
+
+            {activePreview === 'regular' && (
+              /* ================= REGULAR (A4) VIEW ================= */
+              <div className="regular-view">
+                <div className="regular-header">
+                  {regularTemplate.showLogo && logoSrc && (
+                    <img src={logoSrc} alt="Logo" className="regular-logo" />
+                  )}
+                  <div className="regular-restaurant-info">
+                    <div className="regular-restaurant-name">MY CAFE RESTAURANT</div>
+                    <div className="regular-restaurant-sub">123 Gourmet Boulevard, Food District</div>
+                    <div className="regular-restaurant-sub">Phone: +91 98765 43210</div>
+                  </div>
+                </div>
+                
+                <div className="regular-title">TAX INVOICE</div>
+                
+                <div className="regular-meta-grid">
+                  <div>
+                    <strong>Invoice To:</strong>
+                    {regularTemplate.showCustomer ? (
+                      <div>John Doe (+91 99999 88888)</div>
+                    ) : (
+                      <div>Walk-in Customer</div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div><strong>Invoice No:</strong> INV-2026-0842</div>
+                    <div><strong>Date:</strong> 16 Jun 2026</div>
+                  </div>
+                </div>
+                
+                <table className="regular-items-table">
+                  <thead>
+                    <tr>
+                      <th>Sl.</th>
+                      <th className="text-left">Item Description</th>
+                      {regularTemplate.showHsnSac && <th>HSN/SAC</th>}
+                      {regularTemplate.showUnits && <th>Unit</th>}
+                      <th className="text-right">Qty</th>
+                      <th className="text-right">Rate</th>
+                      {regularTemplate.showDiscounts && <th className="text-right">Disc</th>}
+                      {regularTemplate.showTax && <th className="text-right">GST</th>}
+                      <th className="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>1</td>
+                      <td className="text-left">Chicken Biryani (Double Masala)</td>
+                      {regularTemplate.showHsnSac && <td>9963</td>}
+                      {regularTemplate.showUnits && <td>Pcs</td>}
+                      <td className="text-right">1</td>
+                      <td className="text-right">250.00</td>
+                      {regularTemplate.showDiscounts && <td className="text-right">25.00</td>}
+                      {regularTemplate.showTax && <td className="text-right">5.63</td>}
+                      <td className="text-right">250.00</td>
+                    </tr>
+                    <tr>
+                      <td>2</td>
+                      <td className="text-left">Paneer Butter Masala</td>
+                      {regularTemplate.showHsnSac && <td>9963</td>}
+                      {regularTemplate.showUnits && <td>Pcs</td>}
+                      <td className="text-right">2</td>
+                      <td className="text-right">180.00</td>
+                      {regularTemplate.showDiscounts && <td className="text-right">36.00</td>}
+                      {regularTemplate.showTax && <td className="text-right">8.10</td>}
+                      <td className="text-right">360.00</td>
+                    </tr>
+                  </tbody>
+                </table>
+                
+                <div className="regular-totals-section">
+                  <div className="regular-totals-left">
+                    {regularTemplate.showTerms && (
+                      <div className="regular-terms">
+                        <strong>Terms & Conditions:</strong>
+                        <div className="terms-pre">{regularTemplate.terms || '1. Goods once sold will not be taken back.\n2. Pay upon receipt.'}</div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="regular-totals-right">
+                    <div className="regular-total-row">
+                      <span>Subtotal:</span>
+                      <span>610.00</span>
+                    </div>
+                    {regularTemplate.showDiscounts && (
+                      <div className="regular-total-row">
+                        <span>Discount:</span>
+                        <span>-61.00</span>
+                      </div>
+                    )}
+                    {regularTemplate.showTax && (
+                      <>
+                        <div className="regular-total-row">
+                          <span>CGST (2.5%):</span>
+                          <span>13.73</span>
+                        </div>
+                        <div className="regular-total-row">
+                          <span>SGST (2.5%):</span>
+                          <span>13.73</span>
+                        </div>
+                      </>
+                    )}
+                    <div className="regular-total-row grand">
+                      <span>Grand Total:</span>
+                      <span>₹576.46</span>
+                    </div>
+                    {regularTemplate.showAmountInWords && (
+                      <div className="amount-words">Rupees Five Hundred Seventy-Six and Forty-Six Paise Only</div>
+                    )}
+                  </div>
+                </div>
+                
+                {regularTemplate.showSignature && (
+                  <div className="regular-signature">
+                    <div className="sig-line">Authorized Signatory</div>
+                  </div>
+                )}
+                
+                {regularTemplate.showFooter && (
+                  <div className="regular-footer">
+                    {regularTemplate.footer || 'Thank you for your business.'}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="paper-edge-bottom"></div>
+          {activePreview !== 'regular' && <div className="paper-edge-bottom"></div>}
         </div>
       </div>
 
@@ -329,15 +467,15 @@ export default function PrintLivePreview({ config }) {
           background: #0f172a;
           border-radius: 24px;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          padding: 24px 16px;
+          padding: 20px 16px;
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
           color: white;
           width: 100%;
-          max-width: 380px;
+          max-width: 420px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: 20px;
+          gap: 16px;
         }
 
         .preview-tabs {
@@ -356,12 +494,12 @@ export default function PrintLivePreview({ config }) {
           border-radius: 8px;
           color: #94a3b8;
           font-weight: 700;
-          font-size: 13.5px;
+          font-size: 11.5px;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
+          gap: 6px;
           transition: all 0.2s ease;
         }
 
@@ -379,12 +517,17 @@ export default function PrintLivePreview({ config }) {
         .paper-viewport {
           display: flex;
           justify-content: center;
-          max-height: 580px;
+          max-height: 520px;
           overflow-y: auto;
           padding: 10px 4px;
           border-radius: 16px;
           background: rgba(0, 0, 0, 0.2);
           box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
+          transition: max-width 0.3s ease;
+        }
+
+        .paper-viewport.viewport-regular {
+          max-height: 560px;
         }
 
         /* Customize Scrollbar for Paper Viewport */
@@ -412,6 +555,16 @@ export default function PrintLivePreview({ config }) {
           padding: 16px 12px;
           display: flex;
           flex-direction: column;
+          transition: all 0.3s ease;
+        }
+
+        .paper-strip.regular-page-strip {
+          max-width: 100%;
+          font-family: 'Inter', -apple-system, sans-serif;
+          font-size: 11px;
+          line-height: 1.4;
+          padding: 24px;
+          border-radius: 4px;
         }
 
         .paper-content {
@@ -517,7 +670,7 @@ export default function PrintLivePreview({ config }) {
 
         .item-variant {
           display: block;
-          font-size: 10.5px;
+          font-size: 10px;
           color: #475569;
           margin-top: 1px;
         }
@@ -605,6 +758,175 @@ export default function PrintLivePreview({ config }) {
           display: inline-block;
           transform: scaleX(1.3);
           transform-origin: center top;
+        }
+
+        /* ---------------------------------
+         REGULAR A4 SIMULATED STYLING
+        ---------------------------------- */
+        .regular-view {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          background: white;
+          color: #1e293b;
+        }
+        
+        .regular-header {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          border-bottom: 2px solid #e2e8f0;
+          padding-bottom: 12px;
+        }
+
+        .regular-logo {
+          max-width: 60px;
+          max-height: 40px;
+          object-fit: contain;
+        }
+
+        .regular-restaurant-info {
+          flex: 1;
+          text-align: left;
+        }
+
+        .regular-restaurant-name {
+          font-size: 14px;
+          font-weight: 800;
+          color: #0f172a;
+          text-transform: uppercase;
+        }
+
+        .regular-restaurant-sub {
+          font-size: 10px;
+          color: #64748b;
+        }
+
+        .regular-title {
+          font-size: 16px;
+          font-weight: 800;
+          letter-spacing: 1px;
+          text-align: center;
+          color: #0f172a;
+          margin: 4px 0;
+        }
+
+        .regular-meta-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          font-size: 10px;
+          text-align: left;
+          background: #f8fafc;
+          padding: 8px 12px;
+          border-radius: 6px;
+        }
+
+        .regular-items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 10px 0;
+          font-size: 9.5px;
+        }
+
+        .regular-items-table th {
+          background: #f1f5f9;
+          font-weight: 700;
+          color: #334155;
+          padding: 6px 8px;
+          border-bottom: 1px solid #cbd5e1;
+          text-align: center;
+        }
+
+        .regular-items-table td {
+          padding: 6px 8px;
+          border-bottom: 1px solid #e2e8f0;
+          text-align: center;
+        }
+
+        .regular-items-table th.text-left, .regular-items-table td.text-left {
+          text-align: left;
+        }
+
+        .regular-items-table th.text-right, .regular-items-table td.text-right {
+          text-align: right;
+        }
+
+        .regular-totals-section {
+          display: grid;
+          grid-template-columns: 1fr 1.2fr;
+          gap: 16px;
+          text-align: left;
+          margin-top: 8px;
+        }
+
+        .regular-terms {
+          font-size: 9px;
+          color: #64748b;
+          border: 1px solid #e2e8f0;
+          padding: 8px;
+          border-radius: 6px;
+        }
+
+        .terms-pre {
+          white-space: pre-wrap;
+          margin-top: 4px;
+        }
+
+        .regular-totals-right {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 10px;
+        }
+
+        .regular-total-row {
+          display: flex;
+          justify-content: space-between;
+          color: #475569;
+        }
+
+        .regular-total-row.grand {
+          font-size: 12px;
+          font-weight: 800;
+          color: #0f172a;
+          border-top: 1.5px solid #cbd5e1;
+          padding-top: 4px;
+          margin-top: 2px;
+        }
+
+        .amount-words {
+          font-size: 8px;
+          font-style: italic;
+          color: #64748b;
+          text-align: right;
+          margin-top: 2px;
+        }
+
+        .regular-signature {
+          align-self: flex-end;
+          margin-top: 20px;
+          text-align: right;
+          width: 150px;
+        }
+
+        .sig-line {
+          border-top: 1px solid #cbd5e1;
+          font-size: 9px;
+          font-weight: 600;
+          color: #475569;
+          padding-top: 4px;
+          margin-top: 20px;
+          text-align: center;
+        }
+
+        .regular-footer {
+          margin-top: 16px;
+          border-top: 1px dashed #e2e8f0;
+          padding-top: 8px;
+          font-size: 9px;
+          color: #64748b;
+          text-align: center;
         }
       `}</style>
     </div>

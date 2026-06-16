@@ -53,30 +53,123 @@ const MODULES = [
 // HELPERS & SYNC UTILS
 // ═════════════════════════════════════════════════════════════════════════════
 
+const DEFAULT_THERMAL_TEMPLATE = {
+  preset: '58MM',
+  widthMm: 58,
+  columns: 32,
+  printableDots: 384,
+  leftMargin: 0,
+  rightMargin: 0,
+  lineSpacing: 0,
+  autoCut: true,
+  feedLines: 3,
+  fontSize: 'NORMAL',
+  kotFontSize: 'NORMAL',
+  titleFontSize: 'DOUBLE',
+  kotTitleFontSize: 'DOUBLE',
+  showRestaurantName: true,
+  showDailyBillNo: true,
+  showCustomerDetails: true,
+  showTableLabel: true,
+  showFssai: true,
+  showGstBreakdown: true,
+  kotHeader: '*** KOT ***',
+  kotFooter: '*** SEND TO KITCHEN ***',
+  receiptHeader: '*** TAX INVOICE ***',
+  receiptFooter: '* THANK YOU! VISIT AGAIN !! *',
+  leftMarginDots: 0,
+  rightMarginDots: 0,
+  guardCols: 0,
+  safeCols: 0,
+};
+
+const DEFAULT_REGULAR_TEMPLATE = {
+  paperPreset: 'A4',
+  widthMm: 210,
+  heightMm: 297,
+  orientation: 'PORTRAIT',
+  marginMm: 10,
+  paperSource: '',
+  scaling: 100,
+  colorMode: 'GRAYSCALE',
+  showLogo: true,
+  showCustomer: true,
+  showTax: true,
+  showHsnSac: true,
+  showUnits: true,
+  showDiscounts: true,
+  showPayment: true,
+  showAmountInWords: true,
+  showTerms: true,
+  showFooter: true,
+  showSignature: true,
+  terms: '',
+  footer: 'Thank you for your business.',
+};
+
+const FONT_SIZE_OPTIONS = [
+  { value: 'NORMAL', label: 'Normal (1x)' },
+  { value: 'DOUBLE_HEIGHT', label: 'Double Height (2H)' },
+  { value: 'DOUBLE_WIDTH', label: 'Double Width (2W)' },
+  { value: 'DOUBLE', label: 'Double (2x)' },
+];
+
+const THERMAL_PAPER_PRESETS = [
+  { preset: '58MM', label: '2 inch / 58 mm', widthMm: 58, columns: 32, printableDots: 384 },
+  { preset: '80MM', label: '3 inch / 80 mm', widthMm: 80, columns: 48, printableDots: 576 },
+  { preset: '4IN', label: '4 inch', widthMm: 101.6, columns: 64, printableDots: 832 },
+];
+
+const REGULAR_PAPER_PRESETS = {
+  A4: { widthMm: 210, heightMm: 297 },
+  A5: { widthMm: 148, heightMm: 210 },
+  LETTER: { widthMm: 215.9, heightMm: 279.4 },
+  LEGAL: { widthMm: 215.9, heightMm: 355.6 },
+  CUSTOM: {},
+};
+
+const stripPrintMeta = (settings) => {
+  const { _meta, ...rest } = settings || {};
+  return rest;
+};
+
+const mergeThermalTemplate = (template) => ({
+  ...DEFAULT_THERMAL_TEMPLATE,
+  ...(template || {}),
+});
+
+const mergeRegularTemplate = (template) => ({
+  ...DEFAULT_REGULAR_TEMPLATE,
+  ...(template || {}),
+});
+
 function syncPrintSettingsToLocalStorage(config) {
   if (typeof window === 'undefined' || !config) return;
   try {
-    localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', config.pt_show_restaurant_name ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', config.pt_show_daily_bill_no ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', config.pt_show_customer_details ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_TABLE_LABEL', config.pt_show_table_label ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_FSSAI', config.pt_show_fssai ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', config.pt_show_gst_breakdown ? 'true' : 'false');
+    const t = mergeThermalTemplate(config.thermalTemplate);
+    localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', t.showRestaurantName !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', t.showDailyBillNo !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', t.showCustomerDetails !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_TABLE_LABEL', t.showTableLabel !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_FSSAI', t.showFssai !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', t.showGstBreakdown !== false ? 'true' : 'false');
 
-    localStorage.setItem('PRINT_TITLE_FONT_SIZE', config.pt_receipt_title_font || 'DOUBLE');
-    localStorage.setItem('PRINT_FONT_SIZE', config.pt_receipt_body_font || 'NORMAL');
-    localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', config.pt_kot_title_font || 'DOUBLE');
-    localStorage.setItem('PRINT_KOT_FONT_SIZE', config.pt_kot_body_font || 'DOUBLE');
+    localStorage.setItem('PRINT_TITLE_FONT_SIZE', t.titleFontSize || 'DOUBLE');
+    localStorage.setItem('PRINT_FONT_SIZE', t.fontSize || 'NORMAL');
+    localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', t.kotTitleFontSize || 'DOUBLE');
+    localStorage.setItem('PRINT_KOT_FONT_SIZE', t.kotFontSize || 'DOUBLE');
 
-    localStorage.setItem('PRINT_KOT_HEADER', config.pt_kot_header ?? '*** KOT ***');
-    localStorage.setItem('PRINT_KOT_FOOTER', config.pt_kot_footer ?? '*** SEND TO KITCHEN ***');
-    localStorage.setItem('PRINT_RECEIPT_HEADER', config.pt_receipt_header ?? '*** TAX INVOICE ***');
-    localStorage.setItem('PRINT_RECEIPT_FOOTER', config.pt_receipt_footer ?? '* THANK YOU! VISIT AGAIN !! *');
+    localStorage.setItem('PRINT_KOT_HEADER', t.kotHeader ?? '*** KOT ***');
+    localStorage.setItem('PRINT_KOT_FOOTER', t.kotFooter ?? '*** SEND TO KITCHEN ***');
+    localStorage.setItem('PRINT_RECEIPT_HEADER', t.receiptHeader ?? '*** TAX INVOICE ***');
+    localStorage.setItem('PRINT_RECEIPT_FOOTER', t.receiptFooter ?? '* THANK YOU! VISIT AGAIN !! *');
     
-    localStorage.setItem('PRINT_PAPER_MM', config.paper_mm || '58');
-    localStorage.setItem('PRINT_WIDTH_COLS', String(config.print_cols || 32));
-    localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(config.left_dots || 0));
-    localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(config.right_dots || 0));
+    localStorage.setItem('PRINT_PAPER_MM', String(t.widthMm || '58'));
+    localStorage.setItem('PRINT_WIDTH_COLS', String(t.columns || 32));
+    localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(t.leftMarginDots || 0));
+    localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(t.rightMarginDots || 0));
+    localStorage.setItem('PRINT_GUARD_COLS', String(t.guardCols || 0));
+    localStorage.setItem('PRINT_SAFE_COLS', String(t.safeCols || 0));
   } catch (err) {
     console.error('Failed to sync print settings to localStorage:', err);
   }
@@ -115,6 +208,7 @@ function ConfigurationsContent() {
   // UI State for Tax feature
   const [newRate, setNewRate]     = useState('');
   const [showAddRuleModal, setShowAddRuleModal] = useState(false);
+  const [printConfigRaw, setPrintConfigRaw] = useState(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -154,6 +248,10 @@ function ConfigurationsContent() {
     auto_cut: false,
     print_win_list_url: 'http://127.0.0.1:3333/printers',
     print_win_post_url: 'http://127.0.0.1:3333/printRaw',
+
+    // Thermal & Regular templates
+    thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
+    regularTemplate: DEFAULT_REGULAR_TEMPLATE,
   });
 
   const [taxName, setTaxName] = useState('');
@@ -213,6 +311,28 @@ function ConfigurationsContent() {
             );
           }
 
+          // Fetch Print Configurations concurrently
+          const printParams = {};
+          if (orgId && orgId !== '0') {
+            printParams.orgId = orgId;
+          }
+          const printResp = await api.get('/api/v1/print-configurations/effective', { params: printParams }).catch(() => null);
+          
+          let thermal = DEFAULT_THERMAL_TEMPLATE;
+          let regular = DEFAULT_REGULAR_TEMPLATE;
+          if (printResp?.data?.success && printResp?.data?.data) {
+            const pc = stripPrintMeta(printResp.data.data);
+            setPrintConfigRaw(pc);
+            if (pc.thermalTemplate) {
+              thermal = mergeThermalTemplate(pc.thermalTemplate);
+            }
+            if (pc.regularTemplate) {
+              regular = mergeRegularTemplate(pc.regularTemplate);
+            }
+          } else {
+            setPrintConfigRaw(null);
+          }
+
           setConfig({
             pm_online_payment: !!d.onlinePaymentEnabled, pm_menu_images: !!d.menuImagesEnabled,
             pm_credit_ledger: !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
@@ -250,21 +370,8 @@ function ConfigurationsContent() {
             print_win_list_url: d.printWinListUrl || 'http://127.0.0.1:3333/printers',
             print_win_post_url: d.printWinPostUrl || 'http://127.0.0.1:3333/printRaw',
 
-            // Print template customization
-            pt_show_restaurant_name: d.ptShowRestaurantName !== false,
-            pt_show_daily_bill_no: d.ptShowDailyBillNo !== false,
-            pt_show_customer_details: d.ptShowCustomerDetails !== false,
-            pt_show_table_label: d.ptShowTableLabel !== false,
-            pt_show_fssai: d.ptShowFssai !== false,
-            pt_show_gst_breakdown: d.ptShowGstBreakdown !== false,
-            pt_receipt_title_font: d.ptReceiptTitleFont || 'DOUBLE',
-            pt_receipt_body_font: d.ptReceiptBodyFont || 'NORMAL',
-            pt_kot_title_font: d.ptKotTitleFont || 'DOUBLE',
-            pt_kot_body_font: d.ptKotBodyFont || 'DOUBLE',
-            pt_kot_header: d.ptKotHeader ?? '*** KOT ***',
-            pt_kot_footer: d.ptKotFooter ?? '*** SEND TO KITCHEN ***',
-            pt_receipt_header: d.ptReceiptHeader ?? '*** TAX INVOICE ***',
-            pt_receipt_footer: d.ptReceiptFooter ?? '* THANK YOU! VISIT AGAIN !! *',
+            thermalTemplate: thermal,
+            regularTemplate: regular,
           });
         }
       } catch (err) {
@@ -273,10 +380,32 @@ function ConfigurationsContent() {
       }
       finally { setLoading(false); }
     })();
-  }, [configEndpoint]);
+  }, [configEndpoint, orgId]);
 
   const toggle = useCallback((f) => setConfig(p => ({ ...p, [f]: !p[f] })), []);
   const set = useCallback((f, v) => setConfig(p => ({ ...p, [f]: v })), []);
+  const setTemplate = useCallback((kind, key, value) => {
+    const base = kind === 'regularTemplate' ? DEFAULT_REGULAR_TEMPLATE : DEFAULT_THERMAL_TEMPLATE;
+    setConfig((previous) => ({
+      ...previous,
+      [kind]: {
+        ...base,
+        ...(previous[kind] || {}),
+        [key]: value,
+      },
+    }));
+  }, []);
+  const setTemplateValues = useCallback((kind, values) => {
+    const base = kind === 'regularTemplate' ? DEFAULT_REGULAR_TEMPLATE : DEFAULT_THERMAL_TEMPLATE;
+    setConfig((previous) => ({
+      ...previous,
+      [kind]: {
+        ...base,
+        ...(previous[kind] || {}),
+        ...values,
+      },
+    }));
+  }, []);
 
   // Tax Array Handlers
   const addTaxRate = () => {
@@ -304,9 +433,13 @@ function ConfigurationsContent() {
     });
   };
 
+
+
+
   // ─── Save ──────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
-    setSaving(true); setMessage(null);
+    setSaving(true);
+    setMessage(null);
     try {
       const payload = {
         onlinePaymentEnabled: config.pm_online_payment, menuImagesEnabled: config.pm_menu_images,
@@ -317,17 +450,17 @@ function ConfigurationsContent() {
         loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
         onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
-        
-        taxEnabled: config.tax_enabled, 
+
+        taxEnabled: config.tax_enabled,
         taxLabelGlobal: config.tax_label_global,
-        taxRates: config.tax_rates, // Sending the full objects now
+        taxRates: config.tax_rates,
         taxDefaultId: config.tax_default_id,
         pricesIncludeTax: config.tax_prices_include,
         taxSplitEnabled: config.tax_split_enabled,
 
         currencySymbol: config.currency_symbol,
         currencyPosition: config.currency_position,
-        
+
         roundOffEnabled: config.ro_enabled, roundOffMode: config.ro_mode,
         roundOffAutoFactor: Number(config.ro_auto_factor), roundOffManualLimit: Number(config.ro_manual_limit),
         billFooter: config.bill_footer || '',
@@ -336,44 +469,61 @@ function ConfigurationsContent() {
         printLogoBitmap: config.print_logo_bitmap,
         printLogoCols: config.print_logo_cols,
         printLogoRows: config.print_logo_rows,
-
-        // Print template customization
-        ptShowRestaurantName: config.pt_show_restaurant_name,
-        ptShowDailyBillNo: config.pt_show_daily_bill_no,
-        ptShowCustomerDetails: config.pt_show_customer_details,
-        ptShowTableLabel: config.pt_show_table_label,
-        ptShowFssai: config.pt_show_fssai,
-        ptShowGstBreakdown: config.pt_show_gst_breakdown,
-        ptReceiptTitleFont: config.pt_receipt_title_font,
-        ptReceiptBodyFont: config.pt_receipt_body_font,
-        ptKotTitleFont: config.pt_kot_title_font,
-        ptKotBodyFont: config.pt_kot_body_font,
-        ptKotHeader: config.pt_kot_header,
-        ptKotFooter: config.pt_kot_footer,
-        ptReceiptHeader: config.pt_receipt_header,
-        ptReceiptFooter: config.pt_receipt_footer,
       };
-      const resp = await api.put(configEndpoint, payload);
-      if (resp.data?.success) {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('cafeqr_sales_config');
-          Object.keys(localStorage)
-            .filter((key) => key.startsWith('cafeqr_sales_config:'))
-            .forEach((key) => localStorage.removeItem(key));
-          window.dispatchEvent(new Event('cafeqr-config-updated'));
-        }
-        setMsgType('success');
-        setMessage(hasBranchContext
-          ? `Configuration saved for ${orgName || 'selected branch'}`
-          : 'Default configuration saved successfully');
-        // Sync print template settings to localStorage for printUtils.js
-        syncPrintSettingsToLocalStorage(config);
-      }
-      else throw new Error(resp.data?.message || 'Save failed');
-    } catch (err) { setMsgType('error'); setMessage(err.response?.data?.message || err.message); }
-    finally { setSaving(false); }
-  }, [config, configEndpoint, hasBranchContext, orgName]);
 
+      const existingPrintSettings = stripPrintMeta(printConfigRaw);
+      const printSettings = {
+        ...existingPrintSettings,
+        thermalTemplate: mergeThermalTemplate({
+          ...(existingPrintSettings.thermalTemplate || {}),
+          ...(config.thermalTemplate || {}),
+        }),
+        regularTemplate: mergeRegularTemplate({
+          ...(existingPrintSettings.regularTemplate || {}),
+          ...(config.regularTemplate || {}),
+        }),
+      };
+
+      const [generalResp, printResp] = await Promise.all([
+        api.put(configEndpoint, payload),
+        api.put('/api/v1/print-configurations', {
+          scopeType: hasBranchContext ? 'ORGANIZATION' : 'CLIENT',
+          scopeId: hasBranchContext ? orgId : null,
+          orgId: hasBranchContext ? orgId : null,
+          settings: printSettings,
+        }),
+      ]);
+
+      if (!generalResp.data?.success) {
+        throw new Error(generalResp.data?.message || 'Configuration save failed');
+      }
+      if (!printResp.data?.success) {
+        throw new Error(printResp.data?.message || 'Print template save failed');
+      }
+
+      setPrintConfigRaw(stripPrintMeta(printResp.data?.data || printSettings));
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('cafeqr_sales_config');
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('cafeqr_sales_config:'))
+          .forEach((key) => localStorage.removeItem(key));
+        window.dispatchEvent(new Event('cafeqr-config-updated'));
+      }
+      syncPrintSettingsToLocalStorage(config);
+      setMsgType('success');
+      setMessage(hasBranchContext
+        ? `Configuration saved for ${orgName || 'selected branch'}`
+        : 'Default configuration saved successfully');
+    } catch (err) {
+      setMsgType('error');
+      setMessage(err.response?.data?.message || err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }, [config, configEndpoint, hasBranchContext, orgId, orgName, printConfigRaw]);
+
+  const thermalTemplate = mergeThermalTemplate(config.thermalTemplate);
+  const regularTemplate = mergeRegularTemplate(config.regularTemplate);
 
   if (loading) {
     return (
@@ -756,125 +906,256 @@ function ConfigurationsContent() {
           {activeTab === 'print' && (
              <div className="fade-in">
                <div className="section-header">
-                <h2>Print Template Customization</h2>
-                <p>Customize every aspect of your KOT and Receipt prints with a live preview.</p>
+                <h2>Templates & Paper</h2>
+                <p>Configure thermal receipts, KOTs, and regular tax invoices in one place.</p>
               </div>
 
+              <div className="template-configuration-section form-card full-width">
+                <div className="template-section-heading">
+                  <div className="pt-section-title">
+                    <FaPrint style={{ color: '#f97316' }} />
+                    Print Template Configuration
+                  </div>
+                  <span className="group-desc">Thermal receipts, KOTs, regular invoices, and receipt logo settings are saved together.</span>
+                </div>
 
-              <div className="print-editor-layout">
-                {/* ─── LEFT: Controls ─── */}
-                <div className="print-editor-controls">
+                <div className="print-editor-layout template-layout">
+                  <div className="print-editor-controls">
+                    <div className="template-group">
+                      <div className="template-group-title"><FaReceipt /> Thermal receipt and KOT</div>
+                      <div className="paper-preset-row">
+                        {[...THERMAL_PAPER_PRESETS, { preset: 'CUSTOM', label: 'Custom' }].map((preset) => (
+                          <button
+                            type="button"
+                            key={preset.preset}
+                            className={thermalTemplate.preset === preset.preset ? 'active' : ''}
+                            onClick={() => setTemplateValues('thermalTemplate', {
+                              preset: preset.preset,
+                              ...(preset.widthMm ? {
+                                widthMm: preset.widthMm,
+                                columns: preset.columns,
+                                printableDots: preset.printableDots,
+                              } : {}),
+                            })}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
 
-
-                  {/* Section: Element Visibility */}
-                  <div className="form-card">
-                    <div className="pt-section-title"><FaToggleOn style={{ color: '#f97316' }} /> Element Visibility</div>
-                    <span className="group-desc" style={{ marginTop: '-10px' }}>Toggle which details appear on printed KOTs and Receipts.</span>
-
-                    {[
-                      { key: 'pt_show_restaurant_name', label: 'Restaurant Name', desc: 'Show restaurant name at the top' },
-                      { key: 'pt_show_daily_bill_no', label: 'Daily Bill Number', desc: 'Show sequential daily bill counter' },
-                      { key: 'pt_show_customer_details', label: 'Customer Details', desc: 'Show customer name & phone' },
-                      { key: 'pt_show_table_label', label: 'Table / Order Type', desc: 'Show table number or Dine-in/Takeaway label' },
-                      { key: 'pt_show_fssai', label: 'FSSAI License', desc: 'Show FSSAI license number on receipt' },
-                      { key: 'pt_show_gst_breakdown', label: 'GST Breakdown', desc: 'Show CGST & SGST split on receipt' },
-                    ].map(item => (
-                      <div key={item.key} className="pt-toggle-row" onClick={() => toggle(item.key)}>
-                        <div className="pt-toggle-info">
-                          <strong>{item.label}</strong>
-                          <span>{item.desc}</span>
+                      <div className="template-grid-fields">
+                        <div className="input-group">
+                          <label className="group-lbl">Width (mm)</label>
+                          <input type="number" className="form-input" value={thermalTemplate.widthMm} onChange={(e) => setTemplate('thermalTemplate', 'widthMm', Number(e.target.value))} />
                         </div>
-                        <div className={`toggle-switch ${config[item.key] ? 'on' : ''}`}>
-                          <div className="toggle-thumb"></div>
+                        <div className="input-group">
+                          <label className="group-lbl">Columns</label>
+                          <input type="number" className="form-input" value={thermalTemplate.columns} onChange={(e) => setTemplate('thermalTemplate', 'columns', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Printable dots</label>
+                          <input type="number" className="form-input" value={thermalTemplate.printableDots} onChange={(e) => setTemplate('thermalTemplate', 'printableDots', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Feed lines</label>
+                          <input type="number" className="form-input" value={thermalTemplate.feedLines} onChange={(e) => setTemplate('thermalTemplate', 'feedLines', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Left margin dots</label>
+                          <input type="number" min="0" max="100" className="form-input" value={thermalTemplate.leftMarginDots ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'leftMarginDots', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Right margin dots</label>
+                          <input type="number" min="0" max="100" className="form-input" value={thermalTemplate.rightMarginDots ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'rightMarginDots', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Guard columns</label>
+                          <input type="number" min="0" max="10" className="form-input" value={thermalTemplate.guardCols ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'guardCols', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Safe columns</label>
+                          <input type="number" min="0" max="10" className="form-input" value={thermalTemplate.safeCols ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'safeCols', Number(e.target.value))} />
                         </div>
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Section: Font Sizes */}
-                  <div className="form-card">
-                    <div className="pt-section-title"><FaReceipt style={{ color: '#8b5cf6' }} /> Font Sizes</div>
-                    <span className="group-desc" style={{ marginTop: '-10px' }}>Control the text size for different sections of the print output.</span>
+                      <button type="button" className="template-toggle-row" onClick={() => setTemplate('thermalTemplate', 'autoCut', !thermalTemplate.autoCut)}>
+                        <span>Auto-cut after print</span>
+                        <div className={`toggle-switch ${thermalTemplate.autoCut ? 'on' : ''}`}><div className="toggle-thumb" /></div>
+                      </button>
 
-                    <div className="pt-font-grid">
-                      {[
-                        { key: 'pt_receipt_title_font', label: 'Receipt Title' },
-                        { key: 'pt_receipt_body_font', label: 'Receipt Body' },
-                        { key: 'pt_kot_title_font', label: 'KOT Title' },
-                        { key: 'pt_kot_body_font', label: 'KOT Body / Items' },
-                      ].map(item => (
-                        <div key={item.key} className="input-group">
-                          <label className="group-lbl" style={{ fontSize: 13 }}>{item.label}</label>
+                      <div className="template-checkbox-grid">
+                        {[
+                          ['showRestaurantName', 'Restaurant name'],
+                          ['showDailyBillNo', 'Daily bill number'],
+                          ['showCustomerDetails', 'Customer details'],
+                          ['showTableLabel', 'Table / order type'],
+                          ['showFssai', 'FSSAI license'],
+                          ['showGstBreakdown', 'GST breakdown'],
+                        ].map(([key, label]) => (
+                          <button type="button" key={key} className="template-check" onClick={() => setTemplate('thermalTemplate', key, !(thermalTemplate[key] !== false))}>
+                            <span>{label}</span>
+                            <div className={`toggle-switch small ${thermalTemplate[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="template-grid-fields">
+                        {[
+                          ['titleFontSize', 'Receipt title'],
+                          ['fontSize', 'Receipt body'],
+                          ['kotTitleFontSize', 'KOT title'],
+                          ['kotFontSize', 'KOT body'],
+                        ].map(([key, label]) => (
+                          <div key={key} className="input-group">
+                            <label className="group-lbl">{label}</label>
+                            <NiceSelect value={thermalTemplate[key]} onChange={(v) => setTemplate('thermalTemplate', key, v)} options={FONT_SIZE_OPTIONS} />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="template-grid-fields">
+                        <div className="input-group">
+                          <label className="group-lbl">KOT header</label>
+                          <input className="form-input" value={thermalTemplate.kotHeader || ''} onChange={(e) => setTemplate('thermalTemplate', 'kotHeader', e.target.value)} placeholder="*** KOT ***" />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">KOT footer</label>
+                          <input className="form-input" value={thermalTemplate.kotFooter || ''} onChange={(e) => setTemplate('thermalTemplate', 'kotFooter', e.target.value)} placeholder="*** SEND TO KITCHEN ***" />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Receipt header</label>
+                          <input className="form-input" value={thermalTemplate.receiptHeader || ''} onChange={(e) => setTemplate('thermalTemplate', 'receiptHeader', e.target.value)} placeholder="*** TAX INVOICE ***" />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Receipt footer</label>
+                          <input className="form-input" value={thermalTemplate.receiptFooter || ''} onChange={(e) => setTemplate('thermalTemplate', 'receiptFooter', e.target.value)} placeholder="* THANK YOU! VISIT AGAIN !! *" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="template-group">
+                      <div className="template-group-title"><FaPrint /> Regular tax invoice</div>
+                      <div className="template-grid-fields">
+                        <div className="input-group">
+                          <label className="group-lbl">Paper</label>
                           <NiceSelect
-                            value={config[item.key]}
-                            onChange={v => set(item.key, v)}
+                            value={regularTemplate.paperPreset}
+                            onChange={(value) => setTemplateValues('regularTemplate', {
+                              paperPreset: value,
+                              ...(REGULAR_PAPER_PRESETS[value] || {}),
+                            })}
                             options={[
-                              { value: 'NORMAL', label: 'Normal (1x)' },
-                              { value: 'DOUBLE_HEIGHT', label: 'Double Height (2H)' },
-                              { value: 'DOUBLE_WIDTH', label: 'Double Width (2W)' },
-                              { value: 'DOUBLE', label: 'Double (2x)' },
+                              { value: 'A4', label: 'A4' },
+                              { value: 'A5', label: 'A5' },
+                              { value: 'LETTER', label: 'Letter' },
+                              { value: 'LEGAL', label: 'Legal' },
+                              { value: 'CUSTOM', label: 'Custom driver form' },
                             ]}
                           />
                         </div>
-                      ))}
+                        <div className="input-group">
+                          <label className="group-lbl">Orientation</label>
+                          <NiceSelect
+                            value={regularTemplate.orientation}
+                            onChange={(value) => setTemplate('regularTemplate', 'orientation', value)}
+                            options={[
+                              { value: 'PORTRAIT', label: 'Portrait' },
+                              { value: 'LANDSCAPE', label: 'Landscape' },
+                            ]}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Width (mm)</label>
+                          <input type="number" className="form-input" value={regularTemplate.widthMm} onChange={(e) => setTemplate('regularTemplate', 'widthMm', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Height (mm)</label>
+                          <input type="number" className="form-input" value={regularTemplate.heightMm} onChange={(e) => setTemplate('regularTemplate', 'heightMm', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Margins (mm)</label>
+                          <input type="number" className="form-input" value={regularTemplate.marginMm} onChange={(e) => setTemplate('regularTemplate', 'marginMm', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Scaling (%)</label>
+                          <input type="number" min="50" max="200" className="form-input" value={regularTemplate.scaling || 100} onChange={(e) => setTemplate('regularTemplate', 'scaling', Number(e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Paper source</label>
+                          <input className="form-input" value={regularTemplate.paperSource || ''} onChange={(e) => setTemplate('regularTemplate', 'paperSource', e.target.value)} placeholder="Driver default" />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Colour mode</label>
+                          <NiceSelect
+                            value={regularTemplate.colorMode}
+                            onChange={(value) => setTemplate('regularTemplate', 'colorMode', value)}
+                            options={[
+                              { value: 'GRAYSCALE', label: 'Grayscale' },
+                              { value: 'COLOR', label: 'Colour' },
+                            ]}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="template-checkbox-grid">
+                        {[
+                          ['showLogo', 'Logo'],
+                          ['showCustomer', 'Customer'],
+                          ['showTax', 'GST / tax'],
+                          ['showHsnSac', 'HSN / SAC'],
+                          ['showUnits', 'Units'],
+                          ['showDiscounts', 'Discounts'],
+                          ['showPayment', 'Payment'],
+                          ['showAmountInWords', 'Amount in words'],
+                          ['showTerms', 'Terms'],
+                          ['showFooter', 'Footer'],
+                          ['showSignature', 'Signature'],
+                        ].map(([key, label]) => (
+                          <button type="button" key={key} className="template-check" onClick={() => setTemplate('regularTemplate', key, !(regularTemplate[key] !== false))}>
+                            <span>{label}</span>
+                            <div className={`toggle-switch small ${regularTemplate[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="template-grid-fields">
+                        <div className="input-group">
+                          <label className="group-lbl">Terms</label>
+                          <textarea rows="3" className="form-input form-textarea" value={regularTemplate.terms || ''} onChange={(e) => setTemplate('regularTemplate', 'terms', e.target.value)} />
+                        </div>
+                        <div className="input-group">
+                          <label className="group-lbl">Footer</label>
+                          <textarea rows="3" className="form-input form-textarea" value={regularTemplate.footer || ''} onChange={(e) => setTemplate('regularTemplate', 'footer', e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="template-group">
+                      <div className="template-group-title"><FaCamera /> Receipt logo and footer message</div>
+                      <div className="logo-upload-row">
+                        <div className="logo-icon-box"><FaCamera /></div>
+                        <div className="logo-upload-copy">
+                          <input type="file" accept="image/*" onChange={handleLogoFile} disabled={logoSaving} style={{ display: 'none' }} id="logo-input" />
+                          <label htmlFor="logo-input" className="btn-secondary">Choose Image File</label>
+                          {logoSaving && <span>Processing...</span>}
+                        </div>
+                        {config.print_logo_bitmap && <button type="button" onClick={clearLogo} className="logo-clear-btn">Clear</button>}
+                      </div>
+                      {logoMsg && <div className={`template-message ${logoMsg.startsWith('✗') ? 'error' : 'success'}`}>{logoMsg}</div>}
+                      {config.print_logo_bitmap && !logoMsg && <div className="template-message success"><FaCheckCircle /> Thermal logo ready</div>}
+
+                      <div className="input-group">
+                        <label className="group-lbl">Bill footer message</label>
+                        <span className="group-desc">This optional message appears below the thermal receipt footer.</span>
+                        <textarea value={config.bill_footer} onChange={(e) => set('bill_footer', e.target.value)} placeholder="e.g. Thank you for your visit!" rows="3" maxLength={200} className="form-input form-textarea" />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Section: Headers & Footers */}
-                  <div className="form-card">
-                    <div className="pt-section-title"><FaReceipt style={{ color: '#14b8a6' }} /> Headers & Footers</div>
-                    <span className="group-desc" style={{ marginTop: '-10px' }}>Custom text that appears at specific sections of the printout.</span>
-
-                    <div className="input-group">
-                      <label className="group-lbl" style={{ fontSize: 13 }}>KOT Header</label>
-                      <input className="form-input" value={config.pt_kot_header} onChange={e => set('pt_kot_header', e.target.value)} placeholder="*** KOT ***" />
-                    </div>
-                    <div className="input-group">
-                      <label className="group-lbl" style={{ fontSize: 13 }}>KOT Footer</label>
-                      <input className="form-input" value={config.pt_kot_footer} onChange={e => set('pt_kot_footer', e.target.value)} placeholder="*** SEND TO KITCHEN ***" />
-                    </div>
-                    <hr className="divider-line" />
-                    <div className="input-group">
-                      <label className="group-lbl" style={{ fontSize: 13 }}>Receipt Header</label>
-                      <input className="form-input" value={config.pt_receipt_header} onChange={e => set('pt_receipt_header', e.target.value)} placeholder="*** TAX INVOICE ***" />
-                    </div>
-                    <div className="input-group">
-                      <label className="group-lbl" style={{ fontSize: 13 }}>Receipt Footer</label>
-                      <input className="form-input" value={config.pt_receipt_footer} onChange={e => set('pt_receipt_footer', e.target.value)} placeholder="* THANK YOU! VISIT AGAIN !! *" />
-                    </div>
-                    <div className="input-group">
-                      <label className="group-lbl" style={{ fontSize: 13 }}>Bill Footer Message</label>
-                      <span className="group-desc">This text appears at the bottom of the receipt.</span>
-                      <textarea value={config.bill_footer} onChange={(e) => set('bill_footer', e.target.value)} placeholder="e.g. Thank you for your visit!" rows="3" maxLength={200} className="form-input form-textarea" />
-                    </div>
-                  </div>
-                  {/* Section: Receipt Logo */}
-                  <div className="form-card">
-                    <div className="pt-section-title"><FaCamera style={{ color: '#ec4899' }} /> Receipt Logo</div>
-                    <span className="group-desc" style={{ marginTop: '-10px' }}>Upload a logo to appear at the top of printed thermal receipts.</span>
-                    <div className="input-group">
-                       <div style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '16px', border: '1px dashed #cbd5e1', borderRadius: '12px', background: '#f8fafc' }}>
-                          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'white', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-                            <FaCamera style={{ color: '#94a3b8', fontSize: '18px' }} />
-                          </div>
-                          <div style={{ flex: 1 }}>
-                             <input type="file" accept="image/*" onChange={handleLogoFile} disabled={logoSaving} style={{ display: 'none' }} id="logo-input" />
-                             <label htmlFor="logo-input" style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', cursor: 'pointer', background: 'white', padding: '6px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'inline-block' }}>Choose Image File</label>
-                             {logoSaving && <span style={{ fontSize: 12, color: '#f97316', fontWeight: 600, marginLeft: '12px' }}>Processing...</span>}
-                          </div>
-                          {config.print_logo_bitmap && (<button type="button" onClick={clearLogo} style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, padding: '6px 12px', borderRadius: '8px' }}>Clear</button>)}
-                       </div>
-                       {logoMsg && (<div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: logoMsg.startsWith('✗') ? '#dc2626' : '#10b981' }}>{logoMsg}</div>)}
-                       {config.print_logo_bitmap && !logoMsg && (<div style={{ marginTop: 12, fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}><FaCheckCircle style={{ color: '#10b981' }}/> Thermal Ready</div>)}
-                    </div>
+                  <div className="print-preview-panel">
+                    <PrintLivePreview config={config} />
                   </div>
                 </div>
-
-                {/* ─── RIGHT: Live Preview ─── */}
-                <div className="print-preview-panel">
-                  <PrintLivePreview config={config} />
-                </div>
-
               </div>
 
              </div>
@@ -1468,6 +1749,152 @@ function ConfigurationsContent() {
            flex-direction: column;
            gap: 20px;
         }
+        .template-configuration-section {
+           max-width: 100% !important;
+           gap: 24px;
+        }
+        .template-section-heading {
+           display: flex;
+           flex-direction: column;
+           gap: 6px;
+        }
+        .template-layout {
+           margin-top: 0;
+        }
+        .template-group {
+           border-top: 1px solid #f1f5f9;
+           padding-top: 20px;
+           display: flex;
+           flex-direction: column;
+           gap: 16px;
+        }
+        .template-group:first-child {
+           border-top: 0;
+           padding-top: 0;
+        }
+        .template-group-title {
+           display: flex;
+           align-items: center;
+           gap: 8px;
+           font-size: 13px;
+           font-weight: 900;
+           text-transform: uppercase;
+           letter-spacing: 0.05em;
+           color: #475569;
+        }
+        .template-group-title svg {
+           color: #f97316;
+        }
+        .paper-preset-row {
+           display: flex;
+           gap: 8px;
+           flex-wrap: wrap;
+        }
+        .paper-preset-row button {
+           border: 1.5px solid #e2e8f0;
+           background: #ffffff;
+           color: #475569;
+           padding: 8px 12px;
+           border-radius: 8px;
+           font-size: 12.5px;
+           font-weight: 800;
+           cursor: pointer;
+           transition: all 0.2s ease;
+        }
+        .paper-preset-row button:hover,
+        .paper-preset-row button.active {
+           border-color: #f97316;
+           background: #fff7ed;
+           color: #c2410c;
+        }
+        .template-grid-fields {
+           display: grid;
+           grid-template-columns: repeat(2, minmax(0, 1fr));
+           gap: 14px;
+        }
+        .template-toggle-row,
+        .template-check {
+           display: flex;
+           align-items: center;
+           justify-content: space-between;
+           gap: 12px;
+           width: 100%;
+           background: #f8fafc;
+           border: 1px solid #edf2f7;
+           border-radius: 10px;
+           color: #1e293b;
+           cursor: pointer;
+           font-family: inherit;
+           font-weight: 750;
+           text-align: left;
+        }
+        .template-toggle-row {
+           padding: 12px 14px;
+        }
+        .template-check {
+           padding: 10px 12px;
+           min-height: 46px;
+           font-size: 12.5px;
+        }
+        .template-checkbox-grid {
+           display: grid;
+           grid-template-columns: repeat(2, minmax(0, 1fr));
+           gap: 10px;
+        }
+        .logo-upload-row {
+           display: flex;
+           gap: 14px;
+           align-items: center;
+           padding: 14px;
+           border: 1px dashed #cbd5e1;
+           border-radius: 12px;
+           background: #f8fafc;
+        }
+        .logo-icon-box {
+           width: 46px;
+           height: 46px;
+           border-radius: 12px;
+           background: white;
+           border: 1px solid #e2e8f0;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           color: #94a3b8;
+           flex-shrink: 0;
+        }
+        .logo-upload-copy {
+           flex: 1;
+           display: flex;
+           align-items: center;
+           gap: 12px;
+           flex-wrap: wrap;
+        }
+        .logo-upload-copy span,
+        .template-message {
+           font-size: 12px;
+           font-weight: 700;
+        }
+        .logo-clear-btn {
+           background: #fef2f2;
+           border: 1px solid #fee2e2;
+           color: #ef4444;
+           font-size: 12px;
+           cursor: pointer;
+           font-weight: 700;
+           padding: 7px 12px;
+           border-radius: 8px;
+        }
+        .template-message {
+           display: flex;
+           align-items: center;
+           gap: 6px;
+        }
+        .template-message.success {
+           color: #059669;
+        }
+        .template-message.error {
+           color: #dc2626;
+        }
         .print-preview-panel {
            position: sticky;
            top: 24px;
@@ -1518,6 +1945,15 @@ function ConfigurationsContent() {
            .print-preview-panel {
               position: static;
               margin-top: 24px;
+           }
+        }
+        @media (max-width: 640px) {
+           .template-grid-fields,
+           .template-checkbox-grid {
+              grid-template-columns: 1fr;
+           }
+           .logo-upload-row {
+              align-items: flex-start;
            }
         }
 

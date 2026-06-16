@@ -4,7 +4,6 @@ import {
   FaAndroid,
   FaCheckCircle,
   FaCircle,
-  FaCog,
   FaDownload,
   FaExclamationTriangle,
   FaNetworkWired,
@@ -998,17 +997,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     defaults: { ...previous.defaults, [key]: value },
   }));
 
-  const setTemplate = (kind, key, value) => setPrintConfig((previous) => ({
-    ...previous,
-    [kind]: { ...previous[kind], [key]: value },
-  }));
-
   const tabs = [
     ['service', 'Print Service', <FaServer key="service" />],
     ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
     ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
     ['routing', 'Routing', <FaRoute key="routing" />],
-    ['templates', 'Templates & Paper', <FaCog key="templates" />],
     ['queue', 'Print Queue', <FaSync key="queue" />],
     ['android', 'Android', <FaAndroid key="android" />],
   ];
@@ -1539,157 +1532,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         </section>
       )}
 
-      {tab === 'templates' && (
-        <section className="surface">
-          <header><div><h3>Templates & Paper</h3><p>Configure width-aware thermal output and the detailed regular tax invoice.</p></div></header>
-          <div className="template-grid">
-            <div className="template-editor">
-              <h4>Thermal printer</h4>
-              <div className="paper-presets">
-                {[['58MM', '2 inch', 58, 32, 384], ['80MM', '3 inch', 80, 48, 576], ['4IN', '4 inch', 101.6, 64, 832], ['CUSTOM', 'Custom', printConfig.thermalTemplate.widthMm, printConfig.thermalTemplate.columns, printConfig.thermalTemplate.printableDots]].map(([preset, label, width, columns, dots]) => (
-                  <button key={preset} className={printConfig.thermalTemplate.preset === preset ? 'active' : ''} onClick={() => setPrintConfig((previous) => ({
-                    ...previous,
-                    thermalTemplate: { ...previous.thermalTemplate, preset, widthMm: width, columns, printableDots: dots },
-                  }))}>{label}</button>
-                ))}
-              </div>
-              <div className="form-grid compact">
-                <Field label="Width (mm)"><input type="number" value={printConfig.thermalTemplate.widthMm} onChange={(event) => setTemplate('thermalTemplate', 'widthMm', Number(event.target.value))} /></Field>
-                <Field label="Columns"><input type="number" value={printConfig.thermalTemplate.columns} onChange={(event) => setTemplate('thermalTemplate', 'columns', Number(event.target.value))} /></Field>
-                <Field label="Printable dots"><input type="number" value={printConfig.thermalTemplate.printableDots} onChange={(event) => setTemplate('thermalTemplate', 'printableDots', Number(event.target.value))} /></Field>
-                <Field label="Feed lines"><input type="number" value={printConfig.thermalTemplate.feedLines} onChange={(event) => setTemplate('thermalTemplate', 'feedLines', Number(event.target.value))} /></Field>
-              </div>
-              <label className="check" style={{ marginBottom: '14px', display: 'block' }}><input type="checkbox" checked={printConfig.thermalTemplate.autoCut} onChange={(event) => setTemplate('thermalTemplate', 'autoCut', event.target.checked)} /><span>Auto-cut after print</span></label>
-              
-              <div style={{ fontWeight: 'bold', fontSize: '13px', margin: '18px 0 8px', color: '#172033', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Thermal Customization Options</div>
-              <div className="option-grid" style={{ marginBottom: '14px' }}>
-                {[
-                  ['showRestaurantName', 'Show Restaurant Name'],
-                  ['showDailyBillNo', 'Show Daily Bill No'],
-                  ['showCustomerDetails', 'Show Customer Details'],
-                  ['showTableLabel', 'Show Table Label'],
-                  ['showFssai', 'Show FSSAI License'],
-                  ['showGstBreakdown', 'Show GST Breakdown'],
-                ].map(([key, label]) => (
-                  <label className="check" key={key}>
-                    <input type="checkbox" checked={printConfig.thermalTemplate[key] !== false} onChange={(event) => setTemplate('thermalTemplate', key, event.target.checked)} />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="form-grid compact" style={{ marginBottom: '14px' }}>
-                <Field label="KOT Title Font">
-                  <select value={printConfig.thermalTemplate.kotTitleFontSize || 'DOUBLE'} onChange={(event) => setTemplate('thermalTemplate', 'kotTitleFontSize', event.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="DOUBLE_HEIGHT">Double Height</option>
-                    <option value="DOUBLE_WIDTH">Double Width</option>
-                    <option value="DOUBLE">Double (W & H)</option>
-                  </select>
-                </Field>
-                <Field label="KOT Body Font">
-                  <select value={printConfig.thermalTemplate.kotFontSize || 'NORMAL'} onChange={(event) => setTemplate('thermalTemplate', 'kotFontSize', event.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="DOUBLE_HEIGHT">Double Height</option>
-                    <option value="DOUBLE_WIDTH">Double Width</option>
-                    <option value="DOUBLE">Double (W & H)</option>
-                  </select>
-                </Field>
-                <Field label="Bill Title Font">
-                  <select value={printConfig.thermalTemplate.titleFontSize || 'DOUBLE'} onChange={(event) => setTemplate('thermalTemplate', 'titleFontSize', event.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="DOUBLE_HEIGHT">Double Height</option>
-                    <option value="DOUBLE_WIDTH">Double Width</option>
-                    <option value="DOUBLE">Double (W & H)</option>
-                  </select>
-                </Field>
-                <Field label="Bill Body Font">
-                  <select value={printConfig.thermalTemplate.fontSize || 'NORMAL'} onChange={(event) => setTemplate('thermalTemplate', 'fontSize', event.target.value)}>
-                    <option value="NORMAL">Normal</option>
-                    <option value="DOUBLE_HEIGHT">Double Height</option>
-                    <option value="DOUBLE_WIDTH">Double Width</option>
-                    <option value="DOUBLE">Double (W & H)</option>
-                  </select>
-                </Field>
-              </div>
-              <div className="form-grid compact" style={{ marginBottom: '14px' }}>
-                <Field label="KOT Header"><input value={printConfig.thermalTemplate.kotHeader ?? '*** KOT ***'} onChange={(event) => setTemplate('thermalTemplate', 'kotHeader', event.target.value)} /></Field>
-                <Field label="KOT Footer"><input value={printConfig.thermalTemplate.kotFooter ?? '*** SEND TO KITCHEN ***'} onChange={(event) => setTemplate('thermalTemplate', 'kotFooter', event.target.value)} /></Field>
-                <Field label="Bill Header"><input value={printConfig.thermalTemplate.receiptHeader ?? '*** TAX INVOICE ***'} onChange={(event) => setTemplate('thermalTemplate', 'receiptHeader', event.target.value)} /></Field>
-                <Field label="Bill Footer"><input value={printConfig.thermalTemplate.receiptFooter ?? '* THANK YOU! VISIT AGAIN !! *'} onChange={(event) => setTemplate('thermalTemplate', 'receiptFooter', event.target.value)} /></Field>
-              </div>
-              <div className="form-grid compact" style={{ marginBottom: '14px' }}>
-                <Field label="Left Margin (Dots)"><input type="number" min="0" max="100" value={printConfig.thermalTemplate.leftMarginDots ?? 0} onChange={(event) => setTemplate('thermalTemplate', 'leftMarginDots', Number(event.target.value))} /></Field>
-                <Field label="Right Margin (Dots)"><input type="number" min="0" max="100" value={printConfig.thermalTemplate.rightMarginDots ?? 0} onChange={(event) => setTemplate('thermalTemplate', 'rightMarginDots', Number(event.target.value))} /></Field>
-                <Field label="Guard Columns"><input type="number" min="0" max="10" value={printConfig.thermalTemplate.guardCols ?? 0} onChange={(event) => setTemplate('thermalTemplate', 'guardCols', Number(event.target.value))} /></Field>
-                <Field label="Safe Columns"><input type="number" min="0" max="10" value={printConfig.thermalTemplate.safeCols ?? 0} onChange={(event) => setTemplate('thermalTemplate', 'safeCols', Number(event.target.value))} /></Field>
-              </div>
-
-              <ThermalPreview settings={printConfig.thermalTemplate} />
-            </div>
-            <div className="template-editor">
-              <h4>Regular printer</h4>
-              <div className="form-grid compact">
-                <Field label="Paper">
-                  <NiceSelect
-                    value={printConfig.regularTemplate.paperPreset}
-                    onChange={(value) => setTemplate('regularTemplate', 'paperPreset', value)}
-                    options={[
-                      { value: 'A4', label: 'A4' },
-                      { value: 'A5', label: 'A5' },
-                      { value: 'LETTER', label: 'Letter' },
-                      { value: 'LEGAL', label: 'Legal' },
-                      { value: 'CUSTOM', label: 'Custom driver form' }
-                    ]}
-                  />
-                </Field>
-                <Field label="Orientation">
-                  <NiceSelect
-                    value={printConfig.regularTemplate.orientation}
-                    onChange={(value) => setTemplate('regularTemplate', 'orientation', value)}
-                    options={[
-                      { value: 'PORTRAIT', label: 'Portrait' },
-                      { value: 'LANDSCAPE', label: 'Landscape' }
-                    ]}
-                  />
-                </Field>
-                <Field label="Width (mm)"><input type="number" value={printConfig.regularTemplate.widthMm} onChange={(event) => setTemplate('regularTemplate', 'widthMm', Number(event.target.value))} /></Field>
-                <Field label="Height (mm)"><input type="number" value={printConfig.regularTemplate.heightMm} onChange={(event) => setTemplate('regularTemplate', 'heightMm', Number(event.target.value))} /></Field>
-                <Field label="Margins (mm)"><input type="number" value={printConfig.regularTemplate.marginMm} onChange={(event) => setTemplate('regularTemplate', 'marginMm', Number(event.target.value))} /></Field>
-                <Field label="Paper source"><input value={printConfig.regularTemplate.paperSource || ''} onChange={(event) => setTemplate('regularTemplate', 'paperSource', event.target.value)} placeholder="Driver default" /></Field>
-                <Field label="Scaling (%)"><input type="number" min="50" max="200" value={printConfig.regularTemplate.scaling || 100} onChange={(event) => setTemplate('regularTemplate', 'scaling', Number(event.target.value))} /></Field>
-                <Field label="Colour mode">
-                  <NiceSelect
-                    value={printConfig.regularTemplate.colorMode}
-                    onChange={(value) => setTemplate('regularTemplate', 'colorMode', value)}
-                    options={[
-                      { value: 'GRAYSCALE', label: 'Grayscale' },
-                      { value: 'COLOR', label: 'Colour' }
-                    ]}
-                  />
-                </Field>
-              </div>
-              <div className="option-grid">
-                {[
-                  ['showLogo', 'Logo'], ['showCustomer', 'Customer'], ['showTax', 'GST / Tax'],
-                  ['showHsnSac', 'HSN / SAC'], ['showUnits', 'Units'], ['showDiscounts', 'Discounts'],
-                  ['showPayment', 'Payment'], ['showAmountInWords', 'Amount in words'],
-                  ['showTerms', 'Terms'], ['showFooter', 'Footer'], ['showSignature', 'Signature'],
-                ].map(([key, label]) => (
-                  <label className="check" key={key}>
-                    <input type="checkbox" checked={printConfig.regularTemplate[key]} onChange={(event) => setTemplate('regularTemplate', key, event.target.checked)} />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="form-grid template-copy">
-                <Field label="Terms"><textarea rows="3" value={printConfig.regularTemplate.terms || ''} onChange={(event) => setTemplate('regularTemplate', 'terms', event.target.value)} /></Field>
-                <Field label="Footer"><textarea rows="3" value={printConfig.regularTemplate.footer || ''} onChange={(event) => setTemplate('regularTemplate', 'footer', event.target.value)} /></Field>
-              </div>
-              <RegularPreview settings={printConfig.regularTemplate} />
-            </div>
-          </div>
-        </section>
-      )}
 
       {tab === 'queue' && (
         <section className="surface">
@@ -1824,21 +1666,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         .print-platform .warning { color: #b42318; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; font-weight: 800; white-space: nowrap; }
         .print-platform .empty-state { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8190a5; gap: 8px; border: 1px dashed #d6deea; }
         .print-platform .empty-state svg { font-size: 24px; } .print-platform .empty-state strong { color: #46556b; }
-        .print-platform .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-        .print-platform .template-editor { min-width: 0; }
-        .print-platform .template-editor + .template-editor { border-left: 1px solid #e1e7ef; padding-left: 24px; }
-        .print-platform .paper-presets { display: flex; gap: 7px; margin: 14px 0; flex-wrap: wrap; }
-        .print-platform .paper-presets button { border: 1px solid #d6deea; background: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 700; color: #506077; }
-        .print-platform .paper-presets button.active { border-color: #f97316; color: #f97316; background: #fff7ed; }
-        .print-platform .option-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
-        .print-platform .template-copy { margin-top: 14px; grid-template-columns: 1fr 1fr; }
         .print-platform .platform-toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #172033; color: white; padding: 11px 18px; border-radius: 7px; z-index: 1000; font-weight: 700; box-shadow: 0 10px 28px rgba(15,23,42,.24); max-width: calc(100vw - 30px); }
         @media (max-width: 1100px) {
           .print-platform .status-grid { grid-template-columns: 1fr 1fr; }
           .print-platform .form-grid.compact { grid-template-columns: 1fr 1fr; }
           .print-platform .assignment-list { grid-template-columns: 1fr; }
-          .print-platform .template-grid { grid-template-columns: 1fr; }
-          .print-platform .template-editor + .template-editor { border-left: 0; border-top: 1px solid #e1e7ef; padding: 20px 0 0; }
         }
         @media (max-width: 700px) {
           .print-platform .surface { padding: 14px; }
@@ -1848,8 +1680,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           .print-platform .local-access-notice { grid-template-columns: auto minmax(0, 1fr); }
           .print-platform .local-access-notice .primary { grid-column: 1 / -1; width: 100%; }
           .print-platform .platform-tabs button span { display: none; }
-          .print-platform .option-grid { grid-template-columns: 1fr; }
-          .print-platform .template-copy { grid-template-columns: 1fr; }
         }
       `}</style>
     </div>
@@ -1904,172 +1734,3 @@ function TagSelector({ label, values, selected, onChange, labels = {} }) {
   );
 }
 
-function ThermalPreview({ settings }) {
-  const [previewType, setPreviewType] = useState('kot');
-  
-  const width = Math.max(180, Math.min(360, Number(settings.widthMm || 58) * 3.2));
-  
-  const showRestaurantName = settings.showRestaurantName !== false;
-  const showDailyBillNo = settings.showDailyBillNo !== false;
-  const showCustomerDetails = settings.showCustomerDetails !== false;
-  const showTableLabel = settings.showTableLabel !== false;
-  const showFssai = settings.showFssai !== false;
-  const showGstBreakdown = settings.showGstBreakdown !== false;
-
-  const fontClass = (sz) => {
-    if (sz === 'DOUBLE') return 'double-size';
-    if (sz === 'DOUBLE_HEIGHT') return 'double-height';
-    if (sz === 'DOUBLE_WIDTH') return 'double-width';
-    return 'normal-size';
-  };
-
-  const titleFont = fontClass(previewType === 'kot' ? (settings.kotTitleFontSize || 'DOUBLE') : (settings.titleFontSize || 'DOUBLE'));
-  const bodyFont = fontClass(previewType === 'kot' ? (settings.kotFontSize || 'NORMAL') : (settings.fontSize || 'NORMAL'));
-
-  const headerText = previewType === 'kot' ? (settings.kotHeader ?? '*** KOT ***') : (settings.receiptHeader ?? '*** TAX INVOICE ***');
-  const footerText = previewType === 'kot' ? (settings.kotFooter ?? '*** SEND TO KITCHEN ***') : (settings.receiptFooter ?? '* THANK YOU! VISIT AGAIN !! *');
-
-  const leftMarginPx = Number(settings.leftMarginDots ?? 0) / 3;
-  const rightMarginPx = Number(settings.rightMarginDots ?? 0) / 3;
-
-  return (
-    <div className="thermal-preview-container" style={{ marginTop: '18px' }}>
-      <div className="preview-selector" style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
-        <button type="button" className={`secondary ${previewType === 'kot' ? 'active' : ''}`} onClick={() => setPreviewType('kot')} style={{ padding: '6px 12px', fontSize: '12px', minHeight: '32px' }}>KOT Preview</button>
-        <button type="button" className={`secondary ${previewType === 'receipt' ? 'active' : ''}`} onClick={() => setPreviewType('receipt')} style={{ padding: '6px 12px', fontSize: '12px', minHeight: '32px' }}>Receipt Preview</button>
-      </div>
-      
-      <div className="thermal-preview" style={{ width, paddingLeft: `${14 + leftMarginPx}px`, paddingRight: `${14 + rightMarginPx}px` }}>
-        {showRestaurantName && (
-          <div className={`restaurant-title ${titleFont}`}>
-            {Cookies.get('orgName') || 'RIYAS DUMMY RESTAURANT'}
-          </div>
-        )}
-        
-        <div className="receipt-header-type normal-size" style={{ fontWeight: 'bold' }}>{headerText}</div>
-        <hr />
-
-        <div className="meta-info normal-size" style={{ textAlign: 'left', fontSize: '10px', color: '#444', fontFamily: 'monospace' }}>
-          <div>16/06/2026 02:44 am</div>
-          <div>{previewType === 'kot' ? 'KOT Ref: SO-2026-0000063-HQ' : 'Invoice: INV-2026-0000063'}</div>
-          {showDailyBillNo && <div>Daily Bill No: 5</div>}
-          {previewType === 'kot' && <div>Attended by: Riyas Staff</div>}
-          {showCustomerDetails && <div>Customer: Guest (9876543210)</div>}
-        </div>
-        <hr />
-
-        {previewType === 'kot' && showTableLabel && (
-          <div className="table-highlight double-size" style={{ fontWeight: 'bold', margin: '8px 0' }}>
-            TABLE: 5
-          </div>
-        )}
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }} className={bodyFont}>
-          <thead>
-            <tr style={{ borderBottom: '1px dashed #64748b' }}>
-              <th>ITEM</th>
-              <th style={{ textAlign: 'right' }}>QTY</th>
-              {previewType === 'receipt' && <th style={{ textAlign: 'right' }}>RATE</th>}
-              {previewType === 'receipt' && <th style={{ textAlign: 'right' }}>TOTAL</th>}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Milk shake</td>
-              <td style={{ textAlign: 'right' }}>1</td>
-              {previewType === 'receipt' && <td style={{ textAlign: 'right' }}>120.00</td>}
-              {previewType === 'receipt' && <td style={{ textAlign: 'right' }}>120.00</td>}
-            </tr>
-            <tr>
-              <td>Ice cream</td>
-              <td style={{ textAlign: 'right' }}>2</td>
-              {previewType === 'receipt' && <td style={{ textAlign: 'right' }}>60.00</td>}
-              {previewType === 'receipt' && <td style={{ textAlign: 'right' }}>120.00</td>}
-            </tr>
-          </tbody>
-        </table>
-        <hr />
-
-        {previewType === 'receipt' && (
-          <div className="financials normal-size" style={{ textAlign: 'left', fontSize: '11px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Gross Total:</span>
-              <span>240.00</span>
-            </div>
-            {showGstBreakdown && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>CGST (2.5%):</span>
-                  <span>6.00</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>SGST (2.5%):</span>
-                  <span>6.00</span>
-                </div>
-              </>
-            )}
-            <hr />
-            <div className="double-size" style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-              <span>TOTAL:</span>
-              <span>252.00</span>
-            </div>
-            <hr />
-          </div>
-        )}
-
-        <div className="receipt-footer-text normal-size" style={{ fontWeight: 'bold' }}>{footerText}</div>
-        
-        {showFssai && previewType === 'receipt' && (
-          <div style={{ fontSize: '9px', marginTop: '6px' }}>FSSAI: 12345678901234</div>
-        )}
-        
-        <small style={{ display: 'block', marginTop: '12px', fontSize: '9px', color: '#888' }}>
-          {settings.columns} columns · {settings.widthMm} mm
-        </small>
-      </div>
-
-      <style jsx>{`
-        .thermal-preview-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        .thermal-preview { max-width: 100%; padding: 20px 14px; background: white; border: 1px solid #cfd7e3; box-shadow: 0 5px 14px rgba(15,23,42,.08); font-family: monospace; text-align: center; box-sizing: border-box; }
-        .restaurant-title { font-weight: bold; margin-bottom: 4px; }
-        .receipt-header-type { font-weight: bold; margin: 4px 0; }
-        .receipt-footer-text { margin-top: 8px; font-weight: bold; }
-        hr { border: 0; border-top: 1px dashed #64748b; margin: 8px 0; }
-        
-        .normal-size { font-size: 11px; }
-        .double-size { font-size: 16px; font-weight: bold; transform: scaleY(1.2); }
-        .double-height { font-size: 11px; transform: scaleY(1.8); transform-origin: top center; display: inline-block; font-weight: bold; }
-        .double-width { font-size: 11px; transform: scaleX(1.8); transform-origin: top center; display: inline-block; font-weight: bold; }
-        
-        .preview-selector button.active { border-color: #f97316; color: #f97316; background: #fff7ed; }
-      `}</style>
-    </div>
-  );
-}
-
-function RegularPreview({ settings }) {
-  return (
-    <div className={`regular-preview ${settings.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}>
-      {settings.showLogo && <div className="logo">C</div>}
-      <strong>{Cookies.get('orgName') || 'CafeQR Restaurant'}</strong>
-      <span>TAX INVOICE</span>
-      <div className="meta"><b>Invoice:</b> INV-000001 <b>Date:</b> 06 Jun 2026</div>
-      {settings.showCustomer && <div className="meta"><b>Customer:</b> Sample Customer</div>}
-      <table><tbody>
-        <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Tax</th><th>Amount</th></tr>
-        <tr><td>Sample menu item</td><td>2</td><td>150.00</td><td>15.00</td><td>315.00</td></tr>
-      </tbody></table>
-      <div className="total">Total ₹315.00</div>
-      {settings.showTerms && <small>Terms and conditions</small>}
-      {settings.showFooter && <small>{settings.footer}</small>}
-      <style jsx>{`
-        .regular-preview { width: min(100%, 390px); aspect-ratio: 210 / 297; margin: 18px auto 0; border: 1px solid #cfd7e3; background: white; padding: 22px; box-sizing: border-box; box-shadow: 0 5px 14px rgba(15,23,42,.08); text-align: center; font-size: 9px; }
-        .regular-preview.landscape { aspect-ratio: 297 / 210; }
-        .logo { width: 28px; height: 28px; display: grid; place-items: center; margin: auto auto 5px; background: #f97316; color: white; font-weight: 900; }
-        span, small { display: block; margin-top: 5px; } .meta { margin-top: 12px; text-align: left; display: flex; gap: 6px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; } th, td { border-bottom: 1px solid #cfd7e3; padding: 5px 2px; text-align: right; } th:first-child, td:first-child { text-align: left; }
-        .total { margin-top: 12px; text-align: right; font-size: 12px; font-weight: 900; }
-      `}</style>
-    </div>
-  );
-}
