@@ -86,11 +86,11 @@ function ConfigurationsContent() {
     credit_allocation_mode: 'OLDEST_FIRST',
     
     tax_enabled: false,
-    tax_label_global: 'GST',
+    tax_label_global: 'Tax',
     tax_rates: [
-      { id: 't1', name: 'GST 5%', value: 5 },
-      { id: 't2', name: 'GST 12%', value: 12 },
-      { id: 't3', name: 'GST 18%', value: 18 }
+      { id: 't1', name: 'Tax 5%', value: 5 },
+      { id: 't2', name: 'Tax 12%', value: 12 },
+      { id: 't3', name: 'Tax 18%', value: 18 }
     ],
     tax_default_id: 't1',
     tax_prices_include: false,
@@ -159,9 +159,9 @@ function ConfigurationsContent() {
           const d = resp.data.data;
           
           let parsedRates = [
-            { id: 't1', name: 'GST 5%', value: 5 },
-            { id: 't2', name: 'GST 12%', value: 12 },
-            { id: 't3', name: 'GST 18%', value: 18 }
+            { id: 't1', name: 'Tax 5%', value: 5 },
+            { id: 't2', name: 'Tax 12%', value: 12 },
+            { id: 't3', name: 'Tax 18%', value: 18 }
           ];
           
           if (Array.isArray(d.taxRates) && d.taxRates.length > 0) {
@@ -182,7 +182,7 @@ function ConfigurationsContent() {
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
             tax_enabled: !!d.taxEnabled, 
-            tax_label_global: d.taxLabelGlobal || 'GST',
+            tax_label_global: d.taxLabelGlobal || 'Tax',
             tax_rates: parsedRates,
             tax_default_id: d.taxDefaultId || (parsedRates[0]?.id || null),
             tax_prices_include: !!d.pricesIncludeTax, 
@@ -436,7 +436,7 @@ function ConfigurationsContent() {
                             </div>
                             <div className="input-group">
                                 <label className="group-lbl">Global Tax Label</label>
-                                <input value={config.tax_label_global} onChange={e => set('tax_label_global', e.target.value)} className="form-input" placeholder="e.g. GST, VAT, Tax" />
+                                <input value={config.tax_label_global} onChange={e => set('tax_label_global', e.target.value)} className="form-input" placeholder="e.g. Tax, VAT" />
                                 <span className="group-desc">Used on bills and reports globally.</span>
                             </div>
                         </div>
@@ -480,7 +480,7 @@ function ConfigurationsContent() {
 
                                 <div className="add-rule-form">
                                     <div className="add-rule-inputs">
-                                        <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder="Rule Name (e.g. Local GST)" />
+                                        <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder="Rule Name (e.g. Local Tax)" />
                                         <div className="rate-input-wrap">
                                             <input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} className="form-input" placeholder="0.00" />
                                             <span className="perc-sign">%</span>

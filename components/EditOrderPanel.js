@@ -882,29 +882,35 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         <Footer>
           <SummaryDetails>
             <div className="row">
-              <span>Subtotal:</span>
+              <span>Gross Total:</span>
               <span>₹{Number(totals.gross_face_total || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
             </div>
             {totals.discount_amount > 0 && (
-              <div className="row" style={{ color: '#16a34a' }}>
+              <div className="row" style={{ color: '#dc2626' }}>
                 <span>Discount:</span>
                 <span>-₹{Number(totals.discount_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
+            {config?.taxEnabled && totals.taxable_amount > 0 && (
+              <div className="row">
+                <span>Subtotal:</span>
+                <span>₹{Number(totals.taxable_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+              </div>
+            )}
             {config?.taxEnabled && totals.total_tax > 0 && (
               <div className="row">
-                <span>Tax:</span>
+                <span>Tax Amount:</span>
                 <span>₹{Number(totals.total_tax).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             {totals.round_off_amount !== 0 && (
               <div className="row">
                 <span>Round Off:</span>
-                <span>₹{Number(totals.round_off_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                <span>{totals.round_off_amount > 0 ? '+' : ''}₹{Number(Math.abs(totals.round_off_amount)).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             <div className="row total-row">
-              <span>Payable:</span>
+              <span>Grand Total:</span>
               <strong>₹{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
             </div>
           </SummaryDetails>

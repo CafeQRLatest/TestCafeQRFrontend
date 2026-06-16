@@ -3008,23 +3008,16 @@ export default function CounterSale({
                           </div>
                         )}
                         
-                        {totals.total_tax_added > 0 && (
+                        {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Excl.)</div>
-                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
-                          </div>
-                        )}
-
-                        {totals.total_tax_included > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax (Incl.)</div>
-                            <div style={{ fontSize: '12.5px', color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax Amount</div>
+                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
                         
                         {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Round Off (est.)</div>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Round Off</div>
                             <div style={{ fontSize: '12.5px', color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
@@ -3246,23 +3239,16 @@ export default function CounterSale({
                               </div>
                             )}
                             
-                            {totals.total_tax_added > 0 && (
+                            {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Excl.)</span>
-                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
-                              </div>
-                            )}
-
-                            {totals.total_tax_included > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax (Incl.)</span>
-                                <span style={{ color: '#64748b', fontWeight: 700 }}>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                                <span style={{ color: '#64748b', fontWeight: 600 }}>Tax Amount</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
 
                             {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
-                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Round Off (est.)</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>Round Off</span>
                                 <span style={{ color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
@@ -3396,14 +3382,11 @@ export default function CounterSale({
                 {config?.taxEnabled && (
                   <SummaryRow><span>Subtotal</span><span>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
-                {totals.total_tax_added > 0 && (
-                  <SummaryRow><span>Tax (Excl.)</span><span>₹{totals.total_tax_added.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
-                )}
-                {totals.total_tax_included > 0 && (
-                  <SummaryRow style={{ color: '#64748b' }}><span>Tax (Incl.)</span><span>₹{totals.total_tax_included.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
+                  <SummaryRow><span>Tax Amount</span><span>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
-                  <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off (est.)</span><span>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off</span><span>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }}/>
                 <SummaryRow $bold><span>Grand Total</span><span>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>

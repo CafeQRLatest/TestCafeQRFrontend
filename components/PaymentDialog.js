@@ -956,9 +956,9 @@ export default function PaymentDialog({
 
         <Breakdown>
           <Row><span>Gross Total</span><strong>{money(gross)}</strong></Row>
-          {disc > 0 && <Row style={{ color: theme.primaryDark }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
-          <Row><span>Subtotal</span><strong>{money(taxableSubtotal)}</strong></Row>
-          {config?.taxEnabled && <Row><span>{taxLabel}</span><strong>{money(tax)}</strong></Row>}
+          {disc > 0 && <Row style={{ color: '#dc2626' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
+          {config?.taxEnabled && <Row><span>Subtotal</span><strong>{money(taxableSubtotal)}</strong></Row>}
+          {config?.taxEnabled && <Row><span>Tax Amount</span><strong>{money(tax)}</strong></Row>}
           {roundOffEnabled && roundOff !== 0 && (
             <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
               <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>

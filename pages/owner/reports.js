@@ -301,12 +301,12 @@ export default function Reports() {
     const billedTotal = Number(summary.grandTotal || 0);
     const discounts = Number(summary.totalDiscount || 0);
     const tax = Number(summary.totalTax || 0);
-    const grossSales = billedTotal + discounts - tax;
+    const grossSales = billedTotal + discounts;
     const netSales = grossSales - discounts;
     const cards = [
       { label: 'Billed Total',    val: `${SYM}${fmt(billedTotal)}`,          color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount collected from customers across all settled orders in this period.' },
-      { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales: Total sales revenue excluding tax, before any discounts are applied.' },
-      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales: Revenue after subtracting discounts from Gross Sales. This is the taxable base of your sales.' },
+      { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts.' },
+      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts.' },
       { label: 'Total Orders',    val: summary.totalOrders,                   color: '#3b82f6', bg: '#eff6ff', tip: 'Total Orders: Number of completed and settled orders in the selected date range.' },
       { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', tip: 'Avg Order Value: Average billed amount per order. Calculated as Billed Total ÷ Total Orders.' },
       { label: 'Items Sold',      val: summary.itemsSold,                     color: '#f97316', bg: '#fff7ed', tip: 'Items Sold: Total number of individual menu items sold across all orders in this period.' },
@@ -671,16 +671,18 @@ export default function Reports() {
     const otherActivePayments = Number(reconciliation?.otherActivePaymentsTotal || 0);
     const unmatchedPaymentCount = Number(reconciliation?.unmatchedPaymentCount || 0);
 
-    const grossSales = Number(pnl.grossSales || 0);
+    const rawGrossSales = Number(pnl.grossSales || 0);
     const discounts = Number(pnl.discounts || 0);
-    const netSales = Number(pnl.netSales || 0);
     const outputTax = Number(pnl.totalTax || 0);
+    const grossSales = rawGrossSales + outputTax;   // face value = taxable + tax (matches Sales Summary)
+    const netSales = grossSales - discounts;         // face value after discounts
+    const taxDeduction = (config?.taxEnabled !== false) ? outputTax : 0;
     const cogs = Number(pnl.cogsPurchases || 0);
     const expenses = Number(pnl.operatingExpenses || 0);
-    const netProfit = Number(pnl.netProfit || 0);
+    const grossMargin = netSales - taxDeduction - cogs; // true margin excluding tax
+    const netProfit = grossMargin - expenses;            // true profit excluding tax
     const creditOutstanding = Number(pnl.creditOutstanding || 0);
     const cashCollected = Number(cashCollectedAfterExpenses || 0);
-    const grossMargin = netSales - cogs;
     const totalCostExpenses = cogs + expenses;
 
     const exportData = [
@@ -736,9 +738,9 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Gross Sales</span>
-                    <InfoTooltip id="grossSales" text="Gross Sales: Total sales revenue from all orders before discounts or deductions." />
+                    <InfoTooltip id="grossSales" text="Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts." />
                   </div>
-                  <div className="step-subtitle">Total billed order value before discounts</div>
+                  <div className="step-subtitle">Total billed order value before discounts (including tax)</div>
                 </div>
                 <div className="step-val text-success">+{SYM}{fmt(grossSales)}</div>
               </div>
@@ -772,12 +774,32 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Net Sales</span>
-                    <InfoTooltip id="netSales" text="Net Sales: Gross Sales minus Discounts. Net revenue generated from operations." />
+                    <InfoTooltip id="netSales" text="Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts." />
                   </div>
-                  <div className="step-subtitle">Actual revenue generated from operations</div>
+                  <div className="step-subtitle">Actual revenue after discounts (including tax)</div>
                 </div>
                 <div className="step-val text-blue">{SYM}{fmt(netSales)}</div>
               </div>
+
+              {/* Output Tax Deduction Step */}
+              {config?.taxEnabled !== false && outputTax > 0 && (
+                <>
+                  <div className="pnl-flow-connector minus">
+                    <span className="connector-icon">-</span>
+                  </div>
+                  <div className="pnl-cascade-step subtract">
+                    <div className="step-badge minus">-</div>
+                    <div className="step-body">
+                      <div className="step-title-row">
+                        <span className="step-title">Output Tax</span>
+                        <InfoTooltip id="pnlOutputTax" text="Output Tax: Tax collected from customers that must be paid to the government. This is excluded from net profit calculations." />
+                      </div>
+                      <div className="step-subtitle">Tax payable to government</div>
+                    </div>
+                    <div className="step-val text-purple">-{SYM}{fmt(outputTax)}</div>
+                  </div>
+                </>
+              )}
 
               {/* Connector */}
               <div className="pnl-flow-connector minus">
@@ -864,10 +886,10 @@ export default function Reports() {
                 <div className="pnl-side-card tax">
                   <div className="side-card-header">
                     <span>Output Tax</span>
-                    <InfoTooltip id="outputTax" text="Output Tax: Sales tax / GST collected from customers that is payable to tax authorities." />
+                    <InfoTooltip id="outputTax" text="Output Tax: Sales tax collected from customers that is payable to tax authorities." />
                   </div>
                   <div className="side-card-val text-purple">{SYM}{fmt(outputTax)}</div>
-                  <div className="side-card-desc">Collected sales tax/GST to pay government</div>
+                  <div className="side-card-desc">Collected sales tax to pay government</div>
                 </div>
               )}
 

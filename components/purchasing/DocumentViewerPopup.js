@@ -315,7 +315,7 @@ export default function DocumentViewerPopup({
       });
       if (hasTaxableAmount) {
         grandTotal = subtotal + taxTotal + roundOff;
-        subtotal = grandTotal - taxTotal + discountTotal - roundOff;
+        subtotal = grandTotal - taxTotal - roundOff;
       } else {
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
       }
@@ -327,7 +327,7 @@ export default function DocumentViewerPopup({
       const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0;
       if (hasGstFlag) {
         hasTaxableAmount = true;
-        subtotal = grandTotal - taxTotal + discountTotal - roundOff;
+        subtotal = grandTotal - taxTotal - roundOff;
       } else if (Math.abs(grandTotal - subtotal) < 0.05 && taxTotal > 0.05) {
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
       }
@@ -341,7 +341,7 @@ export default function DocumentViewerPopup({
     const dbGrandTotalIsMissingTax = !hasTaxableAmount && Math.abs(dbGrandTotal - dbSubtotal) < 0.05 && dbTotalTax > 0.05;
     if (dbGrandTotal > 0 && !dbGrandTotalIsMissingTax) {
       const displaySubtotal = hasTaxableAmount 
-        ? (dbGrandTotal - dbTotalTax + discountTotal - dbRoundOff)
+        ? (dbGrandTotal - dbTotalTax - dbRoundOff)
         : dbSubtotal;
       return { subtotal: displaySubtotal, tax: dbTotalTax, discount: discountTotal, grandTotal: dbGrandTotal, gross: dbGrossAmount, roundOff: dbRoundOff };
     }
@@ -827,7 +827,7 @@ export default function DocumentViewerPopup({
             )}
             <div className="dv-trow"><span>Subtotal</span><span>{currencySymbol}{fmt(calculated.subtotal)}</span></div>
             {taxEnabled && (
-              <div className="dv-trow"><span>{taxLabel}</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
+              <div className="dv-trow"><span>Tax Amount</span><span>{currencySymbol}{fmt(calculated.tax)}</span></div>
             )}
             {parseFloat(calculated.roundOff || 0) !== 0 && (
               <div className="dv-trow dv-trow-muted">

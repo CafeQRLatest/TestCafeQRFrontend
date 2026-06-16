@@ -2484,7 +2484,7 @@ export default function OrdersPage() {
                 <div className="detail-footer">
                   <div className="price-breakdown">
                     <div className="breakdown-row">
-                      <span>Subtotal</span>
+                      <span>Gross Total</span>
                       <span>&#8377;{Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0).toFixed(2)}</span>
                     </div>
                     {Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0) > 0 && (
@@ -2494,22 +2494,16 @@ export default function OrdersPage() {
                       </div>
                     )}
                     {config?.taxEnabled && Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0) > 0 && (() => {
-                      const orderLines = selectedTableOrder.lines || selectedTableOrder.orderLines || selectedTableOrder.order_items || selectedTableOrder.orderItems || [];
-                      const hasLineTaxType = orderLines.some(l => (l.taxType !== undefined && l.taxType !== null) || (l.tax_type !== undefined && l.tax_type !== null));
-                      const isInclusiveOrder = hasLineTaxType
-                        ? orderLines.some(l => String(l.taxType || l.tax_type || '').toUpperCase() === 'INCLUSIVE')
-                        : config?.pricesIncludeTax === true;
-                      
                       return (
                         <div className="breakdown-row">
-                          <span>Tax ({isInclusiveOrder ? 'Inclusive' : 'Exclusive'})</span>
+                          <span>Tax Amount</span>
                           <span>&#8377;{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
                         </div>
                       );
                     })()}
                     <div className="breakdown-divider" />
                     <div className="breakdown-row total">
-                      <span>Total</span>
+                      <span>Grand Total</span>
                       <span>&#8377;{(() => {
                         const sub = Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0);
                         const tax = Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0);
