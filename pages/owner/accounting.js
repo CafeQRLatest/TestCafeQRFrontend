@@ -1622,7 +1622,7 @@ function AccountingContent() {
                 </div>
                 {journalOutsideSelectedPeriod && (
                   <div className="inline-warning" style={{ margin: '4px 0 8px' }}>
-                    This entry date is outside the selected period — it won't appear in the current view after posting.
+                    This entry date is outside the selected period — it won&apos;t appear in the current view after posting.
                   </div>
                 )}
                 <div className="journal-lines" style={{ margin: '12px 0 0' }}>
