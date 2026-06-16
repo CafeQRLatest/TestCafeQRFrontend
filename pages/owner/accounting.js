@@ -1,16 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaArrowDown, FaArrowUp, FaSync, FaExclamationTriangle, FaFileCsv } from 'react-icons/fa';
+import { useRouter } from 'next/router';
+import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaSync, FaExclamationTriangle, FaFileCsv, FaInfoCircle, FaChartBar, FaTag, FaChartLine, FaReceipt, FaCreditCard, FaFileInvoice, FaArrowDown, FaCheckCircle, FaEdit, FaBan, FaToggleOn, FaToggleOff, FaFilter, FaTrashAlt, FaPercent } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import RoleGate from '../../components/RoleGate';
+import NiceSelect from '../../components/NiceSelect';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
 import { getBusinessNow } from '../../utils/timezoneUtils';
 import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
+import { getCurrencySymbol } from '../../constants/expenseScopes';
+
 
 const ACCOUNT_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
-const TYPE_LABELS = { ASSET: '💰 What You Own', LIABILITY: '📋 What You Owe', EQUITY: '🏦 Business Capital', INCOME: '📈 Money Coming In', EXPENSE: '📉 Money Going Out' };
+const TYPE_LABELS = { ASSET: 'Asset', LIABILITY: 'Liability', EQUITY: 'Equity', INCOME: 'Income', EXPENSE: 'Expense' };
 const TYPE_COLORS = { ASSET: '#10b981', LIABILITY: '#f59e0b', EQUITY: '#6366f1', INCOME: '#3b82f6', EXPENSE: '#ef4444' };
 
 const blankAccount = {
@@ -133,9 +137,43 @@ export default function AccountingPage() {
 }
 
 function AccountingContent() {
-  const { timezone, userRole } = useAuth();
-  const { notify } = useNotification();
+  const router = useRouter();
+  const { timezone, userRole, currency } = useAuth();
+  const SYM = getCurrencySymbol(currency);
+
+  const { notify, showConfirm } = useNotification();
   const canManagePostingErrors = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+
+  // Superadmin org/terminal filter states
+  const [organizations, setOrganizations] = useState([]);
+  const [allTerminals, setAllTerminals] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
+  const [selectedTerminalId, setSelectedTerminalId] = useState('');
+
+  // Load organizations and terminals for superadmin
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    Promise.all([
+      api.get('/api/v1/organizations'),
+      api.get('/api/v1/terminals')
+    ]).then(([orgRes, termRes]) => {
+      if (orgRes.data?.success) setOrganizations(orgRes.data.data || []);
+      if (termRes.data?.success) setAllTerminals(termRes.data.data || []);
+    }).catch(() => {});
+  }, [isSuperAdmin]);
+
+  // When org changes, clear terminal selection
+  const handleOrgChange = (val) => {
+    setSelectedOrgId(val);
+    setSelectedTerminalId('');
+  };
+
+  // Terminals filtered by selected org
+  const filteredTerminals = useMemo(() => {
+    if (!selectedOrgId) return allTerminals;
+    return allTerminals.filter(t => t.orgId === selectedOrgId || t.organization?.id === selectedOrgId);
+  }, [allTerminals, selectedOrgId]);
 
   // State
   const [activeTab, setActiveTab] = useState('accounts');
@@ -158,9 +196,131 @@ function AccountingContent() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [period, setPeriod] = useState(() => defaultAccountingPeriod(timezone));
-  const [appliedPeriod, setAppliedPeriod] = useState(() => defaultAccountingPeriod(timezone));
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [editAccountForm, setEditAccountForm] = useState(blankAccount);
+  const [savingEditAccount, setSavingEditAccount] = useState(false);
+  const [togglingAccountId, setTogglingAccountId] = useState(null);
   const [sortBy, setSortBy] = useState('entryDate');
   const [sortDir, setSortDir] = useState('DESC');
+  const [accountsSortBy, setAccountsSortBy] = useState('code');
+  const [accountsSortDir, setAccountsSortDir] = useState('ASC');
+  const [journalTypeFilter, setJournalTypeFilter] = useState('all');
+  const [voidingJournalId, setVoidingJournalId] = useState(null);
+  const [showAddEntryModal, setShowAddEntryModal] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState(null);
+
+  const handleDateFromChange = (value) => {
+    if (!value) return;
+    setPeriod(current => {
+      const next = { ...current, from: value };
+      const fromDate = new Date(next.from);
+      const toDate = new Date(next.to);
+      if (!Number.isNaN(fromDate.getTime()) && !Number.isNaN(toDate.getTime())) {
+        if (fromDate > toDate) {
+          notify('error', 'From date must be before to date');
+          return current;
+        }
+        const days = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (days > 366) {
+          notify('error', 'Accounting date range cannot exceed 366 days');
+          return current;
+        }
+      }
+      setJournalForm(jf => ({
+        ...jf,
+        entryDate: jf.entryDate && isWithinPeriod(jf.entryDate, next)
+          ? jf.entryDate
+          : suggestedJournalDateForPeriod(next)
+      }));
+      return next;
+    });
+  };
+
+  const handleDateToChange = (value) => {
+    if (!value) return;
+    setPeriod(current => {
+      const next = { ...current, to: value };
+      const fromDate = new Date(next.from);
+      const toDate = new Date(next.to);
+      if (!Number.isNaN(fromDate.getTime()) && !Number.isNaN(toDate.getTime())) {
+        if (fromDate > toDate) {
+          notify('error', 'From date must be before to date');
+          return current;
+        }
+        const days = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (days > 366) {
+          notify('error', 'Accounting date range cannot exceed 366 days');
+          return current;
+        }
+      }
+      setJournalForm(jf => ({
+        ...jf,
+        entryDate: jf.entryDate && isWithinPeriod(jf.entryDate, next)
+          ? jf.entryDate
+          : suggestedJournalDateForPeriod(next)
+      }));
+      return next;
+    });
+  };
+
+  const InfoTooltip = ({ id, text }) => {
+    const isOpen = activeTooltip === id;
+    const ref = React.useRef(null);
+    const [coords, setCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+    const [arrowCoords, setArrowCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+
+    useEffect(() => {
+      if (isOpen) {
+        if (ref.current) {
+          const rect = ref.current.getBoundingClientRect();
+          const screenWidth = window.innerWidth;
+          
+          if (rect.left < 16) {
+            setCoords({ left: '-16px', transform: 'none', right: 'auto' });
+            setArrowCoords({ left: '20px', transform: 'none', right: 'auto' });
+          } else if (rect.right > screenWidth - 16) {
+            setCoords({ right: '-16px', left: 'auto', transform: 'none' });
+            setArrowCoords({ right: '20px', left: 'auto', transform: 'none' });
+          } else {
+            setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+            setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+          }
+        }
+      } else {
+        setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+        setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+      }
+    }, [isOpen]);
+
+    return (
+      <span
+        className="custom-tooltip-wrapper"
+        onMouseEnter={() => {
+          if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+            setActiveTooltip(id);
+          }
+        }}
+        onMouseLeave={() => {
+          if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+            if (activeTooltip === id) setActiveTooltip(null);
+          }
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveTooltip(isOpen ? null : id);
+        }}
+      >
+        <FaInfoCircle className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`} />
+        {isOpen && (
+          <span ref={ref} className="custom-tooltip-box" style={coords} onClick={(e) => e.stopPropagation()}>
+            {text}
+            <span className="custom-tooltip-arrow" style={arrowCoords} />
+          </span>
+        )}
+      </span>
+    );
+  };
 
   const [accountForm, setAccountForm] = useState(blankAccount);
   const [journalForm, setJournalForm] = useState(() => {
@@ -173,7 +333,7 @@ function AccountingContent() {
   });
 
   const fetchAccountingData = useCallback(async (periodOverride = null) => {
-    const effectivePeriod = periodOverride || appliedPeriod;
+    const effectivePeriod = periodOverride || period;
     setLoadError(null);
     setDetailLoadError(null);
     setInitialLoading(true);
@@ -181,6 +341,8 @@ function AccountingContent() {
 
     try {
       const periodParams = { from: toInstant(effectivePeriod.from), to: toInstant(effectivePeriod.to) };
+      if (isSuperAdmin && selectedOrgId) periodParams.orgId = selectedOrgId;
+      if (isSuperAdmin && selectedTerminalId) periodParams.terminalId = selectedTerminalId;
       const journalParams = { ...periodParams, sortBy, sortDir };
 
       // Core queries: Accounts & Summary
@@ -265,14 +427,14 @@ function AccountingContent() {
       setInitialLoading(false);
       setDetailLoading(false);
     }
-  }, [appliedPeriod, canManagePostingErrors, notify, sortBy, sortDir]);
+  }, [period, canManagePostingErrors, notify, sortBy, sortDir, selectedOrgId, selectedTerminalId, isSuperAdmin]);
 
   const handleSyncPastData = async () => {
     setSyncing(true);
     try {
       const resp = await api.post('/api/v1/accounting/backfill', {
-        from: toInstant(appliedPeriod.from),
-        to: toInstant(appliedPeriod.to),
+        from: toInstant(period.from),
+        to: toInstant(period.to),
         sourceTypes: ['INVOICE', 'PAYMENT', 'COGS', 'STOCK', 'EXPENSE', 'PURCHASE'],
         dryRun: false
       }, {
@@ -354,21 +516,59 @@ function AccountingContent() {
       );
     });
 
-    const direction = sortDir === 'ASC' ? 1 : -1;
+    const direction = accountsSortDir === 'ASC' ? 1 : -1;
     return [...filtered].sort((a, b) => {
-      if (sortBy === 'totalDebit') {
-        const amountDiff = Math.abs(numberValue(a.periodNet)) - Math.abs(numberValue(b.periodNet));
-        if (amountDiff !== 0) return amountDiff * direction;
+      let valA = null;
+      let valB = null;
+
+      if (accountsSortBy === 'name') {
+        return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }) * direction;
+      } else if (accountsSortBy === 'type') {
+        return String(a.accountType || '').localeCompare(String(b.accountType || ''), undefined, { sensitivity: 'base' }) * direction;
+      } else if (accountsSortBy === 'beforePeriod') {
+        valA = numberValue(a.periodOpening);
+        valB = numberValue(b.periodOpening);
+      } else if (accountsSortBy === 'moneyIn') {
+        valA = numberValue(a.periodDebit);
+        valB = numberValue(b.periodDebit);
+      } else if (accountsSortBy === 'moneyOut') {
+        valA = numberValue(a.periodCredit);
+        valB = numberValue(b.periodCredit);
+      } else if (accountsSortBy === 'netChange') {
+        valA = numberValue(a.periodNet);
+        valB = numberValue(b.periodNet);
+      } else if (accountsSortBy === 'afterPeriod') {
+        valA = numberValue(a.periodClosing);
+        valB = numberValue(b.periodClosing);
+      } else if (accountsSortBy === 'totalDebit') {
+        valA = Math.abs(numberValue(a.periodNet));
+        valB = Math.abs(numberValue(b.periodNet));
+      } else {
+        // default / code
+        const codeCompare = String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+        if (codeCompare !== 0) return codeCompare * direction;
+        return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }) * direction;
       }
-      const codeCompare = String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
-      if (codeCompare !== 0) return codeCompare * direction;
-      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }) * direction;
+
+      if (valA !== null && valB !== null) {
+        return (valA - valB) * direction;
+      }
+      return 0;
     });
-  }, [accounts, searchTerm, sortBy, sortDir]);
+  }, [accounts, searchTerm, accountsSortBy, accountsSortDir]);
 
   const sortedJournals = useMemo(() => {
-    return journals;
-  }, [journals]);
+    if (journalTypeFilter === 'all') return journals;
+    return journals.filter(entry => {
+      const source = String(entry.sourceType || '').toUpperCase();
+      if (journalTypeFilter === 'payment') return source.includes('PAYMENT');
+      if (journalTypeFilter === 'invoice') return source.includes('INVOICE') || source.includes('BILL') || source.includes('RECEIPT');
+      if (journalTypeFilter === 'inventory') return source.includes('COGS') || source.includes('STOCK');
+      if (journalTypeFilter === 'reversal') return source.includes('REV');
+      if (journalTypeFilter === 'journal') return !source.includes('PAYMENT') && !source.includes('INVOICE') && !source.includes('BILL') && !source.includes('RECEIPT') && !source.includes('COGS') && !source.includes('STOCK') && !source.includes('REV');
+      return true;
+    });
+  }, [journals, journalTypeFilter]);
 
   const accountOptions = useMemo(() => {
     return accounts.map(account => ({
@@ -395,8 +595,8 @@ function AccountingContent() {
   const summaryValue = useCallback((key) => numberValue(summary?.[key]), [summary]);
 
   const periodLabel = useMemo(() => {
-    return `Showing accounting data from ${formatPeriodValue(appliedPeriod.from)} to ${formatPeriodValue(appliedPeriod.to)}`;
-  }, [appliedPeriod]);
+    return `Showing accounting data from ${formatPeriodValue(period.from)} to ${formatPeriodValue(period.to)}`;
+  }, [period]);
 
   // CSV Export utility
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -407,7 +607,7 @@ function AccountingContent() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}_${appliedPeriod.from.split('T')[0]}.csv`;
+    a.download = `${filename}_${period.from.split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -415,8 +615,8 @@ function AccountingContent() {
   };
 
   const journalOutsideSelectedPeriod = useMemo(() => {
-    return journalForm.entryDate && !isWithinPeriod(journalForm.entryDate, appliedPeriod);
-  }, [journalForm.entryDate, appliedPeriod]);
+    return journalForm.entryDate && !isWithinPeriod(journalForm.entryDate, period);
+  }, [journalForm.entryDate, period]);
 
   // Display map helper for journal entry rows
   const journalDisplay = useCallback((entry) => {
@@ -489,6 +689,7 @@ function AccountingContent() {
       if (resp.data.success) {
         notify('success', 'Account created');
         setAccountForm(blankAccount);
+        setShowAddAccountModal(false);
         await fetchAccountingData();
       }
     } catch (err) {
@@ -498,60 +699,121 @@ function AccountingContent() {
     }
   };
 
-  const handleResyncAll = async () => {
-    if (!window.confirm('This safely rebuilds auto-posted accounting entries only. Manual journals will be preserved.\n\nContinue?')) return;
-    setSyncing(true);
+  const handleUpdateAccount = async (event) => {
+    event.preventDefault();
+    if (!editAccountForm.name.trim()) {
+      notify('error', 'Account name is required');
+      return;
+    }
+    setSavingEditAccount(true);
     try {
-      const resp = await api.post('/api/v1/accounting/resync-all', null, {
-        skipOfflineQueue: true
-      });
+      const payload = {
+        name: editAccountForm.name.trim(),
+        accountType: editAccountForm.accountType,
+        accountSubType: editAccountForm.accountSubType,
+        openingBalance: numberValue(editAccountForm.openingBalance),
+        currentBalance: numberValue(editAccountForm.currentBalance),
+        cashAccount: editAccountForm.cashAccount,
+        bankAccount: editAccountForm.bankAccount,
+      };
+      const resp = await api.put(`/api/v1/accounting/accounts/${editingAccount.id}`, payload);
       if (resp.data.success) {
-        const d = resp.data.data || {};
-        const failures = Array.isArray(d.failures) ? d.failures.filter(Boolean) : [];
-        const summary = `Done: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`;
-        if ((d.failed || 0) > 0) {
-          const preview = failures.slice(0, 3).join('; ');
-          notify('warning', preview ? `${summary} Check: ${preview}` : summary);
-        } else {
-          notify('success', summary);
-        }
+        notify('success', 'Account updated');
+        setEditingAccount(null);
         await fetchAccountingData();
       }
     } catch (err) {
-      if (err.response?.status === 409) {
-        notify('error', 'Auto-entry rebuild could not clear old accounting links yet. Refresh and try again after the latest backend deploy.');
-      } else {
-        notify('error', err.response?.data?.message || 'Fix failed. Please try again.');
-      }
+      notify('error', err.response?.data?.message || 'Failed to update account');
     } finally {
-      setSyncing(false);
+      setSavingEditAccount(false);
     }
   };
 
-  const handleApplyPeriod = () => {
-    const fromDate = new Date(period.from);
-    const toDate = new Date(period.to);
-    if (!period.from || !period.to || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-      notify('error', 'Select both from and to dates');
+  const handleToggleAccountStatus = async (account) => {
+    const newStatus = account.isActive === 'Y' ? 'N' : 'Y';
+    const action = newStatus === 'N' ? 'Deactivate' : 'Activate';
+    showConfirm({
+      title: `${action} Account`,
+      message: `Are you sure you want to ${action.toLowerCase()} the account "${account.name}"?`,
+      onConfirm: async () => {
+        setTogglingAccountId(account.id);
+        try {
+          const resp = await api.put(`/api/v1/accounting/accounts/${account.id}`, {
+            ...account,
+            isActive: newStatus
+          });
+          if (resp.data.success) {
+            notify('success', `Account ${action.toLowerCase()}d`);
+            await fetchAccountingData();
+          }
+        } catch (err) {
+          notify('error', err.response?.data?.message || `Failed to ${action.toLowerCase()} account`);
+        } finally {
+          setTogglingAccountId(null);
+        }
+      }
+    });
+  };
+
+  const handleVoidJournal = async (entry) => {
+    const isManual = !entry.sourceType || String(entry.sourceType).toUpperCase() === 'MANUAL' || String(entry.sourceType).toUpperCase() === 'JOURNAL';
+    if (!isManual) {
+      notify('error', 'Only manually posted journal entries can be voided. Auto-entries are managed via Sync.');
       return;
     }
-    if (fromDate > toDate) {
-      notify('error', 'From date must be before to date');
-      return;
-    }
-    const days = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24);
-    if (days > 366) {
-      notify('error', 'Accounting date range cannot exceed 366 days');
-      return;
-    }
-    const nextPeriod = { ...period };
-    setAppliedPeriod(nextPeriod);
-    setJournalForm(current => ({
-      ...current,
-      entryDate: current.entryDate && isWithinPeriod(current.entryDate, nextPeriod)
-        ? current.entryDate
-        : suggestedJournalDateForPeriod(nextPeriod)
-    }));
+    showConfirm({
+      title: 'Void Journal Entry',
+      message: `Void entry ${entry.entryNo || entry.id}? This action cannot be undone and will reverse all debit/credit lines.`,
+      onConfirm: async () => {
+        setVoidingJournalId(entry.id);
+        try {
+          const resp = await api.post(`/api/v1/accounting/journals/${entry.id}/void`, {}, { skipOfflineQueue: true });
+          if (resp.data.success) {
+            notify('success', 'Journal entry voided');
+            await fetchAccountingData();
+          }
+        } catch (err) {
+          notify('error', err.response?.data?.message || 'Failed to void journal entry');
+        } finally {
+          setVoidingJournalId(null);
+        }
+      }
+    });
+  };
+
+  const handleResyncAll = async () => {
+    showConfirm({
+      title: 'Rebuild Auto Entries',
+      message: 'This safely rebuilds auto-posted accounting entries only. Manual journals will be preserved. Continue?',
+      onConfirm: async () => {
+        setSyncing(true);
+        try {
+          const resp = await api.post('/api/v1/accounting/resync-all', null, {
+            skipOfflineQueue: true
+          });
+          if (resp.data.success) {
+            const d = resp.data.data || {};
+            const failures = Array.isArray(d.failures) ? d.failures.filter(Boolean) : [];
+            const summary = `Done: ${d.posted || 0} posted, ${d.skipped || 0} skipped, ${d.failed || 0} failed.`;
+            if ((d.failed || 0) > 0) {
+              const preview = failures.slice(0, 3).join('; ');
+              notify('warning', preview ? `${summary} Check: ${preview}` : summary);
+            } else {
+              notify('success', summary);
+            }
+            await fetchAccountingData();
+          }
+        } catch (err) {
+          if (err.response?.status === 409) {
+            notify('error', 'Auto-entry rebuild could not clear old accounting links yet. Refresh and try again after the latest backend deploy.');
+          } else {
+            notify('error', err.response?.data?.message || 'Fix failed. Please try again.');
+          }
+        } finally {
+          setSyncing(false);
+        }
+      }
+    });
   };
 
   const updateJournalLine = (index, patch) => {
@@ -609,12 +871,12 @@ function AccountingContent() {
       if (resp.data.success) {
         notify('success', 'Journal posted');
         setJournalForm({
-          entryDate: suggestedJournalDateForPeriod(appliedPeriod),
+          entryDate: suggestedJournalDateForPeriod(period),
           description: '',
           lines: [blankJournalLine(), blankJournalLine()]
         });
+        setShowAddEntryModal(false);
         await fetchAccountingData();
-        setActiveTab('journals');
       }
     } catch (err) {
       notify('error', err.response?.data?.message || 'Failed to post journal');
@@ -655,83 +917,175 @@ function AccountingContent() {
   const otherActivePayments = numberValue(reconciliation?.otherActivePaymentsTotal);
   const unmatchedPaymentCount = numberValue(reconciliation?.unmatchedPaymentCount);
 
+  // Calculations styled exactly like Reports screen to ensure matched figures (inclusive tax)
+  const outputTax = summaryValue('outputTax');
+  const discounts = summaryValue('discounts');
+  const rawGrossSales = summaryValue('grossSales');
+  const grossSales = rawGrossSales + outputTax;
+  const netSales = grossSales - discounts;
+  const billedTotal = summaryValue('billedTotal');
+  const paymentCollected = summaryValue('paymentCollected');
+  const expenses = summaryValue('expenses') + summaryValue('cogsPurchases');
+  const profit = summaryValue('profit');
+
   return (
     <DashboardLayout title="Money Book" showBack={true}>
-      <div className="accounting-page">
-        {/* Period control panel */}
+      <div className="accounting-page" onClick={() => setActiveTooltip(null)}>
+        {/* Period control panel (exact alignment with Reports screen layout) */}
         <div className="period-toolbar top-period-toolbar">
-          <label>
-            From
-            <PremiumDateTimePicker value={period.from} onChange={value => setPeriod(current => ({ ...current, from: value }))} />
-          </label>
-          <label>
-            To
-            <PremiumDateTimePicker value={period.to} onChange={value => setPeriod(current => ({ ...current, to: value }))} />
-          </label>
-          <label className="small-control">
-            Sort by
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-              <option value="entryDate">Date</option>
-              <option value="entryNo">Entry #</option>
-              <option value="totalDebit">Amount</option>
-              <option value="createdAt">Created</option>
-            </select>
-          </label>
-          <label className="small-control">
-            Direction
-            <select value={sortDir} onChange={e => setSortDir(e.target.value)}>
-              <option value="DESC">Newest / High first</option>
-              <option value="ASC">Oldest / Low first</option>
-            </select>
-          </label>
-          <button type="button" className="primary-button" onClick={handleApplyPeriod}>Apply</button>
-          <button type="button" className="secondary-button" onClick={() => fetchAccountingData()}><FaRedo /> Refresh</button>
+          <PremiumDateTimePicker value={period.from} onChange={handleDateFromChange} />
+          <span className="period-sep">→</span>
+          <PremiumDateTimePicker value={period.to} onChange={handleDateToChange} />
+          {isSuperAdmin && (
+            <>
+              <span className="period-ctrl-sep" />
+              <NiceSelect
+                value={selectedOrgId}
+                onChange={handleOrgChange}
+                options={[
+                  { value: '', label: 'All Branches' },
+                  ...organizations.map(o => ({ value: o.id, label: o.name }))
+                ]}
+                style={{ minWidth: 140, maxWidth: 170 }}
+              />
+              <NiceSelect
+                value={selectedTerminalId}
+                onChange={setSelectedTerminalId}
+                options={[
+                  { value: '', label: 'All Terminals' },
+                  ...filteredTerminals.map(t => ({ value: t.id, label: t.name + (t.terminalCode ? ` (${t.terminalCode})` : '') }))
+                ]}
+                style={{ minWidth: 140, maxWidth: 170 }}
+              />
+            </>
+          )}
+          <button
+            type="button"
+            className="tax-reports-shortcut-btn"
+            onClick={() => router.push('/owner/tax-reports')}
+            title="View Tax Reports & Details"
+            style={{
+              minHeight: '38px', height: '38px', padding: '0 14px', fontSize: '12.5px',
+              background: '#fffbeb', border: '1.5px solid #fed7aa', color: '#ea580c',
+              borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              transition: 'all 0.15s',
+              whiteSpace: 'nowrap',
+              marginLeft: 'auto'
+            }}
+            onMouseOver={e => {
+              e.currentTarget.style.background = '#fef3c7';
+              e.currentTarget.style.borderColor = '#f59e0b';
+              e.currentTarget.style.color = '#b45309';
+            }}
+            onMouseOut={e => {
+              e.currentTarget.style.background = '#fffbeb';
+              e.currentTarget.style.borderColor = '#fed7aa';
+              e.currentTarget.style.color = '#ea580c';
+            }}
+          >
+            <FaPercent /> Tax Reports
+          </button>
         </div>
 
-        <div className="period-caption">{periodLabel}</div>
-
-        {/* Financial KPI summary cards */}
+        {/* Financial KPI summary cards (styled exactly like reports screen summary) */}
         <section className="summary-grid">
+          {/* Card 1: Gross Sales */}
+          <div className="summary-tile" style={{ borderLeft: '4px solid #0ea5e9' }}>
+            <div className="summary-tile-icon" style={{ background: '#f0f9ff', color: '#0ea5e9' }}><FaChartBar /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Gross Sales
+                <InfoTooltip id="grossSalesTip" text="Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts." />
+              </span>
+              <strong>{SYM}{money(grossSales)}</strong>
+            </div>
+          </div>
+
+          {/* Card 2: Discounts */}
+          <div className="summary-tile" style={{ borderLeft: '4px solid #ec4899' }}>
+            <div className="summary-tile-icon" style={{ background: '#fdf2f8', color: '#ec4899' }}><FaTag /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Discounts
+                <InfoTooltip id="discountsTip" text="Discounts: Total discount value deducted from orders. Includes both item-level and order-level discounts." />
+              </span>
+              <strong>{SYM}{money(discounts)}</strong>
+            </div>
+          </div>
+
+          {/* Card 3: Net Sales */}
+          <div className="summary-tile" style={{ borderLeft: '4px solid #16a34a' }}>
+            <div className="summary-tile-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}><FaChartLine /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Net Sales
+                <InfoTooltip id="netSalesTip" text="Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts." />
+              </span>
+              <strong style={{ color: '#16a34a' }}>{SYM}{money(netSales)}</strong>
+            </div>
+          </div>
+
+          {/* Card 4: Billed Total */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #10b981' }}>
-            <span>💰 Gross Sales</span>
-            <strong>₹{money(summaryValue('grossSales'))}</strong>
-            <small>For selected period</small>
+            <div className="summary-tile-icon" style={{ background: '#ecfdf5', color: '#10b981' }}><FaReceipt /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Billed Total
+                <InfoTooltip id="billedTotalTip" text="Billed Total: The actual amount collected from customers across all settled orders in this period." />
+              </span>
+              <strong>{SYM}{money(billedTotal)}</strong>
+            </div>
           </div>
+
+          {/* Card 5: Payment Collected */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #6366f1' }}>
-            <span>🏷️ Discounts</span>
-            <strong>₹{money(summaryValue('discounts'))}</strong>
-            <small>For selected period</small>
+            <div className="summary-tile-icon" style={{ background: '#e0e7ff', color: '#6366f1' }}><FaCreditCard /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Payment Collected
+                <InfoTooltip id="paymentCollectedTip" text="Payment Collected: Total money actually received via Cash, Cards, UPI, or other payment modes." />
+              </span>
+              <strong>{SYM}{money(paymentCollected)}</strong>
+            </div>
           </div>
-          <div className="summary-tile" style={{ borderLeft: '4px solid #3b82f6' }}>
-            <span>📈 Net Sales</span>
-            <strong style={{ color: '#3b82f6' }}>₹{money(summaryValue('netSales'))}</strong>
-            <small>For selected period</small>
-          </div>
+
+          {/* Card 6: Output Tax */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
-            <span>🧾 Billed Total</span>
-            <strong>₹{money(summaryValue('billedTotal'))}</strong>
-            <small>For selected period</small>
+            <div className="summary-tile-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><FaFileInvoice /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Output Tax
+                <InfoTooltip id="outputTaxTip" text="Output Tax: Tax collected from customers that must be paid to the government. This is excluded from net profit calculations." />
+              </span>
+              <strong>{SYM}{money(outputTax)}</strong>
+            </div>
           </div>
-          <div className="summary-tile" style={{ borderLeft: '4px solid #06b6d4' }}>
-            <span>💳 Payment Collected</span>
-            <strong>₹{money(summaryValue('paymentCollected'))}</strong>
-            <small>For selected period</small>
+
+          {/* Card 7: Expenses + COGS */}
+          <div className="summary-tile" style={{ borderLeft: '4px solid #f43f5e' }}>
+            <div className="summary-tile-icon" style={{ background: '#ffe4e6', color: '#f43f5e' }}><FaArrowDown /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Expenses + COGS
+                <InfoTooltip id="expensesTip" text="Expenses + COGS: Total operating expenses plus product Cost of Goods Sold." />
+              </span>
+              <strong style={{ color: '#ef4444' }}>{SYM}{money(expenses)}</strong>
+            </div>
           </div>
-          <div className="summary-tile" style={{ borderLeft: '4px solid #f97316' }}>
-            <span>🧮 Output Tax</span>
-            <strong>₹{money(summaryValue('outputTax'))}</strong>
-            <small>For selected period</small>
+
+          {/* Card 8: Profit */}
+          <div className="summary-tile" style={{ borderLeft: `4px solid ${profit >= 0 ? '#10b981' : '#ef4444'}` }}>
+            <div className="summary-tile-icon" style={{ background: profit >= 0 ? '#ecfdf5' : '#fef2f2', color: profit >= 0 ? '#10b981' : '#ef4444' }}><FaCheckCircle /></div>
+            <div style={{ display: 'contents' }}>
+              <span>
+                Profit
+                <InfoTooltip id="profitTip" text="Net Profit: Final business profit after subtracting all discounts, tax component, COGS, and operating expenses." />
+              </span>
+              <strong style={{ color: profit >= 0 ? '#10b981' : '#ef4444' }}>{SYM}{money(profit)}</strong>
+            </div>
           </div>
-          <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
-            <span>📉 Expenses + COGS</span>
-            <strong style={{ color: '#ef4444' }}>₹{money(summaryValue('expenses') + summaryValue('cogsPurchases'))}</strong>
-            <small>For selected period</small>
-          </div>
-          <div className="summary-tile" style={{ borderLeft: `4px solid ${summaryValue('profit') >= 0 ? '#10b981' : '#ef4444'}` }}>
-            <span>✅ Profit</span>
-            <strong style={{ color: summaryValue('profit') >= 0 ? '#10b981' : '#ef4444' }}>₹{money(summaryValue('profit'))}</strong>
-            <small>For selected period</small>
-          </div>
+
         </section>
 
         {/* Main Work Area */}
@@ -741,11 +1095,13 @@ function AccountingContent() {
               <div className="page-title"><FaWallet /> Money Book</div>
               <p>Track all your money — accounts, transactions, and balances in one place.</p>
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="workspace-header-actions">
               <button className="primary-button" onClick={handleSyncPastData} disabled={syncing} title="Sync all past sales, expenses & payments into accounting">
                 <FaSync style={syncing ? { animation: 'spin 1s linear infinite' } : {}} /> {syncing ? 'Syncing...' : 'Sync Selected Period'}
               </button>
-              <button className="secondary-button" onClick={handleResyncAll} disabled={syncing} title="Rebuild only auto-posted accounting entries. Manual journals stay untouched." style={{ fontSize: '10px', padding: '6px 10px', borderColor: '#ef4444', color: '#ef4444' }}>
+
+
+              <button className="btn-danger-outline" onClick={handleResyncAll} disabled={syncing} title="Rebuild only auto-posted accounting entries. Manual journals stay untouched.">
                 Fix Auto Entries
               </button>
               <button className="icon-button" onClick={() => fetchAccountingData()} title="Refresh">
@@ -761,7 +1117,6 @@ function AccountingContent() {
           {/* Sub-tabs selection */}
           <div className="tab-row">
             <button className={activeTab === 'accounts' ? 'active' : ''} onClick={() => setActiveTab('accounts')}><FaBook /> Money Accounts</button>
-            <button className={activeTab === 'post' ? 'active' : ''} onClick={() => setActiveTab('post')}><FaPlus /> Add Entry</button>
             <button className={activeTab === 'journals' ? 'active' : ''} onClick={() => setActiveTab('journals')}><FaExchangeAlt /> Transaction History</button>
             <button className={activeTab === 'trial' ? 'active' : ''} onClick={() => setActiveTab('trial')}><FaChartPie /> Balance Summary</button>
           </div>
@@ -799,174 +1154,144 @@ function AccountingContent() {
             </div>
           )}
 
-          {reconciliation?.outOfSync && (
-            <div className="recon-warning">
-              {reconciliation.warnings?.join(' ')} Use Sync Selected Period if these are expected old records.
-            </div>
-          )}
-
-          {reconciliation && (
-            <div className="recon-summary">
-              <div className="recon-copy">
-                <strong>Sales & Payment Reconciliation</strong>
-                <span>Billed sales come from completed sales. Linked payments are attached to those sales. Other active payments explain any cash difference.</span>
-              </div>
-              <div className="recon-grid">
-                <div><span>Billed Sales</span><strong>₹{money(reconciliation.billedSalesTotal)}</strong></div>
-                <div><span>Linked Payments</span><strong>₹{money(reconciliation.linkedSalesPaymentsTotal)}</strong></div>
-                <div className={otherActivePayments > 0 ? 'warn' : ''}><span>Other Active Payments</span><strong>₹{money(reconciliation.otherActivePaymentsTotal)}</strong></div>
-                <div><span>Payment Collected</span><strong>₹{money(reconciliation.paymentCollectedTotal)}</strong></div>
-              </div>
-              {otherActivePayments > 0 && (
-                <div className="recon-warning compact">
-                  Other active payments: ₹{money(otherActivePayments)}
-                  {unmatchedPaymentCount > 0 ? ` across ${unmatchedPaymentCount} payment(s)` : ''}. These are counted in cash/accounting but not linked to completed sales in this period.
-                </div>
-              )}
-            </div>
-          )}
-
           {/* TAB 1: Money Accounts */}
           {activeTab === 'accounts' && (
-            <div className="split-layout">
-              {/* Left pane: account creation form */}
-              <form className="panel" onSubmit={handleCreateAccount}>
-                <h3>➕ Add New Account</h3>
-                <div className="form-grid">
-                  <label>
-                    Account #
-                    <input value={accountForm.code} onChange={e => setAccountForm({ ...accountForm, code: e.target.value.toUpperCase() })} placeholder="e.g. 1001" />
-                  </label>
-                  <label>
-                    Account Name
-                    <input value={accountForm.name} onChange={e => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="e.g. Cash Register" />
-                  </label>
-                  <label>
-                    Type
-                    <select value={accountForm.accountType} onChange={e => setAccountForm({ ...accountForm, accountType: e.target.value })}>
-                      {ACCOUNT_TYPES.map(type => <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    Category
-                    <input value={accountForm.accountSubType} onChange={e => setAccountForm({ ...accountForm, accountSubType: e.target.value })} placeholder="e.g. Cash, Bank, Sales" />
-                  </label>
-                  <label>
-                    Starting Amount (₹)
-                    <input type="number" step="0.01" value={accountForm.openingBalance} onChange={e => setAccountForm({ ...accountForm, openingBalance: e.target.value, currentBalance: e.target.value })} placeholder="0.00" />
-                  </label>
-                  <label>
-                    Current Amount (₹)
-                    <input type="number" step="0.01" value={accountForm.currentBalance} onChange={e => setAccountForm({ ...accountForm, currentBalance: e.target.value })} placeholder="0.00" />
-                  </label>
+            <div className="panel table-panel" style={{ borderRadius: '8px', border: '1px solid #eef2f7' }}>
+              <div className="panel-toolbar">
+                <div>
+                  <h3>Your Money Accounts</h3>
+                  <p className="section-helper">Before/After include previous posted entries. Money In/Out and Net Change are only for the selected period.</p>
                 </div>
-                <div className="flag-row">
-                  <label><input type="checkbox" checked={accountForm.cashAccount} onChange={e => setAccountForm({ ...accountForm, cashAccount: e.target.checked })} /> 💵 This is a cash register</label>
-                  <label><input type="checkbox" checked={accountForm.bankAccount} onChange={e => setAccountForm({ ...accountForm, bankAccount: e.target.checked })} /> 🏦 This is a bank account</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    style={{ minHeight: '38px', height: '38px', padding: '0 14px', fontSize: '13px' }}
+                    onClick={() => setShowAddAccountModal(true)}
+                  >
+                    <FaPlus /> Add Account
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      minHeight: '38px', height: '38px', padding: '0 14px', fontSize: '13px',
+                      background: '#fff', border: '1.5px solid #f97316', color: '#f97316',
+                      borderRadius: '10px', fontWeight: 700, cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.background = '#fff7ed'; }}
+                    onMouseOut={e => { e.currentTarget.style.background = '#fff'; }}
+                    onClick={() => setShowAddEntryModal(true)}
+                    disabled={accounts.length === 0}
+                    title="Add a manual journal entry"
+                  >
+                    <FaPlus /> Add Entry
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => exportCSV(
+                      ['Account Code', 'Account Name', 'Type', 'Before Period', 'Money In', 'Money Out', 'Net Change', 'After Period', 'Status'],
+                      displayedAccounts.map(a => [
+                        a.code, a.name, a.accountType, a.periodOpening, a.periodDebit, a.periodCredit, a.periodNet, a.periodClosing, a.isActive === 'Y' ? 'Active' : 'Inactive'
+                      ].map(csvCell).join(',')),
+                      'money_accounts'
+                    )}
+                  >
+                    <FaFileCsv /> Export CSV
+                  </button>
                 </div>
-                <button className="primary-button" type="submit" disabled={savingAccount}>
-                  <FaPlus /> {savingAccount ? 'Adding...' : '+ Add Account'}
-                </button>
-              </form>
+              </div>
 
-              {/* Right pane: accounts listing */}
-              <div className="panel table-panel">
-                <div className="panel-toolbar">
-                  <div>
-                    <h3>Your Money Accounts</h3>
-                    <p className="section-helper">Before/After include previous posted entries. Money In/Out and Net Change are only for the selected period.</p>
+              <div className="panel-filter-bar">
+                <div className="panel-filters">
+                  <div className="period-select-wrapper">
+                    <span className="select-label">Sort by</span>
+                    <NiceSelect
+                      value={accountsSortBy}
+                      onChange={setAccountsSortBy}
+                      options={[
+                        { value: 'code', label: 'Account Code' },
+                        { value: 'name', label: 'Account Name' },
+                        { value: 'type', label: 'Account Type' },
+                        { value: 'beforePeriod', label: 'Before Period' },
+                        { value: 'moneyIn', label: 'Money In' },
+                        { value: 'moneyOut', label: 'Money Out' },
+                        { value: 'netChange', label: 'Net Change' },
+                        { value: 'afterPeriod', label: 'After Period' },
+                        { value: 'totalDebit', label: 'Net Change (Abs)' }
+                      ]}
+                      style={{ minHeight: '38px', height: '38px', minWidth: '120px' }}
+                    />
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                      onClick={() => exportCSV(
-                        ['Account Code', 'Account Name', 'Type', 'Before Period', 'Money In', 'Money Out', 'Net Change', 'After Period', 'Status'],
-                        displayedAccounts.map(a => [
-                          a.code, a.name, a.accountType, a.periodOpening, a.periodDebit, a.periodCredit, a.periodNet, a.periodClosing, a.isActive === 'Y' ? 'Active' : 'Inactive'
-                        ].map(csvCell).join(',')),
-                        'money_accounts'
-                      )}
-                    >
-                      <FaFileCsv /> Export CSV
-                    </button>
-                    <div className="search-field"><FaSearch /><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search..." /></div>
+                  <div className="period-select-wrapper">
+                    <span className="select-label">Direction</span>
+                    <NiceSelect
+                      value={accountsSortDir}
+                      onChange={setAccountsSortDir}
+                      options={[
+                        { value: 'ASC', label: 'Ascending' },
+                        { value: 'DESC', label: 'Descending' }
+                      ]}
+                      style={{ minHeight: '38px', height: '38px', minWidth: '160px' }}
+                    />
                   </div>
                 </div>
-                <div className="table-wrap">
-                  <table>
-                    <thead><tr><th>#</th><th>Account Name</th><th>Type</th><th className="amount">Before Period</th><th className="amount">Money In</th><th className="amount">Money Out</th><th className="amount">Net Change</th><th className="amount">After Period</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {displayedAccounts.map(account => (
-                        <tr key={account.id}>
-                          <td className="mono">{account.code}</td>
-                          <td>{account.name}</td>
-                          <td><span style={{ color: TYPE_COLORS[account.accountType] || '#64748b', fontWeight: 800, fontSize: '11px' }}>{TYPE_LABELS[account.accountType] || account.accountType}</span></td>
-                          <td className="amount">₹{money(account.periodOpening)}</td>
-                          <td className="amount" style={{ color: '#10b981' }}>₹{money(account.periodDebit)}</td>
-                          <td className="amount" style={{ color: '#ef4444' }}>₹{money(account.periodCredit)}</td>
-                          <td className="amount" style={{ color: numberValue(account.periodNet) >= 0 ? '#10b981' : '#ef4444' }}>₹{money(account.periodNet)}</td>
-                          <td className="amount">₹{money(account.periodClosing)}</td>
-                          <td><span className={`status ${account.isActive === 'Y' ? 'active' : 'inactive'}`}>{account.isActive === 'Y' ? 'Active' : 'Inactive'}</span></td>
-                        </tr>
-                      ))}
-                      {displayedAccounts.length === 0 && (
-                        <tr><td colSpan={9} className="empty-cell">No accounts found for this selected period.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="search-field" style={{ minWidth: '220px' }}>
+                  <FaSearch />
+                  <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search..." />
                 </div>
+              </div>
+              <div className="rpt-tbl-wrap">
+                <table className="rpt-tbl">
+                  <thead><tr><th>#</th><th>Account Name</th><th>Type</th><th className="amount">Before Period</th><th className="amount">Money In</th><th className="amount">Money Out</th><th className="amount">Net Change</th><th className="amount">After Period</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {displayedAccounts.map(account => (
+                      <tr key={account.id}>
+                        <td className="mono">{account.code}</td>
+                        <td>{account.name}</td>
+                        <td><span style={{ color: TYPE_COLORS[account.accountType] || '#64748b', fontWeight: 800, fontSize: '11px' }}>{TYPE_LABELS[account.accountType] || account.accountType}</span></td>
+                        <td className="amount">{SYM}{money(account.periodOpening)}</td>
+                        <td className="amount" style={{ color: '#10b981' }}>{SYM}{money(account.periodDebit)}</td>
+                        <td className="amount" style={{ color: '#ef4444' }}>{SYM}{money(account.periodCredit)}</td>
+                        <td className="amount" style={{ color: numberValue(account.periodNet) >= 0 ? '#10b981' : '#ef4444' }}>{SYM}{money(account.periodNet)}</td>
+                        <td className="amount">{SYM}{money(account.periodClosing)}</td>
+
+                        <td><span className={`status ${account.isActive === 'Y' ? 'active' : 'inactive'}`}>{account.isActive === 'Y' ? 'Active' : 'Inactive'}</span></td>
+                        <td>
+                          <div className="tbl-actions">
+                            <button
+                              type="button"
+                              className="tbl-btn tbl-btn-edit"
+                              title="Edit Account"
+                              onClick={() => { setEditingAccount(account); setEditAccountForm({ ...account }); }}
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              type="button"
+                              className={`tbl-btn ${account.isActive === 'Y' ? 'tbl-btn-activate' : 'tbl-btn-deactivate'}`}
+                              title={account.isActive === 'Y' ? 'Deactivate Account' : 'Activate Account'}
+                              disabled={togglingAccountId === account.id}
+                              onClick={() => handleToggleAccountStatus(account)}
+                            >
+                              {account.isActive === 'Y' ? <FaToggleOn /> : <FaToggleOff />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {displayedAccounts.length === 0 && (
+                      <tr><td colSpan={10} className="empty-cell">No accounts found for this selected period.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {/* TAB 2: Add Entry (Journal input form) */}
-          {activeTab === 'post' && (
-            <form className="panel" onSubmit={handlePostJournal}>
-              <h3>📝 Add a Money Entry</h3>
-              <p className="section-helper">Manual entries posted here affect the selected period only if their entry date is inside this range.</p>
-              <div className="form-grid journal-meta">
-                <label>
-                  When did this happen?
-                  <input type="datetime-local" value={journalForm.entryDate} onChange={e => setJournalForm({ ...journalForm, entryDate: e.target.value })} />
-                </label>
-                <label>
-                  What is this for?
-                  <input value={journalForm.description} onChange={e => setJournalForm({ ...journalForm, description: e.target.value })} placeholder="e.g. Paid electricity bill" />
-                </label>
-              </div>
-              {journalOutsideSelectedPeriod && (
-                <div className="inline-warning">This entry date is outside the selected period, so it will not appear in the current period view after posting.</div>
-              )}
-              <div className="journal-lines">
-                <div className="journal-head">
-                  <span>Account</span><span>Money In (+)</span><span>Money Out (-)</span><span>Note</span><span></span>
-                </div>
-                {journalForm.lines.map((line, index) => (
-                  <div className="journal-line" key={index}>
-                    <select value={line.accountId} onChange={e => updateJournalLine(index, { accountId: e.target.value })}>
-                      <option value="">Select account</option>
-                      {accountOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                    <input type="number" step="0.01" value={line.debit} onChange={e => updateJournalLine(index, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} placeholder="0.00" />
-                    <input type="number" step="0.01" value={line.credit} onChange={e => updateJournalLine(index, { credit: e.target.value, debit: e.target.value ? '' : line.debit })} placeholder="0.00" />
-                    <input value={line.description} onChange={e => updateJournalLine(index, { description: e.target.value })} placeholder="Line note" />
-                    <button type="button" className="line-remove" onClick={() => removeJournalLine(index)}>x</button>
-                  </div>
-                ))}
-              </div>
-              <div className="journal-footer">
-                <button type="button" className="secondary-button" onClick={addJournalLine}>+ Add Row</button>
-                <div className={`journal-total ${Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? 'balanced' : ''}`}>
-                  In: ₹{money(journalTotals.debit)} / Out: ₹{money(journalTotals.credit)} {Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? '✅ Balanced!' : '⚠️ Must match!'}
-                </div>
-                <button type="submit" className="primary-button" disabled={postingJournal || accounts.length === 0}>
-                  {postingJournal ? 'Saving...' : '✅ Save Entry'}
-                </button>
-              </div>
-            </form>
-          )}
 
           {/* TAB 3: Transaction History */}
           {activeTab === 'journals' && (
@@ -979,28 +1304,77 @@ function AccountingContent() {
                     <p className="section-helper">Showing the latest 500 transactions for this period. Narrow the date range for older entries.</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  onClick={() => exportCSV(
-                    ['Type', 'Document No', 'Date', 'Description', 'Received', 'Paid', 'Adjustment', 'Status'],
-                    journals.map(entry => {
-                      const view = journalDisplay(entry);
-                      return [
-                        view.type, view.documentNo, entry.entryDate, entry.description,
-                        view.received, view.paid, view.adjustment, entry.status
-                      ].map(csvCell).join(',');
-                    }),
-                    'transactions'
-                  )}
-                >
-                  <FaFileCsv /> Export CSV
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    style={{ minHeight: '38px', height: '38px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    onClick={() => exportCSV(
+                      ['Type', 'Document No', 'Date', 'Description', 'Received', 'Paid', 'Adjustment', 'Status'],
+                      journals.map(entry => {
+                        const view = journalDisplay(entry);
+                        return [
+                          view.type, view.documentNo, entry.entryDate, entry.description,
+                          view.received, view.paid, view.adjustment, entry.status
+                        ].map(csvCell).join(',');
+                      }),
+                      'transactions'
+                    )}
+                  >
+                    <FaFileCsv /> Export CSV
+                  </button>
+                </div>
               </div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th></tr></thead>
+
+              <div className="panel-filter-bar">
+                <div className="panel-filters">
+                  <div className="period-select-wrapper">
+                    <span className="select-label">Type</span>
+                    <NiceSelect
+                      value={journalTypeFilter}
+                      onChange={setJournalTypeFilter}
+                      options={[
+                        { value: 'all', label: 'All Types' },
+                        { value: 'payment', label: 'Payments' },
+                        { value: 'invoice', label: 'Sale Invoices' },
+                        { value: 'inventory', label: 'Inventory' },
+                        { value: 'reversal', label: 'Reversals' },
+                        { value: 'journal', label: 'Manual Journals' },
+                      ]}
+                      style={{ minHeight: '38px', height: '38px', minWidth: '140px' }}
+                    />
+                  </div>
+                  <div className="period-select-wrapper">
+                    <span className="select-label">Sort by</span>
+                    <NiceSelect
+                      value={sortBy}
+                      onChange={setSortBy}
+                      options={[
+                        { value: 'entryDate', label: 'Date' },
+                        { value: 'entryNo', label: 'Entry #' },
+                        { value: 'totalDebit', label: 'Amount' },
+                        { value: 'createdAt', label: 'Created' }
+                      ]}
+                      style={{ minHeight: '38px', height: '38px', minWidth: '120px' }}
+                    />
+                  </div>
+                  <div className="period-select-wrapper">
+                    <span className="select-label">Direction</span>
+                    <NiceSelect
+                      value={sortDir}
+                      onChange={setSortDir}
+                      options={[
+                        { value: 'DESC', label: 'Descending' },
+                        { value: 'ASC', label: 'Ascending' }
+                      ]}
+                      style={{ minHeight: '38px', height: '38px', minWidth: '160px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="rpt-tbl-wrap">
+                <table className="rpt-tbl">
+                  <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {sortedJournals.map(entry => {
                       const view = journalDisplay(entry);
@@ -1014,11 +1388,24 @@ function AccountingContent() {
                           <td className="amount" style={{ color: '#ef4444' }}>{view.paid ? `₹${money(view.paid)}` : '-'}</td>
                           <td className="amount">{view.adjustment ? `₹${money(view.adjustment)}` : '-'}</td>
                           <td><span className="status active">{entry.status}</span></td>
+                          <td>
+                            {view.type === 'Journal' && (
+                              <button
+                                type="button"
+                                className="tbl-btn tbl-btn-void"
+                                title="Void this journal entry"
+                                disabled={voidingJournalId === entry.id}
+                                onClick={() => handleVoidJournal(entry)}
+                              >
+                                <FaTrashAlt />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
-                    {journals.length === 0 && (
-                      <tr><td colSpan={8} className="empty-cell">No accounting transactions in this selected period.</td></tr>
+                    {sortedJournals.length === 0 && (
+                      <tr><td colSpan={9} className="empty-cell">{journalTypeFilter !== 'all' ? 'No transactions match this filter.' : 'No accounting transactions in this selected period.'}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1050,9 +1437,9 @@ function AccountingContent() {
                   <FaFileCsv /> Export CSV
                 </button>
               </div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>#</th><th>Account</th><th>Type</th><th>Money In</th><th>Money Out</th><th>Net Amount</th></tr></thead>
+              <div className="rpt-tbl-wrap">
+                <table className="rpt-tbl">
+                  <thead><tr><th>#</th><th>Account</th><th>Type</th><th className="amount">Money In</th><th className="amount">Money Out</th><th className="amount">Net Amount</th></tr></thead>
                   <tbody>
                     {trialBalance.map(row => (
                       <tr key={row.accountId}>
@@ -1075,21 +1462,469 @@ function AccountingContent() {
         </section>
       </div>
 
+      {showAddAccountModal && (
+        <div className="rpt-modal-overlay" onClick={() => setShowAddAccountModal(false)}>
+          <div className="rpt-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <h2 className="modal-title">Add New Account</h2>
+            <form onSubmit={handleCreateAccount} style={{ display: 'contents' }}>
+              <div className="modal-form">
+                <div className="form-grid" style={{ gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Account #</label>
+                    <input className="form-input" value={accountForm.code} onChange={e => setAccountForm({ ...accountForm, code: e.target.value.toUpperCase() })} placeholder="e.g. 1001" required />
+                  </div>
+                  <div className="form-group">
+                    <label>Account Name</label>
+                    <input className="form-input" value={accountForm.name} onChange={e => setAccountForm({ ...accountForm, name: e.target.value })} placeholder="e.g. Cash Register" required />
+                  </div>
+                  <div className="form-group">
+                    <label>Type</label>
+                    <NiceSelect
+                      value={accountForm.accountType}
+                      onChange={val => setAccountForm({ ...accountForm, accountType: val })}
+                      options={ACCOUNT_TYPES.map(type => ({ value: type, label: TYPE_LABELS[type] || type }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Category</label>
+                    <input className="form-input" value={accountForm.accountSubType} onChange={e => setAccountForm({ ...accountForm, accountSubType: e.target.value })} placeholder="e.g. Cash, Bank, Sales" />
+                  </div>
+                  <div className="form-group">
+                    <label>Starting Amount (₹)</label>
+                    <input className="form-input" type="number" step="0.01" value={accountForm.openingBalance} onChange={e => setAccountForm({ ...accountForm, openingBalance: e.target.value, currentBalance: e.target.value })} placeholder="0.00" />
+                  </div>
+                  <div className="form-group">
+                    <label>Current Amount (₹)</label>
+                    <input className="form-input" type="number" step="0.01" value={accountForm.currentBalance} onChange={e => setAccountForm({ ...accountForm, currentBalance: e.target.value })} placeholder="0.00" />
+                  </div>
+                </div>
+                <div className="flag-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0 0' }}>
+                  <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', color: '#334155' }}>
+                    <input type="checkbox" checked={accountForm.cashAccount} onChange={e => setAccountForm({ ...accountForm, cashAccount: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                    This is a cash register
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', color: '#334155' }}>
+                    <input type="checkbox" checked={accountForm.bankAccount} onChange={e => setAccountForm({ ...accountForm, bankAccount: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                    This is a bank account
+                  </label>
+                </div>
+              </div>
+              <div className="rpt-modal-actions">
+                <button type="button" onClick={() => setShowAddAccountModal(false)} className="rpt-modal-btn rpt-modal-btn-outline" disabled={savingAccount}>
+                  Cancel
+                </button>
+                <button type="submit" className="rpt-modal-btn rpt-modal-btn-primary" disabled={savingAccount}>
+                  {savingAccount ? 'Adding...' : 'Add Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingAccount && (
+        <div className="rpt-modal-overlay" onClick={() => setEditingAccount(null)}>
+          <div className="rpt-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
+            <h2 className="modal-title">Edit Account — {editingAccount.code}</h2>
+            <form onSubmit={handleUpdateAccount} style={{ display: 'contents' }}>
+              <div className="modal-form">
+                <div className="form-grid" style={{ gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Account Code</label>
+                    <input className="form-input" value={editAccountForm.code} disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} />
+                  </div>
+                  <div className="form-group">
+                    <label>Account Name</label>
+                    <input className="form-input" value={editAccountForm.name} onChange={e => setEditAccountForm({ ...editAccountForm, name: e.target.value })} placeholder="e.g. Cash Register" required />
+                  </div>
+                  <div className="form-group">
+                    <label>Type</label>
+                    <NiceSelect
+                      value={editAccountForm.accountType}
+                      onChange={val => setEditAccountForm({ ...editAccountForm, accountType: val })}
+                      options={ACCOUNT_TYPES.map(type => ({ value: type, label: TYPE_LABELS[type] || type }))}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Category</label>
+                    <input className="form-input" value={editAccountForm.accountSubType || ''} onChange={e => setEditAccountForm({ ...editAccountForm, accountSubType: e.target.value })} placeholder="e.g. Cash, Bank, Sales" />
+                  </div>
+                  <div className="form-group">
+                    <label>Opening Balance (₹)</label>
+                    <input className="form-input" type="number" step="0.01" value={editAccountForm.openingBalance} onChange={e => setEditAccountForm({ ...editAccountForm, openingBalance: e.target.value })} placeholder="0.00" />
+                  </div>
+                  <div className="form-group">
+                    <label>Current Balance (₹)</label>
+                    <input className="form-input" type="number" step="0.01" value={editAccountForm.currentBalance} onChange={e => setEditAccountForm({ ...editAccountForm, currentBalance: e.target.value })} placeholder="0.00" />
+                  </div>
+                </div>
+                <div className="flag-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0 0' }}>
+                  <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', color: '#334155' }}>
+                    <input type="checkbox" checked={editAccountForm.cashAccount} onChange={e => setEditAccountForm({ ...editAccountForm, cashAccount: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                    This is a cash register
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', color: '#334155' }}>
+                    <input type="checkbox" checked={editAccountForm.bankAccount} onChange={e => setEditAccountForm({ ...editAccountForm, bankAccount: e.target.checked })} style={{ width: '16px', height: '16px' }} />
+                    This is a bank account
+                  </label>
+                </div>
+              </div>
+              <div className="rpt-modal-actions">
+                <button type="button" onClick={() => setEditingAccount(null)} className="rpt-modal-btn rpt-modal-btn-outline" disabled={savingEditAccount}>
+                  Cancel
+                </button>
+                <button type="submit" className="rpt-modal-btn rpt-modal-btn-primary" disabled={savingEditAccount}>
+                  {savingEditAccount ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddEntryModal && (
+        <div className="rpt-modal-overlay" onClick={() => setShowAddEntryModal(false)}>
+          <div className="rpt-modal rpt-modal-wide" onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Add Manual Journal Entry</h2>
+            <form onSubmit={handlePostJournal} style={{ display: 'contents' }}>
+              <div className="modal-form">
+                <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Entry Date &amp; Time</label>
+                    <input
+                      className="form-input"
+                      type="datetime-local"
+                      value={journalForm.entryDate}
+                      onChange={e => setJournalForm({ ...journalForm, entryDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Description</label>
+                    <input
+                      className="form-input"
+                      value={journalForm.description}
+                      onChange={e => setJournalForm({ ...journalForm, description: e.target.value })}
+                      placeholder="e.g. Paid electricity bill"
+                    />
+                  </div>
+                </div>
+                {journalOutsideSelectedPeriod && (
+                  <div className="inline-warning" style={{ margin: '4px 0 8px' }}>
+                    This entry date is outside the selected period — it won't appear in the current view after posting.
+                  </div>
+                )}
+                <div className="journal-lines" style={{ margin: '12px 0 0' }}>
+                  <div className="journal-head">
+                    <span>Account</span><span>Money In (+)</span><span>Money Out (−)</span><span>Note</span><span></span>
+                  </div>
+                  {journalForm.lines.map((line, index) => (
+                    <div className="journal-line" key={index}>
+                      <NiceSelect
+                        value={line.accountId}
+                        onChange={val => updateJournalLine(index, { accountId: val })}
+                        options={accountOptions}
+                        placeholder="Select account"
+                        style={{ minHeight: '38px', height: '38px' }}
+                      />
+                      <input className="form-input" type="number" step="0.01" value={line.debit} onChange={e => updateJournalLine(index, { debit: e.target.value, credit: e.target.value ? '' : line.credit })} placeholder="0.00" />
+                      <input className="form-input" type="number" step="0.01" value={line.credit} onChange={e => updateJournalLine(index, { credit: e.target.value, debit: e.target.value ? '' : line.debit })} placeholder="0.00" />
+                      <input className="form-input" value={line.description} onChange={e => updateJournalLine(index, { description: e.target.value })} placeholder="Line note" />
+                      <button type="button" className="line-remove" onClick={() => removeJournalLine(index)}>×</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="rpt-modal-btn rpt-modal-btn-outline" style={{ marginTop: '10px', width: 'fit-content' }} onClick={addJournalLine}>+ Add Row</button>
+                <div className={`journal-total ${Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? 'balanced' : ''}`} style={{ margin: '10px 0 0' }}>
+                  Money In: ₹{money(journalTotals.debit)} &nbsp;/&nbsp; Money Out: ₹{money(journalTotals.credit)}
+                  &nbsp;{Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? '✓ Balanced' : '⚠ Must match'}
+                </div>
+              </div>
+              <div className="rpt-modal-actions">
+                <button type="button" onClick={() => setShowAddEntryModal(false)} className="rpt-modal-btn rpt-modal-btn-outline" disabled={postingJournal}>
+                  Cancel
+                </button>
+                <button type="submit" className="rpt-modal-btn rpt-modal-btn-primary" disabled={postingJournal || accounts.length === 0}>
+                  {postingJournal ? 'Saving...' : 'Post Entry'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         .accounting-page { padding: 24px 40px; min-height: calc(100vh - 80px); background: #f8fafc; color: #0f172a; }
-        .top-period-toolbar { margin-bottom: 10px; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 1px 3px rgba(15,23,42,0.04); }
-        .period-caption { margin: 0 0 14px; color: #64748b; font-size: 12px; font-weight: 800; }
-        .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-        .summary-tile { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-        .summary-tile span { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 800; }
-        .summary-tile strong { font-size: 22px; font-weight: 900; color: #0f172a; }
-        .summary-tile small { color: #94a3b8; font-size: 11px; font-weight: 800; }
+        .top-period-toolbar {
+          display: flex !important;
+          align-items: center !important;
+          gap: 12px !important;
+          margin-bottom: 20px;
+          background: #fff;
+          padding: 10px 16px !important;
+          border-radius: 16px;
+          border: 1px solid #f1f5f9;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+          width: 100%;
+          flex-wrap: nowrap;
+          box-sizing: border-box;
+        }
+        
+        :global(.custom-tooltip-wrapper) {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-left: 6px;
+          z-index: 30;
+        }
+        :global(.custom-tooltip-icon) {
+          color: #94a3b8;
+          font-size: 13.5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        :global(.custom-tooltip-icon:hover),
+        :global(.custom-tooltip-icon.active) {
+          color: #f97316;
+          transform: scale(1.15);
+        }
+        :global(.custom-tooltip-box) {
+          position: absolute;
+          bottom: 135%;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 220px;
+          background: #ea580c;
+          color: #ffffff;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-size: 11.5px;
+          font-weight: 600;
+          line-height: 1.45;
+          box-shadow: 0 10px 20px rgba(234, 88, 12, 0.3), 0 4px 6px rgba(0, 0, 0, 0.05);
+          z-index: 1000;
+          white-space: normal;
+          text-align: left;
+          text-transform: none;
+          animation: tooltip-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        :global(.custom-tooltip-arrow) {
+          position: absolute;
+          bottom: -6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 6px solid #ea580c;
+        }
+        @keyframes tooltip-fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        .rpt-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(15, 23, 42, 0.4);
+          backdrop-filter: blur(5px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+          padding: 12px;
+          animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .rpt-modal {
+          background: white;
+          padding: 24px;
+          border-radius: 16px;
+          width: 100%;
+          box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.15);
+          animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          display: grid;
+          gap: 16px;
+        }
+        .rpt-modal-wide {
+          max-width: 800px !important;
+        }
+        @keyframes slideUp {
+          from { transform: translateY(12px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-title {
+          font-size: 18px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+          letter-spacing: -0.01em;
+          border-bottom: 1.5px solid #f1f5f9;
+          padding-bottom: 10px;
+        }
+        .modal-form {
+          display: grid;
+          gap: 14px;
+        }
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .rpt-modal label {
+          font-size: 10px;
+          font-weight: 800;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: .5px;
+        }
+        .rpt-modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 8px;
+          border-top: 1px solid #f1f5f9;
+          padding-top: 16px;
+        }
+        .rpt-modal-btn {
+          height: 38px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          border: none;
+          transition: all 0.2s;
+          padding: 0 18px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .rpt-modal-btn-outline {
+          background: #fff;
+          border: 1.5px solid #e2e8f0;
+          color: #64748b;
+        }
+        .rpt-modal-btn-outline:hover {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+        }
+        .rpt-modal-btn-primary {
+          background: #f97316;
+          color: #fff;
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);
+        }
+        .rpt-modal-btn-primary:hover {
+          transform: translateY(-1.5px);
+          box-shadow: 0 6px 16px rgba(249, 115, 22, 0.35);
+          background: #ea580c;
+        }
+        .rpt-modal-btn-primary:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .form-input {
+          border: 1.5px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 11px 14px;
+          color: #1e293b;
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.15s ease;
+          background: #f8fafc;
+        }
+        .form-input:focus {
+          outline: none;
+          border-color: #f97316;
+          box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+          background: #ffffff;
+        }
+
+        .top-period-toolbar :global(.premium-dt-picker) {
+          width: 230px !important;
+          flex-shrink: 0;
+        }
+        .period-sep {
+          font-size: 16px;
+          color: #94a3b8;
+          font-weight: 700;
+          user-select: none;
+        }
+        .period-ctrl-sep {
+          width: 1px;
+          height: 24px;
+          background: #e2e8f0;
+          margin: 0 4px;
+        }
+        .period-select-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #475569;
+        }
+        .select-label {
+          font-size: 10px;
+          font-weight: 700;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+        }
+        .period-caption { margin: 0 0 16px 4px; color: #64748b; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .summary-tile {
+          position: relative;
+          z-index: 1;
+          background: #fff;
+          padding: 16px;
+          border-radius: 16px;
+          border: 1px solid #f1f5f9;
+          display: grid;
+          grid-template-areas: "label icon" "value icon";
+          grid-template-columns: 1fr auto;
+          grid-template-rows: auto auto;
+          align-items: center;
+          gap: 6px 12px;
+          transition: transform 0.2s, box-shadow 0.2s, z-index 0.2s;
+          min-height: 90px;
+          box-sizing: border-box;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+        .summary-tile:hover,
+        .summary-tile:focus-within,
+        .summary-tile:has(.custom-tooltip-icon.active) {
+          z-index: 25;
+        }
+        .summary-tile:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.03); }
+        .summary-tile span { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; }
+        .summary-tile strong { grid-area: value; font-size: 20px; font-weight: 800; color: #1e293b; line-height: 1.1; word-break: break-word; }
+        .summary-tile-icon { grid-area: icon; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
         .workspace { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: visible; }
         .workspace-header { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eef2f7; gap: 12px; }
         .page-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 900; }
         .title-block p { margin: 4px 0 0; color: #64748b; font-size: 13px; font-weight: 600; }
         .icon-button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
         .icon-button:hover { color: #f97316; border-color: #fed7aa; background: #fff7ed; }
+        .tbl-actions { display: flex; align-items: center; gap: 6px; }
+        .tbl-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #f8fafc; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px; transition: all 0.15s; }
+        .tbl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .tbl-btn-edit { color: #6366f1; border-color: #e0e7ff; background: #f5f3ff; }
+        .tbl-btn-edit:hover { background: #e0e7ff; border-color: #a5b4fc; color: #4338ca; }
+        .tbl-btn-deactivate { color: #f59e0b; border-color: #fde68a; background: #fffbeb; }
+        .tbl-btn-deactivate:hover { background: #fef3c7; border-color: #f59e0b; color: #b45309; }
+        .tbl-btn-activate { color: #10b981; border-color: #a7f3d0; background: #ecfdf5; }
+        .tbl-btn-activate:hover { background: #d1fae5; border-color: #10b981; color: #047857; }
+        .tbl-btn-void { color: #ef4444; border-color: #fecaca; background: #fef2f2; }
+        .tbl-btn-void:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
         .tab-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
         .tab-row button { border: 1px solid transparent; background: transparent; color: #64748b; border-radius: 8px; padding: 9px 12px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
         .tab-row button.active { background: #fff; color: #f97316; border-color: #fed7aa; box-shadow: 0 1px 3px rgba(15,23,42,0.06); }
@@ -1130,8 +1965,8 @@ function AccountingContent() {
         .panel h3 { margin: 0 0 14px; font-size: 15px; font-weight: 900; }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
         label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-        input, select { min-height: 38px; border: 1px solid #dbe3ef; border-radius: 8px; padding: 8px 10px; color: #0f172a; font-size: 13px; font-weight: 600; background: #fff; outline: none; }
-        input:focus, select:focus { border-color: #fb923c; box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
+        input:not(.form-input):not([type="checkbox"]), select:not(.form-input) { min-height: 38px; border: 1px solid #dbe3ef; border-radius: 8px; padding: 8px 10px; color: #0f172a; font-size: 13px; font-weight: 600; background: #fff; outline: none; }
+        input:not(.form-input):not([type="checkbox"]):focus, select:not(.form-input):focus { border-color: #fb923c; box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
         .flag-row { display: flex; gap: 14px; margin: 14px 0; flex-wrap: wrap; }
         .flag-row label { flex-direction: row; align-items: center; text-transform: none; font-size: 12px; }
         .flag-row input { min-height: auto; }
@@ -1139,17 +1974,71 @@ function AccountingContent() {
         .primary-button { background: #f97316; color: #fff; }
         .primary-button:disabled { opacity: .6; cursor: not-allowed; }
         .secondary-button { background: #eef6ff; color: #0369a1; }
-        .panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+        .workspace-header-actions { display: flex; gap: 8px; align-items: center; }
+        .workspace-header-actions .primary-button { height: 38px; min-height: 38px; font-size: 12.5px; }
+        .workspace-header-actions .btn-danger-outline {
+          height: 38px;
+          min-height: 38px;
+          border: 1.5px solid #fca5a5;
+          background: #fff;
+          color: #dc2626;
+          border-radius: 8px;
+          padding: 0 14px;
+          font-size: 12.5px;
+          font-weight: 900;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.2s;
+        }
+        .workspace-header-actions .btn-danger-outline:hover {
+          background: #fff5f5;
+          border-color: #ef4444;
+          color: #b91c1c;
+        }
+        .workspace-header-actions .btn-danger-outline:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .workspace-header-actions .icon-button {
+          width: 38px;
+          height: 38px;
+          min-height: 38px;
+          border-radius: 8px;
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          color: #64748b;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .workspace-header-actions .icon-button:hover {
+          color: #f97316;
+          border-color: #fed7aa;
+          background: #fff7ed;
+        }
+        .panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+        .panel-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+        .panel-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .section-helper { margin: -6px 0 12px; color: #64748b; font-size: 12px; font-weight: 700; line-height: 1.45; }
         .panel-toolbar .section-helper { margin: 4px 0 0; }
         .inline-warning { margin: -4px 0 12px; padding: 10px 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 8px; font-size: 12px; font-weight: 800; }
         .search-field { width: min(320px, 100%); height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #dbe3ef; border-radius: 8px; color: #94a3b8; }
         .search-field input { min-height: auto; border: 0; box-shadow: none; padding: 0; flex: 1; }
-        .table-wrap { overflow-x: auto; border: 1px solid #eef2f7; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; min-width: 920px; }
-        th { text-align: left; padding: 12px; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
-        td { padding: 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-        tr:last-child td { border-bottom: 0; }
+        .rpt-tbl-wrap{background:#fff;border-radius:16px;border:1px solid #e2e8f0;overflow:auto;box-shadow:0 1px 3px rgba(0,0,0,.02)}
+        .rpt-tbl{width:100%;border-collapse:collapse;min-width:920px}
+        .rpt-tbl th{background:#fff;padding:12px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #FF7A00}
+        .rpt-tbl td{padding:12px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#475569;vertical-align:middle;white-space:nowrap}
+        .rpt-tbl tr:last-child td{border-bottom:none}
+        .rpt-tbl tbody tr{cursor:default;transition:background .15s}
+        .rpt-tbl tbody tr:hover td{background:#fffbf5}
+        .rpt-tbl .r{text-align:right}
+        .rpt-tbl .amount{text-align:right}
+        .rpt-tbl th.amount{text-align:right;font-weight:600;color:#64748b}
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 800; color: #0f172a; }
         .amount { text-align: right; font-weight: 800; color: #0f172a; }
         .status { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 900; }
@@ -1177,11 +2066,20 @@ function AccountingContent() {
           .journal-line { grid-template-columns: 1fr; }
           .journal-meta, .form-grid { grid-template-columns: 1fr; }
           .panel-toolbar { align-items: stretch; flex-direction: column; }
+          .panel-filter-bar { flex-direction: column; align-items: stretch; gap: 12px; }
+          .panel-filters { flex-direction: column; align-items: stretch; gap: 8px; }
+          .panel-filters :global(.nice-select) { width: 100% !important; }
+          .panel-filter-bar .search-field { width: 100% !important; }
           .recon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .posting-error-row { grid-template-columns: 1fr; }
           .posting-error-meta { justify-content: flex-start; }
           .period-toolbar { align-items: stretch; }
           .period-toolbar label, .period-toolbar .primary-button, .period-toolbar .secondary-button { width: 100%; min-width: 0; }
+          .top-period-toolbar { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
+          .top-period-toolbar :global(.premium-dt-picker) { width: 100% !important; }
+          .period-ctrl-sep { display: none; }
+          .period-select-wrapper { width: 100%; justify-content: space-between; }
+          .period-select-wrapper :global(.nice-select) { flex: 1; }
         }
         @media (max-width: 560px) {
           .summary-grid { grid-template-columns: 1fr; }
