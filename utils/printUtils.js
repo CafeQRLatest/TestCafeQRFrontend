@@ -666,11 +666,8 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     }
     if (roundOff !== 0) lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
     lines.push(withMargins(dashes(), layout));
-<<<<<<< Updated upstream
     lines.push(MODE_BOLD + (is80 ? SIZE_2X : SIZE_2X) + withMargins(kvLineScaled("GRAND TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
-=======
-    lines.push(MODE_BOLD + SIZE_2X + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
->>>>>>> Stashed changes
+
     lines.push(withMargins(dashes(), layout));
 
     if (receiptFooter) pushWrappedCenteredText(lines, receiptFooter, W, layout);

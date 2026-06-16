@@ -14,6 +14,7 @@ import {
   FaServer,
   FaSync,
   FaTrash,
+  FaTimes,
 } from 'react-icons/fa';
 import api from '../utils/api';
 import {
@@ -37,6 +38,8 @@ import {
 } from '../utils/printServiceClient';
 import PrinterSetupCard from './PrinterSetupCard';
 import { printUniversal } from '../utils/printGateway';
+import NiceSelect from './NiceSelect';
+import CafeQRPopup from './CafeQRPopup';
 
 const newId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const SELECTED_TERMINAL_KEY = 'CAFEQR_PRINT_SELECTED_TERMINAL';
@@ -399,6 +402,32 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const [localAccessError, setLocalAccessError] = useState('');
   const [serviceTerminalSynced, setServiceTerminalSynced] = useState(false);
   const [localTokenInvalid, setLocalTokenInvalid] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+  });
+
+  const showConfirm = (title, message, onConfirm, options = {}) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+      confirmLabel: options.confirmLabel || 'Confirm',
+      cancelLabel: options.cancelLabel || 'Cancel',
+    });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  };
 
   const currentOrgId = Cookies.get('orgId') || '';
   const currentClientId = Cookies.get('clientId') || '';
@@ -907,25 +936,30 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   };
 
   const useCloudConfiguration = async () => {
-    if (!cloudConfiguration || !window.confirm(
-      'Replace the locally active printer configuration with the cloud version?'
-    )) return;
-    setBusy(true);
-    try {
-      const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudConfiguration));
-      const accepted = await acceptNativeCloudConfiguration(
-        effective,
-        cloudRevisionOf(cloudConfiguration)
-      );
-      setPrintConfig(effective);
-      setLocalConfiguration(accepted);
-      await refreshService();
-      showMessage('Cloud printing configuration applied locally.');
-    } catch (error) {
-      showMessage(error.message || 'Unable to apply the cloud configuration.');
-    } finally {
-      setBusy(false);
-    }
+    if (!cloudConfiguration) return;
+    showConfirm(
+      'Apply Cloud Configuration',
+      'Replace the locally active printer configuration with the cloud version?',
+      async () => {
+        setBusy(true);
+        try {
+          const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudConfiguration));
+          const accepted = await acceptNativeCloudConfiguration(
+            effective,
+            cloudRevisionOf(cloudConfiguration)
+          );
+          setPrintConfig(effective);
+          setLocalConfiguration(accepted);
+          await refreshService();
+          showMessage('Cloud printing configuration applied locally.');
+        } catch (error) {
+          showMessage(error.message || 'Unable to apply the cloud configuration.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      { confirmLabel: 'Replace Configuration' }
+    );
   };
 
   const refreshInstalledPrinters = async () => {
@@ -1003,15 +1037,17 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           </div>
         </div>
         {scopeType === 'TERMINAL' && (
-          <label className="field terminal-field">
+          <div className="field terminal-field">
             <span>Terminal</span>
-            <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
-              <option value="">Select terminal</option>
-              {terminals.map((terminal) => (
-                <option key={terminal.id} value={terminal.id}>{terminal.name}</option>
-              ))}
-            </select>
-          </label>
+            <NiceSelect
+              value={scopeId}
+              onChange={(value) => selectTerminal(value)}
+              options={[
+                { value: '', label: 'Select terminal' },
+                ...terminals.map((terminal) => ({ value: terminal.id, label: terminal.name }))
+              ]}
+            />
+          </div>
         )}
         <button className="primary" onClick={saveConfiguration} disabled={
           busy || routeConflicts.size > 0 || (scopeType === 'TERMINAL' && !scopeId)
@@ -1131,13 +1167,17 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
           )}
 
           <div className="form-grid">
-            <label className="field">
+            <div className="field">
               <span>Terminal</span>
-              <select value={scopeId} onChange={(event) => selectTerminal(event.target.value)}>
-                <option value="">Select terminal</option>
-                {terminals.map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.name}</option>)}
-              </select>
-            </label>
+              <NiceSelect
+                value={scopeId}
+                onChange={(value) => selectTerminal(value)}
+                options={[
+                  { value: '', label: 'Select terminal' },
+                  ...terminals.map((terminal) => ({ value: terminal.id, label: terminal.name }))
+                ]}
+              />
+            </div>
             <label className="field">
               <span>Station name</span>
               <input value={stationName} onChange={(event) => setStationName(event.target.value)} />
@@ -1168,13 +1208,18 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 className="secondary"
                 style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
                 onClick={() => {
-                  if (window.confirm('Disconnect this print service and switch to Direct Local Loopback Mode?')) {
-                    forgetNativePrintService();
-                    setLocalTokenInvalid(false);
-                    syncPrintConfigToLocalStorage(printConfig);
-                    refreshService();
-                    showMessage('Disconnected print service. Browser will now print directly to localhost.');
-                  }
+                  showConfirm(
+                    'Disconnect Print Service',
+                    'Disconnect this print service and switch to Direct Local Loopback Mode?',
+                    () => {
+                      forgetNativePrintService();
+                      setLocalTokenInvalid(false);
+                      syncPrintConfigToLocalStorage(printConfig);
+                      refreshService();
+                      showMessage('Disconnected print service. Browser will now print directly to localhost.');
+                    },
+                    { confirmLabel: 'Disconnect', cancelLabel: 'Keep Connected' }
+                  );
                 }}
               >
                 Disconnect / Switch to Loopback
@@ -1233,26 +1278,39 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 </div>
                 <div className="form-grid compact">
                   <Field label="Connection">
-                    <select value={profile.connectionType} onChange={(event) => updateProfile(profile.id, { connectionType: event.target.value })}>
-                      <option value="WINDOWS_QUEUE">Windows queue (USB/Bluetooth/LAN)</option>
-                      <option value="NETWORK">Direct LAN/Wi-Fi TCP</option>
-                      <option value="BLUETOOTH_COM">Bluetooth COM</option>
-                    </select>
+                    <NiceSelect
+                      value={profile.connectionType}
+                      onChange={(value) => updateProfile(profile.id, { connectionType: value })}
+                      options={[
+                        { value: 'WINDOWS_QUEUE', label: 'Windows queue (USB/Bluetooth/LAN)' },
+                        { value: 'NETWORK', label: 'Direct LAN/Wi-Fi TCP' },
+                        { value: 'BLUETOOTH_COM', label: 'Bluetooth COM' }
+                      ]}
+                    />
                   </Field>
                   <Field label="Format">
-                    <select value={profile.format} onChange={(event) => updateProfile(profile.id, { format: event.target.value })}>
-                      <option value="THERMAL">Thermal</option>
-                      <option value="REGULAR">Regular page</option>
-                    </select>
+                    <NiceSelect
+                      value={profile.format}
+                      onChange={(value) => updateProfile(profile.id, { format: value })}
+                      options={[
+                        { value: 'THERMAL', label: 'Thermal' },
+                        { value: 'REGULAR', label: 'Regular page' }
+                      ]}
+                    />
                   </Field>
                   {profile.connectionType === 'WINDOWS_QUEUE' && (
                     <Field label="Windows printer">
-                      <select value={profile.windowsPrinterName || ''} onChange={(event) => updateProfile(profile.id, { windowsPrinterName: event.target.value })}>
-                        <option value="">Select installed printer</option>
-                        {localPrinters.filter((row) => row.connectionType === 'WINDOWS_QUEUE').map((row) => (
-                          <option key={row.name} value={row.name}>{row.name}</option>
-                        ))}
-                      </select>
+                      <NiceSelect
+                        value={profile.windowsPrinterName || ''}
+                        onChange={(value) => updateProfile(profile.id, { windowsPrinterName: value })}
+                        options={[
+                          { value: '', label: 'Select installed printer' },
+                          ...localPrinters.filter((row) => row.connectionType === 'WINDOWS_QUEUE').map((row) => ({
+                            value: row.name,
+                            label: row.name
+                          }))
+                        ]}
+                      />
                     </Field>
                   )}
                   {profile.connectionType === 'NETWORK' && (
@@ -1264,45 +1322,50 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                   {profile.connectionType === 'BLUETOOTH_COM' && (
                     <>
                       <Field label="COM port">
-                        <select value={profile.comPort || ''} onChange={(event) => updateProfile(profile.id, { comPort: event.target.value })}>
-                          <option value="">Select paired COM port</option>
-                          {localPrinters.filter((row) => row.connectionType === 'BLUETOOTH_COM').map((row) => (
-                            <option key={row.name} value={row.name}>{row.name}</option>
-                          ))}
-                        </select>
+                        <NiceSelect
+                          value={profile.comPort || ''}
+                          onChange={(value) => updateProfile(profile.id, { comPort: value })}
+                          options={[
+                            { value: '', label: 'Select paired COM port' },
+                            ...localPrinters.filter((row) => row.connectionType === 'BLUETOOTH_COM').map((row) => ({
+                              value: row.name,
+                              label: row.name
+                            }))
+                          ]}
+                        />
                       </Field>
                       <Field label="Baud rate"><input type="number" value={profile.baudRate || 9600} onChange={(event) => updateProfile(profile.id, { baudRate: Number(event.target.value) })} /></Field>
                     </>
                   )}
                   <Field label="Paper">
-                    <select value={profile.paperPreset} onChange={(event) => {
-                      const presets = {
-                        '58MM': { widthMm: 58, columns: 32, printableDots: 384 },
-                        '80MM': { widthMm: 80, columns: 48, printableDots: 576 },
-                        '4IN': { widthMm: 101.6, columns: 64, printableDots: 832 },
-                        A4: { widthMm: 210, heightMm: 297 },
-                        A5: { widthMm: 148, heightMm: 210 },
-                        LETTER: { widthMm: 215.9, heightMm: 279.4 },
-                        LEGAL: { widthMm: 215.9, heightMm: 355.6 },
-                        CUSTOM: {},
-                      };
-                      updateProfile(profile.id, { paperPreset: event.target.value, ...presets[event.target.value] });
-                    }}>
-                      {profile.format === 'THERMAL' ? (
-                        <>
-                          <option value="58MM">2 inch / 58 mm</option>
-                          <option value="80MM">3 inch / 80 mm</option>
-                          <option value="4IN">4 inch</option>
-                          <option value="CUSTOM">Custom</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="A4">A4</option><option value="A5">A5</option>
-                          <option value="LETTER">Letter</option><option value="LEGAL">Legal</option>
-                          <option value="CUSTOM">Driver custom form</option>
-                        </>
-                      )}
-                    </select>
+                    <NiceSelect
+                      value={profile.paperPreset}
+                      onChange={(value) => {
+                        const presets = {
+                          '58MM': { widthMm: 58, columns: 32, printableDots: 384 },
+                          '80MM': { widthMm: 80, columns: 48, printableDots: 576 },
+                          '4IN': { widthMm: 101.6, columns: 64, printableDots: 832 },
+                          A4: { widthMm: 210, heightMm: 297 },
+                          A5: { widthMm: 148, heightMm: 210 },
+                          LETTER: { widthMm: 215.9, heightMm: 279.4 },
+                          LEGAL: { widthMm: 215.9, heightMm: 355.6 },
+                          CUSTOM: {},
+                        };
+                        updateProfile(profile.id, { paperPreset: value, ...presets[value] });
+                      }}
+                      options={profile.format === 'THERMAL' ? [
+                        { value: '58MM', label: '2 inch / 58 mm' },
+                        { value: '80MM', label: '3 inch / 80 mm' },
+                        { value: '4IN', label: '4 inch' },
+                        { value: 'CUSTOM', label: 'Custom' }
+                      ] : [
+                        { value: 'A4', label: 'A4' },
+                        { value: 'A5', label: 'A5' },
+                        { value: 'LETTER', label: 'Letter' },
+                        { value: 'LEGAL', label: 'Legal' },
+                        { value: 'CUSTOM', label: 'Driver custom form' }
+                      ]}
+                    />
                   </Field>
                   <Field label="Width (mm)"><input type="number" value={profile.widthMm || ''} onChange={(event) => updateProfile(profile.id, { widthMm: Number(event.target.value) })} /></Field>
                   {profile.format === 'REGULAR' && <Field label="Height (mm)"><input type="number" value={profile.heightMm || ''} onChange={(event) => updateProfile(profile.id, { heightMm: Number(event.target.value) })} /></Field>}
@@ -1403,11 +1466,15 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                   </div>
                   <div className="assignment-output">
                     <Field label="Output format">
-                      <select value={printConfig.defaults[outputKey]} onChange={(event) => setDefault(outputKey, event.target.value)}>
-                        <option value="THERMAL">Thermal</option>
-                        <option value="REGULAR">Regular</option>
-                        <option value="BOTH">Both</option>
-                      </select>
+                      <NiceSelect
+                        value={printConfig.defaults[outputKey]}
+                        onChange={(value) => setDefault(outputKey, value)}
+                        options={[
+                          { value: 'THERMAL', label: 'Thermal' },
+                          { value: 'REGULAR', label: 'Regular' },
+                          { value: 'BOTH', label: 'Both' }
+                        ]}
+                      />
                     </Field>
                   </div>
                   <TagSelector
@@ -1450,9 +1517,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 <div className="form-grid compact">
                   <Field label="Priority"><input type="number" value={route.priority} onChange={(event) => updateRoute(route.id, { priority: Number(event.target.value) })} /></Field>
                   <Field label="Delivery mode">
-                    <select value={route.mode} onChange={(event) => updateRoute(route.id, { mode: event.target.value })}>
-                      <option value="FAILOVER">Failover in order</option><option value="MIRROR">Print to all</option>
-                    </select>
+                    <NiceSelect
+                      value={route.mode}
+                      onChange={(value) => updateRoute(route.id, { mode: value })}
+                      options={[
+                        { value: 'FAILOVER', label: 'Failover in order' },
+                        { value: 'MIRROR', label: 'Print to all' }
+                      ]}
+                    />
                   </Field>
                   <Field label="Copies"><input type="number" min="1" max="10" value={route.copies} onChange={(event) => updateRoute(route.id, { copies: Number(event.target.value) })} /></Field>
                 </div>
@@ -1558,14 +1630,27 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
               <h4>Regular printer</h4>
               <div className="form-grid compact">
                 <Field label="Paper">
-                  <select value={printConfig.regularTemplate.paperPreset} onChange={(event) => setTemplate('regularTemplate', 'paperPreset', event.target.value)}>
-                    <option value="A4">A4</option><option value="A5">A5</option><option value="LETTER">Letter</option><option value="LEGAL">Legal</option><option value="CUSTOM">Custom driver form</option>
-                  </select>
+                  <NiceSelect
+                    value={printConfig.regularTemplate.paperPreset}
+                    onChange={(value) => setTemplate('regularTemplate', 'paperPreset', value)}
+                    options={[
+                      { value: 'A4', label: 'A4' },
+                      { value: 'A5', label: 'A5' },
+                      { value: 'LETTER', label: 'Letter' },
+                      { value: 'LEGAL', label: 'Legal' },
+                      { value: 'CUSTOM', label: 'Custom driver form' }
+                    ]}
+                  />
                 </Field>
                 <Field label="Orientation">
-                  <select value={printConfig.regularTemplate.orientation} onChange={(event) => setTemplate('regularTemplate', 'orientation', event.target.value)}>
-                    <option value="PORTRAIT">Portrait</option><option value="LANDSCAPE">Landscape</option>
-                  </select>
+                  <NiceSelect
+                    value={printConfig.regularTemplate.orientation}
+                    onChange={(value) => setTemplate('regularTemplate', 'orientation', value)}
+                    options={[
+                      { value: 'PORTRAIT', label: 'Portrait' },
+                      { value: 'LANDSCAPE', label: 'Landscape' }
+                    ]}
+                  />
                 </Field>
                 <Field label="Width (mm)"><input type="number" value={printConfig.regularTemplate.widthMm} onChange={(event) => setTemplate('regularTemplate', 'widthMm', Number(event.target.value))} /></Field>
                 <Field label="Height (mm)"><input type="number" value={printConfig.regularTemplate.heightMm} onChange={(event) => setTemplate('regularTemplate', 'heightMm', Number(event.target.value))} /></Field>
@@ -1573,9 +1658,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                 <Field label="Paper source"><input value={printConfig.regularTemplate.paperSource || ''} onChange={(event) => setTemplate('regularTemplate', 'paperSource', event.target.value)} placeholder="Driver default" /></Field>
                 <Field label="Scaling (%)"><input type="number" min="50" max="200" value={printConfig.regularTemplate.scaling || 100} onChange={(event) => setTemplate('regularTemplate', 'scaling', Number(event.target.value))} /></Field>
                 <Field label="Colour mode">
-                  <select value={printConfig.regularTemplate.colorMode} onChange={(event) => setTemplate('regularTemplate', 'colorMode', event.target.value)}>
-                    <option value="GRAYSCALE">Grayscale</option><option value="COLOR">Colour</option>
-                  </select>
+                  <NiceSelect
+                    value={printConfig.regularTemplate.colorMode}
+                    onChange={(value) => setTemplate('regularTemplate', 'colorMode', value)}
+                    options={[
+                      { value: 'GRAYSCALE', label: 'Grayscale' },
+                      { value: 'COLOR', label: 'Colour' }
+                    ]}
+                  />
                 </Field>
               </div>
               <div className="option-grid">
@@ -1643,6 +1733,22 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       )}
 
       {message && <div className="platform-toast">{message}</div>}
+
+      {confirmModal.isOpen && (
+        <CafeQRPopup
+          title={confirmModal.title}
+          onClose={closeConfirm}
+          onSave={confirmModal.onConfirm}
+          onCancel={closeConfirm}
+          saveLabel={confirmModal.confirmLabel}
+          cancelLabel={confirmModal.cancelLabel}
+          maxWidth="480px"
+        >
+          <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>
+            {confirmModal.message}
+          </div>
+        </CafeQRPopup>
+      )}
 
       <style jsx global>{`
         .print-platform { display: flex; flex-direction: column; gap: 16px; min-width: 0; color: #172033; }
