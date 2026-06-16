@@ -53,7 +53,7 @@ const MODULES = [
 // HELPERS & SYNC UTILS
 // ═════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_THERMAL_TEMPLATE = {
+const DEFAULT_THERMAL_LAYOUT = {
   preset: '58MM',
   widthMm: 58,
   columns: 32,
@@ -63,24 +63,46 @@ const DEFAULT_THERMAL_TEMPLATE = {
   lineSpacing: 0,
   autoCut: true,
   feedLines: 3,
-  fontSize: 'NORMAL',
-  kotFontSize: 'NORMAL',
-  titleFontSize: 'DOUBLE',
-  kotTitleFontSize: 'DOUBLE',
   showRestaurantName: true,
   showDailyBillNo: true,
   showCustomerDetails: true,
   showTableLabel: true,
   showFssai: true,
-  showGstBreakdown: true,
-  kotHeader: '*** KOT ***',
-  kotFooter: '*** SEND TO KITCHEN ***',
-  receiptHeader: '*** TAX INVOICE ***',
-  receiptFooter: '* THANK YOU! VISIT AGAIN !! *',
   leftMarginDots: 0,
   rightMarginDots: 0,
   guardCols: 0,
   safeCols: 0,
+};
+
+const DEFAULT_KOT_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  showGstBreakdown: false,
+  titleFontSize: 'DOUBLE',
+  fontSize: 'NORMAL',
+  header: '*** KOT ***',
+  footer: '*** SEND TO KITCHEN ***',
+};
+
+const DEFAULT_RECEIPT_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  showGstBreakdown: true,
+  titleFontSize: 'DOUBLE',
+  fontSize: 'NORMAL',
+  header: '*** TAX INVOICE ***',
+  footer: '* THANK YOU! VISIT AGAIN !! *',
+};
+
+const DEFAULT_THERMAL_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  fontSize: DEFAULT_RECEIPT_TEMPLATE.fontSize,
+  kotFontSize: DEFAULT_KOT_TEMPLATE.fontSize,
+  titleFontSize: DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
+  kotTitleFontSize: DEFAULT_KOT_TEMPLATE.titleFontSize,
+  showGstBreakdown: true,
+  kotHeader: DEFAULT_KOT_TEMPLATE.header,
+  kotFooter: DEFAULT_KOT_TEMPLATE.footer,
+  receiptHeader: DEFAULT_RECEIPT_TEMPLATE.header,
+  receiptFooter: DEFAULT_RECEIPT_TEMPLATE.footer,
 };
 
 const DEFAULT_REGULAR_TEMPLATE = {
@@ -138,38 +160,111 @@ const mergeThermalTemplate = (template) => ({
   ...(template || {}),
 });
 
+const mergeKotTemplate = (template) => {
+  const source = template || {};
+  return {
+    ...DEFAULT_KOT_TEMPLATE,
+    ...source,
+    titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
+    fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
+    header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
+    footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
+  };
+};
+
+const mergeReceiptTemplate = (template) => {
+  const source = template || {};
+  return {
+    ...DEFAULT_RECEIPT_TEMPLATE,
+    ...source,
+    titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
+    fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
+    header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
+    footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
+  };
+};
+
 const mergeRegularTemplate = (template) => ({
   ...DEFAULT_REGULAR_TEMPLATE,
   ...(template || {}),
 });
 
+const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
+  const kot = mergeKotTemplate(kotInput);
+  const receipt = mergeReceiptTemplate(receiptInput);
+  return {
+    ...DEFAULT_THERMAL_TEMPLATE,
+    ...receipt,
+    fontSize: receipt.fontSize,
+    titleFontSize: receipt.titleFontSize,
+    showRestaurantName: receipt.showRestaurantName !== false,
+    showDailyBillNo: receipt.showDailyBillNo !== false,
+    showCustomerDetails: receipt.showCustomerDetails !== false,
+    showTableLabel: receipt.showTableLabel !== false,
+    showFssai: receipt.showFssai !== false,
+    showGstBreakdown: receipt.showGstBreakdown !== false,
+    kotFontSize: kot.fontSize,
+    kotTitleFontSize: kot.titleFontSize,
+    kotHeader: kot.header,
+    kotFooter: kot.footer,
+    receiptHeader: receipt.header,
+    receiptFooter: receipt.footer,
+  };
+};
+
+const syncThermalTemplateToLocalStorage = (documentKey, template) => {
+  const prefix = documentKey === 'KOT' ? 'PRINT_KOT_' : 'PRINT_RECEIPT_';
+  localStorage.setItem(`${prefix}PAPER_MM`, String(template.widthMm || '58'));
+  localStorage.setItem(`${prefix}WIDTH_COLS`, String(template.columns || 32));
+  localStorage.setItem(`${prefix}PRINTABLE_DOTS`, String(template.printableDots || 384));
+  localStorage.setItem(`${prefix}LEFT_MARGIN_DOTS`, String(template.leftMarginDots ?? 0));
+  localStorage.setItem(`${prefix}RIGHT_MARGIN_DOTS`, String(template.rightMarginDots ?? 0));
+  localStorage.setItem(`${prefix}GUARD_COLS`, String(template.guardCols ?? 0));
+  localStorage.setItem(`${prefix}SAFE_COLS`, String(template.safeCols ?? 0));
+  localStorage.setItem(`${prefix}FEED_LINES`, String(template.feedLines ?? 3));
+  localStorage.setItem(`${prefix}AUTO_CUT`, template.autoCut !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_RESTAURANT_NAME`, template.showRestaurantName !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_DAILY_BILL_NO`, template.showDailyBillNo !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_CUSTOMER_DETAILS`, template.showCustomerDetails !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_TABLE_LABEL`, template.showTableLabel !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_FSSAI`, template.showFssai !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
+  localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
+};
+
 function syncPrintSettingsToLocalStorage(config) {
   if (typeof window === 'undefined' || !config) return;
   try {
-    const t = mergeThermalTemplate(config.thermalTemplate);
-    localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', t.showRestaurantName !== false ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', t.showDailyBillNo !== false ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', t.showCustomerDetails !== false ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_TABLE_LABEL', t.showTableLabel !== false ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_FSSAI', t.showFssai !== false ? 'true' : 'false');
-    localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', t.showGstBreakdown !== false ? 'true' : 'false');
+    const kot = mergeKotTemplate(config.kotTemplate || config.thermalTemplate);
+    const receipt = mergeReceiptTemplate(config.receiptTemplate || config.thermalTemplate);
 
-    localStorage.setItem('PRINT_TITLE_FONT_SIZE', t.titleFontSize || 'DOUBLE');
-    localStorage.setItem('PRINT_FONT_SIZE', t.fontSize || 'NORMAL');
-    localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', t.kotTitleFontSize || 'DOUBLE');
-    localStorage.setItem('PRINT_KOT_FONT_SIZE', t.kotFontSize || 'DOUBLE');
+    syncThermalTemplateToLocalStorage('KOT', kot);
+    syncThermalTemplateToLocalStorage('RECEIPT', receipt);
 
-    localStorage.setItem('PRINT_KOT_HEADER', t.kotHeader ?? '*** KOT ***');
-    localStorage.setItem('PRINT_KOT_FOOTER', t.kotFooter ?? '*** SEND TO KITCHEN ***');
-    localStorage.setItem('PRINT_RECEIPT_HEADER', t.receiptHeader ?? '*** TAX INVOICE ***');
-    localStorage.setItem('PRINT_RECEIPT_FOOTER', t.receiptFooter ?? '* THANK YOU! VISIT AGAIN !! *');
+    localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', receipt.showRestaurantName !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', receipt.showDailyBillNo !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', receipt.showCustomerDetails !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_TABLE_LABEL', receipt.showTableLabel !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_FSSAI', receipt.showFssai !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receipt.showGstBreakdown !== false ? 'true' : 'false');
+
+    localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
+    localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');
+    localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kot.titleFontSize || 'DOUBLE');
+    localStorage.setItem('PRINT_KOT_FONT_SIZE', kot.fontSize || 'NORMAL');
+
+    localStorage.setItem('PRINT_KOT_HEADER', kot.header ?? '*** KOT ***');
+    localStorage.setItem('PRINT_KOT_FOOTER', kot.footer ?? '*** SEND TO KITCHEN ***');
+    localStorage.setItem('PRINT_RECEIPT_HEADER', receipt.header ?? '*** TAX INVOICE ***');
+    localStorage.setItem('PRINT_RECEIPT_FOOTER', receipt.footer ?? '* THANK YOU! VISIT AGAIN !! *');
     
-    localStorage.setItem('PRINT_PAPER_MM', String(t.widthMm || '58'));
-    localStorage.setItem('PRINT_WIDTH_COLS', String(t.columns || 32));
-    localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(t.leftMarginDots || 0));
-    localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(t.rightMarginDots || 0));
-    localStorage.setItem('PRINT_GUARD_COLS', String(t.guardCols || 0));
-    localStorage.setItem('PRINT_SAFE_COLS', String(t.safeCols || 0));
+    localStorage.setItem('PRINT_PAPER_MM', String(receipt.widthMm || '58'));
+    localStorage.setItem('PRINT_WIDTH_COLS', String(receipt.columns || 32));
+    localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(receipt.leftMarginDots ?? 0));
+    localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(receipt.rightMarginDots ?? 0));
+    localStorage.setItem('PRINT_GUARD_COLS', String(receipt.guardCols ?? 0));
+    localStorage.setItem('PRINT_SAFE_COLS', String(receipt.safeCols ?? 0));
   } catch (err) {
     console.error('Failed to sync print settings to localStorage:', err);
   }
@@ -204,6 +299,7 @@ function ConfigurationsContent() {
   const [message, setMessage]     = useState(null);
   const [msgType, setMsgType]     = useState('success');
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [activeTemplateDoc, setActiveTemplateDoc] = useState('receipt');
 
   // UI State for Tax feature
   const [newRate, setNewRate]     = useState('');
@@ -249,7 +345,9 @@ function ConfigurationsContent() {
     print_win_list_url: 'http://127.0.0.1:3333/printers',
     print_win_post_url: 'http://127.0.0.1:3333/printRaw',
 
-    // Thermal & Regular templates
+    // Print templates
+    kotTemplate: DEFAULT_KOT_TEMPLATE,
+    receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
     thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
     regularTemplate: DEFAULT_REGULAR_TEMPLATE,
   });
@@ -318,14 +416,17 @@ function ConfigurationsContent() {
           }
           const printResp = await api.get('/api/v1/print-configurations/effective', { params: printParams }).catch(() => null);
           
+          let kot = DEFAULT_KOT_TEMPLATE;
+          let receipt = DEFAULT_RECEIPT_TEMPLATE;
           let thermal = DEFAULT_THERMAL_TEMPLATE;
           let regular = DEFAULT_REGULAR_TEMPLATE;
           if (printResp?.data?.success && printResp?.data?.data) {
             const pc = stripPrintMeta(printResp.data.data);
             setPrintConfigRaw(pc);
-            if (pc.thermalTemplate) {
-              thermal = mergeThermalTemplate(pc.thermalTemplate);
-            }
+            const legacyThermal = mergeThermalTemplate(pc.thermalTemplate);
+            kot = mergeKotTemplate(pc.kotTemplate || legacyThermal);
+            receipt = mergeReceiptTemplate(pc.receiptTemplate || legacyThermal);
+            thermal = mergeThermalTemplate(pc.thermalTemplate || buildThermalCompatibilityTemplate(kot, receipt));
             if (pc.regularTemplate) {
               regular = mergeRegularTemplate(pc.regularTemplate);
             }
@@ -370,6 +471,8 @@ function ConfigurationsContent() {
             print_win_list_url: d.printWinListUrl || 'http://127.0.0.1:3333/printers',
             print_win_post_url: d.printWinPostUrl || 'http://127.0.0.1:3333/printRaw',
 
+            kotTemplate: kot,
+            receiptTemplate: receipt,
             thermalTemplate: thermal,
             regularTemplate: regular,
           });
@@ -385,7 +488,13 @@ function ConfigurationsContent() {
   const toggle = useCallback((f) => setConfig(p => ({ ...p, [f]: !p[f] })), []);
   const set = useCallback((f, v) => setConfig(p => ({ ...p, [f]: v })), []);
   const setTemplate = useCallback((kind, key, value) => {
-    const base = kind === 'regularTemplate' ? DEFAULT_REGULAR_TEMPLATE : DEFAULT_THERMAL_TEMPLATE;
+    const base = kind === 'regularTemplate'
+      ? DEFAULT_REGULAR_TEMPLATE
+      : kind === 'kotTemplate'
+        ? DEFAULT_KOT_TEMPLATE
+        : kind === 'receiptTemplate'
+          ? DEFAULT_RECEIPT_TEMPLATE
+          : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -396,7 +505,13 @@ function ConfigurationsContent() {
     }));
   }, []);
   const setTemplateValues = useCallback((kind, values) => {
-    const base = kind === 'regularTemplate' ? DEFAULT_REGULAR_TEMPLATE : DEFAULT_THERMAL_TEMPLATE;
+    const base = kind === 'regularTemplate'
+      ? DEFAULT_REGULAR_TEMPLATE
+      : kind === 'kotTemplate'
+        ? DEFAULT_KOT_TEMPLATE
+        : kind === 'receiptTemplate'
+          ? DEFAULT_RECEIPT_TEMPLATE
+          : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -472,12 +587,19 @@ function ConfigurationsContent() {
       };
 
       const existingPrintSettings = stripPrintMeta(printConfigRaw);
+      const kotTemplate = mergeKotTemplate({
+        ...(existingPrintSettings.kotTemplate || {}),
+        ...(config.kotTemplate || {}),
+      });
+      const receiptTemplate = mergeReceiptTemplate({
+        ...(existingPrintSettings.receiptTemplate || {}),
+        ...(config.receiptTemplate || {}),
+      });
       const printSettings = {
         ...existingPrintSettings,
-        thermalTemplate: mergeThermalTemplate({
-          ...(existingPrintSettings.thermalTemplate || {}),
-          ...(config.thermalTemplate || {}),
-        }),
+        kotTemplate,
+        receiptTemplate,
+        thermalTemplate: buildThermalCompatibilityTemplate(kotTemplate, receiptTemplate),
         regularTemplate: mergeRegularTemplate({
           ...(existingPrintSettings.regularTemplate || {}),
           ...(config.regularTemplate || {}),
@@ -522,8 +644,118 @@ function ConfigurationsContent() {
     }
   }, [config, configEndpoint, hasBranchContext, orgId, orgName, printConfigRaw]);
 
-  const thermalTemplate = mergeThermalTemplate(config.thermalTemplate);
+  const kotTemplate = mergeKotTemplate(config.kotTemplate || config.thermalTemplate);
+  const receiptTemplate = mergeReceiptTemplate(config.receiptTemplate || config.thermalTemplate);
   const regularTemplate = mergeRegularTemplate(config.regularTemplate);
+
+  const renderThermalTemplateEditor = (kind, template, title, icon, copy) => {
+    const visibilityOptions = [
+      ['showRestaurantName', 'Restaurant name'],
+      ['showDailyBillNo', 'Daily bill number'],
+      ['showCustomerDetails', 'Customer details'],
+      ['showTableLabel', 'Table / order type'],
+      ['showFssai', 'FSSAI license'],
+      ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown']] : []),
+    ];
+
+    return (
+      <div className="template-group">
+        <div className="template-group-title">{icon} {title}</div>
+        <span className="group-desc">{copy}</span>
+        <div className="paper-preset-row">
+          {[...THERMAL_PAPER_PRESETS, { preset: 'CUSTOM', label: 'Custom' }].map((preset) => (
+            <button
+              type="button"
+              key={preset.preset}
+              className={template.preset === preset.preset ? 'active' : ''}
+              onClick={() => setTemplateValues(kind, {
+                preset: preset.preset,
+                ...(preset.widthMm ? {
+                  widthMm: preset.widthMm,
+                  columns: preset.columns,
+                  printableDots: preset.printableDots,
+                } : {}),
+              })}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="template-grid-fields">
+          <div className="input-group">
+            <label className="group-lbl">Width (mm)</label>
+            <input type="number" className="form-input" value={template.widthMm} onChange={(e) => setTemplate(kind, 'widthMm', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Columns</label>
+            <input type="number" className="form-input" value={template.columns} onChange={(e) => setTemplate(kind, 'columns', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Printable dots</label>
+            <input type="number" className="form-input" value={template.printableDots} onChange={(e) => setTemplate(kind, 'printableDots', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Feed lines</label>
+            <input type="number" className="form-input" value={template.feedLines} onChange={(e) => setTemplate(kind, 'feedLines', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Left margin dots</label>
+            <input type="number" min="0" max="100" className="form-input" value={template.leftMarginDots ?? 0} onChange={(e) => setTemplate(kind, 'leftMarginDots', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Right margin dots</label>
+            <input type="number" min="0" max="100" className="form-input" value={template.rightMarginDots ?? 0} onChange={(e) => setTemplate(kind, 'rightMarginDots', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Guard columns</label>
+            <input type="number" min="0" max="10" className="form-input" value={template.guardCols ?? 0} onChange={(e) => setTemplate(kind, 'guardCols', Number(e.target.value))} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Safe columns</label>
+            <input type="number" min="0" max="10" className="form-input" value={template.safeCols ?? 0} onChange={(e) => setTemplate(kind, 'safeCols', Number(e.target.value))} />
+          </div>
+        </div>
+
+        <button type="button" className="template-toggle-row" onClick={() => setTemplate(kind, 'autoCut', !template.autoCut)}>
+          <span>Auto-cut after print</span>
+          <div className={`toggle-switch ${template.autoCut ? 'on' : ''}`}><div className="toggle-thumb" /></div>
+        </button>
+
+        <div className="template-checkbox-grid">
+          {visibilityOptions.map(([key, label]) => (
+            <button type="button" key={key} className="template-check" onClick={() => setTemplate(kind, key, !(template[key] !== false))}>
+              <span>{label}</span>
+              <div className={`toggle-switch small ${template[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
+            </button>
+          ))}
+        </div>
+
+        <div className="template-grid-fields">
+          {[
+            ['titleFontSize', 'Title font'],
+            ['fontSize', 'Body font'],
+          ].map(([key, label]) => (
+            <div key={key} className="input-group">
+              <label className="group-lbl">{label}</label>
+              <NiceSelect value={template[key]} onChange={(v) => setTemplate(kind, key, v)} options={FONT_SIZE_OPTIONS} />
+            </div>
+          ))}
+        </div>
+
+        <div className="template-grid-fields">
+          <div className="input-group">
+            <label className="group-lbl">Header</label>
+            <input className="form-input" value={template.header || ''} onChange={(e) => setTemplate(kind, 'header', e.target.value)} placeholder={kind === 'kotTemplate' ? '*** KOT ***' : '*** TAX INVOICE ***'} />
+          </div>
+          <div className="input-group">
+            <label className="group-lbl">Footer</label>
+            <input className="form-input" value={template.footer || ''} onChange={(e) => setTemplate(kind, 'footer', e.target.value)} placeholder={kind === 'kotTemplate' ? '*** SEND TO KITCHEN ***' : '* THANK YOU! VISIT AGAIN !! *'} />
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -921,118 +1153,41 @@ function ConfigurationsContent() {
 
                 <div className="print-editor-layout template-layout">
                   <div className="print-editor-controls">
-                    <div className="template-group">
-                      <div className="template-group-title"><FaReceipt /> Thermal receipt and KOT</div>
-                      <div className="paper-preset-row">
-                        {[...THERMAL_PAPER_PRESETS, { preset: 'CUSTOM', label: 'Custom' }].map((preset) => (
-                          <button
-                            type="button"
-                            key={preset.preset}
-                            className={thermalTemplate.preset === preset.preset ? 'active' : ''}
-                            onClick={() => setTemplateValues('thermalTemplate', {
-                              preset: preset.preset,
-                              ...(preset.widthMm ? {
-                                widthMm: preset.widthMm,
-                                columns: preset.columns,
-                                printableDots: preset.printableDots,
-                              } : {}),
-                            })}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="template-grid-fields">
-                        <div className="input-group">
-                          <label className="group-lbl">Width (mm)</label>
-                          <input type="number" className="form-input" value={thermalTemplate.widthMm} onChange={(e) => setTemplate('thermalTemplate', 'widthMm', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Columns</label>
-                          <input type="number" className="form-input" value={thermalTemplate.columns} onChange={(e) => setTemplate('thermalTemplate', 'columns', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Printable dots</label>
-                          <input type="number" className="form-input" value={thermalTemplate.printableDots} onChange={(e) => setTemplate('thermalTemplate', 'printableDots', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Feed lines</label>
-                          <input type="number" className="form-input" value={thermalTemplate.feedLines} onChange={(e) => setTemplate('thermalTemplate', 'feedLines', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Left margin dots</label>
-                          <input type="number" min="0" max="100" className="form-input" value={thermalTemplate.leftMarginDots ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'leftMarginDots', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Right margin dots</label>
-                          <input type="number" min="0" max="100" className="form-input" value={thermalTemplate.rightMarginDots ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'rightMarginDots', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Guard columns</label>
-                          <input type="number" min="0" max="10" className="form-input" value={thermalTemplate.guardCols ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'guardCols', Number(e.target.value))} />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Safe columns</label>
-                          <input type="number" min="0" max="10" className="form-input" value={thermalTemplate.safeCols ?? 0} onChange={(e) => setTemplate('thermalTemplate', 'safeCols', Number(e.target.value))} />
-                        </div>
-                      </div>
-
-                      <button type="button" className="template-toggle-row" onClick={() => setTemplate('thermalTemplate', 'autoCut', !thermalTemplate.autoCut)}>
-                        <span>Auto-cut after print</span>
-                        <div className={`toggle-switch ${thermalTemplate.autoCut ? 'on' : ''}`}><div className="toggle-thumb" /></div>
-                      </button>
-
-                      <div className="template-checkbox-grid">
-                        {[
-                          ['showRestaurantName', 'Restaurant name'],
-                          ['showDailyBillNo', 'Daily bill number'],
-                          ['showCustomerDetails', 'Customer details'],
-                          ['showTableLabel', 'Table / order type'],
-                          ['showFssai', 'FSSAI license'],
-                          ['showGstBreakdown', 'GST breakdown'],
-                        ].map(([key, label]) => (
-                          <button type="button" key={key} className="template-check" onClick={() => setTemplate('thermalTemplate', key, !(thermalTemplate[key] !== false))}>
-                            <span>{label}</span>
-                            <div className={`toggle-switch small ${thermalTemplate[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="template-grid-fields">
-                        {[
-                          ['titleFontSize', 'Receipt title'],
-                          ['fontSize', 'Receipt body'],
-                          ['kotTitleFontSize', 'KOT title'],
-                          ['kotFontSize', 'KOT body'],
-                        ].map(([key, label]) => (
-                          <div key={key} className="input-group">
-                            <label className="group-lbl">{label}</label>
-                            <NiceSelect value={thermalTemplate[key]} onChange={(v) => setTemplate('thermalTemplate', key, v)} options={FONT_SIZE_OPTIONS} />
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="template-grid-fields">
-                        <div className="input-group">
-                          <label className="group-lbl">KOT header</label>
-                          <input className="form-input" value={thermalTemplate.kotHeader || ''} onChange={(e) => setTemplate('thermalTemplate', 'kotHeader', e.target.value)} placeholder="*** KOT ***" />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">KOT footer</label>
-                          <input className="form-input" value={thermalTemplate.kotFooter || ''} onChange={(e) => setTemplate('thermalTemplate', 'kotFooter', e.target.value)} placeholder="*** SEND TO KITCHEN ***" />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Receipt header</label>
-                          <input className="form-input" value={thermalTemplate.receiptHeader || ''} onChange={(e) => setTemplate('thermalTemplate', 'receiptHeader', e.target.value)} placeholder="*** TAX INVOICE ***" />
-                        </div>
-                        <div className="input-group">
-                          <label className="group-lbl">Receipt footer</label>
-                          <input className="form-input" value={thermalTemplate.receiptFooter || ''} onChange={(e) => setTemplate('thermalTemplate', 'receiptFooter', e.target.value)} placeholder="* THANK YOU! VISIT AGAIN !! *" />
-                        </div>
-                      </div>
+                    <div className="template-doc-selector">
+                      {[
+                        ['receipt', <FaReceipt key="receipt" />, 'Final Bill Receipt'],
+                        ['kot', <FaUtensils key="kot" />, 'KOT'],
+                        ['regular', <FaPrint key="regular" />, 'Regular A4 Invoice'],
+                      ].map(([key, icon, label]) => (
+                        <button
+                          type="button"
+                          key={key}
+                          className={activeTemplateDoc === key ? 'active' : ''}
+                          onClick={() => setActiveTemplateDoc(key)}
+                        >
+                          {icon}
+                          <span>{label}</span>
+                        </button>
+                      ))}
                     </div>
 
+                    {activeTemplateDoc === 'receipt' && renderThermalTemplateEditor(
+                      'receiptTemplate',
+                      receiptTemplate,
+                      'Final bill receipt',
+                      <FaReceipt />,
+                      'Thermal customer bill layout, content, and paper settings.'
+                    )}
+
+                    {activeTemplateDoc === 'kot' && renderThermalTemplateEditor(
+                      'kotTemplate',
+                      kotTemplate,
+                      'Kitchen order ticket',
+                      <FaUtensils />,
+                      'Thermal kitchen ticket layout, content, and paper settings.'
+                    )}
+
+                    {activeTemplateDoc === 'regular' && (
                     <div className="template-group">
                       <div className="template-group-title"><FaPrint /> Regular tax invoice</div>
                       <div className="template-grid-fields">
@@ -1129,6 +1284,7 @@ function ConfigurationsContent() {
                         </div>
                       </div>
                     </div>
+                    )}
 
                     <div className="template-group">
                       <div className="template-group-title"><FaCamera /> Receipt logo and footer message</div>
@@ -1761,6 +1917,39 @@ function ConfigurationsContent() {
         .template-layout {
            margin-top: 0;
         }
+        .template-doc-selector {
+           display: grid;
+           grid-template-columns: repeat(3, minmax(0, 1fr));
+           gap: 8px;
+           padding: 6px;
+           background: #f8fafc;
+           border: 1px solid #e2e8f0;
+           border-radius: 12px;
+        }
+        .template-doc-selector button {
+           border: 0;
+           background: transparent;
+           color: #64748b;
+           padding: 10px 12px;
+           border-radius: 8px;
+           font-size: 12.5px;
+           font-weight: 850;
+           cursor: pointer;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           gap: 8px;
+           transition: all 0.2s ease;
+        }
+        .template-doc-selector button:hover {
+           color: #0f172a;
+           background: #ffffff;
+        }
+        .template-doc-selector button.active {
+           background: #f97316;
+           color: #ffffff;
+           box-shadow: 0 6px 14px rgba(249,115,22,0.18);
+        }
         .template-group {
            border-top: 1px solid #f1f5f9;
            padding-top: 20px;
@@ -1948,6 +2137,9 @@ function ConfigurationsContent() {
            }
         }
         @media (max-width: 640px) {
+           .template-doc-selector {
+              grid-template-columns: 1fr;
+           }
            .template-grid-fields,
            .template-checkbox-grid {
               grid-template-columns: 1fr;

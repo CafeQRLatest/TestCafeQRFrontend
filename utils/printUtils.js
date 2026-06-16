@@ -251,14 +251,32 @@ function pushWrappedCenteredText(lines, text, W, layout) {
   });
 }
 
-function getLocalNum(key, fallback = 0) {
+function getLocalNumAny(keys, fallback = 0, allowZero = false) {
+  const list = Array.isArray(keys) ? keys : [keys];
   try {
     if (typeof window === "undefined") return fallback;
-    const v = Number(window.localStorage.getItem(key) || "");
-    return Number.isFinite(v) && v > 0 ? v : fallback;
+    for (const key of list) {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null || raw === "") continue;
+      const value = Number(raw);
+      if (Number.isFinite(value) && (allowZero ? value >= 0 : value > 0)) {
+        return value;
+      }
+    }
+    return fallback;
   } catch {
     return fallback;
   }
+}
+
+function getDocumentString(documentKey, suffix, genericKey, fallback = "") {
+  const prefix = documentKey === "KOT" ? "PRINT_KOT_" : "PRINT_RECEIPT_";
+  return getLocalString(prefix + suffix, getLocalString(genericKey, fallback));
+}
+
+function getDocumentBool(documentKey, suffix, genericKey, fallback = true) {
+  const prefix = documentKey === "KOT" ? "PRINT_KOT_" : "PRINT_RECEIPT_";
+  return getLocalBool(prefix + suffix, getLocalBool(genericKey, fallback));
 }
 
 function fmtRate(n) {
@@ -267,26 +285,28 @@ function fmtRate(n) {
   return Number.isInteger(x) ? String(x) : x.toFixed(2);
 }
 
-function getReceiptWidthCols(restaurantProfile) {
-  const fromLocal = getLocalNum("PRINT_WIDTH_COLS", 0);
+function getReceiptWidthCols(restaurantProfile, documentKey = "RECEIPT") {
+  const prefix = documentKey === "KOT" ? "PRINT_KOT_" : "PRINT_RECEIPT_";
+  const fromLocal = getLocalNumAny([`${prefix}WIDTH_COLS`, "PRINT_WIDTH_COLS"], 0);
   const fromProfile = Number(restaurantProfile?.receipt_cols || 0) || 0;
-  const paperMm = getLocalNum("PRINT_PAPER_MM", 0);
+  const paperMm = getLocalNumAny([`${prefix}PAPER_MM`, "PRINT_PAPER_MM"], 0);
   const autoDefault = paperMm >= 76 ? 48 : 32;
   const cols = fromLocal || fromProfile || autoDefault;
   return Math.max(20, Math.min(64, cols));
 }
 
-function getLayout(restaurantProfile) {
-  const cols = getReceiptWidthCols(restaurantProfile);
-  const paperMm = getLocalNum("PRINT_PAPER_MM", cols >= 48 ? 80 : 58);
-  const dotWidth = paperMm >= 76 ? 576 : 384;
+function getLayout(restaurantProfile, documentKey = "RECEIPT") {
+  const prefix = documentKey === "KOT" ? "PRINT_KOT_" : "PRINT_RECEIPT_";
+  const cols = getReceiptWidthCols(restaurantProfile, documentKey);
+  const paperMm = getLocalNumAny([`${prefix}PAPER_MM`, "PRINT_PAPER_MM"], cols >= 48 ? 80 : 58);
+  const dotWidth = getLocalNumAny([`${prefix}PRINTABLE_DOTS`], paperMm >= 76 ? 576 : 384);
   const defaultMargin = paperMm >= 76 ? 12 : 8;
-  const leftDots = getLocalNum("PRINT_LEFT_MARGIN_DOTS", defaultMargin);
-  const rightDots = getLocalNum("PRINT_RIGHT_MARGIN_DOTS", defaultMargin);
+  const leftDots = getLocalNumAny([`${prefix}LEFT_MARGIN_DOTS`, "PRINT_LEFT_MARGIN_DOTS"], defaultMargin, true);
+  const rightDots = getLocalNumAny([`${prefix}RIGHT_MARGIN_DOTS`, "PRINT_RIGHT_MARGIN_DOTS"], defaultMargin, true);
   const areaDots = Math.max(200, dotWidth - leftDots - rightDots);
   const guardColsDefault = paperMm >= 76 ? 0 : 1;
-  const guardCols = getLocalNum("PRINT_GUARD_COLS", guardColsDefault);
-  const safeCols = getLocalNum("PRINT_SAFE_COLS", 0);
+  const guardCols = getLocalNumAny([`${prefix}GUARD_COLS`, "PRINT_GUARD_COLS"], guardColsDefault, true);
+  const safeCols = getLocalNumAny([`${prefix}SAFE_COLS`, "PRINT_SAFE_COLS"], 0, true);
   const charDots = 12;
   const maxColsFromDots = Math.floor(areaDots / charDots);
   const marginCols = 0;
@@ -373,7 +393,7 @@ export function buildKotText(order, restaurantProfile) {
         : [];
     const removedItems = _rawRemoved.filter((ri) => Number(ri?.quantity ?? ri?.qty ?? 0) > 0);
 
-    const layout = getLayout(restaurantProfile);
+    const layout = getLayout(restaurantProfile, "KOT");
     const W = layout.innerCols;
     const dashes = () => "-".repeat(W);
 
@@ -404,12 +424,12 @@ export function buildKotText(order, restaurantProfile) {
 
     const is80 = layout.paperMm >= 76;
 
-    const tFontSize = getLocalString('PRINT_KOT_TITLE_FONT_SIZE', is80 ? 'DOUBLE' : 'NORMAL');
-    const bFontSize = getLocalString('PRINT_KOT_FONT_SIZE', is80 ? 'DOUBLE' : 'NORMAL');
-    const showRestaurantName = getLocalBool('PRINT_SHOW_RESTAURANT_NAME', true);
-    const showDailyBillNo = getLocalBool('PRINT_SHOW_DAILY_BILL_NO', true);
-    const showCustomerDetails = getLocalBool('PRINT_SHOW_CUSTOMER_DETAILS', true);
-    const showTableLabel = getLocalBool('PRINT_SHOW_TABLE_LABEL', true);
+    const tFontSize = getDocumentString("KOT", "TITLE_FONT_SIZE", "PRINT_KOT_TITLE_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
+    const bFontSize = getDocumentString("KOT", "FONT_SIZE", "PRINT_KOT_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
+    const showRestaurantName = getDocumentBool("KOT", "SHOW_RESTAURANT_NAME", "PRINT_SHOW_RESTAURANT_NAME", true);
+    const showDailyBillNo = getDocumentBool("KOT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
+    const showCustomerDetails = getDocumentBool("KOT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
+    const showTableLabel = getDocumentBool("KOT", "SHOW_TABLE_LABEL", "PRINT_SHOW_TABLE_LABEL", true);
 
     const kotHeader = getLocalString('PRINT_KOT_HEADER', '*** KOT ***');
     const kotFooter = getLocalString('PRINT_KOT_FOOTER', '*** SEND TO KITCHEN ***');
@@ -541,7 +561,7 @@ export async function downloadTextAndShare(order, bill, restaurantProfile) {
 export function buildReceiptText(order, bill, restaurantProfile) {
   try {
     const items = toDisplayItems(order);
-    const layout = getLayout(restaurantProfile);
+    const layout = getLayout(restaurantProfile, "RECEIPT");
     const W = layout.innerCols;
     const dashes = () => "-".repeat(W);
 
@@ -585,13 +605,14 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     const is80 = layout.paperMm >= 76;
 
-    const tFontSize = getLocalString('PRINT_TITLE_FONT_SIZE', is80 ? 'DOUBLE' : 'NORMAL');
-    const bFontSize = getLocalString('PRINT_FONT_SIZE', 'NORMAL');
-    const showRestaurantName = getLocalBool('PRINT_SHOW_RESTAURANT_NAME', true);
-    const showDailyBillNo = getLocalBool('PRINT_SHOW_DAILY_BILL_NO', true);
-    const showCustomerDetails = getLocalBool('PRINT_SHOW_CUSTOMER_DETAILS', true);
-    const showFssai = getLocalBool('PRINT_SHOW_FSSAI', true);
-    const showGstBreakdown = getLocalBool('PRINT_SHOW_GST_BREAKDOWN', true);
+    const tFontSize = getDocumentString("RECEIPT", "TITLE_FONT_SIZE", "PRINT_TITLE_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
+    const bFontSize = getDocumentString("RECEIPT", "FONT_SIZE", "PRINT_FONT_SIZE", 'NORMAL');
+    const showRestaurantName = getDocumentBool("RECEIPT", "SHOW_RESTAURANT_NAME", "PRINT_SHOW_RESTAURANT_NAME", true);
+    const showDailyBillNo = getDocumentBool("RECEIPT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
+    const showCustomerDetails = getDocumentBool("RECEIPT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
+    const showTableLabel = getDocumentBool("RECEIPT", "SHOW_TABLE_LABEL", "PRINT_SHOW_TABLE_LABEL", true);
+    const showFssai = getDocumentBool("RECEIPT", "SHOW_FSSAI", "PRINT_SHOW_FSSAI", true);
+    const showGstBreakdown = getDocumentBool("RECEIPT", "SHOW_GST_BREAKDOWN", "PRINT_SHOW_GST_BREAKDOWN", true);
 
     const receiptHeader = getLocalString('PRINT_RECEIPT_HEADER', '*** TAX INVOICE ***');
     const receiptFooter = getLocalString('PRINT_RECEIPT_FOOTER', '* THANK YOU! VISIT AGAIN !! *');
@@ -620,10 +641,15 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     if (showDailyBillNo && dailyBillNo) {
       lines.push(withMargins(`Daily Bill No: ${dailyBillNo}`, layout));
     }
-    if (orderType) lines.push(withMargins(`Order Type: ${orderType}`, layout));
+    if (showTableLabel && orderType) lines.push(withMargins(`Order Type: ${orderType}`, layout));
 
     const customerText = customerDisplay(order);
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
+
+    if (receiptHeader) {
+      lines.push(withMargins(dashes(), layout));
+      pushWrappedCenteredText(lines, receiptHeader, W, layout);
+    }
 
     lines.push(withMargins(dashes(), layout));
     let header = leftAlign("ITEM", name) + " " + rightAlign("QTY", qty) + " " + rightAlign("RATE", rate);

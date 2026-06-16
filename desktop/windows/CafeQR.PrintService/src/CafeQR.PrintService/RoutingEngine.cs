@@ -20,7 +20,6 @@ namespace CafeQR.PrintService
     {
         public IReadOnlyList<PrinterProfile> Profiles(JObject configuration)
         {
-            var thermalTemplate = configuration?["thermalTemplate"] as JObject ?? new JObject();
             var regularTemplate = configuration?["regularTemplate"] as JObject ?? new JObject();
             return (configuration?["profiles"] as JArray ?? new JArray())
                 .OfType<JObject>()
@@ -29,7 +28,7 @@ namespace CafeQR.PrintService
                     var format = profile.Value<string>("format") ?? PrintConstants.Thermal;
                     var merged = (JObject)(format.Equals(PrintConstants.Regular, StringComparison.OrdinalIgnoreCase)
                         ? regularTemplate.DeepClone()
-                        : thermalTemplate.DeepClone());
+                        : new JObject());
                     merged.Merge(profile, new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
                     return merged.ToObject<PrinterProfile>();
                 })

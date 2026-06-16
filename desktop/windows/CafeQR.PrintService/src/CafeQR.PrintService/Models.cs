@@ -103,6 +103,7 @@ namespace CafeQR.PrintService
         public string Terms { get; set; }
         public string Footer { get; set; }
         public List<string> Documents { get; set; } = new List<string> { "KOT", "BILL", "INVOICE" };
+        public JObject TemplateOverrides { get; set; } = new JObject();
     }
 
     internal sealed class PrintRoute

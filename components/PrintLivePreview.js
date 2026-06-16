@@ -5,8 +5,20 @@ import { bitmapToPngBase64 } from '../utils/logoBitmap';
 export default function PrintLivePreview({ config }) {
   const [activePreview, setActivePreview] = useState('receipt'); // 'receipt', 'kot', 'regular'
 
-  const thermalTemplate = config?.thermalTemplate || {};
+  const receiptTemplate = config?.receiptTemplate || config?.thermalTemplate || {};
+  const kotTemplate = config?.kotTemplate || config?.thermalTemplate || {};
   const regularTemplate = config?.regularTemplate || {};
+  const receiptHeader = receiptTemplate.header ?? receiptTemplate.receiptHeader;
+  const receiptFooter = receiptTemplate.footer ?? receiptTemplate.receiptFooter;
+  const kotHeader = kotTemplate.header ?? kotTemplate.kotHeader;
+  const kotFooter = kotTemplate.footer ?? kotTemplate.kotFooter;
+  const receiptTitleFont = receiptTemplate.titleFontSize || 'DOUBLE';
+  const receiptBodyFont = receiptTemplate.fontSize || 'NORMAL';
+  const kotTitleFont = kotTemplate.titleFontSize || kotTemplate.kotTitleFontSize || 'DOUBLE';
+  const kotBodyFont = kotTemplate.fontSize || kotTemplate.kotFontSize || 'NORMAL';
+  const activeThermalTemplate = activePreview === 'kot' ? kotTemplate : receiptTemplate;
+  const paperWidthMm = Number(activeThermalTemplate.widthMm || 58);
+  const paperMaxWidth = `${Math.max(230, Math.min(360, Math.round((paperWidthMm / 80) * 310)))}px`;
 
   // Convert logo bitmap to image data URL if present
   const logoSrc = useMemo(() => {
@@ -57,7 +69,10 @@ export default function PrintLivePreview({ config }) {
 
       {/* Simulated Viewport */}
       <div className={`paper-viewport ${activePreview === 'regular' ? 'viewport-regular' : ''}`}>
-        <div className={`paper-strip ${activePreview === 'regular' ? 'regular-page-strip' : ''} ${activePreview === 'regular' && regularTemplate.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}>
+        <div
+          className={`paper-strip ${activePreview === 'regular' ? 'regular-page-strip' : ''} ${activePreview === 'regular' && regularTemplate.orientation === 'LANDSCAPE' ? 'landscape' : ''}`}
+          style={activePreview === 'regular' ? undefined : { maxWidth: paperMaxWidth }}
+        >
           {activePreview !== 'regular' && <div className="paper-edge-top"></div>}
           
           <div className="paper-content">
@@ -73,8 +88,8 @@ export default function PrintLivePreview({ config }) {
                 )}
 
                 {/* Restaurant Name */}
-                {thermalTemplate.showRestaurantName !== false && (
-                  <div className={`restaurant-name ${getFontClass(thermalTemplate.titleFontSize)}`}>
+                {receiptTemplate.showRestaurantName !== false && (
+                  <div className={`restaurant-name ${getFontClass(receiptTitleFont)}`}>
                     MY CAFE RESTAURANT
                   </div>
                 )}
@@ -83,10 +98,10 @@ export default function PrintLivePreview({ config }) {
                 <div className="restaurant-details text-center font-small">
                   <div>123 Gourmet Boulevard, Food District</div>
                   <div>Phone: +91 98765 43210</div>
-                  {thermalTemplate.showFssai !== false && (
+                  {receiptTemplate.showFssai !== false && (
                     <div className="license-info">FSSAI: 12345678901234</div>
                   )}
-                  {thermalTemplate.showGstBreakdown !== false && (
+                  {receiptTemplate.showGstBreakdown !== false && (
                     <div className="license-info">GSTIN: 29AAAAA1111A1Z1</div>
                   )}
                 </div>
@@ -98,13 +113,13 @@ export default function PrintLivePreview({ config }) {
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>Invoice: INV-2026-0842</div>
                   <div>Bill No: B-941</div>
-                  {thermalTemplate.showDailyBillNo !== false && (
+                  {receiptTemplate.showDailyBillNo !== false && (
                     <div className="highlight-line">Daily Bill No: #042</div>
                   )}
-                  {thermalTemplate.showTableLabel !== false && (
+                  {receiptTemplate.showTableLabel !== false && (
                     <div className="highlight-line">Order Type: Dine in (Table 5)</div>
                   )}
-                  {thermalTemplate.showCustomerDetails !== false && (
+                  {receiptTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
                       Customer: John Doe (+91 99999 88888)
                     </div>
@@ -114,13 +129,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Header Custom Text */}
-                {thermalTemplate.receiptHeader && (
+                {receiptHeader && (
                   <div className="custom-header-text text-center">
-                    {thermalTemplate.receiptHeader}
+                    {receiptHeader}
                   </div>
                 )}
 
-                {thermalTemplate.receiptHeader && (
+                {receiptHeader && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -134,7 +149,7 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Items Table Body */}
-                <div className={`items-list ${getFontClass(thermalTemplate.fontSize)}`}>
+                <div className={`items-list ${getFontClass(receiptBodyFont)}`}>
                   <div className="items-row">
                     <div className="col-item text-left">
                       Chicken Biryani
@@ -178,7 +193,7 @@ export default function PrintLivePreview({ config }) {
                     <span>-77.00</span>
                   </div>
                   
-                  {thermalTemplate.showGstBreakdown !== false && (
+                  {receiptTemplate.showGstBreakdown !== false && (
                     <>
                       <div className="total-row">
                         <span>CGST (2.5%):</span>
@@ -207,9 +222,9 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Footer Custom Texts */}
-                {thermalTemplate.receiptFooter && (
+                {receiptFooter && (
                   <div className="custom-footer-text text-center">
-                    {thermalTemplate.receiptFooter}
+                    {receiptFooter}
                   </div>
                 )}
                 
@@ -231,8 +246,8 @@ export default function PrintLivePreview({ config }) {
               <div className="kot-view">
                 
                 {/* Restaurant Name on KOT */}
-                {thermalTemplate.showRestaurantName !== false && (
-                  <div className={`restaurant-name ${getFontClass(thermalTemplate.kotTitleFontSize)}`}>
+                {kotTemplate.showRestaurantName !== false && (
+                  <div className={`restaurant-name ${getFontClass(kotTitleFont)}`}>
                     MY CAFE RESTAURANT
                   </div>
                 )}
@@ -240,13 +255,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 
                 {/* KOT Custom Header */}
-                {thermalTemplate.kotHeader && (
+                {kotHeader && (
                   <div className="custom-header-text text-center">
-                    {thermalTemplate.kotHeader}
+                    {kotHeader}
                   </div>
                 )}
                 
-                {thermalTemplate.kotHeader && (
+                {kotHeader && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -254,11 +269,11 @@ export default function PrintLivePreview({ config }) {
                 <div className="order-meta text-left font-small">
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>KOT Ref: KOT-842A</div>
-                  {thermalTemplate.showDailyBillNo !== false && (
+                  {kotTemplate.showDailyBillNo !== false && (
                     <div>Daily Bill No: #042</div>
                   )}
                   <div>Attended by: Cashier Sam</div>
-                  {thermalTemplate.showCustomerDetails !== false && (
+                  {kotTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
                       Customer: John Doe
                     </div>
@@ -274,13 +289,13 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* Table Highlight (KOT Title Font) */}
-                {thermalTemplate.showTableLabel !== false && (
-                  <div className={`kot-table-label text-center ${getFontClass(thermalTemplate.kotTitleFontSize)}`}>
+                {kotTemplate.showTableLabel !== false && (
+                  <div className={`kot-table-label text-center ${getFontClass(kotTitleFont)}`}>
                     TABLE: 5
                   </div>
                 )}
 
-                {thermalTemplate.showTableLabel !== false && (
+                {kotTemplate.showTableLabel !== false && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
 
@@ -293,7 +308,7 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* KOT Items Table Body */}
-                <div className={`kot-items-list ${getFontClass(thermalTemplate.kotFontSize)}`}>
+                <div className={`kot-items-list ${getFontClass(kotBodyFont)}`}>
                   <div className="items-row font-bold">
                     <div className="col-item text-left">
                       Chicken Biryani
@@ -321,9 +336,9 @@ export default function PrintLivePreview({ config }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* KOT Custom Footer */}
-                {thermalTemplate.kotFooter && (
+                {kotFooter && (
                   <div className="custom-footer-text text-center">
-                    {thermalTemplate.kotFooter}
+                    {kotFooter}
                   </div>
                 )}
 

@@ -39,9 +39,12 @@ namespace CafeQR.PrintService
 
             Log.Info($"[Thermal Print] Rendered Text: {Environment.NewLine}{text}");
 
-            if ((submission.JobKind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase) && attempt > 1)
+            var documentKind = IsKotKind(submission.JobKind) ? "kot" : "receipt";
+            var effectiveTemplate = EffectiveThermalTemplate(config, profile, documentKind);
+
+            if (IsKotKind(submission.JobKind) && attempt > 1)
             {
-                var layout = GetLayout(config, profile);
+                var layout = GetLayout(config, profile, documentKind);
                 text = Center("*** REPRINT ***", layout.InnerCols) + Environment.NewLine + text;
             }
 
@@ -50,11 +53,12 @@ namespace CafeQR.PrintService
             {
                 stream.Write(new byte[] { 0x1B, 0x40 }, 0, 2);
                 stream.Write(body, 0, body.Length);
-                for (var i = 0; i < Math.Max(1, profile.FeedLines); i++)
+                var feedLines = ValueInt(effectiveTemplate, "feedLines", profile.FeedLines);
+                for (var i = 0; i < Math.Max(1, feedLines); i++)
                 {
                     stream.WriteByte(0x0A);
                 }
-                if (profile.AutoCut)
+                if (ValueBool(effectiveTemplate, "autoCut", profile.AutoCut))
                 {
                     stream.Write(new byte[] { 0x1D, 0x56, 0x00 }, 0, 3);
                 }
@@ -198,23 +202,92 @@ namespace CafeQR.PrintService
             public int GuardCols;
         }
 
-        private static ThermalLayout GetLayout(JObject config, PrinterProfile profile)
+        private static bool IsKotKind(string kind) =>
+            (kind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase);
+
+        private static JObject ProfileThermalTemplate(PrinterProfile profile)
         {
-            var tpl = config?["thermalTemplate"] as JObject;
+            var result = new JObject();
+            if (!string.IsNullOrWhiteSpace(profile.PaperPreset)) result["preset"] = profile.PaperPreset;
+            if (profile.WidthMm > 0) result["widthMm"] = profile.WidthMm;
+            if (profile.Columns > 0) result["columns"] = profile.Columns;
+            if (profile.PrintableDots > 0) result["printableDots"] = profile.PrintableDots;
+            if (profile.LeftMargin > 0) result["leftMargin"] = profile.LeftMargin;
+            if (profile.RightMargin > 0) result["rightMargin"] = profile.RightMargin;
+            if (profile.LineSpacing > 0) result["lineSpacing"] = profile.LineSpacing;
+            result["autoCut"] = profile.AutoCut;
+            result["feedLines"] = profile.FeedLines;
+            return result;
+        }
+
+        private static JObject LegacyThermalTemplateFor(JObject legacy, string documentKind)
+        {
+            var result = legacy != null ? (JObject)legacy.DeepClone() : new JObject();
+            if (string.Equals(documentKind, "kot", StringComparison.OrdinalIgnoreCase))
+            {
+                if (legacy?["kotTitleFontSize"] != null) result["titleFontSize"] = legacy["kotTitleFontSize"];
+                if (legacy?["kotFontSize"] != null) result["fontSize"] = legacy["kotFontSize"];
+                if (legacy?["kotHeader"] != null) result["header"] = legacy["kotHeader"];
+                if (legacy?["kotFooter"] != null) result["footer"] = legacy["kotFooter"];
+            }
+            else
+            {
+                if (legacy?["receiptHeader"] != null) result["header"] = legacy["receiptHeader"];
+                if (legacy?["receiptFooter"] != null) result["footer"] = legacy["receiptFooter"];
+            }
+            return result;
+        }
+
+        private static JObject EffectiveThermalTemplate(JObject config, PrinterProfile profile, string documentKind)
+        {
+            var key = string.Equals(documentKind, "kot", StringComparison.OrdinalIgnoreCase)
+                ? "kotTemplate"
+                : "receiptTemplate";
+            var overrideKey = string.Equals(documentKind, "kot", StringComparison.OrdinalIgnoreCase)
+                ? "kot"
+                : "receipt";
+            var merged = new JObject();
+            var legacy = config?["thermalTemplate"] as JObject;
+            var global = config?[key] as JObject;
+            if (legacy != null) merged.Merge(LegacyThermalTemplateFor(legacy, documentKind), new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
+            if (global != null) merged.Merge(global, new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
+            merged.Merge(ProfileThermalTemplate(profile), new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
+
+            var overrides = profile.TemplateOverrides?[overrideKey] as JObject;
+            if (overrides != null && ValueBool(overrides, "enabled", false))
+            {
+                var cleanOverrides = (JObject)overrides.DeepClone();
+                cleanOverrides.Remove("enabled");
+                merged.Merge(cleanOverrides, new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Replace });
+            }
+            return merged;
+        }
+
+        private static string PickTemplateValue(JObject obj, string[] keys, string fallback = "")
+        {
+            foreach (var key in keys)
+            {
+                var token = obj?[key];
+                if (token != null && token.Type != JTokenType.Null && !string.IsNullOrEmpty(token.ToString()))
+                    return token.ToString();
+            }
+            return fallback;
+        }
+
+        private static ThermalLayout GetLayout(JObject config, PrinterProfile profile, string documentKind)
+        {
+            var tpl = EffectiveThermalTemplate(config, profile, documentKind);
             int cols = profile.Columns > 0 ? profile.Columns : 32;
             decimal widthMm = profile.WidthMm > 0 ? profile.WidthMm : 58m;
             int printableDots = profile.PrintableDots > 0 ? profile.PrintableDots : 384;
             int leftMargin = profile.LeftMargin;
             int rightMargin = profile.RightMargin;
 
-            if (tpl != null)
-            {
-                cols = ValueInt(tpl, "columns", cols);
-                widthMm = ValueDecimal(tpl, "widthMm", widthMm);
-                printableDots = ValueInt(tpl, "printableDots", printableDots);
-                leftMargin = ValueInt(tpl, "leftMargin", leftMargin);
-                rightMargin = ValueInt(tpl, "rightMargin", rightMargin);
-            }
+            cols = ValueInt(tpl, "columns", cols);
+            widthMm = ValueDecimal(tpl, "widthMm", widthMm);
+            printableDots = ValueInt(tpl, "printableDots", printableDots);
+            leftMargin = ValueInt(tpl, "leftMargin", leftMargin);
+            rightMargin = ValueInt(tpl, "rightMargin", rightMargin);
 
             int paperMm = (int)Math.Round(widthMm);
             int dotWidth = printableDots;
@@ -222,16 +295,13 @@ namespace CafeQR.PrintService
             int leftDots = leftMargin > 0 ? leftMargin : defaultMargin;
             int rightDots = rightMargin > 0 ? rightMargin : defaultMargin;
 
-            if (tpl != null)
-            {
-                leftDots = ValueInt(tpl, "leftMarginDots", leftDots);
-                rightDots = ValueInt(tpl, "rightMarginDots", rightDots);
-            }
+            leftDots = ValueInt(tpl, "leftMarginDots", leftDots);
+            rightDots = ValueInt(tpl, "rightMarginDots", rightDots);
 
             int areaDots = Math.Max(200, dotWidth - leftDots - rightDots);
             int guardColsDefault = paperMm >= 76 ? 0 : 1;
-            int guardCols = tpl != null ? ValueInt(tpl, "guardCols", guardColsDefault) : guardColsDefault;
-            int safeCols = tpl != null ? ValueInt(tpl, "safeCols", 0) : 0;
+            int guardCols = ValueInt(tpl, "guardCols", guardColsDefault);
+            int safeCols = ValueInt(tpl, "safeCols", 0);
             int charDots = 12;
             int maxColsFromDots = areaDots / charDots;
 
@@ -684,8 +754,8 @@ namespace CafeQR.PrintService
                 }
             }
 
-            var tpl = config?["thermalTemplate"] as JObject;
-            var layout = GetLayout(config, profile);
+            var tpl = EffectiveThermalTemplate(config, profile, "kot");
+            var layout = GetLayout(config, profile, "kot");
             int W = layout.InnerCols;
             string dashes = new string('-', W);
 
@@ -697,8 +767,8 @@ namespace CafeQR.PrintService
             bool showTableLabel = tpl != null ? ValueBool(tpl, "showTableLabel", true) : true;
             bool showFssai = tpl != null ? ValueBool(tpl, "showFssai", true) : true;
 
-            string kotHeader = tpl != null ? PickValue(tpl, new[] { "kotHeader" }, "*** KOT ***") : "*** KOT ***";
-            string kotFooter = tpl != null ? PickValue(tpl, new[] { "kotFooter" }, "*** SEND TO KITCHEN ***") : "*** SEND TO KITCHEN ***";
+            string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
+            string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
 
             string restaurantName = PickValue(restaurantProfile, new[] { "restaurantName", "restaurant_name", "name" });
             if (string.IsNullOrEmpty(restaurantName))
@@ -721,7 +791,7 @@ namespace CafeQR.PrintService
             bool is80 = layout.PaperMm >= 76;
             lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
 
-            string titleSizeCmd = GetFontSizeCmd(tpl != null ? PickValue(tpl, new[] { "kotTitleFontSize" }, is80 ? "DOUBLE" : "NORMAL") : (is80 ? "DOUBLE" : "NORMAL"));
+            string titleSizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
             
             if (showRestaurantName)
             {
@@ -788,7 +858,7 @@ namespace CafeQR.PrintService
             if (showTableLabel && !string.IsNullOrEmpty(tableLabel))
             {
                 lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
-                lines.Add(MODE_BOLD + SIZE_2X + tableLabel + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + titleSizeCmd + tableLabel + SIZE_1X + MODE_NO_BOLD);
                 lines.Add(ESC + "a" + "\x00"); // ALIGN_LEFT
                 lines.Add(WithMargins(dashes, layout));
             }
@@ -803,7 +873,7 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins(LeftAlign("ITEM", itemNameW) + " " + RightAlign("QTY", itemQtyW), layout));
                 lines.Add(WithMargins(dashes, layout));
 
-                string bodySizeCmd = GetFontSizeCmd(tpl != null ? PickValue(tpl, new[] { "kotFontSize" }, is80 ? "DOUBLE" : "NORMAL") : (is80 ? "DOUBLE" : "NORMAL"));
+                string bodySizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
                 lines.Add(MODE_BOLD + bodySizeCmd);
                 foreach (var it in items)
                 {
@@ -860,8 +930,8 @@ namespace CafeQR.PrintService
         private static string BuildReceiptText(JObject order, JObject bill, JObject config, PrinterProfile profile)
         {
             var items = ToDisplayItems(order);
-            var tpl = config?["thermalTemplate"] as JObject;
-            var layout = GetLayout(config, profile);
+            var tpl = EffectiveThermalTemplate(config, profile, "receipt");
+            var layout = GetLayout(config, profile, "receipt");
             int W = layout.InnerCols;
             string dashes = new string('-', W);
 
@@ -915,11 +985,12 @@ namespace CafeQR.PrintService
             bool showRestaurantName = tpl != null ? ValueBool(tpl, "showRestaurantName", true) : true;
             bool showDailyBillNo = tpl != null ? ValueBool(tpl, "showDailyBillNo", true) : true;
             bool showCustomerDetails = tpl != null ? ValueBool(tpl, "showCustomerDetails", true) : true;
+            bool showTableLabel = tpl != null ? ValueBool(tpl, "showTableLabel", true) : true;
             bool showFssai = tpl != null ? ValueBool(tpl, "showFssai", true) : true;
             bool showGstBreakdown = tpl != null ? ValueBool(tpl, "showGstBreakdown", true) : true;
 
-            string receiptHeader = tpl != null ? PickValue(tpl, new[] { "receiptHeader" }, "*** TAX INVOICE ***") : "*** TAX INVOICE ***";
-            string receiptFooter = tpl != null ? PickValue(tpl, new[] { "receiptFooter" }, "* THANK YOU! VISIT AGAIN !! *") : "* THANK YOU! VISIT AGAIN !! *";
+            string receiptHeader = PickTemplateValue(tpl, new[] { "header", "receiptHeader" }, "*** TAX INVOICE ***");
+            string receiptFooter = PickTemplateValue(tpl, new[] { "footer", "receiptFooter" }, "* THANK YOU! VISIT AGAIN !! *");
 
             // Determine columns for bill printing
             var billCols = GetBillCols(W, hasLineDiscount);
@@ -934,7 +1005,7 @@ namespace CafeQR.PrintService
             bool is80 = layout.PaperMm >= 76;
 
             lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
-            string titleSizeCmd = GetFontSizeCmd(tpl != null ? PickValue(tpl, new[] { "titleFontSize" }, is80 ? "DOUBLE" : "NORMAL") : (is80 ? "DOUBLE" : "NORMAL"));
+            string titleSizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "titleFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
             
             if (showRestaurantName)
             {
@@ -969,12 +1040,18 @@ namespace CafeQR.PrintService
             {
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
-            if (!string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
+            if (showTableLabel && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
 
             var customerText = CustomerDisplay(order);
             if (showCustomerDetails && !string.IsNullOrEmpty(customerText))
             {
                 lines.Add(WithMargins("Customer: " + customerText, layout));
+            }
+
+            if (!string.IsNullOrEmpty(receiptHeader))
+            {
+                lines.Add(WithMargins(dashes, layout));
+                PushWrappedCenteredText(lines, receiptHeader, W, layout);
             }
 
             lines.Add(WithMargins(dashes, layout));
@@ -985,7 +1062,7 @@ namespace CafeQR.PrintService
             lines.Add(WithMargins(header, layout));
             lines.Add(WithMargins(dashes, layout));
 
-            string bodySizeCmd = GetFontSizeCmd(tpl != null ? PickValue(tpl, new[] { "fontSize" }, "NORMAL") : "NORMAL");
+            string bodySizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize" }, "NORMAL"));
             lines.Add(bodySizeCmd);
 
             foreach (var it in items)
@@ -1119,8 +1196,6 @@ namespace CafeQR.PrintService
         }
 
         private static int MmToHundredths(decimal mm) => (int)Math.Round(mm / 25.4m * 100m);
-        private static string Center(string value, int width) =>
-            value.Length >= width ? value : new string(' ', (width - value.Length) / 2) + value;
         private static string Value(JObject value, params string[] keys)
         {
             foreach (var key in keys)

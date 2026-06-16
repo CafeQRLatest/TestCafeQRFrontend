@@ -44,6 +44,71 @@ const newId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).
 const SELECTED_TERMINAL_KEY = 'CAFEQR_PRINT_SELECTED_TERMINAL';
 const PRODUCTION_APP_URL = 'https://app.cafeqr.in';
 
+const DEFAULT_THERMAL_LAYOUT = {
+  preset: '58MM',
+  widthMm: 58,
+  columns: 32,
+  printableDots: 384,
+  leftMargin: 0,
+  rightMargin: 0,
+  lineSpacing: 0,
+  autoCut: true,
+  feedLines: 3,
+  showRestaurantName: true,
+  showDailyBillNo: true,
+  showCustomerDetails: true,
+  showTableLabel: true,
+  showFssai: true,
+  leftMarginDots: 0,
+  rightMarginDots: 0,
+  guardCols: 0,
+  safeCols: 0,
+};
+
+const DEFAULT_KOT_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  showGstBreakdown: false,
+  titleFontSize: 'DOUBLE',
+  fontSize: 'NORMAL',
+  header: '*** KOT ***',
+  footer: '*** SEND TO KITCHEN ***',
+};
+
+const DEFAULT_RECEIPT_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  showGstBreakdown: true,
+  titleFontSize: 'DOUBLE',
+  fontSize: 'NORMAL',
+  header: '*** TAX INVOICE ***',
+  footer: '* THANK YOU! VISIT AGAIN !! *',
+};
+
+const DEFAULT_THERMAL_TEMPLATE = {
+  ...DEFAULT_THERMAL_LAYOUT,
+  fontSize: DEFAULT_RECEIPT_TEMPLATE.fontSize,
+  kotFontSize: DEFAULT_KOT_TEMPLATE.fontSize,
+  titleFontSize: DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
+  kotTitleFontSize: DEFAULT_KOT_TEMPLATE.titleFontSize,
+  showGstBreakdown: true,
+  kotHeader: DEFAULT_KOT_TEMPLATE.header,
+  kotFooter: DEFAULT_KOT_TEMPLATE.footer,
+  receiptHeader: DEFAULT_RECEIPT_TEMPLATE.header,
+  receiptFooter: DEFAULT_RECEIPT_TEMPLATE.footer,
+};
+
+const FONT_SIZE_OPTIONS = [
+  { value: 'NORMAL', label: 'Normal (1x)' },
+  { value: 'DOUBLE_HEIGHT', label: 'Double Height (2H)' },
+  { value: 'DOUBLE_WIDTH', label: 'Double Width (2W)' },
+  { value: 'DOUBLE', label: 'Double (2x)' },
+];
+
+const THERMAL_PAPER_PRESETS = [
+  { preset: '58MM', label: '2 inch / 58 mm', widthMm: 58, columns: 32, printableDots: 384 },
+  { preset: '80MM', label: '3 inch / 80 mm', widthMm: 80, columns: 48, printableDots: 576 },
+  { preset: '4IN', label: '4 inch', widthMm: 101.6, columns: 64, printableDots: 832 },
+];
+
 const DEFAULT_CONFIG = {
   profiles: [],
   routes: [],
@@ -58,35 +123,9 @@ const DEFAULT_CONFIG = {
     kotMode: 'MIRROR',
     invoiceMode: 'MIRROR',
   },
-  thermalTemplate: {
-    preset: '58MM',
-    widthMm: 58,
-    columns: 32,
-    printableDots: 384,
-    leftMargin: 0,
-    rightMargin: 0,
-    lineSpacing: 0,
-    autoCut: true,
-    feedLines: 3,
-    fontSize: 'NORMAL',
-    kotFontSize: 'NORMAL',
-    titleFontSize: 'DOUBLE',
-    kotTitleFontSize: 'DOUBLE',
-    showRestaurantName: true,
-    showDailyBillNo: true,
-    showCustomerDetails: true,
-    showTableLabel: true,
-    showFssai: true,
-    showGstBreakdown: true,
-    kotHeader: '*** KOT ***',
-    kotFooter: '*** SEND TO KITCHEN ***',
-    receiptHeader: '*** TAX INVOICE ***',
-    receiptFooter: '* THANK YOU! VISIT AGAIN !! *',
-    leftMarginDots: 0,
-    rightMarginDots: 0,
-    guardCols: 0,
-    safeCols: 0,
-  },
+  kotTemplate: DEFAULT_KOT_TEMPLATE,
+  receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
+  thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
   regularTemplate: {
     paperPreset: 'A4',
     widthMm: 210,
@@ -125,6 +164,51 @@ const deepMerge = (base, incoming) => {
   return out;
 };
 
+const mergeKotTemplate = (template) => {
+  const source = template || {};
+  return {
+    ...DEFAULT_KOT_TEMPLATE,
+    ...source,
+    titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
+    fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
+    header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
+    footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
+  };
+};
+
+const mergeReceiptTemplate = (template) => {
+  const source = template || {};
+  return {
+    ...DEFAULT_RECEIPT_TEMPLATE,
+    ...source,
+    titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
+    fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
+    header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
+    footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
+  };
+};
+
+const syncThermalTemplateToLocalStorage = (documentKey, template) => {
+  const prefix = documentKey === 'KOT' ? 'PRINT_KOT_' : 'PRINT_RECEIPT_';
+  localStorage.setItem(`${prefix}PAPER_MM`, String(template.widthMm || '58'));
+  localStorage.setItem(`${prefix}WIDTH_COLS`, String(template.columns || 32));
+  localStorage.setItem(`${prefix}PRINTABLE_DOTS`, String(template.printableDots || 384));
+  localStorage.setItem(`${prefix}LEFT_MARGIN_DOTS`, String(template.leftMarginDots ?? 0));
+  localStorage.setItem(`${prefix}RIGHT_MARGIN_DOTS`, String(template.rightMarginDots ?? 0));
+  localStorage.setItem(`${prefix}GUARD_COLS`, String(template.guardCols ?? 0));
+  localStorage.setItem(`${prefix}SAFE_COLS`, String(template.safeCols ?? 0));
+  localStorage.setItem(`${prefix}FEED_LINES`, String(template.feedLines ?? 3));
+  localStorage.setItem(`${prefix}AUTO_CUT`, template.autoCut !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_RESTAURANT_NAME`, template.showRestaurantName !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_DAILY_BILL_NO`, template.showDailyBillNo !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_CUSTOMER_DETAILS`, template.showCustomerDetails !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_TABLE_LABEL`, template.showTableLabel !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_FSSAI`, template.showFssai !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
+  localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
+};
+
 const profileDefaults = (format = 'THERMAL') => ({
   id: newId('printer'),
   name: format === 'REGULAR' ? 'Regular Invoice Printer' : 'Thermal Printer',
@@ -146,6 +230,7 @@ const profileDefaults = (format = 'THERMAL') => ({
   feedLines: format === 'THERMAL' ? 3 : 0,
   enabled: true,
   documents: format === 'REGULAR' ? ['BILL', 'INVOICE', 'KOT'] : ['BILL', 'INVOICE', 'KOT'],
+  templateOverrides: {},
 });
 
 const routeDefaults = () => ({
@@ -231,29 +316,33 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_PAPER_MM', String(paperMm));
   localStorage.setItem('PRINT_WIDTH_COLS', String(cols));
 
-  if (config.thermalTemplate) {
-    localStorage.setItem('PRINT_FONT_SIZE', config.thermalTemplate.fontSize || 'NORMAL');
-    localStorage.setItem('PRINT_KOT_FONT_SIZE', config.thermalTemplate.kotFontSize || 'NORMAL');
-    localStorage.setItem('PRINT_TITLE_FONT_SIZE', config.thermalTemplate.titleFontSize || 'DOUBLE');
-    localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', config.thermalTemplate.kotTitleFontSize || 'DOUBLE');
+  const kotTemplate = mergeKotTemplate(config.kotTemplate || config.thermalTemplate);
+  const receiptTemplate = mergeReceiptTemplate(config.receiptTemplate || config.thermalTemplate);
 
-    localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', config.thermalTemplate.showRestaurantName !== false ? '1' : '0');
-    localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', config.thermalTemplate.showDailyBillNo !== false ? '1' : '0');
-    localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', config.thermalTemplate.showCustomerDetails !== false ? '1' : '0');
-    localStorage.setItem('PRINT_SHOW_TABLE_LABEL', config.thermalTemplate.showTableLabel !== false ? '1' : '0');
-    localStorage.setItem('PRINT_SHOW_FSSAI', config.thermalTemplate.showFssai !== false ? '1' : '0');
-    localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', config.thermalTemplate.showGstBreakdown !== false ? '1' : '0');
+  syncThermalTemplateToLocalStorage('KOT', kotTemplate);
+  syncThermalTemplateToLocalStorage('RECEIPT', receiptTemplate);
 
-    localStorage.setItem('PRINT_KOT_HEADER', config.thermalTemplate.kotHeader ?? '*** KOT ***');
-    localStorage.setItem('PRINT_KOT_FOOTER', config.thermalTemplate.kotFooter ?? '*** SEND TO KITCHEN ***');
-    localStorage.setItem('PRINT_RECEIPT_HEADER', config.thermalTemplate.receiptHeader ?? '*** TAX INVOICE ***');
-    localStorage.setItem('PRINT_RECEIPT_FOOTER', config.thermalTemplate.receiptFooter ?? '* THANK YOU! VISIT AGAIN !! *');
+  localStorage.setItem('PRINT_FONT_SIZE', receiptTemplate.fontSize || 'NORMAL');
+  localStorage.setItem('PRINT_KOT_FONT_SIZE', kotTemplate.fontSize || 'NORMAL');
+  localStorage.setItem('PRINT_TITLE_FONT_SIZE', receiptTemplate.titleFontSize || 'DOUBLE');
+  localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kotTemplate.titleFontSize || 'DOUBLE');
 
-    localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(config.thermalTemplate.leftMarginDots ?? 0));
-    localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(config.thermalTemplate.rightMarginDots ?? 0));
-    localStorage.setItem('PRINT_GUARD_COLS', String(config.thermalTemplate.guardCols ?? 0));
-    localStorage.setItem('PRINT_SAFE_COLS', String(config.thermalTemplate.safeCols ?? 0));
-  }
+  localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', receiptTemplate.showRestaurantName !== false ? '1' : '0');
+  localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', receiptTemplate.showDailyBillNo !== false ? '1' : '0');
+  localStorage.setItem('PRINT_SHOW_CUSTOMER_DETAILS', receiptTemplate.showCustomerDetails !== false ? '1' : '0');
+  localStorage.setItem('PRINT_SHOW_TABLE_LABEL', receiptTemplate.showTableLabel !== false ? '1' : '0');
+  localStorage.setItem('PRINT_SHOW_FSSAI', receiptTemplate.showFssai !== false ? '1' : '0');
+  localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receiptTemplate.showGstBreakdown !== false ? '1' : '0');
+
+  localStorage.setItem('PRINT_KOT_HEADER', kotTemplate.header ?? '*** KOT ***');
+  localStorage.setItem('PRINT_KOT_FOOTER', kotTemplate.footer ?? '*** SEND TO KITCHEN ***');
+  localStorage.setItem('PRINT_RECEIPT_HEADER', receiptTemplate.header ?? '*** TAX INVOICE ***');
+  localStorage.setItem('PRINT_RECEIPT_FOOTER', receiptTemplate.footer ?? '* THANK YOU! VISIT AGAIN !! *');
+
+  localStorage.setItem('PRINT_LEFT_MARGIN_DOTS', String(receiptTemplate.leftMarginDots ?? 0));
+  localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(receiptTemplate.rightMarginDots ?? 0));
+  localStorage.setItem('PRINT_GUARD_COLS', String(receiptTemplate.guardCols ?? 0));
+  localStorage.setItem('PRINT_SAFE_COLS', String(receiptTemplate.safeCols ?? 0));
 
   console.log('[print-sync] Local storage synced for loopback mode:', {
     billPrinters,
@@ -773,6 +862,26 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     }));
   };
 
+  const updateProfileTemplateOverride = (id, documentKey, changes) => {
+    setPrintConfig((previous) => sanitizeConfiguration({
+      ...previous,
+      profiles: previous.profiles.map((profile) => {
+        if (profile.id !== id) return profile;
+        const currentOverrides = profile.templateOverrides || {};
+        return {
+          ...profile,
+          templateOverrides: {
+            ...currentOverrides,
+            [documentKey]: {
+              ...(currentOverrides[documentKey] || {}),
+              ...changes,
+            },
+          },
+        };
+      }),
+    }));
+  };
+
   const deleteProfile = (id) => {
     setPrintConfig((previous) => sanitizeConfiguration({
       ...previous,
@@ -996,6 +1105,89 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     ...previous,
     defaults: { ...previous.defaults, [key]: value },
   }));
+
+  const renderTemplateOverride = (profile, documentKey, title, defaultTemplate) => {
+    if (profile.format !== 'THERMAL') return null;
+    const documentType = documentKey === 'kot' ? 'KOT' : 'BILL';
+    if (!profileSupportsDocument(profile, documentType)) return null;
+    const override = profile.templateOverrides?.[documentKey] || {};
+    const enabled = override.enabled === true;
+    const template = documentKey === 'kot'
+      ? mergeKotTemplate({ ...defaultTemplate, ...override })
+      : mergeReceiptTemplate({ ...defaultTemplate, ...override });
+    const update = (changes) => updateProfileTemplateOverride(profile.id, documentKey, changes);
+    const visibilityOptions = [
+      ['showRestaurantName', 'Restaurant name'],
+      ['showDailyBillNo', 'Daily bill no.'],
+      ['showCustomerDetails', 'Customer'],
+      ['showTableLabel', 'Table/type'],
+      ['showFssai', 'FSSAI'],
+      ...(documentKey === 'receipt' ? [['showGstBreakdown', 'GST']] : []),
+    ];
+
+    return (
+      <div className="template-override">
+        <button type="button" className="override-toggle" onClick={() => update({ enabled: !enabled })}>
+          <span>{title} template override</span>
+          <span className={`pill ${enabled ? 'on' : ''}`}>{enabled ? 'Override' : 'Global'}</span>
+        </button>
+        {enabled && (
+          <div className="override-body">
+            <div className="form-grid compact">
+              <Field label="Paper">
+                <NiceSelect
+                  value={template.preset || '58MM'}
+                  onChange={(value) => {
+                    const preset = THERMAL_PAPER_PRESETS.find((row) => row.preset === value);
+                    update({
+                      preset: value,
+                      ...(preset ? {
+                        widthMm: preset.widthMm,
+                        columns: preset.columns,
+                        printableDots: preset.printableDots,
+                      } : {}),
+                    });
+                  }}
+                  options={[
+                    ...THERMAL_PAPER_PRESETS.map((row) => ({ value: row.preset, label: row.label })),
+                    { value: 'CUSTOM', label: 'Custom' },
+                  ]}
+                />
+              </Field>
+              <Field label="Width (mm)"><input type="number" value={template.widthMm || ''} onChange={(event) => update({ widthMm: Number(event.target.value) })} /></Field>
+              <Field label="Columns"><input type="number" value={template.columns || 32} onChange={(event) => update({ columns: Number(event.target.value) })} /></Field>
+              <Field label="Printable dots"><input type="number" value={template.printableDots || 384} onChange={(event) => update({ printableDots: Number(event.target.value) })} /></Field>
+              <Field label="Left dots"><input type="number" min="0" value={template.leftMarginDots ?? 0} onChange={(event) => update({ leftMarginDots: Number(event.target.value) })} /></Field>
+              <Field label="Right dots"><input type="number" min="0" value={template.rightMarginDots ?? 0} onChange={(event) => update({ rightMarginDots: Number(event.target.value) })} /></Field>
+              <Field label="Feed lines"><input type="number" min="0" value={template.feedLines ?? 3} onChange={(event) => update({ feedLines: Number(event.target.value) })} /></Field>
+              <Field label="Title font">
+                <NiceSelect value={template.titleFontSize || 'DOUBLE'} onChange={(value) => update({ titleFontSize: value })} options={FONT_SIZE_OPTIONS} />
+              </Field>
+              <Field label="Body font">
+                <NiceSelect value={template.fontSize || 'NORMAL'} onChange={(value) => update({ fontSize: value })} options={FONT_SIZE_OPTIONS} />
+              </Field>
+            </div>
+            <div className="document-toggles compact-toggles">
+              <label className="check">
+                <input type="checkbox" checked={template.autoCut !== false} onChange={(event) => update({ autoCut: event.target.checked })} />
+                <span>Auto-cut</span>
+              </label>
+              {visibilityOptions.map(([key, label]) => (
+                <label className="check" key={key}>
+                  <input type="checkbox" checked={template[key] !== false} onChange={(event) => update({ [key]: event.target.checked })} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="form-grid">
+              <Field label="Header"><input value={template.header || ''} onChange={(event) => update({ header: event.target.value })} /></Field>
+              <Field label="Footer"><input value={template.footer || ''} onChange={(event) => update({ footer: event.target.value })} /></Field>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const tabs = [
     ['service', 'Print Service', <FaServer key="service" />],
@@ -1392,6 +1584,12 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                     <button className="secondary test" onClick={() => testDocType(profile, 'BILL')} disabled={!health || busy} style={{ backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>Test Bill</button>
                   </div>
                 </div>
+                {profile.format === 'THERMAL' && (
+                  <div className="profile-template-overrides">
+                    {renderTemplateOverride(profile, 'kot', 'KOT', printConfig.kotTemplate || DEFAULT_KOT_TEMPLATE)}
+                    {renderTemplateOverride(profile, 'receipt', 'Final bill', printConfig.receiptTemplate || DEFAULT_RECEIPT_TEMPLATE)}
+                  </div>
+                )}
               </div>
             ))}
             {!printConfig.profiles.length && <div className="empty-state"><FaPrint /><strong>No printer profiles</strong><span>Add the first thermal or regular printer.</span></div>}
@@ -1653,6 +1851,13 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         .print-platform .icon { width: 34px; height: 34px; border: 0; background: transparent; color: #dc2626; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
         .print-platform .document-toggles { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
         .print-platform .document-toggles .test { margin-left: auto; min-height: 34px; }
+        .print-platform .profile-template-overrides { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
+        .print-platform .template-override { border: 1px solid #e1e7ef; border-radius: 10px; background: #f8fafc; overflow: hidden; }
+        .print-platform .override-toggle { width: 100%; border: 0; background: transparent; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #243044; font-weight: 800; cursor: pointer; }
+        .print-platform .override-body { padding: 12px; border-top: 1px solid #e1e7ef; display: flex; flex-direction: column; gap: 12px; background: white; }
+        .print-platform .pill { display: inline-flex; align-items: center; justify-content: center; min-width: 58px; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 850; color: #60708a; background: #e2e8f0; }
+        .print-platform .pill.on { color: #9a3412; background: #ffedd5; }
+        .print-platform .compact-toggles { margin-top: 0; }
         .print-platform .profile-destination { color: #60708a; font-size: 12px; font-weight: 700; }
         .print-platform .defaults-row { display: grid; grid-template-columns: repeat(2, minmax(0, 260px)); gap: 12px; margin-bottom: 18px; }
         .print-platform .assignment-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
