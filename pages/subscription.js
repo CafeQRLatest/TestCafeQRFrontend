@@ -109,7 +109,7 @@ export default function SubscriptionPage() {
         amount: payment.amount,
         currency: payment.currency || 'INR',
         name: 'CafeQR Subscription',
-        description: payment.description || 'Monthly Subscription - Rs 1',
+        description: payment.description || 'Monthly Subscription - Rs 99',
         order_id: payment.orderId,
         prefill: {
           name: fullName || clientName || 'CafeQR User',
@@ -228,7 +228,7 @@ export default function SubscriptionPage() {
                   <div className="plan-name">BUSINESS PRO</div>
                   <div className="price-tag">
                     <span className="currency">₹</span>
-                    <span className="val">1</span>
+                    <span className="val">99</span>
                     <span className="cycle">/ month</span>
                   </div>
                 </div>

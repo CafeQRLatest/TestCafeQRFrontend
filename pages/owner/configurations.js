@@ -16,7 +16,7 @@ import {
   FaSearch, FaCreditCard, FaCamera, FaBook, FaChair,
   FaQrcode, FaBoxes, FaIndustry, FaUsers,
   FaTags, FaUtensils, FaTruck, FaUserFriends,
-  FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff
+  FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff, FaInfoCircle
 } from 'react-icons/fa';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -24,7 +24,7 @@ import {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const TABS = [
-  { key: 'modules',  label: 'Power Modules',    icon: <FaBolt />,       mobileLabel: 'Modules' },
+  { key: 'modules',  label: 'Configuration',    icon: <FaBolt />,       mobileLabel: 'Config' },
   { key: 'tax',      label: 'Tax Rules',        icon: <FaReceipt />,    mobileLabel: 'Tax' },
   { key: 'roundoff', label: 'Round-off',        icon: <FaCalculator />, mobileLabel: 'Round-off' },
   { key: 'print',    label: 'Templates & Paper', icon: <FaPrint />,     mobileLabel: 'Templates' },
@@ -110,9 +110,11 @@ function ConfigurationsContent() {
   const [saving, setSaving]       = useState(false);
   const [message, setMessage]     = useState(null);
   const [msgType, setMsgType]     = useState('success');
+  const [activeTooltip, setActiveTooltip] = useState(null);
 
   // UI State for Tax feature
   const [newRate, setNewRate]     = useState('');
+  const [showAddRuleModal, setShowAddRuleModal] = useState(false);
 
   // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -133,7 +135,7 @@ function ConfigurationsContent() {
     ],
     tax_default_id: 't1',
     tax_prices_include: false,
-    tax_split_enabled: true,
+    tax_split_enabled: false,
 
     currency_symbol: '₹',
     currency_position: 'before',
@@ -226,7 +228,7 @@ function ConfigurationsContent() {
             tax_rates: parsedRates,
             tax_default_id: d.taxDefaultId || (parsedRates[0]?.id || null),
             tax_prices_include: !!d.pricesIncludeTax, 
-            tax_split_enabled: d.taxSplitEnabled !== false,
+            tax_split_enabled: false,
 
             currency_symbol: d.currencySymbol || '₹',
             currency_position: d.currencyPosition || 'before',
@@ -421,7 +423,7 @@ function ConfigurationsContent() {
           {activeTab === 'modules' && (
             <div className="fade-in">
               <div className="section-header">
-                <h2>Power Modules</h2>
+                <h2>Configuration</h2>
                 <p>Activate specific business features required for your workflow.</p>
               </div>
               
@@ -437,8 +439,15 @@ function ConfigurationsContent() {
                         {m.icon}
                       </div>
                       <div className="box-content">
-                        <h3>{m.title}</h3>
-                        <p>{m.desc}</p>
+                        <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          {m.title}
+                          <InfoTooltip 
+                            id={`tip-${m.key}`} 
+                            text={m.desc} 
+                            activeTooltip={activeTooltip} 
+                            setActiveTooltip={setActiveTooltip} 
+                          />
+                        </h3>
                       </div>
                       <div className={`toggle-switch ${config[m.key] ? 'on' : ''}`}>
                         <div className="toggle-thumb"></div>
@@ -473,18 +482,18 @@ function ConfigurationsContent() {
                         </div>
                       ))}
                       {isCreditLedger && (
-                        <div className="subconfig-row" onClick={e => e.stopPropagation()}>
+                        <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default' }}>
                           <div className="subconfig-row-text">
-                            <strong>Payment Allocation</strong>
-                            <span>How credit payments are applied to unpaid invoices</span>
+                            <strong>Credit Allocation Mode</strong>
+                            <span>Determine order priority when settlement occurs</span>
                           </div>
-                          <div style={{ width: 160, flexShrink: 0 }}>
+                          <div style={{ width: 180 }} className="small-select">
                             <NiceSelect
                               value={config.credit_allocation_mode}
-                              onChange={v => set('credit_allocation_mode', v)}
+                              onChange={(v) => set('credit_allocation_mode', v)}
                               options={[
-                                { value: 'OLDEST_FIRST', label: 'Oldest First' },
-                                { value: 'MANUAL', label: 'Manual' },
+                                { value: 'OLDEST_FIRST', label: 'Oldest Bills First' },
+                                { value: 'FIFO', label: 'First In First Out' }
                               ]}
                             />
                           </div>
@@ -497,176 +506,157 @@ function ConfigurationsContent() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════ */}
-          {/* TAB: TAX & COMPLIANCE                                             */}
-          {/* ═══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'tax' && (
             <div className="fade-in tax-screen-container">
-               <div className="section-header">
-                <h2>Tax & Internationalization</h2>
-                <p>Configure regional currency, global tax labels, and precise computation rules.</p>
-              </div>
-
               <div className="tax-grid">
-                <div className="tax-main-col">
-                    <div className="form-card">
-                        <div className="section-title-sm"><FaTags /> Locale & System</div>
-                        <div className="locale-inputs">
-                            <div className="input-group">
-                                <label className="group-lbl">Currency Symbol</label>
-                                <div className="symbol-input-row">
-                                    <input value={config.currency_symbol} onChange={e => set('currency_symbol', e.target.value)} className="form-input" style={{ width: '80px', textAlign: 'center', fontSize: '18px', fontWeight: 'bold' }} />
-                                    <NiceSelect 
-                                        value={config.currency_position} 
-                                        onChange={v => set('currency_position', v)}
-                                        options={[{value:'before', label:'Before (e.g. $10)'}, {value:'after', label:'After (e.g. 10€)'}]}
-                                    />
-                                </div>
-                            </div>
-                            <div className="input-group">
-                                <label className="group-lbl">Global Tax Label</label>
-                                <input value={config.tax_label_global} onChange={e => set('tax_label_global', e.target.value)} className="form-input" placeholder="e.g. Tax, VAT" />
-                                <span className="group-desc">Used on bills and reports globally.</span>
-                            </div>
+                
+                {/* Left Column: Configs and Rules */}
+                <div className="tax-main-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  
+                  {/* Card 1: Tax Configurations */}
+                  <div className="form-card">
+                      {/* Banner row toggle switch */}
+                      <div className="form-row toggle-row banner-row" onClick={() => toggle('tax_enabled')}>
+                        <div className="row-icon"><FaReceipt /></div>
+                        <div className="row-info">
+                           <label style={{ display: 'inline-flex', alignItems: 'center' }}>
+                             Enable {config.tax_label_global} Computations
+                             <InfoTooltip id="tip_tax_enabled" text="Turn on automatic tax calculation for all incoming orders and receipt generation." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                           </label>
+                           <span>Activate automatic tax calculations for all generated bills</span>
                         </div>
-                    </div>
-
-                    <div className="form-card" style={{ marginTop: '20px' }}>
-                        <div className="form-row toggle-row banner-row" onClick={() => toggle('tax_enabled')}>
-                            <div className="row-icon"><FaReceipt /></div>
-                            <div className="row-info">
-                                <label>Enable {config.tax_label_global} Computations</label>
-                                <span>Activate automatic tax logic for all generated bills</span>
-                            </div>
-                            <div className={`toggle-switch ${config.tax_enabled ? 'on' : ''}`}>
-                                <div className="toggle-thumb"></div>
-                            </div>
+                        <div className={`toggle-switch ${config.tax_enabled ? 'on' : ''}`}>
+                            <div className="toggle-thumb"></div>
                         </div>
+                      </div>
 
-                        {config.tax_enabled && (
-                            <div className="nested-forms animate-slide-down">
-                                <div className="divider-line" />
-                                
-                                <label className="group-lbl" style={{ marginBottom: '12px' }}>Define {config.tax_label_global} Rules</label>
-                                
-                                <div className="tax-rules-list">
-                                    {config.tax_rates.length === 0 && (
-                                        <div className="empty-rules">No {config.tax_label_global} rules defined. Add one below.</div>
-                                    )}
-                                    {config.tax_rates.map(rule => (
-                                        <div key={rule.id} className={`tax-rule-card ${config.tax_default_id === rule.id ? 'active' : ''}`} onClick={() => set('tax_default_id', rule.id)}>
-                                            <div className="rule-main">
-                                                <div className="rule-info">
-                                                    <span className="rule-name">{rule.name}</span>
-                                                    <span className="rule-rate">{rule.value}% Total</span>
-                                                </div>
-                                                {config.tax_default_id === rule.id && <span className="active-badge">DEFAULT</span>}
-                                            </div>
-                                            <button className="rule-del" onClick={(e) => { e.stopPropagation(); removeTaxRate(rule.id); }}><FaTimes /></button>
-                                        </div>
-                                    ))}
-                                </div>
+                      {config.tax_enabled && (
+                        <div className="nested-forms animate-slide-down" style={{ border: 'none', background: 'transparent', padding: 0, marginTop: 0 }}>
+                          
+                          {/* Tax Logic Toggles */}
+                          <div className="tax-logic-toggles" style={{ marginTop: 0, marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              <div className="form-row toggle-row styled-toggle-card" onClick={() => toggle('tax_prices_include')}>
+                                  <div className="row-icon-small"><FaReceipt /></div>
+                                  <div className="row-info" style={{ marginLeft: '12px' }}>
+                                      <label style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '15px' }}>
+                                        Prices Include {config.tax_label_global}
+                                        <InfoTooltip id="tip_tax_prices_include" text="Inclusive pricing: Menu price already includes the tax amount. Exclusive pricing: Tax is added on top of menu price." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                                      </label>
+                                      <span style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>(Inclusive) Tax is back-calculated from price</span>
+                                  </div>
+                                  <div className={`toggle-switch small ${config.tax_prices_include ? 'on' : ''}`}>
+                                      <div className="toggle-thumb"></div>
+                                  </div>
+                              </div>
+                          </div>
 
-                                <div className="add-rule-form">
-                                    <div className="add-rule-inputs">
-                                        <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder="Rule Name (e.g. Local Tax)" />
-                                        <div className="rate-input-wrap">
-                                            <input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} className="form-input" placeholder="0.00" />
-                                            <span className="perc-sign">%</span>
-                                        </div>
-                                    </div>
-                                    <button className="btn-add-tax" onClick={addTaxRate}><FaPlus /> Add Rule</button>
-                                </div>
+                          <div className="divider-line" style={{ margin: '12px 0' }} />
 
-                                <div className="divider-line" />
+                          {/* Global Tax Label Input */}
+                          <div className="input-group">
+                              <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '14.5px', color: '#334155' }}>
+                                  Global Tax Label
+                                  <InfoTooltip id="tip_tax_label_global" text="Set the global name for taxes (e.g., GST, VAT, Tax) displayed on all bills and reports." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                              </label>
+                              <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>Used on bills and reports globally (e.g. Tax, VAT, GST).</span>
+                              <div className="input-with-prefix" style={{ position: 'relative', display: 'flex', alignItems: 'center', maxWidth: '300px', width: '100%' }}>
+                                  <span className="input-prefix-icon" style={{ position: 'absolute', left: '16px', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><FaTags /></span>
+                                  <input 
+                                      value={config.tax_label_global} 
+                                      onChange={e => set('tax_label_global', e.target.value)} 
+                                      className="form-input" 
+                                      placeholder="e.g. Tax, VAT" 
+                                      style={{ paddingLeft: '44px' }}
+                                  />
+                              </div>
+                          </div>
 
-                                <div className="tax-logic-toggles">
-                                    <div className="form-row toggle-row" onClick={() => toggle('tax_prices_include')}>
-                                        <div className="row-info">
-                                            <label>Prices Include {config.tax_label_global}</label>
-                                            <span>(Inclusive) Tax is back-calculated from price</span>
-                                        </div>
-                                        <div className={`toggle-switch small ${config.tax_prices_include ? 'on' : ''}`}>
-                                            <div className="toggle-thumb"></div>
-                                        </div>
-                                    </div>
+                          <div className="divider-line" style={{ margin: '12px 0' }} />
 
-                                    <div className="form-row toggle-row" onClick={() => toggle('tax_split_enabled')}>
-                                        <div className="row-info">
-                                            <label>Split {config.tax_label_global} on Receipt</label>
-                                            <span>Show 50/50 components (e.g. C{config.tax_label_global} / S{config.tax_label_global})</span>
-                                        </div>
-                                        <div className={`toggle-switch small ${config.tax_split_enabled ? 'on' : ''}`}>
-                                            <div className="toggle-thumb"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                          {/* Default Tax Rate Selector */}
+                          <div className="input-group">
+                              <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '14.5px', color: '#334155' }}>
+                                  Default Tax Rule
+                                  <InfoTooltip id="tip_tax_default_id" text="Select the default tax rule applied to new products and orders." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                              </label>
+                              <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>The primary tax rule applied to transactions by default.</span>
+                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', maxWidth: '480px', width: '100%' }}>
+                                  <div style={{ flex: 1 }} className="small-select">
+                                      <NiceSelect
+                                          value={config.tax_default_id}
+                                          onChange={(v) => set('tax_default_id', v)}
+                                          options={config.tax_rates.map(r => ({
+                                              value: r.id,
+                                              label: `${r.name} (${r.value}%)`
+                                          }))}
+                                      />
+                                  </div>
+                                  <button type="button" className="btn-secondary" onClick={() => setShowAddRuleModal(true)}>
+                                      <FaPlus /> Add / Manage Rules
+                                  </button>
+                              </div>
+                          </div>
+
+                        </div>
+                      )}
+                  </div>
                 </div>
 
-                <div className="tax-side-col">
-                    <div className="simulator-card">
-                        <div className="sim-title"><FaCalculator /> Real-time Simulation</div>
-                        <p className="sim-desc">See how ₹100 is computed with your current settings.</p>
-                        
-                        {(() => {
-                           const defaultRule = config.tax_rates.find(r => r.id === config.tax_default_id) || { value: 0 };
-                           const rateVal = defaultRule.value;
-                           const isInc = config.tax_prices_include;
-                           const base = 100;
-                           let itemPrice, taxAmt, total;
+                {/* Right Column: Simulator Preview (Orange Box) */}
+                {config.tax_enabled && (
+                  <div className="tax-side-col">
+                      <div className="simulator-card orange-theme">
+                          <div className="sim-title" style={{ color: '#ea580c' }}><FaCalculator /> Real-time Simulation</div>
+                          <p className="sim-desc" style={{ color: '#c2410c' }}>See how ₹100 is computed with your current settings.</p>
+                          
+                          {(() => {
+                             const defaultRule = config.tax_rates.find(r => r.id === config.tax_default_id) || { value: 0 };
+                             const rateVal = defaultRule.value;
+                             const isInc = config.tax_prices_include;
+                             const base = 100;
+                             let itemPrice, taxAmt, total;
 
-                           if (isInc) {
-                               total = base;
-                               taxAmt = base - (base / (1 + rateVal/100));
-                               itemPrice = base - taxAmt;
-                           } else {
-                               itemPrice = base;
-                               taxAmt = base * (rateVal/100);
-                               total = base + taxAmt;
-                           }
+                             if (isInc) {
+                                 total = base;
+                                 taxAmt = base - (base / (1 + rateVal/100));
+                                 itemPrice = base - taxAmt;
+                             } else {
+                                 itemPrice = base;
+                                 taxAmt = base * (rateVal/100);
+                                 total = base + taxAmt;
+                             }
 
-                           const fmt = (v) => v.toFixed(2);
-                           const sym = config.currency_symbol;
-                           const pos = config.currency_position;
-                           const show = (v) => pos === 'before' ? `${sym}${v}` : `${v}${sym}`;
+                             const fmt = (v) => v.toFixed(2);
+                             const sym = config.currency_symbol;
+                             const pos = config.currency_position;
+                             const show = (v) => pos === 'before' ? `${sym}${v}` : `${v}${sym}`;
 
-                           return (
-                             <div className="sim-content">
-                                <div className="sim-row">
-                                    <span>Item Base Price</span>
-                                    <strong>{show(fmt(itemPrice))}</strong>
-                                </div>
-                                <div className="sim-row active">
-                                    <span>{config.tax_label_global} ({rateVal}%)</span>
-                                    <strong>{show(fmt(taxAmt))}</strong>
-                                </div>
-                                {config.tax_split_enabled && (
-                                    <div className="sim-split">
-                                        <div className="split-row">└ C{config.tax_label_global} ({(rateVal/2)}%): {show(fmt(taxAmt/2))}</div>
-                                        <div className="split-row">└ S{config.tax_label_global} ({(rateVal/2)}%): {show(fmt(taxAmt/2))}</div>
-                                    </div>
-                                )}
-                                <div className="sim-divider" />
-                                <div className="sim-row total">
-                                    <span>Grand Total</span>
-                                    <strong>{show(fmt(total))}</strong>
-                                </div>
-                                <div className="sim-badge">
-                                    {isInc ? 'INCLUSIVE PRICING' : 'EXCLUSIVE PRICING'}
-                                </div>
-                             </div>
-                           )
-                        })()}
-                    </div>
+                             return (
+                               <div className="sim-content">
+                                  <div className="sim-row">
+                                      <span style={{ color: '#c2410c' }}>Item Base Price</span>
+                                      <strong style={{ color: '#ea580c' }}>{show(fmt(itemPrice))}</strong>
+                                  </div>
+                                  <div className="sim-row active">
+                                      <span style={{ color: '#ea580c' }}>{config.tax_label_global} ({rateVal}%)</span>
+                                      <strong style={{ color: '#ea580c' }}>{show(fmt(taxAmt))}</strong>
+                                  </div>
 
-                    <div className="help-card">
-                        <h5>Pro Tip</h5>
-                        <p>Most Quick Service Restaurants (QSR) use <strong>Inclusive Pricing</strong> to keep menu prices simple for customers.</p>
-                    </div>
-                </div>
+                                  <div className="sim-divider" style={{ background: '#fed7aa' }} />
+                                  <div className="sim-row total">
+                                      <span style={{ color: '#ea580c' }}>Grand Total</span>
+                                      <strong style={{ color: '#ea580c' }}>{show(fmt(total))}</strong>
+                                  </div>
+                                  <div className="sim-badge" style={{ background: '#ea580c', color: 'white' }}>
+                                      {isInc ? 'INCLUSIVE PRICING' : 'EXCLUSIVE PRICING'}
+                                  </div>
+                               </div>
+                             )
+                          })()}
+                      </div>
+                  </div>
+                )}
+
               </div>
             </div>
           )}
@@ -685,7 +675,10 @@ function ConfigurationsContent() {
                   <div className="form-row toggle-row banner-row" onClick={() => toggle('ro_enabled')}>
                     <div className="row-icon"><FaCalculator /></div>
                     <div className="row-info">
-                       <label>Enable Round-off</label>
+                       <label style={{ display: 'inline-flex', alignItems: 'center' }}>
+                         Enable Round-off
+                         <InfoTooltip id="tip_ro_enabled" text="Activate rounding adjustments to avoid decimal values in cash or digital bills." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                       </label>
                        <span>Allow rounding adjustments on the final billing amount</span>
                     </div>
                     <div className={`toggle-switch ${config.ro_enabled ? 'on' : ''}`}>
@@ -696,7 +689,10 @@ function ConfigurationsContent() {
                   {config.ro_enabled && (
                     <div className="nested-forms animate-slide-down">
                       <div className="input-group">
-                        <label className="group-lbl">Mode of Operation</label>
+                        <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          Mode of Operation
+                          <InfoTooltip id="tip_ro_mode" text="Automatic: System auto-rounds final bill based on factor. Manual: Cashier decides whether to apply rounding up to limit." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                        </label>
                         <div style={{ maxWidth: '300px' }}>
                           <NiceSelect 
                              value={config.ro_mode} 
@@ -711,7 +707,10 @@ function ConfigurationsContent() {
 
                       {config.ro_mode === 'automatic' ? (
                         <div className="input-group">
-                          <label className="group-lbl">Auto Rounding Factor</label>
+                          <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Auto Rounding Factor
+                            <InfoTooltip id="tip_ro_auto_factor" text="The precision factor to round the bill total to. E.g. 1.00 rounds ₹15.40 to ₹15.00." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                          </label>
                           <span className="group-desc">The multiple to round towards (e.g. 1.00 rounds ₹150.40 to ₹150.00)</span>
                           <div className="add-input-wrap" style={{ maxWidth: '200px' }}>
                             <span className="input-prefix">₹</span>
@@ -726,7 +725,10 @@ function ConfigurationsContent() {
                         </div>
                       ) : (
                         <div className="input-group">
-                          <label className="group-lbl">Maximum Manual Limit</label>
+                          <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            Maximum Manual Limit
+                            <InfoTooltip id="tip_ro_manual_limit" text="The maximum amount a cashier is allowed to manually discount/round-off on a bill." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                          </label>
                           <span className="group-desc">The maximum allowed absolute Round-off value a cashier can apply</span>
                           <div className="add-input-wrap" style={{ maxWidth: '200px' }}>
                             <span className="input-prefix">₹</span>
@@ -758,9 +760,11 @@ function ConfigurationsContent() {
                 <p>Customize every aspect of your KOT and Receipt prints with a live preview.</p>
               </div>
 
+
               <div className="print-editor-layout">
                 {/* ─── LEFT: Controls ─── */}
                 <div className="print-editor-controls">
+
 
                   {/* Section: Element Visibility */}
                   <div className="form-card">
@@ -841,48 +845,27 @@ function ConfigurationsContent() {
                     <div className="input-group">
                       <label className="group-lbl" style={{ fontSize: 13 }}>Bill Footer Message</label>
                       <span className="group-desc">This text appears at the bottom of the receipt.</span>
-                      <textarea 
-                        value={config.bill_footer} 
-                        onChange={(e) => set('bill_footer', e.target.value)} 
-                        placeholder="e.g. Thank you for your visit! Follow us on Instagram @CafeQR"
-                        rows="3"
-                        maxLength={200}
-                        className="form-input form-textarea"
-                      />
+                      <textarea value={config.bill_footer} onChange={(e) => set('bill_footer', e.target.value)} placeholder="e.g. Thank you for your visit!" rows="3" maxLength={200} className="form-input form-textarea" />
                     </div>
                   </div>
-
                   {/* Section: Receipt Logo */}
                   <div className="form-card">
                     <div className="pt-section-title"><FaCamera style={{ color: '#ec4899' }} /> Receipt Logo</div>
                     <span className="group-desc" style={{ marginTop: '-10px' }}>Upload a logo to appear at the top of printed thermal receipts.</span>
                     <div className="input-group">
                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', padding: '16px', border: '1px dashed #cbd5e1', borderRadius: '12px', background: '#f8fafc' }}>
-                          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'white', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', flexShrink: 0 }}>
+                          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'white', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
                             <FaCamera style={{ color: '#94a3b8', fontSize: '18px' }} />
                           </div>
                           <div style={{ flex: 1 }}>
                              <input type="file" accept="image/*" onChange={handleLogoFile} disabled={logoSaving} style={{ display: 'none' }} id="logo-input" />
-                             <label htmlFor="logo-input" style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', cursor: 'pointer', background: 'white', padding: '6px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'inline-block' }}>
-                               Choose Image File
-                             </label>
+                             <label htmlFor="logo-input" style={{ fontWeight: 600, fontSize: 13, color: '#0f172a', cursor: 'pointer', background: 'white', padding: '6px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'inline-block' }}>Choose Image File</label>
                              {logoSaving && <span style={{ fontSize: 12, color: '#f97316', fontWeight: 600, marginLeft: '12px' }}>Processing...</span>}
                           </div>
-                          {config.print_logo_bitmap && (
-                             <button type="button" onClick={clearLogo} style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, padding: '6px 12px', borderRadius: '8px' }}>
-                                Clear
-                             </button>
-                          )}
+                          {config.print_logo_bitmap && (<button type="button" onClick={clearLogo} style={{ background: '#fef2f2', border: '1px solid #fee2e2', color: '#ef4444', fontSize: 12, cursor: 'pointer', fontWeight: 600, padding: '6px 12px', borderRadius: '8px' }}>Clear</button>)}
                        </div>
-                       {logoMsg && (
-                          <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: logoMsg.startsWith('✗') ? '#dc2626' : '#10b981' }}>{logoMsg}</div>
-                       )}
-                       {config.print_logo_bitmap && !logoMsg && (
-                          <div style={{ marginTop: 12, fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                             <FaCheckCircle style={{ color: '#10b981' }}/>
-                             Thermal Ready ({config.print_logo_cols}×{config.print_logo_rows}px)
-                          </div>
-                       )}
+                       {logoMsg && (<div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: logoMsg.startsWith('✗') ? '#dc2626' : '#10b981' }}>{logoMsg}</div>)}
+                       {config.print_logo_bitmap && !logoMsg && (<div style={{ marginTop: 12, fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}><FaCheckCircle style={{ color: '#10b981' }}/> Thermal Ready</div>)}
                     </div>
                   </div>
                 </div>
@@ -891,6 +874,7 @@ function ConfigurationsContent() {
                 <div className="print-preview-panel">
                   <PrintLivePreview config={config} />
                 </div>
+
               </div>
 
              </div>
@@ -916,6 +900,70 @@ function ConfigurationsContent() {
              </div>
           )}
         </div>
+
+        {/* Tax Rule Add / Manage Modal Popup */}
+        {showAddRuleModal && (
+          <div className="modal-overlay" onClick={() => setShowAddRuleModal(false)}>
+              <div className="modal-card" onClick={e => e.stopPropagation()}>
+                  <div className="modal-header">
+                      <h3 style={{ textTransform: 'capitalize' }}>Manage {config.tax_label_global} Rules</h3>
+                      <button type="button" className="close-btn" onClick={() => setShowAddRuleModal(false)}><FaTimes /></button>
+                  </div>
+                  <div className="modal-body">
+                      {/* Add New Rule Section */}
+                      <div className="modal-section-title">Add New Rule</div>
+                      <div className="input-group">
+                          <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Rule Name</label>
+                          <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder="e.g. GST 5%" />
+                      </div>
+                      <div className="input-group" style={{ marginTop: '4px' }}>
+                          <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Tax Rate (%)</label>
+                          <div className="rate-input-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} className="form-input" placeholder="0.00" />
+                              <span className="perc-sign" style={{ position: 'absolute', right: '16px', fontWeight: '800', color: '#94a3b8', fontSize: '14px' }}>%</span>
+                          </div>
+                      </div>
+                      <button type="button" className="btn-primary" onClick={addTaxRate} style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '13.5px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'none' }}>
+                          <FaPlus /> Add Rule
+                      </button>
+
+                      <div className="divider-line" style={{ margin: '12px 0' }} />
+
+                      {/* Defined Rules Section */}
+                      <div className="modal-section-title">Defined Rates</div>
+                      <div className="modal-rules-list">
+                          {config.tax_rates.length === 0 ? (
+                              <div className="empty-state" style={{ padding: '16px 0', fontSize: '13px' }}>No rates defined</div>
+                          ) : (
+                              config.tax_rates.map(r => (
+                                  <div key={r.id} className="modal-rule-row">
+                                      <div className="modal-rule-info">
+                                          <span className="modal-rule-name">{r.name}</span>
+                                          <span className="modal-rule-value">({r.value}%)</span>
+                                          {config.tax_default_id === r.id && (
+                                              <span className="default-badge" style={{ fontSize: '8px', padding: '2px 6px', borderRadius: '99px', background: '#f97316', color: 'white', fontWeight: 900 }}>DEFAULT</span>
+                                          )}
+                                      </div>
+                                      <button 
+                                          type="button" 
+                                          className="modal-rule-delete" 
+                                          onClick={(e) => { e.stopPropagation(); removeTaxRate(r.id); }}
+                                      >
+                                          <FaTimes />
+                                      </button>
+                                  </div>
+                              ))
+                          )}
+                      </div>
+                  </div>
+                  <div className="modal-footer" style={{ marginTop: '8px' }}>
+                      <button type="button" className="btn-secondary" onClick={() => setShowAddRuleModal(false)} style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13.5px', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Close</button>
+                  </div>
+              </div>
+          </div>
+        )}
+
+
 
         {/* ═══ Floating Save Component ═══ */}
         <div className="action-footer">
@@ -976,11 +1024,11 @@ function ConfigurationsContent() {
            font-family: inherit;
         }
         .segmented-tab:hover:not(.active) { color: #334155; background: rgba(255,255,255,0.6); }
-        .segmented-tab.active {
-           background: white; color: #0f172a;
-           box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-           transform: translateY(-1px);
-        }
+         .segmented-tab.active {
+            background: #f97316; color: white;
+            box-shadow: 0 4px 16px rgba(249,115,22,0.2), 0 1px 2px rgba(249,115,22,0.1);
+            transform: translateY(-1px);
+         }
         .tab-icon { font-size: 18px; }
         .mobile-only { display: none; }
 
@@ -1010,11 +1058,11 @@ function ConfigurationsContent() {
            height: 68px;
         }
         .module-wrapper:hover { border-color: #cbd5e1; box-shadow: 0 12px 28px rgba(0,0,0,0.05); transform: translateY(-2px); }
-         .module-wrapper.is-active {
-            border-color: #fed7aa; 
-            box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
-            background: linear-gradient(180deg, #ffffff 0%, #fffbf5 100%);
-         }
+        .module-wrapper.is-active {
+           border-color: #fed7aa; 
+           box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
+           background: linear-gradient(180deg, #ffffff 0%, #fffbf5 100%);
+        }
          .module-wrapper.no-hover:hover {
             transform: none !important;
             border-color: #fed7aa !important;
@@ -1076,7 +1124,8 @@ function ConfigurationsContent() {
            border: 1.5px solid #e2e8f0;
            border-left-width: 3px;
            border-radius: 14px;
-           overflow: hidden;
+           position: relative;
+           z-index: 10;
            animation: slideDown 0.22s cubic-bezier(0.16, 1, 0.3, 1);
            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
         }
@@ -1090,6 +1139,8 @@ function ConfigurationsContent() {
            border-bottom: 1px solid #f1f5f9;
            display: flex;
            align-items: center;
+           border-top-left-radius: 12px;
+           border-top-right-radius: 12px;
         }
         .subconfig-strip-body {
            display: flex;
@@ -1126,11 +1177,11 @@ function ConfigurationsContent() {
            cursor: pointer; padding: 4px 0; gap: 16px;
         }
         .banner-row {
-           background: #fafbfc; padding: 24px; border-radius: 16px; border: 1px solid #f1f5f9;
+           background: #fafbfc; padding: 16px 20px; border-radius: 16px; border: 1px solid #f1f5f9;
         }
         .banner-row:hover { border-color: #e2e8f0; }
         .row-icon {
-           width: 48px; height: 48px; border-radius: 12px; background: #e0e7ff; color: #4f46e5;
+            width: 40px; height: 40px; border-radius: 10px; background: #fff5ed; color: #f97316;
            display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0;
            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.05);
         }
@@ -1139,21 +1190,21 @@ function ConfigurationsContent() {
         .row-info span { display: block; font-size: 14px; color: #64748b; margin-top: 6px; font-weight: 500; }
 
          .nested-forms {
-            padding: 22px 24px;
+            padding: 16px 20px;
             background: #f8fafc;
             border-radius: 16px;
-            border: 1.5px solid #e2e8f0;
-            border-left: 4px solid #f97316;
+            border: 1px solid #e2e8f0;
+            border-left: none;
             margin-top: 16px;
             margin-left: 0;
             display: flex;
             flex-direction: column;
-            gap: 22px;
+            gap: 16px;
          }
 
         /* ─── GROUP FIELDS REFINED ─── */
         .input-group { display: flex; flex-direction: column; gap: 8px; }
-        .group-lbl { font-size: 14px; font-weight: 800; color: #1e293b; margin:0;}
+        .group-lbl { font-size: 14px; font-weight: 700; color: #334155; margin:0;}
         .group-desc { font-size: 13px; color: #64748b; margin-top: -2px; margin-bottom: 4px; }
 
         .form-input {
@@ -1161,7 +1212,7 @@ function ConfigurationsContent() {
            font-size: 15px; color: #0f172a; font-family: inherit; transition: all 0.2s;
            background: #fafbfc;
         }
-        .form-input:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 4px rgba(249,115,22,0.1); }
+        .form-input:focus { outline: none; border-color: #fb923c; background: white; box-shadow: 0 0 0 4px rgba(251,146,60,0.1); }
         .form-textarea { resize: vertical; line-height: 1.5; }
 
         .add-input-wrap { position: relative; display: flex; align-items: center; flex: 1;}
@@ -1252,19 +1303,19 @@ function ConfigurationsContent() {
            position: fixed; bottom: 0; left: 0; right: 0;
            background: rgba(255,255,255,0.9); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
            border-top: 1px solid rgba(226, 232, 240, 0.8);
-           z-index: 50; padding: 16px 32px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+           z-index: 50; padding: 10px 24px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         }
         .action-footer-inner {
            width: 100%;
-           display: flex; justify-content: flex-end; align-items: center; gap: 20px;
+           display: flex; justify-content: flex-end; align-items: center; gap: 16px;
         }
         .btn-primary {
-           background: #f97316; color: white; border: none; padding: 16px 40px;
-           border-radius: 14px; font-weight: 800; font-size: 16px; cursor: pointer;
-           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 8px 24px rgba(249,115,22,0.3);
-           display: flex; align-items: center; gap: 10px; font-family: inherit;
+           background: #f97316; color: white; border: none; padding: 10px 20px;
+           border-radius: 10px; font-weight: 700; font-size: 13.5px; cursor: pointer;
+           transition: all 0.2s ease; box-shadow: 0 4px 12px rgba(249,115,22,0.2);
+           display: flex; align-items: center; gap: 8px; font-family: inherit;
         }
-        .btn-primary:hover:not(:disabled) { background: #ea580c; transform: translateY(-2px); box-shadow: 0 12px 24px rgba(249,115,22,0.3); }
+        .btn-primary:hover:not(:disabled) { background: #ea580c; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(249,115,22,0.25); }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
         .status-msg {
@@ -1372,29 +1423,29 @@ function ConfigurationsContent() {
 
         /* ─── SIMULATOR ─── */
         .simulator-card { 
-            background: #0f172a; color: white; border-radius: 24px; padding: 28px; 
-            position: sticky; top: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: #fffaf5; color: #c2410c; border-radius: 24px; padding: 24px; 
+            position: sticky; top: 24px; box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.06);
+            border: 2px solid #fed7aa;
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .sim-title { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: #f97316; }
-        .sim-desc { font-size: 13.5px; color: #94a3b8; margin-bottom: 28px; line-height: 1.5; }
+        .sim-title { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: #ea580c; }
+        .sim-desc { font-size: 13.5px; color: #c2410c; margin-bottom: 28px; line-height: 1.5; }
         
         .sim-content { display: flex; flex-direction: column; gap: 16px; }
-        .sim-row { display: flex; justify-content: space-between; font-size: 14.5px; color: #94a3b8; }
-        .sim-row.active { color: white; font-weight: 700; }
-        .sim-row strong { font-family: 'JetBrains Mono', monospace; font-size: 16px; }
+        .sim-row { display: flex; justify-content: space-between; font-size: 14.5px; color: #c2410c; }
+        .sim-row.active { color: #ea580c; font-weight: 700; }
+        .sim-row strong { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: #ea580c; }
         
         .sim-split { margin-left: 14px; display: flex; flex-direction: column; gap: 8px; margin-top: -6px; }
-        .split-row { font-size: 12.5px; color: #475569; font-family: 'JetBrains Mono', monospace; }
+        .split-row { font-size: 12.5px; color: #ea580c; font-family: 'JetBrains Mono', monospace; }
         
-        .sim-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 8px 0; }
-        .sim-row.total { font-size: 20px; color: #f97316; padding-top: 6px; }
-        .sim-row.total strong { font-weight: 900; font-size: 22px; }
+        .sim-divider { height: 1px; background: #fed7aa; margin: 8px 0; }
+        .sim-row.total { font-size: 20px; color: #ea580c; padding-top: 6px; }
+        .sim-row.total strong { font-weight: 900; font-size: 22px; color: #ea580c; }
         
         .sim-badge { 
             margin-top: 24px; text-align: center; font-size: 11px; font-weight: 900; 
-            letter-spacing: 0.12em; color: #0f172a; background: #94a3b8; padding: 8px; border-radius: 8px; 
+            letter-spacing: 0.12em; color: white; background: #ea580c; padding: 8px; border-radius: 8px; 
         }
 
         .help-card { background: #fffaf5; border: 1.5px solid #fed7aa; border-radius: 20px; padding: 24px; margin-top: 24px; }
@@ -1402,7 +1453,7 @@ function ConfigurationsContent() {
         .help-card p { margin: 0; font-size: 13.5px; color: #c2410c; line-height: 1.6; font-weight: 500; }
         
         .animate-slide-down { animation: slideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
-        .tax-screen-container { min-height: 800px; }
+        .tax-screen-container { min-height: 0; }
 
         /* ─── PRINT TEMPLATE CUSTOMIZER STYLES ─── */
         .print-editor-layout {
@@ -1470,7 +1521,264 @@ function ConfigurationsContent() {
            }
         }
 
+        /* ─── INFO TOOLTIP STYLES ─── */
+        :global(.custom-tooltip-wrapper) {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-left: 6px;
+          vertical-align: middle;
+        }
+        :global(.custom-tooltip-icon) {
+          color: #94a3b8;
+          font-size: 13.5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        :global(.custom-tooltip-icon:hover),
+        :global(.custom-tooltip-icon.active) {
+          color: #f97316;
+          transform: scale(1.15);
+        }
+        :global(.custom-tooltip-box) {
+          position: absolute;
+          bottom: 135%;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 220px;
+          background: #ea580c;
+          color: #ffffff;
+          padding: 10px 14px;
+          border-radius: 10px;
+          font-size: 11.5px;
+          font-weight: 600;
+          line-height: 1.45;
+          box-shadow: 0 10px 20px rgba(234, 88, 12, 0.3), 0 4px 6px rgba(0, 0, 0, 0.05);
+          z-index: 1000;
+          white-space: normal;
+          text-align: left;
+          animation: tooltip-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        :global(.custom-tooltip-arrow) {
+          position: absolute;
+          bottom: -6px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 6px solid #ea580c;
+        }
+        /* ─── TAX RULE MODAL STYLES ─── */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+            animation: modalFadeIn 0.2s ease forwards;
+        }
+        .modal-card {
+            background: white; border-radius: 20px; border: 1px solid #e2e8f0;
+            border-top: 4px solid #f97316;
+            width: 90%; max-width: 400px; padding: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+            animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .modal-header h3 { margin: 0; font-size: 18px; font-weight: 800; color: #0f172a; }
+        .close-btn { background: transparent; border: none; font-size: 16px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; transition: all 0.2s; }
+        .close-btn:hover { background: #f1f5f9; color: #0f172a; }
+        .modal-body { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; }
+        
+        @keyframes modalFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes modalPop {
+            from { transform: scale(0.9) translateY(10px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+
+        .modal-section-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+        .modal-rules-list {
+            max-height: 180px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 4px;
+        }
+        .modal-rule-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .modal-rule-row:last-child {
+            border-bottom: none;
+        }
+        .modal-rule-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-rule-name {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .modal-rule-value {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 600;
+        }
+        .modal-rule-delete {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-rule-delete:hover {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+        .styled-toggle-card {
+            background: #fafbfc;
+            padding: 16px 20px;
+            border-radius: 14px;
+            border: 1.5px solid #f1f5f9;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+        .styled-toggle-card:hover {
+            border-color: #fed7aa;
+            background: #fffcf9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(249,115,22,0.02);
+        }
+        .row-icon-small {
+            width: 36px; height: 36px; border-radius: 10px; background: #fff5ed; color: #f97316;
+            display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+            box-shadow: inset 0 -1.5px 0 rgba(0,0,0,0.05);
+        }
+        .btn-secondary {
+            background: #fff5eb !important;
+            color: #ea580c !important;
+            border: 1.5px solid #fed7aa !important;
+            padding: 8px 16px !important;
+            height: 34px !important;
+            border-radius: 8px !important;
+            font-weight: 700 !important;
+            font-size: 12.5px !important;
+            cursor: pointer !important;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            white-space: nowrap !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        .btn-secondary:hover {
+            background: #ffedd5 !important;
+            border-color: #f97316 !important;
+            color: #c2410c !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 8px rgba(249,115,22,0.05) !important;
+        }
+        .form-input {
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .form-input:focus {
+            border-color: #f97316 !important;
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1) !important;
+        }
+        .form-card {
+            position: relative;
+            overflow: hidden;
+            border-top: 4px solid #f97316 !important;
+            border-radius: 20px !important;
+            box-shadow: 0 10px 30px -5px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.01) !important;
+        }
       `}</style>
     </DashboardLayout>
   );
 }
+
+const InfoTooltip = ({ id, text, activeTooltip, setActiveTooltip }) => {
+  const isOpen = activeTooltip === id;
+  const ref = React.useRef(null);
+  const [coords, setCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+  const [arrowCoords, setArrowCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+
+  useEffect(() => {
+    if (isOpen) {
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        const screenWidth = window.innerWidth;
+        
+        if (rect.left < 16) {
+          setCoords({ left: '-16px', transform: 'none', right: 'auto' });
+          setArrowCoords({ left: '20px', transform: 'none', right: 'auto' });
+        } else if (rect.right > screenWidth - 16) {
+          setCoords({ right: '-16px', left: 'auto', transform: 'none' });
+          setArrowCoords({ right: '20px', left: 'auto', transform: 'none' });
+        } else {
+          setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+          setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+        }
+      }
+    } else {
+      setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+      setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+    }
+  }, [isOpen]);
+
+  return (
+    <span
+      className="custom-tooltip-wrapper"
+      onMouseEnter={() => {
+        if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+          setActiveTooltip(id);
+        }
+      }}
+      onMouseLeave={() => {
+        if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+          if (activeTooltip === id) setActiveTooltip(null);
+        }
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setActiveTooltip(isOpen ? null : id);
+      }}
+    >
+      <FaInfoCircle className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`} />
+      {isOpen && (
+        <span ref={ref} className="custom-tooltip-box" style={coords} onClick={(e) => e.stopPropagation()}>
+          {text}
+          <span className="custom-tooltip-arrow" style={arrowCoords} />
+        </span>
+      )}
+    </span>
+  );
+};
