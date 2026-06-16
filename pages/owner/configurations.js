@@ -2149,6 +2149,356 @@ function ConfigurationsContent() {
            }
         }
 
+        /* Helper-rendered template editor controls need global selectors because
+           styled-jsx does not scope class names inside renderThermalTemplateEditor. */
+        :global(.template-configuration-section) {
+           width: 100%;
+           max-width: 100% !important;
+           overflow: visible;
+        }
+        :global(.template-configuration-section .template-section-heading) {
+           display: flex;
+           flex-direction: column;
+           gap: 6px;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .print-editor-layout) {
+           display: grid;
+           grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+           gap: clamp(18px, 2vw, 28px);
+           align-items: start;
+           width: 100%;
+           min-width: 0;
+           margin-top: 8px;
+        }
+        :global(.template-configuration-section .print-editor-controls) {
+           display: flex;
+           flex-direction: column;
+           gap: 20px;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .template-doc-selector) {
+           display: grid;
+           grid-template-columns: repeat(3, minmax(0, 1fr));
+           gap: 8px;
+           padding: 6px;
+           background: #f8fafc;
+           border: 1px solid #e2e8f0;
+           border-radius: 12px;
+           width: 100%;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .template-doc-selector button) {
+           min-width: 0;
+           min-height: 40px;
+           border: 0;
+           background: transparent;
+           color: #64748b;
+           padding: 10px 12px;
+           border-radius: 8px;
+           font-size: clamp(11.5px, 0.8vw, 12.5px);
+           font-weight: 850;
+           cursor: pointer;
+           display: inline-flex;
+           align-items: center;
+           justify-content: center;
+           gap: 8px;
+           transition: all 0.2s ease;
+           white-space: normal;
+           line-height: 1.25;
+           text-align: center;
+        }
+        :global(.template-configuration-section .template-doc-selector button:hover) {
+           color: #0f172a;
+           background: #ffffff;
+        }
+        :global(.template-configuration-section .template-doc-selector button.active) {
+           background: #f97316;
+           color: #ffffff;
+           box-shadow: 0 6px 14px rgba(249,115,22,0.18);
+        }
+        :global(.template-configuration-section .template-group) {
+           border-top: 1px solid #f1f5f9;
+           padding-top: 20px;
+           display: flex;
+           flex-direction: column;
+           gap: 16px;
+           min-width: 0;
+           color: #1e293b;
+        }
+        :global(.template-configuration-section .template-doc-selector + .template-group) {
+           border-top: 0;
+           padding-top: 0;
+        }
+        :global(.template-configuration-section .template-group-title) {
+           display: flex;
+           align-items: center;
+           gap: 8px;
+           font-size: 13px;
+           font-weight: 900;
+           text-transform: uppercase;
+           letter-spacing: 0.05em;
+           color: #475569;
+           line-height: 1.35;
+        }
+        :global(.template-configuration-section .template-group-title svg) {
+           color: #f97316;
+           flex: 0 0 auto;
+        }
+        :global(.template-configuration-section .group-desc) {
+           display: block;
+           color: #64748b;
+           font-size: 13px;
+           font-weight: 600;
+           line-height: 1.45;
+           margin: 0;
+        }
+        :global(.template-configuration-section .paper-preset-row) {
+           display: flex;
+           gap: 8px;
+           flex-wrap: wrap;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .paper-preset-row button) {
+           min-height: 40px;
+           border: 1.5px solid #e2e8f0;
+           background: #ffffff;
+           color: #475569;
+           padding: 8px 12px;
+           border-radius: 8px;
+           font-size: 12.5px;
+           font-weight: 800;
+           cursor: pointer;
+           transition: all 0.2s ease;
+           line-height: 1.25;
+        }
+        :global(.template-configuration-section .paper-preset-row button:hover),
+        :global(.template-configuration-section .paper-preset-row button.active) {
+           border-color: #f97316;
+           background: #fff7ed;
+           color: #c2410c;
+        }
+        :global(.template-configuration-section .template-grid-fields) {
+           display: grid;
+           grid-template-columns: repeat(2, minmax(0, 1fr));
+           gap: 14px;
+           width: 100%;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .input-group) {
+           display: flex;
+           flex-direction: column;
+           gap: 8px;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .group-lbl) {
+           display: block;
+           font-size: 13.5px;
+           font-weight: 800;
+           color: #334155;
+           line-height: 1.35;
+           margin: 0;
+        }
+        :global(.template-configuration-section .form-input) {
+           width: 100%;
+           min-width: 0;
+           min-height: 48px;
+           padding: 12px 16px;
+           border: 1.5px solid #e2e8f0;
+           border-radius: 10px;
+           font-size: 15px;
+           color: #0f172a;
+           font-family: inherit;
+           font-weight: 600;
+           transition: all 0.2s;
+           background: #fafbfc;
+           box-sizing: border-box;
+        }
+        :global(.template-configuration-section .form-input:focus) {
+           outline: none;
+           border-color: #fb923c;
+           background: white;
+           box-shadow: 0 0 0 4px rgba(251,146,60,0.1);
+        }
+        :global(.template-configuration-section textarea.form-input) {
+           resize: vertical;
+           line-height: 1.5;
+           min-height: 96px;
+        }
+        :global(.template-configuration-section .template-toggle-row),
+        :global(.template-configuration-section .template-check) {
+           display: flex;
+           align-items: center;
+           justify-content: space-between;
+           gap: 12px;
+           width: 100%;
+           min-width: 0;
+           background: #f8fafc;
+           border: 1px solid #edf2f7;
+           border-radius: 10px;
+           color: #1e293b;
+           cursor: pointer;
+           font-family: inherit;
+           font-weight: 800;
+           text-align: left;
+           box-sizing: border-box;
+        }
+        :global(.template-configuration-section .template-toggle-row) {
+           min-height: 52px;
+           padding: 12px 14px;
+        }
+        :global(.template-configuration-section .template-check) {
+           min-height: 48px;
+           padding: 10px 12px;
+           font-size: 12.5px;
+           line-height: 1.3;
+        }
+        :global(.template-configuration-section .template-check span),
+        :global(.template-configuration-section .template-toggle-row span) {
+           min-width: 0;
+           overflow-wrap: anywhere;
+        }
+        :global(.template-configuration-section .template-checkbox-grid) {
+           display: grid;
+           grid-template-columns: repeat(2, minmax(0, 1fr));
+           gap: 10px;
+           width: 100%;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .toggle-switch) {
+           flex: 0 0 auto;
+        }
+        :global(.template-configuration-section .logo-upload-row) {
+           display: flex;
+           gap: 14px;
+           align-items: center;
+           padding: 14px;
+           border: 1px dashed #cbd5e1;
+           border-radius: 12px;
+           background: #f8fafc;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .logo-icon-box) {
+           width: 46px;
+           height: 46px;
+           border-radius: 12px;
+           background: white;
+           border: 1px solid #e2e8f0;
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           color: #94a3b8;
+           flex-shrink: 0;
+        }
+        :global(.template-configuration-section .logo-upload-copy) {
+           flex: 1;
+           display: flex;
+           align-items: center;
+           gap: 12px;
+           flex-wrap: wrap;
+           min-width: 0;
+        }
+        :global(.template-configuration-section .logo-upload-copy span),
+        :global(.template-configuration-section .template-message) {
+           color: #334155;
+           font-size: 12px;
+           font-weight: 700;
+        }
+        :global(.template-configuration-section .template-message) {
+           display: flex;
+           align-items: center;
+           gap: 6px;
+           line-height: 1.4;
+        }
+        :global(.template-configuration-section .template-message.success) {
+           color: #059669;
+        }
+        :global(.template-configuration-section .template-message.error) {
+           color: #dc2626;
+        }
+        :global(.template-configuration-section .logo-clear-btn) {
+           background: #fef2f2;
+           border: 1px solid #fee2e2;
+           color: #ef4444;
+           font-size: 12px;
+           cursor: pointer;
+           font-weight: 800;
+           padding: 8px 12px;
+           border-radius: 8px;
+           min-height: 36px;
+        }
+        :global(.template-configuration-section .print-preview-panel) {
+           position: sticky;
+           top: 24px;
+           z-index: 10;
+           width: 100%;
+           min-width: 0;
+           max-width: 420px;
+           justify-self: end;
+        }
+        :global(.template-configuration-section .print-preview-panel > *) {
+           max-width: 100%;
+        }
+        @media (max-width: 1280px) {
+           :global(.template-configuration-section .print-editor-layout) {
+              grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+              gap: 18px;
+           }
+        }
+        @media (max-width: 1100px) {
+           :global(.template-configuration-section .print-editor-layout) {
+              grid-template-columns: 1fr;
+           }
+           :global(.template-configuration-section .print-preview-panel) {
+              position: static;
+              max-width: min(100%, 420px);
+              justify-self: center;
+              margin-top: 8px;
+           }
+        }
+        @media (max-width: 768px) {
+           :global(.template-configuration-section) {
+              padding: 16px !important;
+              border-radius: 16px !important;
+           }
+           :global(.template-configuration-section .template-doc-selector) {
+              grid-template-columns: 1fr;
+           }
+           :global(.template-configuration-section .template-doc-selector button) {
+              justify-content: flex-start;
+              text-align: left;
+              min-height: 44px;
+           }
+           :global(.template-configuration-section .template-grid-fields),
+           :global(.template-configuration-section .template-checkbox-grid) {
+              grid-template-columns: 1fr;
+           }
+           :global(.template-configuration-section .paper-preset-row button) {
+              flex: 1 1 calc(50% - 8px);
+           }
+           :global(.template-configuration-section .logo-upload-row) {
+              align-items: flex-start;
+              flex-wrap: wrap;
+           }
+        }
+        @media (max-width: 420px) {
+           :global(.template-configuration-section) {
+              padding: 14px 12px !important;
+           }
+           :global(.template-configuration-section .paper-preset-row button) {
+              flex-basis: 100%;
+           }
+           :global(.template-configuration-section .form-input) {
+              min-height: 46px;
+              font-size: 14px;
+              padding: 11px 13px;
+           }
+           :global(.template-configuration-section .template-check),
+           :global(.template-configuration-section .template-toggle-row) {
+              min-height: 46px;
+           }
+        }
+
         /* ─── INFO TOOLTIP STYLES ─── */
         :global(.custom-tooltip-wrapper) {
           position: relative;
@@ -2347,6 +2697,9 @@ function ConfigurationsContent() {
             border-top: 4px solid #f97316 !important;
             border-radius: 20px !important;
             box-shadow: 0 10px 30px -5px rgba(0,0,0,0.02), 0 1px 3px rgba(0,0,0,0.01) !important;
+        }
+        :global(.template-configuration-section.form-card) {
+            overflow: visible;
         }
       `}</style>
     </DashboardLayout>
