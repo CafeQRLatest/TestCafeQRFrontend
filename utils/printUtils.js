@@ -83,6 +83,21 @@ function pickNumber(obj, keys, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function pickOptionalNumber(obj, keys) {
+  const value = pickValue(obj, keys, undefined);
+  if (value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function pickBool(obj, keys, fallback = true) {
+  const value = pickValue(obj, keys, undefined);
+  if (value === undefined) return fallback;
+  if (value === true || value === "true" || value === "1") return true;
+  if (value === false || value === "false" || value === "0") return false;
+  return fallback;
+}
+
 function customerDisplay(order) {
   const customers = Array.isArray(order?.customers) ? order.customers : [];
   if (customers.length) {
@@ -593,10 +608,16 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       hour12: true,
     });
 
-    const orderDiscount = pickNumber(order, ["discount_amount", "discountAmount", "totalDiscountAmount"], pickNumber(bill, ["discount_amount", "discountAmount"], 0));
     const roundOff = pickNumber(order, ["round_off_amount", "roundOffAmount"], pickNumber(bill, ["round_off_amount", "roundOffAmount"], 0));
     const oTotalTax = pickNumber(order, ["total_tax", "totalTax", "totalTaxAmount"], pickNumber(bill, ["total_tax", "totalTax", "tax_total", "taxTotal"], 0));
-    const oGrandTotal = pickNumber(order, ["grandTotal", "grand_total", "total_amount", "totalAmount"], pickNumber(bill, ["grandTotal", "grand_total", "total_amount", "totalAmount"], 0));
+    const explicitGrandTotal = pickOptionalNumber(order, ["grandTotal", "grand_total"])
+      ?? pickOptionalNumber(bill, ["grandTotal", "grand_total"]);
+    const explicitInvoiceTotal = pickOptionalNumber(order, ["totalAmount", "total_amount"])
+      ?? pickOptionalNumber(bill, ["totalAmount", "total_amount"]);
+    const oGrandTotal = explicitGrandTotal ?? explicitInvoiceTotal ?? 0;
+    const hasRoundOff = Math.abs(roundOff) > 0.001;
+    const invoiceTotal = Math.max(0, hasRoundOff ? oGrandTotal - roundOff : (explicitInvoiceTotal ?? oGrandTotal));
+    const subtotalTaxable = Math.max(0, Number((invoiceTotal - oTotalTax).toFixed(2)));
     const isInclusiveOrder = (order?.prices_include_tax === true || order?.pricesIncludeTax === true || bill?.prices_include_tax === true || bill?.pricesIncludeTax === true);
     const isAllPackaged = items.length > 0 && items.every(it => it.is_packaged_good);
     const isInclusiveMode = isAllPackaged || isInclusiveOrder;
@@ -616,6 +637,10 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     const receiptHeader = getLocalString('PRINT_RECEIPT_HEADER', '*** TAX INVOICE ***');
     const receiptFooter = getLocalString('PRINT_RECEIPT_FOOTER', '* THANK YOU! VISIT AGAIN !! *');
+    const billFooterEnabled = pickBool(restaurantProfile, ["bill_footer_enabled", "billFooterEnabled"], true);
+    const billFooterText = billFooterEnabled
+      ? String(pickValue(restaurantProfile, ["bill_footer_text", "billFooter", "bill_footer"], "") || "").trim()
+      : "";
 
     const cols = getBillCols(W, hasLineDiscount);
     const { name, qty, rate, disc, total, showDiscCol } = cols;
@@ -676,13 +701,21 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     lines.push(withMargins(dashes(), layout));
     const itemsGrossTotal = items.reduce((s, it) => s + (Number(it.price || 0) * Number(it.quantity || 1)), 0);
-    lines.push(withMargins(kvLine(isInclusiveMode ? "Items Total:" : "Gross Total:", fmtRate(itemsGrossTotal), W), layout));
+    const explicitTotalDiscount = pickOptionalNumber(order, ["totalDiscountAmount", "total_discount_amount"])
+      ?? pickOptionalNumber(bill, ["totalDiscountAmount", "total_discount_amount"]);
+    const lineDiscountTotal = items.reduce((s, it) => s + Number(it.discount_amount || 0), 0);
+    const orderLevelDiscount = pickNumber(order, ["discount_amount", "discountAmount"], pickNumber(bill, ["discount_amount", "discountAmount"], 0));
+    const totalReduction = Math.max(explicitTotalDiscount ?? 0, lineDiscountTotal + orderLevelDiscount);
+    const shouldShowGrossTotal = totalReduction > 0.01 || Math.abs(itemsGrossTotal - subtotalTaxable) > 0.01;
+    const shouldShowSubtotal = oTotalTax > 0.01 || totalReduction > 0.01 || shouldShowGrossTotal;
 
-    const totalReduction = items.reduce((s, it) => s + (Number(it.discount_amount || 0) - Number(it.order_discount_share || 0)), 0) + orderDiscount;
+    if (shouldShowGrossTotal) {
+      lines.push(withMargins(kvLine(isInclusiveMode ? "Items Total:" : "Gross Total:", fmtRate(itemsGrossTotal), W), layout));
+    }
+
     if (totalReduction > 0.01) lines.push(withMargins(kvLine("Discount:", "-" + fmtRate(totalReduction), W), layout));
-    if (!isInclusiveMode) {
-      const subEx = (oGrandTotal - roundOff) - oTotalTax;
-      lines.push(withMargins(kvLine("Subtotal:", fmtRate(subEx), W), layout));
+    if (shouldShowSubtotal) {
+      lines.push(withMargins(kvLine("Subtotal:", fmtRate(subtotalTaxable), W), layout));
     }
     if (showGstBreakdown && oTotalTax > 0.01) {
       const c = Math.round((oTotalTax / 2) * 100) / 100;
@@ -690,13 +723,17 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine(`CGST ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(c), W), layout));
       lines.push(withMargins(kvLine(`SGST ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(s), W), layout));
     }
-    if (roundOff !== 0) lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
+    if (hasRoundOff) {
+      lines.push(withMargins(kvLine("TOTAL:", fmtRate(invoiceTotal), W), layout));
+      lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
+    }
     lines.push(withMargins(dashes(), layout));
     lines.push(MODE_BOLD + (is80 ? SIZE_2X : SIZE_2X) + withMargins(kvLineScaled("GRAND TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
 
     lines.push(withMargins(dashes(), layout));
 
     if (receiptFooter) pushWrappedCenteredText(lines, receiptFooter, W, layout);
+    if (billFooterText) pushWrappedCenteredText(lines, billFooterText, W, layout);
     pushWrappedCenteredText(lines, "Powered by Cafe QR", W, layout);
     lines.push("");
 

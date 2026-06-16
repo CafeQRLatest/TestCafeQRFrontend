@@ -436,6 +436,14 @@ namespace CafeQR.PrintService
             return fallback;
         }
 
+        private static decimal? PickNullableDecimal(JObject obj, string[] keys)
+        {
+            var valStr = PickValue(obj, keys);
+            if (decimal.TryParse(valStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+                return val;
+            return null;
+        }
+
         private static List<string> WrapText(string text, int width)
         {
             if (string.IsNullOrEmpty(text)) return new List<string>();
@@ -971,10 +979,19 @@ namespace CafeQR.PrintService
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
-            decimal orderDiscount = PickDecimal(order, new[] { "discount_amount", "discountAmount", "totalDiscountAmount" }, PickDecimal(bill, new[] { "discount_amount", "discountAmount" }, 0));
             decimal roundOff = PickDecimal(order, new[] { "round_off_amount", "roundOffAmount" }, PickDecimal(bill, new[] { "round_off_amount", "roundOffAmount" }, 0));
             decimal oTotalTax = PickDecimal(order, new[] { "total_tax", "totalTax", "totalTaxAmount" }, PickDecimal(bill, new[] { "total_tax", "totalTax", "tax_total", "taxTotal" }, 0));
-            decimal oGrandTotal = PickDecimal(order, new[] { "grandTotal", "grand_total", "total_amount", "totalAmount" }, PickDecimal(bill, new[] { "grandTotal", "grand_total", "total_amount", "totalAmount" }, 0));
+            decimal? explicitGrandTotal = PickNullableDecimal(order, new[] { "grandTotal", "grand_total" })
+                ?? PickNullableDecimal(bill, new[] { "grandTotal", "grand_total" });
+            decimal? explicitInvoiceTotal = PickNullableDecimal(order, new[] { "totalAmount", "total_amount" })
+                ?? PickNullableDecimal(bill, new[] { "totalAmount", "total_amount" });
+            decimal oGrandTotal = explicitGrandTotal ?? explicitInvoiceTotal ?? 0m;
+            bool hasRoundOff = Math.Abs(roundOff) > 0.001m;
+            decimal invoiceTotal = hasRoundOff ? oGrandTotal - roundOff : (explicitInvoiceTotal ?? oGrandTotal);
+            if (invoiceTotal < 0m) invoiceTotal = 0m;
+            decimal subtotalTaxable = invoiceTotal - oTotalTax;
+            if (subtotalTaxable < 0m) subtotalTaxable = 0m;
+            subtotalTaxable = Math.Round(subtotalTaxable, 2, MidpointRounding.AwayFromZero);
 
             bool pricesIncludeTax = ValueBool(order, "prices_include_tax", false) || ValueBool(order, "pricesIncludeTax", false) || ValueBool(bill, "prices_include_tax", false) || ValueBool(bill, "pricesIncludeTax", false);
             bool isAllPackaged = items.Count > 0 && items.All(it => it.IsPackagedGood);
@@ -991,6 +1008,10 @@ namespace CafeQR.PrintService
 
             string receiptHeader = PickTemplateValue(tpl, new[] { "header", "receiptHeader" }, "*** TAX INVOICE ***");
             string receiptFooter = PickTemplateValue(tpl, new[] { "footer", "receiptFooter" }, "* THANK YOU! VISIT AGAIN !! *");
+            bool billFooterEnabled = ValueBool(restaurantProfile, "bill_footer_enabled", ValueBool(restaurantProfile, "billFooterEnabled", true));
+            string billFooterText = billFooterEnabled
+                ? PickValue(restaurantProfile, new[] { "bill_footer_text", "billFooter", "bill_footer" }).Trim()
+                : "";
 
             // Determine columns for bill printing
             var billCols = GetBillCols(W, hasLineDiscount);
@@ -1090,17 +1111,25 @@ namespace CafeQR.PrintService
 
             lines.Add(WithMargins(dashes, layout));
             decimal itemsGrossTotal = items.Sum(it => it.Price * it.Quantity);
-            lines.Add(WithMargins(KvLine(isInclusiveMode ? "Items Total:" : "Gross Total:", FmtRate(itemsGrossTotal), W), layout));
+            decimal? explicitTotalDiscount = PickNullableDecimal(order, new[] { "totalDiscountAmount", "total_discount_amount" })
+                ?? PickNullableDecimal(bill, new[] { "totalDiscountAmount", "total_discount_amount" });
+            decimal lineDiscountTotal = items.Sum(it => it.DiscountAmount);
+            decimal orderLevelDiscount = PickDecimal(order, new[] { "discount_amount", "discountAmount" }, PickDecimal(bill, new[] { "discount_amount", "discountAmount" }, 0));
+            decimal totalReduction = Math.Max(explicitTotalDiscount ?? 0m, lineDiscountTotal + orderLevelDiscount);
+            bool shouldShowGrossTotal = totalReduction > 0.01m || Math.Abs(itemsGrossTotal - subtotalTaxable) > 0.01m;
+            bool shouldShowSubtotal = oTotalTax > 0.01m || totalReduction > 0.01m || shouldShowGrossTotal;
 
-            decimal totalReduction = items.Sum(it => it.DiscountAmount) + orderDiscount;
+            if (shouldShowGrossTotal)
+            {
+                lines.Add(WithMargins(KvLine(isInclusiveMode ? "Items Total:" : "Gross Total:", FmtRate(itemsGrossTotal), W), layout));
+            }
             if (totalReduction > 0.01m)
             {
                 lines.Add(WithMargins(KvLine("Discount:", "-" + FmtRate(totalReduction), W), layout));
             }
-            if (!isInclusiveMode)
+            if (shouldShowSubtotal)
             {
-                decimal subEx = (oGrandTotal - roundOff) - oTotalTax;
-                lines.Add(WithMargins(KvLine("Subtotal:", FmtRate(subEx), W), layout));
+                lines.Add(WithMargins(KvLine("Subtotal:", FmtRate(subtotalTaxable), W), layout));
             }
             if (showGstBreakdown && oTotalTax > 0.01m)
             {
@@ -1109,18 +1138,23 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins(KvLine("CGST " + (pricesIncludeTax ? "(incl)" : "") + ":", FmtRate(c), W), layout));
                 lines.Add(WithMargins(KvLine("SGST " + (pricesIncludeTax ? "(incl)" : "") + ":", FmtRate(s), W), layout));
             }
-            if (roundOff != 0m)
+            if (hasRoundOff)
             {
+                lines.Add(WithMargins(KvLine("TOTAL:", FmtRate(invoiceTotal), W), layout));
                 lines.Add(WithMargins(KvLine("Round Off:", (roundOff > 0m ? "+" : "") + FmtRate(roundOff), W), layout));
             }
             lines.Add(WithMargins(dashes, layout));
             
-            lines.Add(MODE_BOLD + SIZE_2X + WithMargins(KvLineScaled("TOTAL:", FmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
+            lines.Add(MODE_BOLD + SIZE_2X + WithMargins(KvLineScaled("GRAND TOTAL:", FmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
             lines.Add(WithMargins(dashes, layout));
 
             if (!string.IsNullOrEmpty(receiptFooter))
             {
                 PushWrappedCenteredText(lines, receiptFooter, W, layout);
+            }
+            if (!string.IsNullOrEmpty(billFooterText))
+            {
+                PushWrappedCenteredText(lines, billFooterText, W, layout);
             }
             PushWrappedCenteredText(lines, "Powered by Cafe QR", W, layout);
             lines.Add("");
