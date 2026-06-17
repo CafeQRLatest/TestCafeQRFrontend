@@ -1,6 +1,7 @@
 // utils/printGateway.ts
 import { Capacitor } from '@capacitor/core';
 import { textToEscPos } from './escpos';
+import { buildKotText } from './printUtils';
 import { markPrintJobFailed, markPrintJobSent, queuePrintJob } from './offlineStore';
 import { isNativePrintServicePaired, submitNativePrintJob } from './printServiceClient';
 
@@ -129,8 +130,66 @@ function removeUnexpectedFinalTotalRow(text: string) {
   return output.join('\n');
 }
 
+function looksLikeLegacyKotText(text: string) {
+  const clean = stripEscPosForMatch(text);
+  if (!clean || /\bKOT\s+Ref\s*:/i.test(clean)) return false;
+
+  return /\*+\s*KOT\s*\*+/i.test(clean)
+    && /\bOrder\s*:/i.test(clean)
+    && /\bType\s*:/i.test(clean)
+    && /\b\d+(?:\.\d+)?\s*x\s+\S/i.test(clean);
+}
+
+function getOrderLikeDocument(document: Options['document']) {
+  if (!document || typeof document !== 'object') return null;
+  const source = document as Record<string, unknown>;
+  const order = source.order && typeof source.order === 'object'
+    ? source.order as Record<string, unknown>
+    : source;
+  const hasOrderShape = Boolean(
+    order.id ||
+    order.orderNo ||
+    order.order_no ||
+    order.saleOrderNo ||
+    order.sale_order_no ||
+    Array.isArray(order.lines) ||
+    Array.isArray(order.orderLines) ||
+    Array.isArray(order.order_items) ||
+    Array.isArray(order.items)
+  );
+  if (!hasOrderShape) return null;
+  return order;
+}
+
+function normalizeKotPrintOptions(opts: Options): Options {
+  if (!looksLikeLegacyKotText(opts.text)) return opts;
+
+  const order = getOrderLikeDocument(opts.document);
+  if (!order) {
+    console.warn('[print-gateway] Legacy KOT text detected, but no structured order payload was available to rebuild it.');
+    return opts;
+  }
+
+  try {
+    const document = (opts.document || {}) as Record<string, unknown>;
+    const restaurant = document.restaurant && typeof document.restaurant === 'object'
+      ? document.restaurant as Record<string, unknown>
+      : undefined;
+    const rebuiltText = buildKotText(order, restaurant);
+    console.info('[print-gateway] Rebuilt legacy KOT text with customized KOT renderer.', {
+      hasRestaurant: Boolean(restaurant),
+      hasKotRef: /\bKOT\s+Ref\s*:/i.test(stripEscPosForMatch(rebuiltText)),
+    });
+    return { ...opts, text: rebuiltText };
+  } catch (error: any) {
+    console.warn('[print-gateway] Failed to rebuild legacy KOT text. Printing original KOT payload.', error?.message || error);
+    return opts;
+  }
+}
+
 function normalizePrintOptions(opts: Options): Options {
   const kind = opts.jobKind === 'kot' ? 'kot' : opts.jobKind === 'invoice' ? 'invoice' : 'bill';
+  if (kind === 'kot') return normalizeKotPrintOptions(opts);
   if (kind !== 'bill') return opts;
 
   const text = removeUnexpectedFinalTotalRow(opts.text);

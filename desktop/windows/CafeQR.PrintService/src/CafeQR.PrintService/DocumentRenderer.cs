@@ -20,13 +20,29 @@ namespace CafeQR.PrintService
             Log.Info($"[Thermal Print] Has Text: {!string.IsNullOrWhiteSpace(submission.Text)}, Length={(submission.Text?.Length ?? 0)}");
             Log.Info($"[Thermal Print] Document keys: {string.Join(", ", (submission.Document ?? new JObject()).Properties().Select(p => p.Name))}");
 
+            var isKot = IsKotKind(submission.JobKind);
+            var document = submission.Document ?? new JObject();
+            var canRebuildKot = isKot && HasStructuredOrder(document);
+            Log.Info($"[Thermal Print] KOT custom renderer guard: isKot={isKot}, canRebuild={canRebuildKot}, hasKotTemplate={config?["kotTemplate"] != null}");
+
             if (!string.IsNullOrWhiteSpace(submission.DataBase64))
             {
                 try
                 {
                     var data = Convert.FromBase64String(submission.DataBase64);
-                    Log.Info($"[Thermal Print] Printing direct DataBase64. Bytes count: {data.Length}");
-                    return data;
+                    var decodedText = Encoding.GetEncoding(437).GetString(data);
+                    var textForDetection = !string.IsNullOrWhiteSpace(submission.Text)
+                        ? submission.Text
+                        : decodedText;
+                    if (canRebuildKot && LooksLikeLegacyKotText(textForDetection))
+                    {
+                        Log.Warn("[Thermal Print] Legacy KOT DataBase64 detected; rebuilding with customized KOT renderer.");
+                    }
+                    else
+                    {
+                        Log.Info($"[Thermal Print] Printing direct DataBase64. Bytes count: {data.Length}");
+                        return data;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -36,15 +52,24 @@ namespace CafeQR.PrintService
 
             var text = !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
-                : BuildText(submission.Document ?? new JObject(), submission.JobKind, profile, config);
+                : BuildText(document, submission.JobKind, profile, config);
+            if (canRebuildKot && LooksLikeLegacyKotText(text))
+            {
+                text = BuildText(document, submission.JobKind, profile, config);
+                Log.Warn("[Thermal Print] Legacy KOT text detected; rebuilt with customized KOT renderer.");
+            }
+            else if (isKot)
+            {
+                Log.Info("[Thermal Print] KOT text uses customized renderer or does not match legacy shape.");
+            }
             text = RemoveUnexpectedFinalTotalRow(text);
 
             Log.Info($"[Thermal Print] Rendered Text: {Environment.NewLine}{text}");
 
-            var documentKind = IsKotKind(submission.JobKind) ? "kot" : "receipt";
+            var documentKind = isKot ? "kot" : "receipt";
             var effectiveTemplate = EffectiveThermalTemplate(config, profile, documentKind);
 
-            if (IsKotKind(submission.JobKind) && attempt > 1)
+            if (isKot && attempt > 1)
             {
                 var layout = GetLayout(config, profile, documentKind);
                 text = Center("*** REPRINT ***", layout.InnerCols) + Environment.NewLine + text;
@@ -105,6 +130,39 @@ namespace CafeQR.PrintService
             }
 
             return string.Join("\n", output);
+        }
+
+        private static bool LooksLikeLegacyKotText(string text)
+        {
+            var clean = StripEscPosForMatch(text);
+            if (string.IsNullOrEmpty(clean)) return false;
+            if (Regex.IsMatch(clean, @"\bKOT\s+Ref\s*:", RegexOptions.IgnoreCase)) return false;
+
+            return Regex.IsMatch(clean, @"\*+\s*KOT\s*\*+", RegexOptions.IgnoreCase)
+                && Regex.IsMatch(clean, @"\bOrder\s*:", RegexOptions.IgnoreCase)
+                && Regex.IsMatch(clean, @"\bType\s*:", RegexOptions.IgnoreCase)
+                && Regex.IsMatch(clean, @"\b\d+(?:\.\d+)?\s*x\s+\S", RegexOptions.IgnoreCase);
+        }
+
+        private static bool HasStructuredOrder(JObject source)
+        {
+            if (source == null) return false;
+            var order = source["order"] as JObject ?? source;
+            if (order == null) return false;
+
+            if (order["id"] != null ||
+                order["orderNo"] != null ||
+                order["order_no"] != null ||
+                order["saleOrderNo"] != null ||
+                order["sale_order_no"] != null)
+            {
+                return true;
+            }
+
+            return order["lines"] is JArray ||
+                order["orderLines"] is JArray ||
+                order["order_items"] is JArray ||
+                order["items"] is JArray;
         }
 
         private static string StripEscPosForMatch(string value)
