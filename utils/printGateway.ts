@@ -58,6 +58,85 @@ function hashText(value: string) {
   return Math.abs(hash).toString(36);
 }
 
+function stripEscPosForMatch(value: string) {
+  const text = String(value || '');
+  let out = '';
+  let i = 0;
+
+  while (i < text.length) {
+    const code = text.charCodeAt(i);
+    if (code === 0x1b) {
+      const cmd = text.charCodeAt(i + 1);
+      if (cmd === 0x40) {
+        i += 2;
+        continue;
+      }
+      if ([0x20, 0x21, 0x45, 0x4d, 0x61, 0x74].includes(cmd)) {
+        i += 3;
+        continue;
+      }
+      i += 2;
+      continue;
+    }
+    if (code === 0x1d) {
+      const cmd = text.charCodeAt(i + 1);
+      if ([0x21, 0x56].includes(cmd)) {
+        i += 3;
+        continue;
+      }
+      if ([0x4c, 0x57].includes(cmd)) {
+        i += 4;
+        continue;
+      }
+      i += 2;
+      continue;
+    }
+    if (code >= 32 && code !== 127) out += text[i];
+    i += 1;
+  }
+
+  return out.replace(/\s+/g, ' ').trim();
+}
+
+function removeUnexpectedFinalTotalRow(text: string) {
+  const lines = String(text || '').split('\n');
+  const output: string[] = [];
+  let afterGrandTotal = false;
+
+  for (const line of lines) {
+    const clean = stripEscPosForMatch(line);
+    const isSeparator = /^-+$/.test(clean);
+
+    if (afterGrandTotal) {
+      if (!clean) {
+        output.push(line);
+        continue;
+      }
+      if (/^TOTAL\s*:\s*(?:[\u20b9$]|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$/i.test(clean)) {
+        afterGrandTotal = false;
+        continue;
+      }
+      if (isSeparator) afterGrandTotal = false;
+      else afterGrandTotal = false;
+    }
+
+    output.push(line);
+    if (/\bGRAND\s+TOTAL\s*:/i.test(clean)) {
+      afterGrandTotal = true;
+    }
+  }
+
+  return output.join('\n');
+}
+
+function normalizePrintOptions(opts: Options): Options {
+  const kind = opts.jobKind === 'kot' ? 'kot' : opts.jobKind === 'invoice' ? 'invoice' : 'bill';
+  if (kind !== 'bill') return opts;
+
+  const text = removeUnexpectedFinalTotalRow(opts.text);
+  return text === opts.text ? opts : { ...opts, text };
+}
+
 function createPrintJobRecord(opts: Options) {
   const orderRef = opts.offlineOperationId || opts.orderId || opts.orderNo;
   if (!opts.jobId && !orderRef) return null;
@@ -91,8 +170,9 @@ let printChain: Promise<void> = Promise.resolve();
 
 /** Public API: queued printing (never drops a job). */
 export function printUniversal(opts: Options) {
+  const normalizedOpts = normalizePrintOptions(opts);
   const job = printChain.then(async () => {
-    const printJob = createPrintJobRecord(opts);
+    const printJob = createPrintJobRecord(normalizedOpts);
 
     if (printJob) {
       await queuePrintJob(printJob).catch((error: any) => {
@@ -101,7 +181,7 @@ export function printUniversal(opts: Options) {
     }
 
     try {
-      const res = await printUniversalNow(opts);
+      const res = await printUniversalNow(normalizedOpts);
 
       if (printJob) {
         await markPrintJobSent(printJob.id, res).catch((error: any) => {
