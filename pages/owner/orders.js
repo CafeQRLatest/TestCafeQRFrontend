@@ -1824,7 +1824,7 @@ export default function OrdersPage() {
       return;
     }
     setPrintKind('kot');
-    setPrintOrder(order);
+    setPrintOrder({ ...order, _manualPrint: true });
     if (order?.id) {
       markCloudPrintJobPrinted(order, 'kot').catch((error) => {
         console.warn('Unable to pre-emptively mark cloud print job printed on KOT print:', error?.message || error);
@@ -1843,7 +1843,7 @@ export default function OrdersPage() {
       return;
     }
     setPrintKind('bill');
-    setPrintOrder(order);
+    setPrintOrder({ ...order, _manualPrint: true });
     if (order?.id) {
       markCloudPrintJobPrinted(order, 'bill').catch((error) => {
         console.warn('Unable to pre-emptively mark cloud print job printed on bill print:', error?.message || error);

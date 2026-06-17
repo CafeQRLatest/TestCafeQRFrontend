@@ -37,6 +37,17 @@ const TABLE_STATUS_META = {
   MAINTENANCE: { label: 'HOLD', bg: '#64748b', fg: '#ffffff', border: '#475569', soft: 'rgba(255,255,255,0.18)', accent: '#ffffff' },
 };
 
+const KITCHEN_PRINT_STATUSES = new Set(['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY']);
+const FINAL_BILL_PRINT_STATUSES = new Set(['BILLED', 'COMPLETED']);
+
+function resolveCreatedPrintKind(order, requestedKind) {
+  if (requestedKind === 'settle') return 'settle';
+  const status = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+  if (KITCHEN_PRINT_STATUSES.has(status)) return 'kot';
+  if (FINAL_BILL_PRINT_STATUSES.has(status)) return 'bill';
+  return requestedKind === 'kot' ? 'kot' : 'bill';
+}
+
 function normalizeTableStatus(status) {
   const normalized = String(status || 'AVAILABLE').toUpperCase();
   if (['KITCHEN', 'CONFIRMED', 'DRAFT'].includes(normalized)) return 'OCCUPIED';
@@ -1675,7 +1686,8 @@ function SalesContent() {
     return ['BILLED', 'COMPLETED', 'CANCELLED'].includes(orderStatus) || paymentStatus === 'PAID';
   }, []);
 
-  const handleOrderCreated = useCallback((order, kind) => {
+  const handleOrderCreated = useCallback(async (order, kind) => {
+    const printKind = resolveCreatedPrintKind(order, kind);
     setFloorOrders((current) => {
       const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
       const filtered = current.filter((item) => {
@@ -1689,7 +1701,7 @@ function SalesContent() {
       if (isMainOfflineBillingDevice()) {
         setPrintOrder(order);
         // If it's a final offline sale, treat as bill so it prints locally.
-        setPrintKind(kind === 'settle' ? 'bill' : kind);
+        setPrintKind(printKind === 'settle' ? 'bill' : printKind);
       }
       setQueuedOrders((current) => mergeOrdersWithQueued(current, [order]));
       loadOfflineOrderState();
@@ -1701,31 +1713,42 @@ function SalesContent() {
       return;
     }
 
-    if (kind === 'settle') {
+    if (printKind === 'settle') {
       setPaymentOrder(order);
       return; // PaymentDialog will handle the rest
     }
 
     // Online order: if this device is a print station, print immediately locally
     if (isPrintStationEnabled() || isNativePrintServicePaired()) {
-      setPrintOrder(order);
-      setPrintKind(kind);
-      showToast(kind === 'kot' ? 'KOT created — printing now...' : 'Bill created — printing now...');
+      let orderForPrint = order;
       if (order?.id) {
-        markCloudPrintJobPrinted(order, kind).catch((error) => {
+        try {
+          await markCloudPrintJobPrinted(order, printKind);
+        } catch (error) {
           console.warn('Unable to pre-emptively mark cloud print job printed on creation:', error?.message || error);
-        });
+        }
+        if (printKind === 'bill') {
+          try {
+            const { data } = await api.get(`/api/v1/orders/${order.id}`);
+            orderForPrint = data?.data || order;
+          } catch (error) {
+            console.warn('Unable to hydrate completed order before auto print:', error?.message || error);
+          }
+        }
       }
+      setPrintOrder(orderForPrint);
+      setPrintKind(printKind);
+      showToast(printKind === 'kot' ? 'KOT created — printing now...' : 'Bill created — printing now...');
     } else {
       showToast(
-        kind === 'kot'
+        printKind === 'kot'
           ? 'KOT created. Main print station will print when online.'
 
           : 'Bill created. Main print station will print when online.'
       );
     }
 
-    if (kind === 'bill' || hasAccountingImpact(order)) {
+    if (printKind === 'bill' || hasAccountingImpact(order)) {
       publishAccountingRefresh('order-created', order);
     }
 
@@ -1787,7 +1810,7 @@ function SalesContent() {
     try {
       if (order?.offline) {
         if (isMainOfflineBillingDevice()) {
-          setPrintOrder(order);
+          setPrintOrder({ ...order, _manualPrint: true });
           setPrintKind(kind);
           showToast(kind === 'kot' ? 'Offline KOT sent to printer' : 'Offline bill sent to printer');
         } else {
@@ -1804,7 +1827,7 @@ function SalesContent() {
       }
 
       const fullOrder = await loadFullOrder(order.id);
-      setPrintOrder(fullOrder || order);
+      setPrintOrder({ ...(fullOrder || order), _manualPrint: true });
       setPrintKind(kind);
       showToast(kind === 'kot' ? 'KOT sent to printer' : 'Bill sent to printer');
       if (order?.id) {

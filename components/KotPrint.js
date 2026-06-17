@@ -201,7 +201,9 @@ function getPrintJobMeta(order, kind = 'bill', target = 'default') {
   const offlineOperationId = order?.offlineOperationId || (offline && order?.id ? String(order.id) : undefined);
   const orderNo = order?.orderNo || order?.order_no;
   const ref = String(offlineOperationId || orderId || orderNo || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '').slice(-48);
-  const targetKey = String(target || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 48) || 'default';
+  const baseTargetKey = String(target || 'default').replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+  const manualSuffix = order?._manualPrint ? `manual-${Date.now()}` : '';
+  const targetKey = String(manualSuffix ? `${baseTargetKey}-${manualSuffix}` : baseTargetKey).slice(0, 48);
 
   return {
     jobId: `print:${kind}:${targetKey}:${ref}`,
@@ -625,7 +627,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
     if (!autoPrint || !order?.id || loadingData) return;
 
     const id = order.id;
-    if (hasPrintedRecently(id, kind)) return;
+    const shouldDedupe = !order?._manualPrint;
+    if (shouldDedupe && hasPrintedRecently(id, kind)) return;
     if (ranRef.current) return;
     ranRef.current = true;
 
@@ -633,7 +636,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       try {
         const printed = await doPrint();
         if (printed) {
-          markPrinted(id, kind);
+          if (shouldDedupe) markPrinted(id, kind);
           // Notify cloud print station that local print is done
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('cafeqr-local-print-done'));
@@ -645,7 +648,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         ranRef.current = false;
       }
     })();
-  }, [autoPrint, loadingData, order?.id, kind, doPrint]);
+  }, [autoPrint, loadingData, order?.id, order?._manualPrint, kind, doPrint]);
 
   if (androidPwa) {
     const amount = Number(

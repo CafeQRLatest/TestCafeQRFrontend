@@ -254,8 +254,8 @@ async function printUniversalNow(opts: Options) {
 
     const fallback =
       kind === 'kot'
-        ? (kot1 ? [kot1] : bill1 ? [bill1] : [])
-        : (bill1 ? [bill1] : kot1 ? [kot1] : []);
+        ? (kot1 ? [kot1] : [])
+        : (bill1 ? [bill1] : []);
 
     const names = uniq(
       (kind === 'kot' ? kotNames : billNames).length
