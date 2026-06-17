@@ -274,9 +274,44 @@ export default function ProductManagementPopup({
   const handleSaveProduct = async (e) => {
     if (e) e.preventDefault();
 
+    // 1. Mandatory Field Validation
+    if (!selectedProduct.name || !selectedProduct.name.trim()) {
+      notify('error', 'Product name is required');
+      return;
+    }
+
+    if (!selectedProduct.category || !selectedProduct.category.id) {
+      notify('error', 'Category is required');
+      return;
+    }
+
     if (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '') {
       notify('error', 'Sale Price is required');
       return;
+    }
+
+    if (Number(selectedProduct.price) <= 0) {
+      notify('error', 'Sale Price must be greater than zero');
+      return;
+    }
+
+    // 2. Duplicate Validation (Name and Code)
+    const currentName = selectedProduct.name.trim().toLowerCase();
+    const currentCode = selectedProduct.productCode ? selectedProduct.productCode.trim().toLowerCase() : '';
+
+    if (Array.isArray(products)) {
+      for (const p of products) {
+        if (p.isActive !== false && p.id !== selectedProduct.id) {
+          if (p.name && p.name.trim().toLowerCase() === currentName) {
+            notify('error', 'Product with this name already exists');
+            return;
+          }
+          if (currentCode && p.productCode && p.productCode.trim().toLowerCase() === currentCode) {
+            notify('error', 'Product with this code already exists');
+            return;
+          }
+        }
+      }
     }
 
     setSaving(true);
@@ -377,24 +412,24 @@ export default function ProductManagementPopup({
              </div>
 
              <div className="erp-section">
-               <div className="section-title"><FaBarcode /> Basic Info</div>
-               <div className="input-row">
-                  <div className="input-group"><label>Name</label><input value={selectedProduct.name} onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})} placeholder="e.g. Chicken Burger" /></div>
-                  <div className="input-group"><label>Item Code</label><input value={selectedProduct.productCode || ''} onChange={e => setSelectedProduct({...selectedProduct, productCode: e.target.value})} placeholder="e.g. CB001" /></div>
-               </div>
+                <div className="section-title"><FaBarcode /> Basic Info</div>
+                <div className="input-row">
+                   <div className="input-group"><label>Name <span style={{ color: '#ef4444' }}>*</span></label><input value={selectedProduct.name} onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})} placeholder="e.g. Chicken Burger" /></div>
+                   <div className="input-group"><label>Item Code</label><input value={selectedProduct.productCode || ''} onChange={e => setSelectedProduct({...selectedProduct, productCode: e.target.value})} placeholder="e.g. CB001" /></div>
+                </div>
                <div className="input-group" style={{ marginTop: '16px' }}>
                   <label>Description</label>
                   <textarea value={selectedProduct.description || ''} onChange={e => setSelectedProduct({...selectedProduct, description: e.target.value})} placeholder="Describe product details..." rows={2} style={{ width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px', resize: 'vertical' }} />
                </div>
-               <div className="input-row" style={{ marginTop: '16px' }}>
-                  <div className="input-group">
-                     <label>Category</label>
-                      <NiceSelect 
-                        options={categoryOptions.map(c => ({ value: c.id, label: c.name }))}
-                        value={selectedProduct.category?.id || ''}
-                        onChange={val => setSelectedProduct({...selectedProduct, category: categoryOptions.find(c => c.id === val)})}
-                      />
-                  </div>
+                <div className="input-row" style={{ marginTop: '16px' }}>
+                   <div className="input-group">
+                      <label>Category <span style={{ color: '#ef4444' }}>*</span></label>
+                       <NiceSelect 
+                         options={categoryOptions.map(c => ({ value: c.id, label: c.name }))}
+                         value={selectedProduct.category?.id || ''}
+                         onChange={val => setSelectedProduct({...selectedProduct, category: categoryOptions.find(c => c.id === val)})}
+                       />
+                   </div>
                   <div className="input-group">
                      <label>Product Type</label>
                      <NiceSelect 
@@ -655,9 +690,9 @@ export default function ProductManagementPopup({
                <div className="erp-section" style={{ marginTop: '16px' }}>
                   <div className="section-title"><FaMoneyBillWave /> Global Sales Metrics</div>
                   <div className="input-row">
-                     <div className="input-group"><label>Base Sale Price</label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
-                     <div className="input-group"><label>Global MRP</label><input type="number" value={selectedProduct.mrp || 0} onChange={e => setSelectedProduct({...selectedProduct, mrp: parseFloat(e.target.value)})} /></div>
-                  </div>
+                      <div className="input-group"><label>Base Sale Price <span style={{ color: '#ef4444' }}>*</span></label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
+                      <div className="input-group"><label>Global MRP</label><input type="number" value={selectedProduct.mrp || 0} onChange={e => setSelectedProduct({...selectedProduct, mrp: parseFloat(e.target.value)})} /></div>
+                   </div>
                    {taxEnabled && (
                      <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 16 }}>
                          <label style={{ margin: 0 }}>Packaged Good (Apply Tax)</label>
