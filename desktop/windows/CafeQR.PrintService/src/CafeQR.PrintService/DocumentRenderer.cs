@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 
 namespace CafeQR.PrintService
@@ -36,6 +37,7 @@ namespace CafeQR.PrintService
             var text = !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
                 : BuildText(submission.Document ?? new JObject(), submission.JobKind, profile, config);
+            text = RemoveUnexpectedFinalTotalRow(text);
 
             Log.Info($"[Thermal Print] Rendered Text: {Environment.NewLine}{text}");
 
@@ -66,6 +68,96 @@ namespace CafeQR.PrintService
                 Log.Info($"[Thermal Print] Final ESC/POS stream size: {bytes.Length} bytes");
                 return bytes;
             }
+        }
+
+        private static string RemoveUnexpectedFinalTotalRow(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+
+            var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            var output = new List<string>();
+            var afterGrandTotal = false;
+
+            foreach (var line in lines)
+            {
+                var clean = StripEscPosForMatch(line);
+
+                if (afterGrandTotal)
+                {
+                    if (string.IsNullOrEmpty(clean))
+                    {
+                        output.Add(line);
+                        continue;
+                    }
+                    if (Regex.IsMatch(clean, @"^TOTAL\s*:\s*(?:\u20b9|\$|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$", RegexOptions.IgnoreCase))
+                    {
+                        afterGrandTotal = false;
+                        continue;
+                    }
+                    afterGrandTotal = false;
+                }
+
+                output.Add(line);
+                if (Regex.IsMatch(clean, @"\bGRAND\s+TOTAL\s*:", RegexOptions.IgnoreCase))
+                {
+                    afterGrandTotal = true;
+                }
+            }
+
+            return string.Join("\n", output);
+        }
+
+        private static string StripEscPosForMatch(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+
+            var sb = new StringBuilder();
+            var i = 0;
+            while (i < value.Length)
+            {
+                var code = value[i];
+                if (code == 0x1b)
+                {
+                    if (i + 1 >= value.Length) break;
+                    var cmd = value[i + 1];
+                    if (cmd == '@')
+                    {
+                        i += 2;
+                        continue;
+                    }
+                    if (" !EMat".IndexOf(cmd) >= 0)
+                    {
+                        i += 3;
+                        continue;
+                    }
+                    i += 2;
+                    continue;
+                }
+                if (code == 0x1d)
+                {
+                    if (i + 1 >= value.Length) break;
+                    var cmd = value[i + 1];
+                    if (cmd == '!' || cmd == 'V')
+                    {
+                        i += 3;
+                        continue;
+                    }
+                    if (cmd == 'L' || cmd == 'W')
+                    {
+                        i += 4;
+                        continue;
+                    }
+                    i += 2;
+                    continue;
+                }
+                if (code >= 32 && code != 127)
+                {
+                    sb.Append(code);
+                }
+                i += 1;
+            }
+
+            return Regex.Replace(sb.ToString(), @"\s+", " ").Trim();
         }
 
         public PrintDocument Regular(LocalJobSubmission submission, PrinterProfile profile, int attempt)
