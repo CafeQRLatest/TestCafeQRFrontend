@@ -724,13 +724,13 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine(`SGST ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(s), W), layout));
     }
     if (hasRoundOff) {
-      lines.push(withMargins(kvLine("TOTAL:", fmtRate(invoiceTotal), W), layout));
       lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
     }
     lines.push(withMargins(dashes(), layout));
     lines.push(MODE_BOLD + (is80 ? SIZE_2X : SIZE_2X) + withMargins(kvLineScaled("GRAND TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
     lines.push(MODE_BOLD + SIZE_2X + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
 
+    lines.push(MODE_BOLD + (is80 ? SIZE_2X : SIZE_2X) + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
 
     lines.push(withMargins(dashes(), layout));
 
