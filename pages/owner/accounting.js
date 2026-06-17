@@ -917,13 +917,15 @@ function AccountingContent() {
   const otherActivePayments = numberValue(reconciliation?.otherActivePaymentsTotal);
   const unmatchedPaymentCount = numberValue(reconciliation?.unmatchedPaymentCount);
 
-  // Calculations styled exactly like Reports screen to ensure matched figures (inclusive tax)
+  // Calculations use the same formula as the Reports page to ensure figures always match.
+  // billedTotal comes from the accounting summary (order grandTotals) — same source as reports.
+  // grossSales = billedTotal + discounts  (mirrors reports.js line 304)
+  // netSales   = billedTotal              (gross − discounts = billed)
   const outputTax = summaryValue('outputTax');
   const discounts = summaryValue('discounts');
-  const rawGrossSales = summaryValue('grossSales');
-  const grossSales = rawGrossSales + outputTax;
-  const netSales = grossSales - discounts;
   const billedTotal = summaryValue('billedTotal');
+  const grossSales = billedTotal + discounts; // same formula as reports page
+  const netSales = billedTotal;               // gross - discounts = billedTotal
   const paymentCollected = summaryValue('paymentCollected');
   const expenses = summaryValue('expenses') + summaryValue('cogsPurchases');
   const profit = summaryValue('profit');
