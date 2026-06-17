@@ -13,6 +13,8 @@ import {
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
 import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../utils/offlineSequences';
+import { isPrintStationEnabled } from '../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { isCustomersModuleEnabled, isDiscountModuleEnabled, isKitchenModuleEnabled } from '../utils/moduleVisibility';
 import VariantSelector from './VariantSelector';
 import NiceSelect from './NiceSelect';
@@ -20,6 +22,12 @@ import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import PremiumDateTimePicker from './PremiumDateTimePicker';
 import ProductManagementPopup from './ProductManagementPopup';
 import PaymentDialog from './PaymentDialog';
+
+function localPrintWillHandleOrder(kind) {
+  if (typeof window === 'undefined') return false;
+  if (!['kot', 'bill'].includes(kind)) return false;
+  return isPrintStationEnabled() || isNativePrintServicePaired();
+}
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI
 const fadeIn = keyframes`
@@ -2545,6 +2553,10 @@ export default function CounterSale({
         console.error('Failed to parse custom date time', err);
       }
 
+      const plannedPrintKind = effectiveOrderMode === 'kitchen'
+        ? 'kot'
+        : (isSettleDirect || isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+
       const payload = {
         orderType: 'SALE',
         ...(orgId ? { orgId } : {}),
@@ -2598,6 +2610,9 @@ export default function CounterSale({
         orderDiscountType: discountType === 'percentage' ? 'PERCENT' : 'AMOUNT',
         orderDiscountValue: Number(discountValue || 0),
         discountSource: 'MANUAL',
+        ...(!knownOffline && localPrintWillHandleOrder(plannedPrintKind)
+          ? { skipAutoPrintKinds: [plannedPrintKind === 'kot' ? 'KOT' : 'BILL'] }
+          : {}),
 
         lines: processedLines
       };
@@ -2646,9 +2661,7 @@ export default function CounterSale({
 
         // isSettleDirect → kind = 'bill' so sales.js treats it as a completed settled sale
         // (not 'settle', which would open a second PaymentDialog in sales.js)
-        const kind = effectiveOrderMode === 'kitchen'
-          ? 'kot'
-          : (isSettleDirect || isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
+        const kind = plannedPrintKind;
         setShowSettleDialog(false);
         onOrderCreated?.(printOrder, kind);
         setIsDateTimeManuallyEdited(false);
