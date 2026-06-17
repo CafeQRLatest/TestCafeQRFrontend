@@ -48,6 +48,12 @@ function resolveCreatedPrintKind(order, requestedKind) {
   return requestedKind === 'kot' ? 'kot' : 'bill';
 }
 
+function localPrintWillHandleKind(kind) {
+  if (typeof window === 'undefined') return false;
+  if (!['kot', 'bill'].includes(kind)) return false;
+  return isPrintStationEnabled() || isNativePrintServicePaired();
+}
+
 function normalizeTableStatus(status) {
   const normalized = String(status || 'AVAILABLE').toUpperCase();
   if (['KITCHEN', 'CONFIRMED', 'DRAFT'].includes(normalized)) return 'OCCUPIED';
@@ -1727,12 +1733,12 @@ function SalesContent() {
         } catch (error) {
           console.warn('Unable to pre-emptively mark cloud print job printed on creation:', error?.message || error);
         }
-        if (printKind === 'bill') {
+        if (printKind === 'bill' || printKind === 'kot') {
           try {
             const { data } = await api.get(`/api/v1/orders/${order.id}`);
             orderForPrint = data?.data || order;
           } catch (error) {
-            console.warn('Unable to hydrate completed order before auto print:', error?.message || error);
+            console.warn('Unable to hydrate order before auto print:', error?.message || error);
           }
         }
       }
@@ -1889,7 +1895,10 @@ function SalesContent() {
 
     setActionBusy('bill');
     try {
-      const { data } = await api.post(`/api/v1/orders/${order.id}/bill`);
+      const { data } = await api.post(
+        `/api/v1/orders/${order.id}/bill`,
+        localPrintWillHandleKind('bill') ? { skipAutoPrintKinds: ['BILL'] } : undefined
+      );
       const billedOrder = data.data || order;
       setFloorOrders((current) => current.map((item) => item.id === billedOrder.id ? { ...item, ...billedOrder } : item));
       showToast('Bill generated for the table');
@@ -1926,7 +1935,10 @@ function SalesContent() {
       const creditCustomerId = getOrderCreditCustomerId(order);
       setActionBusy('settle');
       try {
-        const { data } = await api.post(`/api/v1/orders/${order.id}/complete-credit`, { creditCustomerId });
+        const { data } = await api.post(`/api/v1/orders/${order.id}/complete-credit`, {
+          creditCustomerId,
+          ...(localPrintWillHandleKind('bill') ? { skipAutoPrintKinds: ['BILL'] } : {}),
+        });
         const settledOrder = data.data || order;
         setFloorOrders((current) => current.map((item) =>
           item.id === settledOrder.id ? { ...item, ...settledOrder } : item
@@ -1954,8 +1966,12 @@ function SalesContent() {
     if (!paymentOrder) return;
     setActionBusy('settle');
     try {
+      const localBillPrint = localPrintWillHandleKind('bill');
       if (payload?.updatedOrder) {
-        await api.put(`/api/v1/orders/${paymentOrder.id}`, payload.updatedOrder);
+        await api.put(`/api/v1/orders/${paymentOrder.id}`, {
+          ...payload.updatedOrder,
+          ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+        });
       }
       const endpoint = payload?.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${paymentOrder.id}/complete-credit`
@@ -1965,8 +1981,12 @@ function SalesContent() {
             creditCustomerId: payload.creditCustomerId,
             discountAmount: payload.discountAmount,
             roundOffAmount: payload.roundOffAmount,
+            ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
           }
-        : payload;
+        : {
+            ...payload,
+            ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          };
       const { data } = await api.post(endpoint, requestPayload);
       const settledOrder = data.data || paymentOrder;
       // Immediately update local state so table reverts to AVAILABLE
