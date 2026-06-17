@@ -122,6 +122,10 @@ namespace CafeQR.PrintService
             {
                 return configured.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value));
             }
+            if (HasAnyDocumentDefaults(defaults))
+            {
+                return Enumerable.Empty<string>();
+            }
 
             var output = submission.OutputFormat;
             if (string.IsNullOrWhiteSpace(output))
@@ -133,7 +137,23 @@ namespace CafeQR.PrintService
             return profiles
                 .Where(profile => output.Equals(PrintConstants.Both, StringComparison.OrdinalIgnoreCase)
                     || profile.Format.Equals(output, StringComparison.OrdinalIgnoreCase))
+                .Where(profile => profile.Documents == null
+                    || profile.Documents.Count == 0
+                    || profile.Documents.Any(value => value.Equals(kind, StringComparison.OrdinalIgnoreCase)))
                 .Select(profile => profile.Id);
+        }
+
+        private static bool HasAnyDocumentDefaults(JObject defaults)
+        {
+            return HasDefaultProfiles(defaults, "kotProfileIds")
+                || HasDefaultProfiles(defaults, "billProfileIds")
+                || HasDefaultProfiles(defaults, "invoiceProfileIds");
+        }
+
+        private static bool HasDefaultProfiles(JObject defaults, string key)
+        {
+            var configured = defaults?[key] as JArray;
+            return configured != null && configured.Values<string>().Any(value => !string.IsNullOrWhiteSpace(value));
         }
 
         private static string DefaultKey(string kind, string suffix)
