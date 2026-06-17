@@ -211,11 +211,6 @@ export default function PrintLivePreview({ config }) {
                   )}
 
                   <div className="total-row">
-                    <span>TOTAL:</span>
-                    <span>727.66</span>
-                  </div>
-                  
-                  <div className="total-row">
                     <span>Round Off:</span>
                     <span>+0.34</span>
                   </div>
@@ -223,7 +218,7 @@ export default function PrintLivePreview({ config }) {
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                   
                   <div className="grand-total-row">
-                    <span>GRAND TOTAL:</span>
+                    <span>TOTAL:</span>
                     <span>₹728.00</span>
                   </div>
                 </div>

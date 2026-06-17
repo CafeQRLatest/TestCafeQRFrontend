@@ -1232,12 +1232,11 @@ namespace CafeQR.PrintService
             }
             if (hasRoundOff)
             {
-                lines.Add(WithMargins(KvLine("TOTAL:", FmtRate(invoiceTotal), W), layout));
                 lines.Add(WithMargins(KvLine("Round Off:", (roundOff > 0m ? "+" : "") + FmtRate(roundOff), W), layout));
             }
             lines.Add(WithMargins(dashes, layout));
             
-            lines.Add(MODE_BOLD + SIZE_2X + WithMargins(KvLineScaled("GRAND TOTAL:", FmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
+            lines.Add(MODE_BOLD + SIZE_2X + WithMargins(KvLineScaled("TOTAL:", FmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
             lines.Add(WithMargins(dashes, layout));
 
             if (!string.IsNullOrEmpty(receiptFooter))
