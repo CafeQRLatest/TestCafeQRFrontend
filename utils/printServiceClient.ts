@@ -2,6 +2,7 @@ const SERVICE_URL = 'http://127.0.0.1:3333';
 const TOKEN_KEY = 'CAFEQR_PRINT_SERVICE_LOCAL_TOKEN';
 const PAIRED_KEY = 'CAFEQR_NATIVE_PRINT_SERVICE_PAIRED';
 const LOCAL_ACCESS_KEY = 'CAFEQR_PRINT_SERVICE_LOCAL_ACCESS';
+const MAIN_OFFLINE_KEY = 'CAFEQR_MAIN_OFFLINE_DEVICE';
 
 export type NativePrintSubmission = {
   idempotencyKey?: string;
@@ -80,6 +81,11 @@ export function isNativePrintServicePaired() {
     && Boolean(localToken());
 }
 
+function markMainOfflineDevice() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(MAIN_OFFLINE_KEY, '1');
+}
+
 export async function getPrintServiceHealth() {
   return request('/v1/health', { method: 'GET' }, 2500);
 }
@@ -129,6 +135,7 @@ export async function enrollNativePrintService(cloudBaseUrl: string, pairingCode
   window.localStorage.setItem(TOKEN_KEY, response.localClientToken);
   window.localStorage.setItem(PAIRED_KEY, '1');
   window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+  markMainOfflineDevice();
   rememberPrintServiceLocalAccess(true);
   window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
   return response;
@@ -163,12 +170,16 @@ export function forgetNativePrintService() {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(PAIRED_KEY);
+  window.localStorage.removeItem(MAIN_OFFLINE_KEY);
   window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
 }
 
 // Auto-recovery mechanism for paired print stations (caches, localStorage wipes, etc.)
 if (typeof window !== 'undefined') {
   const token = window.localStorage.getItem(TOKEN_KEY);
+  if (token && window.localStorage.getItem(PAIRED_KEY) === '1') {
+    markMainOfflineDevice();
+  }
   if (!token) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 2000);
@@ -185,6 +196,7 @@ if (typeof window !== 'undefined') {
           window.localStorage.setItem(PAIRED_KEY, '1');
           window.localStorage.setItem(LOCAL_ACCESS_KEY, '1');
           window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+          markMainOfflineDevice();
           window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
           console.log('[print-recovery] Auto-restored pairing token from local Windows Service');
         }
