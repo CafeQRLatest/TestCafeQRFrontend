@@ -210,9 +210,22 @@ namespace CafeQR.PrintService
                 byte[] thermal = null;
                 PrintDocument regular = null;
                 if (profile.Format.Equals(PrintConstants.Regular, StringComparison.OrdinalIgnoreCase))
+                {
                     regular = renderer.Regular(task.Submission, profile, task.Attempts);
+                }
+                else if (IsKotWindowsQueue(task, profile))
+                {
+                    Log.Info($"[PrintCoordinator] rendererPath=WINDOWS_QUEUE_GDI_KOT jobKind={task.JobKind} profileId={profile.Id} connectionType={profile.ConnectionType}");
+                    regular = renderer.WindowsQueueKot(task.Submission, profile, task.Attempts, options.EffectiveConfiguration);
+                }
                 else
+                {
+                    if (task.JobKind.Equals("kot", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log.Info($"[PrintCoordinator] rendererPath=RAW_ESCPOS_KOT jobKind={task.JobKind} profileId={profile.Id} connectionType={profile.ConnectionType}");
+                    }
                     thermal = renderer.Thermal(task.Submission, profile, task.Attempts, options.EffectiveConfiguration);
+                }
 
                 PrintResult result;
                 using (regular)
@@ -254,6 +267,12 @@ namespace CafeQR.PrintService
             {
                 gate.Release();
             }
+        }
+
+        private static bool IsKotWindowsQueue(LocalPrintTask task, PrinterProfile profile)
+        {
+            return string.Equals(task.JobKind, "kot", StringComparison.OrdinalIgnoreCase)
+                && (profile.ConnectionType ?? "WINDOWS_QUEUE").Equals("WINDOWS_QUEUE", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task ReportGroupAsync(string groupId, CancellationToken token)
