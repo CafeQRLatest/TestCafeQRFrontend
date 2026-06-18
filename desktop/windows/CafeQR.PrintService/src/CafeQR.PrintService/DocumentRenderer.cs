@@ -34,9 +34,9 @@ namespace CafeQR.PrintService
                     var textForDetection = !string.IsNullOrWhiteSpace(submission.Text)
                         ? submission.Text
                         : decodedText;
-                    if (canRebuildKot && LooksLikeLegacyKotText(textForDetection))
+                    if (canRebuildKot)
                     {
-                        Log.Warn("[Thermal Print] Legacy KOT DataBase64 detected; rebuilding with customized KOT renderer.");
+                        Log.Info("[Thermal Print] Structured KOT DataBase64 ignored; rebuilding from order payload and effective KOT template.");
                     }
                     else
                     {
@@ -50,13 +50,14 @@ namespace CafeQR.PrintService
                 }
             }
 
-            var text = !string.IsNullOrWhiteSpace(submission.Text)
+            var text = canRebuildKot
+                ? BuildText(document, submission.JobKind, profile, config)
+                : !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
                 : BuildText(document, submission.JobKind, profile, config);
-            if (canRebuildKot && LooksLikeLegacyKotText(text))
+            if (canRebuildKot)
             {
-                text = BuildText(document, submission.JobKind, profile, config);
-                Log.Warn("[Thermal Print] Legacy KOT text detected; rebuilt with customized KOT renderer.");
+                Log.Info("[Thermal Print] Structured KOT rebuilt with customized KOT renderer.");
             }
             else if (isKot)
             {
@@ -95,14 +96,28 @@ namespace CafeQR.PrintService
             }
         }
 
-        private static bool IsFinalTotalLine(string clean)
+        public PrintDocument WindowsQueueKot(LocalJobSubmission submission, PrinterProfile profile, int attempt, JObject config)
         {
-            return Regex.IsMatch(clean ?? "", @"^TOTAL\s*:\s*(?:\u20b9|\$|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$", RegexOptions.IgnoreCase);
-        }
+            var source = submission.Document ?? new JObject();
+            var order = OrderWithPayloadRestaurant(source);
+            var hasStructuredOrder = HasStructuredOrder(source);
+            var hasKotTemplate = config?["kotTemplate"] != null;
+            Log.Info($"[KOT Renderer] rendererPath=WINDOWS_QUEUE_GDI_KOT jobKind={submission.JobKind} profileId={profile.Id} connectionType={profile.ConnectionType} hasStructuredOrder={hasStructuredOrder} hasKotTemplate={hasKotTemplate}");
 
-        private static bool IsGrandTotalLine(string clean)
-        {
-            return Regex.IsMatch(clean ?? "", @"\bGRAND\s+TOTAL\s*:", RegexOptions.IgnoreCase);
+            var state = BuildKotGdiState(order, config, profile, attempt);
+            var document = new PrintDocument();
+            document.PrinterSettings.PrinterName = profile.WindowsPrinterName;
+            document.PrinterSettings.Copies = 1;
+            document.OriginAtMargins = false;
+            document.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+            document.DefaultPageSettings.Landscape = false;
+            document.DefaultPageSettings.PaperSize = new PaperSize(
+                "CafeQR KOT",
+                MmToHundredths(state.Layout.PaperMm),
+                state.PageHeightHundredths);
+
+            document.PrintPage += (sender, args) => DrawKotGdi(args, state);
+            return document;
         }
 
         private static string RemoveUnexpectedFinalTotalRow(string text)
@@ -111,42 +126,33 @@ namespace CafeQR.PrintService
 
             var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
             var output = new List<string>();
-            string pendingGrandTotalLine = null;
+            var afterGrandTotal = false;
 
             foreach (var line in lines)
             {
                 var clean = StripEscPosForMatch(line);
 
-                if (pendingGrandTotalLine != null)
+                if (afterGrandTotal)
                 {
-                    if (IsFinalTotalLine(clean))
+                    if (string.IsNullOrEmpty(clean))
                     {
-                        var lastClean = output.Count > 0 ? StripEscPosForMatch(output[output.Count - 1]) : "";
-                        if (!IsFinalTotalLine(lastClean))
-                        {
-                            output.Add(line);
-                        }
-                        pendingGrandTotalLine = null;
+                        output.Add(line);
                         continue;
                     }
-
-                    output.Add(pendingGrandTotalLine);
-                    pendingGrandTotalLine = null;
+                    if (Regex.IsMatch(clean, @"^TOTAL\s*:\s*(?:\u20b9|\$|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$", RegexOptions.IgnoreCase))
+                    {
+                        afterGrandTotal = false;
+                        continue;
+                    }
+                    afterGrandTotal = false;
                 }
-
-                if (IsGrandTotalLine(clean))
-                {
-                    pendingGrandTotalLine = line;
-                    continue;
-                }
-
-                var previousClean = output.Count > 0 ? StripEscPosForMatch(output[output.Count - 1]) : "";
-                if (IsFinalTotalLine(clean) && IsFinalTotalLine(previousClean)) continue;
 
                 output.Add(line);
+                if (Regex.IsMatch(clean, @"\bGRAND\s+TOTAL\s*:", RegexOptions.IgnoreCase))
+                {
+                    afterGrandTotal = true;
+                }
             }
-
-            if (pendingGrandTotalLine != null) output.Add(pendingGrandTotalLine);
 
             return string.Join("\n", output);
         }
@@ -369,6 +375,28 @@ namespace CafeQR.PrintService
             public int RightDots;
             public int AreaDots;
             public int GuardCols;
+        }
+
+        private enum ThermalLineAlignment
+        {
+            Left,
+            Center
+        }
+
+        private sealed class ThermalVisualLine
+        {
+            public string Text;
+            public ThermalLineAlignment Alignment;
+            public string FontSize;
+            public bool Bold;
+        }
+
+        private sealed class KotGdiState
+        {
+            public ThermalLayout Layout;
+            public JObject Template;
+            public readonly List<ThermalVisualLine> Lines = new List<ThermalVisualLine>();
+            public int PageHeightHundredths;
         }
 
         private static bool IsKotKind(string kind) =>
@@ -914,6 +942,333 @@ namespace CafeQR.PrintService
             };
         }
 
+        private static KotGdiState BuildKotGdiState(JObject order, JObject config, PrinterProfile profile, int attempt)
+        {
+            var state = new KotGdiState
+            {
+                Layout = GetLayout(config, profile, "kot"),
+                Template = EffectiveThermalTemplate(config, profile, "kot")
+            };
+
+            var tpl = state.Template;
+            var layout = state.Layout;
+            int W = layout.InnerCols;
+            string dashes = new string('-', W);
+            string normalSize = "NORMAL";
+            string titleSize = PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, layout.PaperMm >= 76 ? "DOUBLE" : "NORMAL");
+            string bodySize = PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, layout.PaperMm >= 76 ? "DOUBLE" : "NORMAL");
+
+            void Add(string text, ThermalLineAlignment alignment = ThermalLineAlignment.Left, string fontSize = null, bool bold = false)
+            {
+                state.Lines.Add(new ThermalVisualLine
+                {
+                    Text = text ?? "",
+                    Alignment = alignment,
+                    FontSize = fontSize ?? normalSize,
+                    Bold = bold
+                });
+            }
+
+            var items = ToDisplayItems(order);
+            JArray removedArray = null;
+            if (order["removed_items"] is JArray r1 && r1.Count > 0) removedArray = r1;
+            else if (order["removedItems"] is JArray r2 && r2.Count > 0) removedArray = r2;
+
+            var removedItems = new List<JObject>();
+            if (removedArray != null)
+            {
+                foreach (var ri in removedArray.OfType<JObject>())
+                {
+                    var qty = PickDecimal(ri, new[] { "quantity", "qty" }, 0);
+                    if (qty > 0) removedItems.Add(ri);
+                }
+            }
+
+            var restaurantProfile = config?["restaurant"] as JObject ?? order["restaurant"] as JObject ?? new JObject();
+            bool showRestaurantName = ValueBool(tpl, "showRestaurantName", true);
+            bool showDailyBillNo = ValueBool(tpl, "showDailyBillNo", true);
+            bool showCustomerDetails = ValueBool(tpl, "showCustomerDetails", true);
+            bool showTableLabel = ValueBool(tpl, "showTableLabel", true);
+
+            string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
+            string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
+
+            string restaurantName = PickValue(restaurantProfile, new[] { "restaurantName", "restaurant_name", "name" });
+            if (string.IsNullOrEmpty(restaurantName))
+            {
+                restaurantName = PickValue(order, new[] { "restaurantName", "restaurant_name" }, "RESTAURANT");
+            }
+            restaurantName = restaurantName.ToUpperInvariant();
+
+            if (attempt > 1)
+            {
+                Add("*** REPRINT ***", ThermalLineAlignment.Center, normalSize, true);
+            }
+
+            if (showRestaurantName)
+            {
+                foreach (var line in WrapText(restaurantName, W))
+                {
+                    Add(line, ThermalLineAlignment.Center, titleSize, true);
+                }
+            }
+
+            Add(dashes);
+            Add(kotHeader, ThermalLineAlignment.Center, normalSize, true);
+
+            bool isEditedOrder = ValueBool(order, "is_edited", false) || ValueBool(order, "isEdited", false);
+            if (isEditedOrder)
+            {
+                Add("** EDITED ORDER **", ThermalLineAlignment.Center, normalSize, true);
+            }
+
+            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }));
+            var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
+            Add(dateStr + " " + timeStr);
+            Add("KOT Ref: " + GetKotReference(order));
+
+            var dailyBillNo = PickValue(order, new[] { "dailyBillNo", "daily_bill_no" });
+            if (showDailyBillNo && !string.IsNullOrEmpty(dailyBillNo))
+            {
+                Add("Daily Bill No: " + dailyBillNo);
+            }
+
+            var staffName = PickValue(order, new[] { "taken_by_name", "takenByName" }).Trim();
+            if (!string.IsNullOrEmpty(staffName))
+            {
+                Add("Attended by: " + staffName);
+            }
+
+            var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
+            if (!string.IsNullOrEmpty(customerCount))
+            {
+                Add("No. of Customers: " + customerCount);
+            }
+
+            var customerText = CustomerDisplay(order);
+            if (showCustomerDetails && !string.IsNullOrEmpty(customerText))
+            {
+                Add("Customer: " + customerText);
+            }
+
+            var inst = PickValue(order, new[] { "special_instructions", "specialInstructions", "instructions" }).Trim();
+            if (!string.IsNullOrEmpty(inst))
+            {
+                Add(dashes);
+                foreach (var rawLine in inst.Split('\n'))
+                {
+                    var trimmed = rawLine.Trim();
+                    if (string.IsNullOrEmpty(trimmed)) continue;
+                    foreach (var wrapped in WrapText(trimmed, W))
+                    {
+                        Add(wrapped);
+                    }
+                }
+            }
+
+            Add(dashes);
+
+            var tableLabel = GetTableHighlightLabel(order);
+            if (showTableLabel && !string.IsNullOrEmpty(tableLabel))
+            {
+                foreach (var line in WrapText(tableLabel, W))
+                {
+                    Add(line, ThermalLineAlignment.Center, titleSize, true);
+                }
+                Add(dashes);
+            }
+
+            if (items.Count > 0)
+            {
+                int itemScale = IsWideThermalSize(bodySize) ? 2 : 1;
+                int itemCols = Math.Max(16, W / itemScale);
+                int itemQtyW = layout.PaperMm >= 76 ? 4 : 6;
+                int itemNameW = Math.Max(8, itemCols - itemQtyW - 1);
+
+                Add(LeftAlign("ITEM", itemNameW) + " " + RightAlign("QTY", itemQtyW), ThermalLineAlignment.Left, normalSize, true);
+                Add(dashes);
+                foreach (var it in items)
+                {
+                    string displayName = !string.IsNullOrEmpty(it.VariantName) ? it.Name + " (" + it.VariantName + ")" : it.Name;
+                    var nameLines = WrapText(displayName, itemNameW);
+                    if (nameLines.Count == 0) continue;
+
+                    int precision = it.UomPrecision.HasValue ? it.UomPrecision.Value : (it.Quantity % 1 == 0 ? 0 : 2);
+                    string qtyStr = RightAlign(it.Quantity.ToString("F" + precision, CultureInfo.InvariantCulture), itemQtyW);
+
+                    Add(LeftAlign(nameLines[0], itemNameW) + " " + qtyStr, ThermalLineAlignment.Left, bodySize, true);
+                    for (int i = 1; i < nameLines.Count; i++)
+                    {
+                        Add(nameLines[i], ThermalLineAlignment.Left, bodySize, true);
+                    }
+                }
+            }
+
+            if (removedItems.Count > 0)
+            {
+                int qtyW = 6;
+                int nameW = Math.Max(10, W - (qtyW + 1));
+                Add(dashes);
+                Add("*** REMOVED ITEMS ***", ThermalLineAlignment.Center, normalSize, true);
+                Add(LeftAlign("ITEM", nameW) + " " + RightAlign("QTY", qtyW), ThermalLineAlignment.Left, normalSize, true);
+                foreach (var ri in removedItems)
+                {
+                    var riName = PickValue(ri, new[] { "name", "productName", "product_name", "item_name" }, "Item");
+                    var riVariant = PickValue(ri, new[] { "variant_name", "variantName", "variant_label" });
+                    string displayName = !string.IsNullOrEmpty(riVariant) ? riName + " (" + riVariant + ")" : riName;
+                    var nameLines = WrapText(displayName, nameW);
+                    if (nameLines.Count == 0) continue;
+
+                    decimal qtyNum = PickDecimal(ri, new[] { "quantity", "qty" }, 1);
+                    int precision = qtyNum % 1 == 0 ? 0 : 2;
+                    string qtyStr = RightAlign(qtyNum.ToString("F" + precision, CultureInfo.InvariantCulture), qtyW);
+
+                    Add(LeftAlign("- " + nameLines[0], nameW) + " " + qtyStr, ThermalLineAlignment.Left, normalSize, true);
+                    for (int i = 1; i < nameLines.Count; i++)
+                    {
+                        Add("  " + nameLines[i], ThermalLineAlignment.Left, normalSize, true);
+                    }
+                }
+            }
+
+            Add(dashes);
+            Add(kotFooter, ThermalLineAlignment.Center, normalSize, true);
+            Add("");
+
+            state.PageHeightHundredths = EstimateKotPageHeightHundredths(state);
+            return state;
+        }
+
+        private static int EstimateKotPageHeightHundredths(KotGdiState state)
+        {
+            var total = 18;
+            foreach (var line in state.Lines)
+            {
+                total += EstimateLineHeightHundredths(line.FontSize, state.Layout.PaperMm);
+            }
+
+            var feedLines = ValueInt(state.Template, "feedLines", 3);
+            total += Math.Max(1, feedLines) * EstimateLineHeightHundredths("NORMAL", state.Layout.PaperMm);
+            return Math.Max(MmToHundredths(70m), total);
+        }
+
+        private static int EstimateLineHeightHundredths(string size, int paperMm)
+        {
+            var pointSize = ThermalFontPoints(size, paperMm);
+            return (int)Math.Ceiling((pointSize / 72f * 100f) + 5f);
+        }
+
+        private static void DrawKotGdi(PrintPageEventArgs args, KotGdiState state)
+        {
+            var graphics = args.Graphics;
+            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+
+            var pageBounds = args.PageBounds;
+            var pageWidth = pageBounds.Width > 0 ? pageBounds.Width : MmToHundredths(state.Layout.PaperMm);
+            var leftMargin = DotsToHundredths(state.Layout.LeftDots, state.Layout);
+            var rightMargin = DotsToHundredths(state.Layout.RightDots, state.Layout);
+            var minMargin = MmToHundredthsFloat(1.5m);
+            leftMargin = Math.Max(minMargin, leftMargin);
+            rightMargin = Math.Max(minMargin, rightMargin);
+            if (leftMargin + rightMargin > pageWidth * 0.35f)
+            {
+                leftMargin = minMargin;
+                rightMargin = minMargin;
+            }
+
+            var content = new RectangleF(
+                pageBounds.Left + leftMargin,
+                pageBounds.Top + MmToHundredthsFloat(2m),
+                Math.Max(40f, pageWidth - leftMargin - rightMargin),
+                pageBounds.Height);
+            float y = content.Top;
+            var fontCache = new Dictionary<string, Font>();
+
+            try
+            {
+                foreach (var line in state.Lines)
+                {
+                    var font = GetThermalFont(fontCache, line.FontSize, line.Bold, state.Layout.PaperMm);
+                    var height = Math.Max(EstimateLineHeightHundredths(line.FontSize, state.Layout.PaperMm), font.GetHeight(graphics) + 3f);
+                    using (var format = new StringFormat
+                    {
+                        Alignment = line.Alignment == ThermalLineAlignment.Center ? StringAlignment.Center : StringAlignment.Near,
+                        LineAlignment = StringAlignment.Near,
+                        FormatFlags = StringFormatFlags.NoWrap,
+                        Trimming = StringTrimming.Character
+                    })
+                    {
+                        graphics.DrawString(line.Text ?? "", font, Brushes.Black, new RectangleF(content.Left, y, content.Width, height), format);
+                    }
+                    y += height;
+                }
+            }
+            finally
+            {
+                foreach (var font in fontCache.Values)
+                {
+                    font.Dispose();
+                }
+            }
+
+            args.HasMorePages = false;
+        }
+
+        private static Font GetThermalFont(Dictionary<string, Font> cache, string size, bool bold, int paperMm)
+        {
+            var key = (size ?? "NORMAL") + "|" + bold + "|" + paperMm;
+            if (!cache.TryGetValue(key, out var font))
+            {
+                font = new Font("Courier New", ThermalFontPoints(size, paperMm), bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Point);
+                cache[key] = font;
+            }
+            return font;
+        }
+
+        private static float ThermalFontPoints(string size, int paperMm)
+        {
+            var normal = paperMm >= 76 ? 9.5f : 8.5f;
+            switch ((size ?? "").ToUpperInvariant())
+            {
+                case "DOUBLE":
+                case "DOUBLE_WIDTH_HEIGHT":
+                case "SIZE_2X":
+                    return normal * 1.65f;
+                case "DOUBLE_HEIGHT":
+                case "SIZE_2H":
+                    return normal * 1.55f;
+                case "DOUBLE_WIDTH":
+                case "SIZE_2W":
+                    return normal * 1.25f;
+                default:
+                    return normal;
+            }
+        }
+
+        private static bool IsWideThermalSize(string size)
+        {
+            switch ((size ?? "").ToUpperInvariant())
+            {
+                case "DOUBLE":
+                case "DOUBLE_WIDTH_HEIGHT":
+                case "SIZE_2X":
+                case "DOUBLE_WIDTH":
+                case "SIZE_2W":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static float DotsToHundredths(int dots, ThermalLayout layout)
+        {
+            if (dots <= 0 || layout.DotWidth <= 0) return 0f;
+            return (float)dots / layout.DotWidth * MmToHundredths(layout.PaperMm);
+        }
+
+        private static float MmToHundredthsFloat(decimal mm) => (float)(mm / 25.4m * 100m);
+
         private static string BuildKotText(JObject order, JObject config, PrinterProfile profile)
         {
             var items = ToDisplayItems(order);
@@ -1350,23 +1705,29 @@ namespace CafeQR.PrintService
         {
             // Propagate top-level "restaurant" from the payload into the order object
             // so BuildKotText / BuildReceiptText can find it via order["restaurant"].
-            var restaurantFromPayload = source["restaurant"] as JObject;
+            var order = OrderWithPayloadRestaurant(source);
 
             if ((kind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase))
             {
-                var order = source["order"] as JObject ?? source;
-                if (restaurantFromPayload != null && order["restaurant"] == null)
-                    order["restaurant"] = restaurantFromPayload.DeepClone();
                 return BuildKotText(order, config, profile);
             }
             else
             {
-                var order = source["order"] as JObject ?? source;
-                if (restaurantFromPayload != null && order["restaurant"] == null)
-                    order["restaurant"] = restaurantFromPayload.DeepClone();
                 var bill = source["bill"] as JObject ?? new JObject();
                 return BuildReceiptText(order, bill, config, profile);
             }
+        }
+
+        private static JObject OrderWithPayloadRestaurant(JObject source)
+        {
+            var safeSource = source ?? new JObject();
+            var order = safeSource["order"] as JObject ?? safeSource;
+            var restaurantFromPayload = safeSource["restaurant"] as JObject;
+            if (restaurantFromPayload != null && order["restaurant"] == null)
+            {
+                order["restaurant"] = restaurantFromPayload.DeepClone();
+            }
+            return order;
         }
 
         private static PaperSize FindPaper(PrinterSettings settings, PrinterProfile profile)
