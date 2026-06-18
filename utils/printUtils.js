@@ -445,13 +445,18 @@ export function buildKotText(order, restaurantProfile) {
     const showDailyBillNo = getDocumentBool("KOT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
     const showCustomerDetails = getDocumentBool("KOT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
     const showTableLabel = getDocumentBool("KOT", "SHOW_TABLE_LABEL", "PRINT_SHOW_TABLE_LABEL", true);
-
     const kotHeader = getLocalString('PRINT_KOT_HEADER', '*** KOT ***');
     const kotFooter = getLocalString('PRINT_KOT_FOOTER', '*** SEND TO KITCHEN ***');
 
     lines.push(ALIGN_CENTER);
     if (showRestaurantName) {
-      lines.push(MODE_BOLD + getFontSizeCmd(tFontSize) + restaurantName + SIZE_1X + MODE_NO_BOLD);
+      lines.push(
+        MODE_BOLD +
+        (is80 ? SIZE_2X : SIZE_1X) +
+        restaurantName +
+        SIZE_1X +
+        MODE_NO_BOLD
+      );
     }
     lines.push(ALIGN_LEFT);
     lines.push(withMargins(dashes(), layout));
@@ -493,7 +498,13 @@ export function buildKotText(order, restaurantProfile) {
 
     if (showTableLabel && tableLabel) {
       lines.push(ALIGN_CENTER);
-      lines.push(MODE_BOLD + getFontSizeCmd(tFontSize) + tableLabel + SIZE_1X + MODE_NO_BOLD);
+      lines.push(
+        MODE_BOLD +
+        SIZE_2X +
+        tableLabel.toUpperCase() +
+        SIZE_1X +
+        MODE_NO_BOLD
+      );
       lines.push(ALIGN_LEFT);
       lines.push(withMargins(dashes(), layout));
     }
@@ -506,7 +517,7 @@ export function buildKotText(order, restaurantProfile) {
 
       lines.push(withMargins(leftAlign("ITEM", itemNameW) + " " + rightAlign("QTY", itemQtyW), layout));
       lines.push(withMargins(dashes(), layout));
-      lines.push(MODE_BOLD + getFontSizeCmd(bFontSize));
+      lines.push(MODE_BOLD + (is80 ? getFontSizeCmd(bFontSize) : SIZE_1X));
       items.forEach((it) => {
         const displayName = it.variant_name ? `${it.name} (${it.variant_name})` : it.name;
         const nameLines = wrapText(displayName || "Item", itemNameW);
@@ -648,7 +659,13 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     lines.push(ALIGN_CENTER);
     if (showRestaurantName) {
-      lines.push(MODE_BOLD + getFontSizeCmd(tFontSize) + restaurantName + SIZE_1X + MODE_NO_BOLD);
+      lines.push(
+        MODE_BOLD +
+        (is80 ? SIZE_2X : SIZE_1X) +
+        restaurantName +
+        SIZE_1X +
+        MODE_NO_BOLD
+      );
     }
     lines.push(ALIGN_LEFT);
 
@@ -746,6 +763,3 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 export async function downloadPdfAndShare(order, bill, restaurantProfile) {
   return downloadTextAndShare(order, bill, restaurantProfile);
 }
-
-
-

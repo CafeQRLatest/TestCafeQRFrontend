@@ -69,7 +69,7 @@ const DEFAULT_THERMAL_LAYOUT = {
 const DEFAULT_KOT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: false,
-  titleFontSize: 'DOUBLE',
+  titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
   header: '*** KOT ***',
   footer: '*** SEND TO KITCHEN ***',
@@ -78,7 +78,7 @@ const DEFAULT_KOT_TEMPLATE = {
 const DEFAULT_RECEIPT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: true,
-  titleFontSize: 'DOUBLE',
+  titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
   header: '*** TAX INVOICE ***',
   footer: '* THANK YOU! VISIT AGAIN !! *',

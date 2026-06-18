@@ -356,13 +356,13 @@ namespace CafeQR.PrintService
             }
         }
 
-        private const string ESC = "\x1B";
-        private const string GS = "\x1D";
-        private const string MODE_BOLD = "\x1BE\x01";
-        private const string MODE_NO_BOLD = "\x1BE\x00";
-        private const string SIZE_1X = "\x1D!\x00";
-        private const string SIZE_2X = "\x1D!\x11";
-        private const string SIZE_2H = "\x1D!\x01";
+        private const string ESC = "\u001b";
+        private const string GS = "\u001d";
+        private const string MODE_BOLD = "\u001bE\u0001";
+        private const string MODE_NO_BOLD = "\u001bE\u0000";
+        private const string SIZE_1X = "\u001d!\u0000";
+        private const string SIZE_2X = "\u001d!\u0011";
+        private const string SIZE_2H = "\u001d!\u0001";
 
         private sealed class ThermalLayout
         {
@@ -564,21 +564,21 @@ namespace CafeQR.PrintService
 
         private static string GetFontSizeCmd(string sizeStr)
         {
-            if (string.IsNullOrEmpty(sizeStr)) return GS + "!" + "\x00";
+            if (string.IsNullOrEmpty(sizeStr)) return GS + "!" + "\u0000";
             switch (sizeStr.ToUpperInvariant())
             {
                 case "DOUBLE":
                 case "DOUBLE_WIDTH_HEIGHT":
                 case "SIZE_2X":
-                    return GS + "!" + "\x11";
+                    return GS + "!" + "\u0011";
                 case "DOUBLE_HEIGHT":
                 case "SIZE_2H":
-                    return GS + "!" + "\x01";
+                    return GS + "!" + "\u0001";
                 case "DOUBLE_WIDTH":
                 case "SIZE_2W":
-                    return GS + "!" + "\x10";
+                    return GS + "!" + "\u0010";
                 default:
-                    return GS + "!" + "\x00";
+                    return GS + "!" + "\u0000";
             }
         }
 
@@ -955,8 +955,13 @@ namespace CafeQR.PrintService
             int W = layout.InnerCols;
             string dashes = new string('-', W);
             string normalSize = "NORMAL";
-            string titleSize = PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, layout.PaperMm >= 76 ? "DOUBLE" : "NORMAL");
-            string bodySize = PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, layout.PaperMm >= 76 ? "DOUBLE" : "NORMAL");
+            string titleSize = layout.PaperMm >= 76
+                ? PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, "DOUBLE")
+                : "NORMAL";
+            string tableSize = "DOUBLE";
+            string bodySize = layout.PaperMm >= 76
+                ? PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL")
+                : "NORMAL";
 
             void Add(string text, ThermalLineAlignment alignment = ThermalLineAlignment.Left, string fontSize = null, bool bold = false)
             {
@@ -1007,7 +1012,8 @@ namespace CafeQR.PrintService
 
             if (showRestaurantName)
             {
-                foreach (var line in WrapText(restaurantName, W))
+                int titleScale = IsWideThermalSize(titleSize) ? 2 : 1;
+                foreach (var line in WrapText(restaurantName, Math.Max(8, W / titleScale)))
                 {
                     Add(line, ThermalLineAlignment.Center, titleSize, true);
                 }
@@ -1072,9 +1078,10 @@ namespace CafeQR.PrintService
             var tableLabel = GetTableHighlightLabel(order);
             if (showTableLabel && !string.IsNullOrEmpty(tableLabel))
             {
-                foreach (var line in WrapText(tableLabel, W))
+                int tableScale = IsWideThermalSize(tableSize) ? 2 : 1;
+                foreach (var line in WrapText(tableLabel, Math.Max(8, W / tableScale)))
                 {
-                    Add(line, ThermalLineAlignment.Center, titleSize, true);
+                    Add(line, ThermalLineAlignment.Center, tableSize, true);
                 }
                 Add(dashes);
             }
@@ -1316,20 +1323,18 @@ namespace CafeQR.PrintService
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
-            int qtyW = 6;
+int qtyW = 6;
             int nameW = Math.Max(10, W - (qtyW + 1));
             var lines = new List<string>();
 
             bool is80 = layout.PaperMm >= 76;
-            lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
-
-            string titleSizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
+            lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
             
             if (showRestaurantName)
             {
-                lines.Add(MODE_BOLD + titleSizeCmd + restaurantName + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + (is80 ? SIZE_2X : SIZE_1X) + restaurantName + SIZE_1X + MODE_NO_BOLD);
             }
-            lines.Add(ESC + "a" + "\x00"); // ALIGN_LEFT
+            lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
             lines.Add(WithMargins(dashes, layout));
             lines.Add(WithMargins(Center(kotHeader, W), layout));
 
@@ -1389,9 +1394,9 @@ namespace CafeQR.PrintService
 
             if (showTableLabel && !string.IsNullOrEmpty(tableLabel))
             {
-                lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
-                lines.Add(MODE_BOLD + titleSizeCmd + tableLabel + SIZE_1X + MODE_NO_BOLD);
-                lines.Add(ESC + "a" + "\x00"); // ALIGN_LEFT
+                lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
+                lines.Add(MODE_BOLD + SIZE_2X + tableLabel + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
                 lines.Add(WithMargins(dashes, layout));
             }
 
@@ -1405,7 +1410,7 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins(LeftAlign("ITEM", itemNameW) + " " + RightAlign("QTY", itemQtyW), layout));
                 lines.Add(WithMargins(dashes, layout));
 
-                string bodySizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
+                string bodySizeCmd = is80 ? GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL")) : SIZE_1X;
                 lines.Add(MODE_BOLD + bodySizeCmd);
                 foreach (var it in items)
                 {
@@ -1549,14 +1554,12 @@ namespace CafeQR.PrintService
             var lines = new List<string>();
             bool is80 = layout.PaperMm >= 76;
 
-            lines.Add(ESC + "a" + "\x01"); // ALIGN_CENTER
-            string titleSizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "titleFontSize" }, is80 ? "DOUBLE" : "NORMAL"));
-            
+            lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
             if (showRestaurantName)
             {
-                lines.Add(MODE_BOLD + titleSizeCmd + restaurantName + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + (is80 ? SIZE_2X : SIZE_1X) + restaurantName + SIZE_1X + MODE_NO_BOLD);
             }
-            lines.Add(ESC + "a" + "\x00"); // ALIGN_LEFT
+            lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
 
             foreach (var l in WrapText(address, W))
             {
