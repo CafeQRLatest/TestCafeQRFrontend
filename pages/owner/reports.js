@@ -12,7 +12,7 @@ import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
   FaChevronRight, FaBan, FaBook, FaMoneyBillWave, FaMobileAlt, FaWallet,
-  FaInfoCircle
+  FaInfoCircle, FaCoins, FaTag
 } from 'react-icons/fa';
 
 const TABS = [
@@ -301,17 +301,21 @@ export default function Reports() {
     const billedTotal = Number(summary.grandTotal || 0);
     const discounts = Number(summary.totalDiscount || 0);
     const tax = Number(summary.totalTax || 0);
-    const grossSales = billedTotal + discounts;
-    const netSales = grossSales - discounts;
+    const roundOff = Number(summary.totalRoundOff || 0);
+    // Indian GAAP / Ind AS 115: Gross Sales and Net Sales EXCLUDE output tax and round-off.
+    // GST is a liability collected on behalf of government, and Round Off is a rounding adjustment.
+    const netSales = billedTotal - tax - roundOff;         // ex-tax, ex-roundoff: actual revenue earned
+    const grossSales = netSales + discounts;    // ex-tax, ex-roundoff: pre-discount revenue
     const cards = [
-      { label: 'Billed Total',    val: `${SYM}${fmt(billedTotal)}`,          color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount collected from customers across all settled orders in this period.' },
-      { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts.' },
-      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts.' },
-      { label: 'Total Orders',    val: summary.totalOrders,                   color: '#3b82f6', bg: '#eff6ff', tip: 'Total Orders: Number of completed and settled orders in the selected date range.' },
-      { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', tip: 'Avg Order Value: Average billed amount per order. Calculated as Billed Total ÷ Total Orders.' },
-      { label: 'Items Sold',      val: summary.itemsSold,                     color: '#f97316', bg: '#fff7ed', tip: 'Items Sold: Total number of individual menu items sold across all orders in this period.' },
-      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', tip: 'Tax: Total tax amount collected. For inclusive-tax products, this is the tax component embedded within your prices.' },
-      { label: 'Discounts',       val: `${SYM}${fmt(discounts)}`,             color: '#ec4899', bg: '#fdf2f8', tip: 'Discounts: Total discount value deducted from orders. Includes both item-level and order-level discounts.' },
+      { label: 'Billed Total',    val: `${SYM}${fmt(billedTotal)}`,          color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount billed and collected from customers (including GST) across all settled orders. | Equation: Net Sales + GST + Round Off = Billed Total', icon: <FaReceipt /> },
+      (config?.discountEnabled !== false) && { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales', icon: <FaChartBar /> },
+      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales', icon: <FaChartLine /> },
+      { label: 'Total Orders',    val: summary.totalOrders,                   color: '#3b82f6', bg: '#eff6ff', tip: 'Total Orders: Number of completed and settled orders in the selected date range.', icon: <FaReceipt /> },
+      { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', tip: 'Avg Order Value: Average billed amount per order. Calculated as Billed Total ÷ Total Orders.', icon: <FaChartLine /> },
+      { label: 'Items Sold',      val: summary.itemsSold,                     color: '#f97316', bg: '#fff7ed', tip: 'Items Sold: Total number of individual menu items sold across all orders in this period.', icon: <FaBoxes /> },
+      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', tip: 'Tax (GST): Total output tax collected from customers, payable to the government. | Equation: Billed Total − Net Sales − Round Off = Tax', icon: <FaFileInvoice /> },
+      (config?.discountEnabled !== false) && { label: 'Discounts',       val: `${SYM}${fmt(discounts)}`,             color: '#ec4899', bg: '#fdf2f8', tip: 'Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Gross Sales − Net Sales = Discounts', icon: <FaTag /> },
+      (config?.roundOffEnabled !== false) && { label: 'Round Off',       val: `${SYM}${fmt(roundOff)}`, color: '#64748b', bg: '#f1f5f9', tip: 'Round Off: Adjustments made to round the bill total to the nearest whole value. | Equation: Billed Total − Net Sales − GST = Round Off', icon: <FaCoins /> }
     ].filter(Boolean);
     return (
       <>
@@ -320,34 +324,36 @@ export default function Reports() {
             ['Metric', 'Value'],
             [
               ['Billed Total', billedTotal],
-              ['Gross Sales', grossSales],
+              (config?.discountEnabled !== false) && ['Gross Sales', grossSales],
               ['Net Sales', netSales],
               ['Total Orders', summary.totalOrders],
               ['Avg Order Value', summary.avgOrderValue],
               ['Items Sold', summary.itemsSold],
-              ['Tax', tax],
-              ['Discounts', discounts]
-            ].map(row => row.map(csvCell).join(',')),
+              (config?.taxEnabled !== false) && ['Tax', tax],
+              (config?.discountEnabled !== false) && ['Discounts', discounts],
+              (config?.roundOffEnabled !== false) && ['Round Off', summary.totalRoundOff || 0]
+            ].filter(Boolean).map(row => row.map(csvCell).join(',')),
             'sales_summary'
           )}><FaFileCsv /> CSV</button>
           <button className="rpt-exp-btn" onClick={() => exportExcel(
             [
               { Metric: 'Billed Total', Value: billedTotal },
-              { Metric: 'Gross Sales', Value: grossSales },
+              (config?.discountEnabled !== false) && { Metric: 'Gross Sales', Value: grossSales },
               { Metric: 'Net Sales', Value: netSales },
               { Metric: 'Total Orders', Value: summary.totalOrders },
               { Metric: 'Avg Order Value', Value: summary.avgOrderValue },
               { Metric: 'Items Sold', Value: summary.itemsSold },
-              { Metric: 'Tax', Value: tax },
-              { Metric: 'Discounts', Value: discounts }
-            ],
+              (config?.taxEnabled !== false) && { Metric: 'Tax', Value: tax },
+              (config?.discountEnabled !== false) && { Metric: 'Discounts', Value: discounts },
+              (config?.roundOffEnabled !== false) && { Metric: 'Round Off', Value: summary.totalRoundOff || 0 }
+            ].filter(Boolean),
             'Sales Summary', 'sales_summary'
           )}><FaFileExcel /> Excel</button>
         </div>
         <div className="rpt-kpi-grid">
           {cards.map((c, i) => (
             <div key={i} className="rpt-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
-              <div className="rpt-kpi-icon" style={{ background: c.bg, color: c.color }}>{TABS[0].icon}</div>
+              <div className="rpt-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon || TABS[0].icon}</div>
               <div className="rpt-kpi-data">
                 <span className="rpt-kpi-label">
                   {c.label}
@@ -674,13 +680,14 @@ export default function Reports() {
     const rawGrossSales = Number(pnl.grossSales || 0);
     const discounts = Number(pnl.discounts || 0);
     const outputTax = Number(pnl.totalTax || 0);
-    const grossSales = rawGrossSales + outputTax;   // face value = taxable + tax (matches Sales Summary)
-    const netSales = grossSales - discounts;         // face value after discounts
-    const taxDeduction = (config?.taxEnabled !== false) ? outputTax : 0;
+    // Indian GAAP / Ind AS 115: backend now returns ex-tax grossSales and netSales.
+    // grossSales = ex-tax pre-discount sales; netSales = grossSales − discounts (ex-tax)
+    const grossSales = rawGrossSales;           // already ex-tax from backend
+    const netSales = grossSales - discounts;    // ex-tax post-discount revenue
     const cogs = Number(pnl.cogsPurchases || 0);
     const expenses = Number(pnl.operatingExpenses || 0);
-    const grossMargin = netSales - taxDeduction - cogs; // true margin excluding tax
-    const netProfit = grossMargin - expenses;            // true profit excluding tax
+    const grossMargin = netSales - cogs;         // no separate tax deduction: netSales is already ex-tax
+    const netProfit = grossMargin - expenses;    // final profit
     const creditOutstanding = Number(pnl.creditOutstanding || 0);
     const cashCollected = Number(cashCollectedAfterExpenses || 0);
     const totalCostExpenses = cogs + expenses;
@@ -720,7 +727,6 @@ export default function Reports() {
           )}><FaFileExcel /> Excel</button>
         </div>
         <div className="rpt-note">Profit & Loss is calculated from accounting journals, so expenses, purchases, COGS, inventory adjustments, and reversals are included.</div>
-        
         {/* Visual Profit & Loss Waterfall and Side Metrics */}
         <div className="pnl-container">
           <div className="pnl-main-flow">
@@ -732,71 +738,70 @@ export default function Reports() {
               <span className="pnl-flow-sub">Tracing Gross Sales down to Net Profit</span>
             </div>
             <div className="pnl-cascade">
-              {/* Step 1: Gross Sales */}
-              <div className="pnl-cascade-step add">
-                <div className="step-badge plus">+</div>
-                <div className="step-body">
-                  <div className="step-title-row">
-                    <span className="step-title">Gross Sales</span>
-                    <InfoTooltip id="grossSales" text="Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts." />
-                  </div>
-                  <div className="step-subtitle">Total billed order value before discounts (including tax)</div>
-                </div>
-                <div className="step-val text-success">+{SYM}{fmt(grossSales)}</div>
-              </div>
-
-              {/* Connector */}
-              <div className="pnl-flow-connector minus">
-                <span className="connector-icon">-</span>
-              </div>
-
-              {/* Step 2: Discounts */}
-              <div className="pnl-cascade-step subtract">
-                <div className="step-badge minus">-</div>
-                <div className="step-body">
-                  <div className="step-title-row">
-                    <span className="step-title">Discounts</span>
-                    <InfoTooltip id="discounts" text="Discounts: Total price reductions granted on orders." />
-                  </div>
-                  <div className="step-subtitle">Price reductions, loyalty discounts, & promos</div>
-                </div>
-                <div className="step-val text-pink">-{SYM}{fmt(discounts)}</div>
-              </div>
-
-              {/* Connector */}
-              <div className="pnl-flow-connector equal">
-                <span className="connector-icon">=</span>
-              </div>
-
-              {/* Step 3: Net Sales */}
-              <div className="pnl-cascade-step result net-sales">
-                <div className="step-badge equal">=</div>
-                <div className="step-body">
-                  <div className="step-title-row">
-                    <span className="step-title">Net Sales</span>
-                    <InfoTooltip id="netSales" text="Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts." />
-                  </div>
-                  <div className="step-subtitle">Actual revenue after discounts (including tax)</div>
-                </div>
-                <div className="step-val text-blue">{SYM}{fmt(netSales)}</div>
-              </div>
-
-              {/* Output Tax Deduction Step */}
-              {config?.taxEnabled !== false && outputTax > 0 && (
+              {config?.discountEnabled !== false ? (
                 <>
+                  {/* Step 1: Gross Sales */}
+                  <div className="pnl-cascade-step add">
+                    <div className="step-badge plus">+</div>
+                    <div className="step-body">
+                      <div className="step-title-row">
+                        <span className="step-title">Gross Sales</span>
+                        <InfoTooltip id="grossSales" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales" />
+                      </div>
+                      <div className="step-subtitle">Pre-discount revenue excluding GST</div>
+                    </div>
+                    <div className="step-val text-success">+{SYM}{fmt(grossSales)}</div>
+                  </div>
+
+                  {/* Connector */}
                   <div className="pnl-flow-connector minus">
                     <span className="connector-icon">-</span>
                   </div>
+
+                  {/* Step 2: Discounts */}
                   <div className="pnl-cascade-step subtract">
                     <div className="step-badge minus">-</div>
                     <div className="step-body">
                       <div className="step-title-row">
-                        <span className="step-title">Output Tax</span>
-                        <InfoTooltip id="pnlOutputTax" text="Output Tax: Tax collected from customers that must be paid to the government. This is excluded from net profit calculations." />
+                        <span className="step-title">Discounts</span>
+                        <InfoTooltip id="discounts" text="Discounts: Total price reductions granted on orders (item-level + order-level). | Equation: Gross Sales − Net Sales = Discounts" />
                       </div>
-                      <div className="step-subtitle">Tax payable to government</div>
+                      <div className="step-subtitle">Price reductions, loyalty discounts, & promos</div>
                     </div>
-                    <div className="step-val text-purple">-{SYM}{fmt(outputTax)}</div>
+                    <div className="step-val text-pink">-{SYM}{fmt(discounts)}</div>
+                  </div>
+
+                  {/* Connector */}
+                  <div className="pnl-flow-connector equal">
+                    <span className="connector-icon">=</span>
+                  </div>
+
+                  {/* Step 3: Net Sales */}
+                  <div className="pnl-cascade-step result net-sales">
+                    <div className="step-badge equal">=</div>
+                    <div className="step-body">
+                      <div className="step-title-row">
+                        <span className="step-title">Net Sales</span>
+                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
+                      </div>
+                      <div className="step-subtitle">Post-discount revenue excluding GST</div>
+                    </div>
+                    <div className="step-val text-blue">{SYM}{fmt(netSales)}</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Step 3: Net Sales as the starting step */}
+                  <div className="pnl-cascade-step add net-sales">
+                    <div className="step-badge plus">+</div>
+                    <div className="step-body">
+                      <div className="step-title-row">
+                        <span className="step-title">Net Sales</span>
+                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
+                      </div>
+                      <div className="step-subtitle">Revenue excluding GST</div>
+                    </div>
+                    <div className="step-val text-success">+{SYM}{fmt(netSales)}</div>
                   </div>
                 </>
               )}
@@ -812,7 +817,7 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">COGS / Purchases</span>
-                    <InfoTooltip id="cogs" text="COGS / Purchases: Cost of Goods Sold and stock purchase transactions." />
+                    <InfoTooltip id="cogs" text="COGS / Purchases: Cost of raw ingredients, stock, and inventory consumed or purchased. | Equation: Net Sales − COGS = Gross Margin" />
                   </div>
                   <div className="step-subtitle">Cost of raw ingredients, stock, & inventory used</div>
                 </div>
@@ -830,7 +835,7 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Gross Margin</span>
-                    <InfoTooltip id="grossMargin" text="Gross Margin: Net Sales minus COGS / Purchases. Product profitability before operating expenses." />
+                    <InfoTooltip id="grossMargin" text="Gross Margin: Product-level profitability before operating expenses. | Equation: Net Sales − COGS = Gross Margin" />
                   </div>
                   <div className="step-subtitle">Product markup earnings before operational overhead</div>
                 </div>
@@ -848,7 +853,7 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Operating Expenses</span>
-                    <InfoTooltip id="expenses" text="Operating Expenses: Business operating costs (rent, utilities, salaries, etc.) excluding COGS." />
+                    <InfoTooltip id="expenses" text="Operating Expenses: General business running costs (rent, salaries, utilities, etc.) excluding COGS. | Equation: Gross Margin − Operating Expenses = Net Profit" />
                   </div>
                   <div className="step-subtitle">General business costs (salaries, rent, utilities, etc.)</div>
                 </div>
@@ -866,7 +871,7 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Net Profit</span>
-                    <InfoTooltip id="netProfit" text="Net Profit: Net Sales minus COGS / Purchases and Operating Expenses. Overall business profitability." />
+                    <InfoTooltip id="netProfit" text="Net Profit: Final business profit for the period (ex-tax). | Equation: Net Sales − COGS − Operating Expenses = Net Profit" />
                   </div>
                   <div className="step-subtitle">Final business profit or loss for the selected period</div>
                 </div>
@@ -886,7 +891,7 @@ export default function Reports() {
                 <div className="pnl-side-card tax">
                   <div className="side-card-header">
                     <span>Output Tax</span>
-                    <InfoTooltip id="outputTax" text="Output Tax: Sales tax collected from customers that is payable to tax authorities." />
+                    <InfoTooltip id="outputTax" text="Output Tax (GST): Sales tax collected from customers, payable to the government. NOT part of business revenue. | Equation: Billed Total − Net Sales = Output Tax" />
                   </div>
                   <div className="side-card-val text-purple">{SYM}{fmt(outputTax)}</div>
                   <div className="side-card-desc">Collected sales tax to pay government</div>
@@ -896,7 +901,7 @@ export default function Reports() {
               <div className="pnl-side-card receivables">
                 <div className="side-card-header">
                   <span>Receivable Balance</span>
-                  <InfoTooltip id="creditOutstanding" text="Receivable Balance: Outstanding credit payments due from customers." />
+                  <InfoTooltip id="creditOutstanding" text="Receivable Balance: Money owed by customers for credit/unpaid sales not yet collected. | Equation: Total Credit Sales − Payments Received = Receivable Balance" />
                 </div>
                 <div className="side-card-val text-warning">{SYM}{fmt(creditOutstanding)}</div>
                 <div className="side-card-desc">Outstanding credit tab balance due from customers</div>
@@ -905,7 +910,7 @@ export default function Reports() {
               <div className={`pnl-side-card cash-flow ${cashCollected >= 0 ? 'positive' : 'negative'}`}>
                 <div className="side-card-header">
                   <span>Cash Collected After Expenses</span>
-                  <InfoTooltip id="cashCollected" text="Cash Collected After Expenses: Total payments collected from customers minus cash COGS and operating expenses." />
+                  <InfoTooltip id="cashCollected" text="Cash Collected After Expenses: Actual net cash position after paying costs. | Equation: Payment Collected − COGS − Operating Expenses = Cash After Expenses" />
                 </div>
                 <div className="side-card-val">{SYM}{fmt(cashCollected)}</div>
                 <div className="side-card-desc">Actual cash movement (excluding unpaid credit sales)</div>

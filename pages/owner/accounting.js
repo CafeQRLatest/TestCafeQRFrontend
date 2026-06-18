@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
-import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaSync, FaExclamationTriangle, FaFileCsv, FaInfoCircle, FaChartBar, FaTag, FaChartLine, FaReceipt, FaCreditCard, FaFileInvoice, FaArrowDown, FaCheckCircle, FaEdit, FaBan, FaToggleOn, FaToggleOff, FaFilter, FaTrashAlt, FaPercent } from 'react-icons/fa';
+import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaSync, FaExclamationTriangle, FaFileCsv, FaInfoCircle, FaChartBar, FaTag, FaChartLine, FaReceipt, FaCreditCard, FaFileInvoice, FaArrowDown, FaCheckCircle, FaEdit, FaBan, FaToggleOn, FaToggleOff, FaFilter, FaTrashAlt, FaPercent, FaCoins } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import RoleGate from '../../components/RoleGate';
@@ -150,6 +150,7 @@ function AccountingContent() {
   const [allTerminals, setAllTerminals] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
+  const [config, setConfig] = useState(null);
 
   // Load organizations and terminals for superadmin
   useEffect(() => {
@@ -162,6 +163,24 @@ function AccountingContent() {
       if (termRes.data?.success) setAllTerminals(termRes.data.data || []);
     }).catch(() => {});
   }, [isSuperAdmin]);
+
+  // Load configuration
+  useEffect(() => {
+    let active = true;
+    const params = {};
+    if (isSuperAdmin && selectedOrgId) {
+      params.orgId = selectedOrgId;
+    }
+    api.get('/api/v1/configurations', { params })
+      .then(res => {
+        if (!active) return;
+        setConfig(res.data?.data || null);
+      })
+      .catch(() => {
+        if (active) setConfig(null);
+      });
+    return () => { active = false; };
+  }, [isSuperAdmin, selectedOrgId]);
 
   // When org changes, clear terminal selection
   const handleOrgChange = (val) => {
@@ -917,15 +936,15 @@ function AccountingContent() {
   const otherActivePayments = numberValue(reconciliation?.otherActivePaymentsTotal);
   const unmatchedPaymentCount = numberValue(reconciliation?.unmatchedPaymentCount);
 
-  // Calculations use the same formula as the Reports page to ensure figures always match.
-  // billedTotal comes from the accounting summary (order grandTotals) — same source as reports.
-  // grossSales = billedTotal + discounts  (mirrors reports.js line 304)
-  // netSales   = billedTotal              (gross − discounts = billed)
+  // Calculations sourced directly from the backend AccountingSummaryDto.
+  // Backend now computes ex-tax grossSales and netSales per Indian GAAP / Ind AS 115.
+  // grossSales = (billedTotal - outputTax) + discounts  (ex-tax, pre-discount revenue)
+  // netSales   = billedTotal - outputTax               (ex-tax, post-discount revenue)
   const outputTax = summaryValue('outputTax');
   const discounts = summaryValue('discounts');
   const billedTotal = summaryValue('billedTotal');
-  const grossSales = billedTotal + discounts; // same formula as reports page
-  const netSales = billedTotal;               // gross - discounts = billedTotal
+  const grossSales = summaryValue('grossSales');  // ex-tax from backend
+  const netSales = summaryValue('netSales');      // ex-tax from backend
   const paymentCollected = summaryValue('paymentCollected');
   const expenses = summaryValue('expenses') + summaryValue('cogsPurchases');
   const profit = summaryValue('profit');
@@ -993,28 +1012,32 @@ function AccountingContent() {
         {/* Financial KPI summary cards (styled exactly like reports screen summary) */}
         <section className="summary-grid">
           {/* Card 1: Gross Sales */}
-          <div className="summary-tile" style={{ borderLeft: '4px solid #0ea5e9' }}>
-            <div className="summary-tile-icon" style={{ background: '#f0f9ff', color: '#0ea5e9' }}><FaChartBar /></div>
-            <div style={{ display: 'contents' }}>
-              <span>
-                Gross Sales
-                <InfoTooltip id="grossSalesTip" text="Gross Sales: Total invoice value of all sales before any discounts are applied. Includes tax. Formula: Billed Total + Discounts." />
-              </span>
-              <strong>{SYM}{money(grossSales)}</strong>
+          {config?.discountEnabled !== false && (
+            <div className="summary-tile" style={{ borderLeft: '4px solid #0ea5e9' }}>
+              <div className="summary-tile-icon" style={{ background: '#f0f9ff', color: '#0ea5e9' }}><FaChartBar /></div>
+              <div style={{ display: 'contents' }}>
+                <span>
+                  Gross Sales
+                  <InfoTooltip id="grossSalesTip" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales" />
+                </span>
+                <strong>{SYM}{money(grossSales)}</strong>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Card 2: Discounts */}
-          <div className="summary-tile" style={{ borderLeft: '4px solid #ec4899' }}>
-            <div className="summary-tile-icon" style={{ background: '#fdf2f8', color: '#ec4899' }}><FaTag /></div>
-            <div style={{ display: 'contents' }}>
-              <span>
-                Discounts
-                <InfoTooltip id="discountsTip" text="Discounts: Total discount value deducted from orders. Includes both item-level and order-level discounts." />
-              </span>
-              <strong>{SYM}{money(discounts)}</strong>
+          {config?.discountEnabled !== false && (
+            <div className="summary-tile" style={{ borderLeft: '4px solid #ec4899' }}>
+              <div className="summary-tile-icon" style={{ background: '#fdf2f8', color: '#ec4899' }}><FaTag /></div>
+              <div style={{ display: 'contents' }}>
+                <span>
+                  Discounts
+                  <InfoTooltip id="discountsTip" text="Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Gross Sales − Net Sales = Discounts" />
+                </span>
+                <strong>{SYM}{money(discounts)}</strong>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Card 3: Net Sales */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #16a34a' }}>
@@ -1022,7 +1045,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Net Sales
-                <InfoTooltip id="netSalesTip" text="Net Sales: Total revenue after discounts are deducted from Gross Sales. Equals Billed Total. Formula: Gross Sales − Discounts." />
+                <InfoTooltip id="netSalesTip" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
               </span>
               <strong style={{ color: '#16a34a' }}>{SYM}{money(netSales)}</strong>
             </div>
@@ -1034,11 +1057,25 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Billed Total
-                <InfoTooltip id="billedTotalTip" text="Billed Total: The actual amount collected from customers across all settled orders in this period." />
+                <InfoTooltip id="billedTotalTip" text="Billed Total: The actual amount billed to customers, including GST, across all settled orders. | Equation: Net Sales + GST + Round Off = Billed Total" />
               </span>
               <strong>{SYM}{money(billedTotal)}</strong>
             </div>
           </div>
+
+          {/* Card: Round Off */}
+          {config?.roundOffEnabled !== false && (
+            <div className="summary-tile" style={{ borderLeft: '4px solid #64748b' }}>
+              <div className="summary-tile-icon" style={{ background: '#f1f5f9', color: '#64748b' }}><FaCoins /></div>
+              <div style={{ display: 'contents' }}>
+                <span>
+                  Round Off
+                  <InfoTooltip id="roundOffTip" text="Round Off: Net round-off adjustments on invoices. | Equation: Billed Total − Net Sales − GST = Round Off" />
+                </span>
+                <strong>{SYM}{money(summaryValue('roundOff'))}</strong>
+              </div>
+            </div>
+          )}
 
           {/* Card 5: Payment Collected */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #6366f1' }}>
@@ -1046,23 +1083,25 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Payment Collected
-                <InfoTooltip id="paymentCollectedTip" text="Payment Collected: Total money actually received via Cash, Cards, UPI, or other payment modes." />
+                <InfoTooltip id="paymentCollectedTip" text="Payment Collected: Total money actually received via Cash, UPI, Cards, or other modes. | Equation: Cash + UPI + Card + Online + Bank + Cheque = Payment Collected" />
               </span>
               <strong>{SYM}{money(paymentCollected)}</strong>
             </div>
           </div>
 
           {/* Card 6: Output Tax */}
-          <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
-            <div className="summary-tile-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><FaFileInvoice /></div>
-            <div style={{ display: 'contents' }}>
-              <span>
-                Output Tax
-                <InfoTooltip id="outputTaxTip" text="Output Tax: Tax collected from customers that must be paid to the government. This is excluded from net profit calculations." />
-              </span>
-              <strong>{SYM}{money(outputTax)}</strong>
+          {config?.taxEnabled !== false && (
+            <div className="summary-tile" style={{ borderLeft: '4px solid #ef4444' }}>
+              <div className="summary-tile-icon" style={{ background: '#fef2f2', color: '#ef4444' }}><FaFileInvoice /></div>
+              <div style={{ display: 'contents' }}>
+                <span>
+                  Output Tax
+                  <InfoTooltip id="outputTaxTip" text="Output Tax (GST): Tax collected from customers, payable to the government. NOT part of business revenue. | Equation: Billed Total − Net Sales − Round Off = Output Tax" />
+                </span>
+                <strong>{SYM}{money(outputTax)}</strong>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Card 7: Expenses + COGS */}
           <div className="summary-tile" style={{ borderLeft: '4px solid #f43f5e' }}>
@@ -1070,7 +1109,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Expenses + COGS
-                <InfoTooltip id="expensesTip" text="Expenses + COGS: Total operating expenses plus product Cost of Goods Sold." />
+                <InfoTooltip id="expensesTip" text="Expenses + COGS: Total operating expenses plus Cost of Goods Sold (raw materials, stock, purchases). | Equation: COGS + Operating Expenses = Total Costs" />
               </span>
               <strong style={{ color: '#ef4444' }}>{SYM}{money(expenses)}</strong>
             </div>
@@ -1082,7 +1121,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Profit
-                <InfoTooltip id="profitTip" text="Net Profit: Final business profit after subtracting all discounts, tax component, COGS, and operating expenses." />
+                <InfoTooltip id="profitTip" text="Net Profit: Final business profit after all deductions. | Equation: Net Sales + Round Off − COGS − Operating Expenses = Net Profit" />
               </span>
               <strong style={{ color: profit >= 0 ? '#10b981' : '#ef4444' }}>{SYM}{money(profit)}</strong>
             </div>
