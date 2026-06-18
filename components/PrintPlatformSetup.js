@@ -15,6 +15,7 @@ import {
   FaTrash,
   FaTimes,
 } from 'react-icons/fa';
+import { invalidatePrintTemplateCache } from '../utils/printTemplateSync';
 import api from '../utils/api';
 import {
   connectNativePrintService,
@@ -334,6 +335,7 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_SHOW_FSSAI', receiptTemplate.showFssai !== false ? '1' : '0');
   localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receiptTemplate.showGstBreakdown !== false ? '1' : '0');
 
+  // Set margins and column formatting defaults
   localStorage.setItem('PRINT_KOT_HEADER', kotTemplate.header ?? '*** KOT ***');
   localStorage.setItem('PRINT_KOT_FOOTER', kotTemplate.footer ?? '*** SEND TO KITCHEN ***');
   localStorage.setItem('PRINT_RECEIPT_HEADER', receiptTemplate.header ?? '*** TAX INVOICE ***');
@@ -749,7 +751,11 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     const validationError = assignmentValidationError(candidate);
     if (validationError) throw new Error(validationError);
 
-    const settings = sanitizeConfiguration(candidate);
+    let settings = sanitizeConfiguration(candidate);
+    if (scopeType === 'TERMINAL') {
+      const { kotTemplate, receiptTemplate, thermalTemplate, regularTemplate, ...rest } = settings;
+      settings = rest;
+    }
     const resolvedScopeId = scopeType === 'CLIENT'
       ? null
       : scopeType === 'ORGANIZATION'
@@ -786,6 +792,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     setPrintConfig(effective);
     return { effective, cloudSynced: true };
   }
+
   const saveConfiguration = async () => {
     setBusy(true);
     try {
@@ -799,6 +806,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         const toSync = sanitizeConfiguration(deepMerge(printConfig, result.effective));
         syncPrintConfigToLocalStorage(toSync);
       }
+      invalidatePrintTemplateCache();
       await refreshService();
     } catch (error) {
       showMessage(sessionAwareMessage(error, 'Unable to save printing configuration.'));
@@ -1730,7 +1738,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         </section>
       )}
 
-
       {tab === 'queue' && (
         <section className="surface">
           <header><div><h3>Local Print Queue</h3><p>Recent durable jobs stored by the Windows service.</p></div><button className="secondary" onClick={refreshService}><FaSync /> Refresh</button></header>
@@ -1931,11 +1938,10 @@ function TagSelector({ label, values, selected, onChange, labels = {} }) {
         .tags { margin-top: 12px; }
         .tags > span { display: block; margin-bottom: 6px; color: #60708a; font-size: 10px; font-weight: 800; text-transform: uppercase; }
         .tags > div { display: flex; flex-wrap: wrap; gap: 6px; }
-        button { border: 1px solid #d6deea; background: white; color: #526177; border-radius: 5px; padding: 6px 9px; font-size: 11px; font-weight: 700; cursor: pointer; }
+        button { border: 1px solid #d6deea; background: white; color: #526177; border-radius: 5px; padding: 6px 9px; font-size: 11px; font-weight: 750; cursor: pointer; }
         button.active { border-color: #f97316; background: #fff7ed; color: #c2410c; }
         em { color: #8996a8; font-size: 12px; }
       `}</style>
     </div>
   );
 }
-

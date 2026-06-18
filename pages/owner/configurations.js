@@ -10,6 +10,7 @@ import api from '../../utils/api';
 import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
+import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import {
   FaSave, FaCheckCircle, FaExclamationCircle,
   FaBolt, FaReceipt, FaCalculator, FaPrint,
@@ -630,6 +631,7 @@ function ConfigurationsContent() {
           .filter((key) => key.startsWith('cafeqr_sales_config:'))
           .forEach((key) => localStorage.removeItem(key));
         window.dispatchEvent(new Event('cafeqr-config-updated'));
+        invalidatePrintTemplateCache();
       }
       syncPrintSettingsToLocalStorage(config);
       setMsgType('success');
