@@ -33,6 +33,18 @@ namespace CafeQR.PrintService
                         Message = "Accepted by Windows print driver"
                     };
                 }
+                if (regularDocument != null)
+                {
+                    regularDocument.Print();
+                    return new PrintResult
+                    {
+                        Accepted = true,
+                        CompletionStatus = "SPOOLED",
+                        Message = "Accepted by Windows print driver"
+                    };
+                }
+                if (thermalData == null || thermalData.Length == 0)
+                    throw new InvalidOperationException("Thermal print data is missing");
                 var spoolId = RawSpooler.Print(profile.WindowsPrinterName, thermalData);
                 return new PrintResult
                 {
