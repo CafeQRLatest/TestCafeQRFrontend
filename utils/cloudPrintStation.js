@@ -6,6 +6,7 @@ import { printUniversal } from './printGateway';
 import { buildKotText, buildReceiptText } from './printUtils';
 import { bitmapToPngBase64, logoUrlToBitmapGrid } from './logoBitmap';
 import { isNativePrintServicePaired } from './printServiceClient';
+import { ensurePrintTemplatesSynced } from './printTemplateSync';
 
 const isBrowser = () => typeof window !== 'undefined';
 let cloudPrintFailureCount = 0;
@@ -201,6 +202,10 @@ export async function markCloudPrintJobPrinted(order, kind = 'bill') {
 async function printClaimedJob(job) {
   const normalized = normalizeJob(job);
   const profile = await getRestaurantProfile();
+
+  // Sync customized templates from backend before building text
+  await ensurePrintTemplatesSynced();
+
   const text = normalized.kind === 'kot'
     ? buildKotText(normalized.order, profile)
     : buildReceiptText(normalized.order, null, profile);

@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core';
 import Cookies from 'js-cookie';
 import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { printKotByStation } from '../utils/kotRouter';
+import { ensurePrintTemplatesSynced } from '../utils/printTemplateSync';
 
 const PRINT_DEDUP_KEY = 'KOTPRINT_PRINTED_V1';
 const PRINT_DEDUP_TTL_MS = 120_000; // 2 minutes
@@ -320,6 +321,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           }
         }
       }
+
+      // ── Sync customized print templates from backend BEFORE building text ──
+      // This ensures buildKotText() / buildReceiptText() use the template settings
+      // (paper width, columns, font sizes, header/footer, visibility toggles)
+      // saved in Templates & Paper, rather than hardcoded defaults.
+      await ensurePrintTemplatesSynced();
 
       try {
         const { data: cfgRes } = await api.get('/api/v1/configurations');
