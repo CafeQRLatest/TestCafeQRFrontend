@@ -17,19 +17,6 @@ function hasExplicitPrintStationFlag() {
     || window.localStorage.getItem('CAFEQR_MAIN_OFFLINE_DEVICE') === '1';
 }
 
-function hasLocalPrinterConfig() {
-  if (!isBrowser()) return false;
-  return Boolean(
-    window.localStorage.getItem('PRINTER_MODE') === 'winspool' ||
-    window.localStorage.getItem('PRINT_WIN_URL') ||
-    window.localStorage.getItem('PRINT_WIN_LIST_URL') ||
-    window.localStorage.getItem('PRINT_WIN_PRINTER_NAME') ||
-    window.localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') ||
-    window.localStorage.getItem('PRINT_WIN_PRINTER_NAMES_BILL') ||
-    window.localStorage.getItem('PRINT_WIN_PRINTER_NAMES_KOT')
-  );
-}
-
 function readJsonArray(key) {
   try {
     const raw = window.localStorage.getItem(key);
@@ -59,17 +46,14 @@ function hasAndroidBluetoothConfig() {
   );
 }
 
-function isMobileUserAgent() {
-  if (!isBrowser()) return false;
-  return /Android|iPhone|iPad|iPod/i.test(window.navigator?.userAgent || '');
+export function isAndroidPrintStationEnabled() {
+  return isNativeAndroid() && (hasExplicitPrintStationFlag() || hasAndroidBluetoothConfig());
 }
 
 export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
   if (isNativePrintServicePaired()) return false;
-  if (hasExplicitPrintStationFlag() || hasLocalPrinterConfig() || hasAndroidBluetoothConfig()) return true;
-  if (isMobileUserAgent()) return false;
-  return false;
+  return isAndroidPrintStationEnabled();
 }
 
 export function isCloudPrintCoolingDown() {

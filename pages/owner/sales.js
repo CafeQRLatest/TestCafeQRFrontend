@@ -23,8 +23,7 @@ import { toDisplayItems } from '../../utils/printUtils';
 import { isKnownOffline } from '../../utils/networkState';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
-import { enqueueCloudPrintJob, fetchCloudPrintJobs, isPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
-import { isNativePrintServicePaired } from '../../utils/printServiceClient';
+import { enqueueCloudPrintJob, fetchCloudPrintJobs, isAndroidPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 
@@ -51,7 +50,7 @@ function resolveCreatedPrintKind(order, requestedKind) {
 function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
-  return isPrintStationEnabled() || isNativePrintServicePaired();
+  return isAndroidPrintStationEnabled();
 }
 
 function normalizeTableStatus(status) {
@@ -1724,8 +1723,9 @@ function SalesContent() {
       return; // PaymentDialog will handle the rest
     }
 
-    // Online order: if this device is a print station, print immediately locally
-    if (isPrintStationEnabled() || isNativePrintServicePaired()) {
+    // Android Bluetooth keeps its existing local print path. Windows online
+    // waits for the backend print job claimed by the Windows print service.
+    if (localPrintWillHandleKind(printKind)) {
       let orderForPrint = order;
       if (order?.id) {
         try {
@@ -1825,7 +1825,7 @@ function SalesContent() {
         return;
       }
 
-      if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
+      if (!localPrintWillHandleKind(kind)) {
         await enqueueCloudPrintJob(order, kind);
         await loadOfflineOrderState();
         showToast(kind === 'kot' ? 'KOT queued for the main print station' : 'Bill queued for the main print station');
@@ -1904,7 +1904,9 @@ function SalesContent() {
       showToast('Bill generated for the table');
       setPopoverTable(null);
       publishAccountingRefresh('order-billed', billedOrder);
-      await handlePrintOrder(billedOrder, 'bill');
+      if (localPrintWillHandleKind('bill')) {
+        await handlePrintOrder(billedOrder, 'bill');
+      }
       refreshSalesState();
     } catch (e) {
       console.error('Failed to bill order', e);
@@ -1947,7 +1949,9 @@ function SalesContent() {
         setPaymentOrder(null);
         setPopoverTable(null);
         publishAccountingRefresh('order-credit-completed', settledOrder);
-        await handlePrintOrder(settledOrder, 'bill');
+        if (localPrintWillHandleKind('bill')) {
+          await handlePrintOrder(settledOrder, 'bill');
+        }
         refreshSalesState();
       } catch (e) {
         console.error('Failed to complete credit order', e);
@@ -1996,7 +2000,9 @@ function SalesContent() {
       showToast(payload?.paymentMethod === 'CREDIT' ? 'Order completed as credit' : 'Order settled successfully');
       setPaymentOrder(null);
       publishAccountingRefresh(payload?.paymentMethod === 'CREDIT' ? 'order-credit-completed' : 'order-settled', settledOrder);
-      await handlePrintOrder(settledOrder, 'bill');
+      if (localPrintWillHandleKind('bill')) {
+        await handlePrintOrder(settledOrder, 'bill');
+      }
       refreshSalesState();
       if (activeView === 'billing') {
         setSelectedTable(null);

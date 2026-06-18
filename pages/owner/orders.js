@@ -19,8 +19,7 @@ import {
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
-import { isPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
-import { isNativePrintServicePaired } from '../../utils/printServiceClient';
+import { isAndroidPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
@@ -38,6 +37,12 @@ const slideIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 `;
+
+function localPrintWillHandleKind(kind) {
+  if (typeof window === 'undefined') return false;
+  if (!['kot', 'bill'].includes(kind)) return false;
+  return isAndroidPrintStationEnabled();
+}
 
 const TABLE_STATUS_CUBE = {
   DRAFT: { bg: '#ef4444', label: 'New' },
@@ -1814,7 +1819,7 @@ export default function OrdersPage() {
   };
 
   const handlePrintKot = async (order) => {
-    if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
+    if (!localPrintWillHandleKind('kot')) {
       try {
         await enqueueCloudPrintJob(order, 'kot');
         notify('success', 'KOT print job enqueued to print station');
@@ -1833,7 +1838,7 @@ export default function OrdersPage() {
   };
 
   const handlePrintBill = async (order) => {
-    if (!isPrintStationEnabled() && !isNativePrintServicePaired()) {
+    if (!localPrintWillHandleKind('bill')) {
       try {
         await enqueueCloudPrintJob(order, 'bill');
         notify('success', 'Bill print job enqueued to print station');
