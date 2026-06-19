@@ -213,11 +213,15 @@ self.addEventListener('notificationclick', (event) => {
           await postToClients({ type: 'stop-order-alarm', orderId });
           const apiBaseUrl = await getApiBaseUrl();
           const token = await getAccessToken();
+          const terminalId = await getCookieValue('terminalId');
           const headers = {
             'Content-Type': 'application/json'
           };
           if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+          }
+          if (terminalId) {
+            headers['X-Terminal-ID'] = terminalId;
           }
           const response = await fetch(`${apiBaseUrl}/api/v1/orders/${orderId}/status?status=CONFIRMED`, {
             method: 'PATCH',
