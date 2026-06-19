@@ -519,7 +519,14 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(withMargins(dashes(), layout));
       lines.push(MODE_BOLD + (is80 ? getFontSizeCmd(bFontSize) : SIZE_1X));
       items.forEach((it) => {
-        const displayName = it.variant_name ? `${it.name} (${it.variant_name})` : it.name;
+        let baseName = it.name || "Item";
+        if (it.variant_name) {
+          const suffix = ` (${it.variant_name})`;
+          if (baseName.endsWith(suffix)) {
+            baseName = baseName.slice(0, -suffix.length);
+          }
+        }
+        const displayName = it.variant_name ? `${baseName} (${it.variant_name})` : baseName;
         const nameLines = wrapText(displayName || "Item", itemNameW);
         const qtyNum = Number(it?.quantity || 1);
         const p = Number.isInteger(it?.uom_precision) ? it.uom_precision : qtyNum % 1 === 0 ? 0 : 2;

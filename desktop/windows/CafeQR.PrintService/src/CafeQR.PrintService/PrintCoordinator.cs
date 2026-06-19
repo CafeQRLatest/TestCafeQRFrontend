@@ -272,7 +272,8 @@ namespace CafeQR.PrintService
         private static bool IsKotWindowsQueue(LocalPrintTask task, PrinterProfile profile)
         {
             return string.Equals(task.JobKind, "kot", StringComparison.OrdinalIgnoreCase)
-                && (profile.ConnectionType ?? "WINDOWS_QUEUE").Equals("WINDOWS_QUEUE", StringComparison.OrdinalIgnoreCase);
+                && (profile.ConnectionType ?? "WINDOWS_QUEUE").Equals("WINDOWS_QUEUE", StringComparison.OrdinalIgnoreCase)
+                && profile.Format.Equals(PrintConstants.Regular, StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task ReportGroupAsync(string groupId, CancellationToken token)

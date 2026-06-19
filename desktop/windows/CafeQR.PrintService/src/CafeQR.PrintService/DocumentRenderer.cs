@@ -22,7 +22,7 @@ namespace CafeQR.PrintService
 
             var isKot = IsKotKind(submission.JobKind);
             var document = submission.Document ?? new JObject();
-            var canRebuildKot = isKot && HasStructuredOrder(document);
+            var canRebuildKot = isKot && HasStructuredOrder(document) && string.IsNullOrWhiteSpace(submission.DataBase64);
             Log.Info($"[Thermal Print] KOT custom renderer guard: isKot={isKot}, canRebuild={canRebuildKot}, hasKotTemplate={config?["kotTemplate"] != null}");
 
             if (!string.IsNullOrWhiteSpace(submission.DataBase64))
