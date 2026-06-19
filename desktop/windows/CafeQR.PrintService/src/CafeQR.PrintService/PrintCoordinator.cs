@@ -19,9 +19,11 @@ namespace CafeQR.PrintService
         private readonly ConcurrentDictionary<string, SemaphoreSlim> printerLocks =
             new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
         private readonly CancellationTokenSource stop = new CancellationTokenSource();
+        private readonly SemaphoreSlim signal = new SemaphoreSlim(0, 1);
         private Task loop;
         private DateTime lastHeartbeatUtc = DateTime.MinValue;
         private DateTime nextCloudAttemptUtc = DateTime.MinValue;
+        private DateTime lastCloudCycleUtc = DateTime.MinValue;
         private int cloudFailures;
 
         public PrintCoordinator(DurableStore store, CloudPrintClient cloud, OptionsStore optionsStore)
@@ -29,6 +31,21 @@ namespace CafeQR.PrintService
             this.store = store;
             this.cloud = cloud;
             this.optionsStore = optionsStore;
+        }
+
+        private void ReleaseSignal()
+        {
+            try
+            {
+                if (signal.CurrentCount == 0)
+                {
+                    signal.Release();
+                }
+            }
+            catch (SemaphoreFullException)
+            {
+                // Ignore
+            }
         }
 
         public void Start()
@@ -54,6 +71,10 @@ namespace CafeQR.PrintService
                 await cloud.ReportAsync(tasks[0], "LOCAL_QUEUED", "Persisted in the local print queue", null, false, token)
                     .ConfigureAwait(false);
             }
+            if (tasks.Count > 0)
+            {
+                ReleaseSignal();
+            }
             return tasks;
         }
 
@@ -65,6 +86,7 @@ namespace CafeQR.PrintService
             var task = store.Recent(500).FirstOrDefault(value => value.Id == id)
                 ?? throw new InvalidOperationException("Local print job was not found");
             store.Mark(id, "RETRY_WAIT", "Operator requested retry", null, DateTime.UtcNow);
+            ReleaseSignal();
             await ReportGroupAsync(task.GroupId, token).ConfigureAwait(false);
         }
 
@@ -74,6 +96,7 @@ namespace CafeQR.PrintService
                 ?? throw new InvalidOperationException("Local print job was not found");
             store.Mark(id, completed ? "COMPLETED" : "CANCELLED",
                 completed ? "Operator confirmed physical output" : "Operator cancelled ambiguous output");
+            ReleaseSignal();
             await ReportGroupAsync(task.GroupId, token).ConfigureAwait(false);
         }
 
@@ -81,7 +104,11 @@ namespace CafeQR.PrintService
         {
             while (!token.IsCancellationRequested)
             {
-                await RunCloudCycleAsync(token).ConfigureAwait(false);
+                if ((DateTime.UtcNow - lastCloudCycleUtc).TotalMilliseconds >= 1500)
+                {
+                    await RunCloudCycleAsync(token).ConfigureAwait(false);
+                    lastCloudCycleUtc = DateTime.UtcNow;
+                }
 
                 try
                 {
@@ -100,7 +127,7 @@ namespace CafeQR.PrintService
 
                 try
                 {
-                    await Task.Delay(1500, token).ConfigureAwait(false);
+                    await signal.WaitAsync(100, token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -322,6 +349,7 @@ namespace CafeQR.PrintService
             stop.Cancel();
             try { loop?.Wait(TimeSpan.FromSeconds(10)); } catch { }
             foreach (var gate in printerLocks.Values) gate.Dispose();
+            signal.Dispose();
             stop.Dispose();
         }
     }
