@@ -766,12 +766,33 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   const persistConfiguration = async (candidate = printConfig) => {
     const validationError = assignmentValidationError(candidate);
     if (validationError) throw new Error(validationError);
-
     let settings = sanitizeConfiguration(candidate);
+    let cloudSettings = settings;
+
     if (scopeType === 'TERMINAL') {
       const { kotTemplate, receiptTemplate, thermalTemplate, regularTemplate, ...rest } = settings;
-      settings = rest;
+      cloudSettings = rest;
     }
+
+    if (scopeType === 'TERMINAL' && isNativePrintServicePaired()) {
+      const localSaved = await updateNativePrintConfiguration(settings);
+      setLocalConfiguration(localSaved);
+
+      if (health?.cloudStatus !== 'SYNC_PENDING') {
+        const cloudSaved = await api.put('/api/v1/print-configurations', {
+          scopeType,
+          scopeId,
+          orgId: currentOrgId,
+          settings: cloudSettings,
+        });
+        setLocalConfiguration(cloudSaved.data?.data || localSaved);
+        syncPrintConfigToLocalStorage(cloudSaved.data?.data || localSaved);
+      } else {
+        syncPrintConfigToLocalStorage(localSaved);
+      }
+      return { effective: settings, cloudSynced: true };
+    }
+
     const resolvedScopeId = scopeType === 'CLIENT'
       ? null
       : scopeType === 'ORGANIZATION'
