@@ -955,13 +955,9 @@ namespace CafeQR.PrintService
             int W = layout.InnerCols;
             string dashes = new string('-', W);
             string normalSize = "NORMAL";
-            string titleSize = layout.PaperMm >= 76
-                ? PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, "DOUBLE")
-                : "NORMAL";
-            string tableSize = "DOUBLE";
-            string bodySize = layout.PaperMm >= 76
-                ? PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL")
-                : "NORMAL";
+            string titleSize = PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, "DOUBLE");
+            string tableSize = titleSize;
+            string bodySize = PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL");
 
             void Add(string text, ThermalLineAlignment alignment = ThermalLineAlignment.Left, string fontSize = null, bool bold = false)
             {
@@ -1090,10 +1086,12 @@ namespace CafeQR.PrintService
             {
                 int itemScale = IsWideThermalSize(bodySize) ? 2 : 1;
                 int itemCols = Math.Max(16, W / itemScale);
-                int itemQtyW = layout.PaperMm >= 76 ? 4 : 6;
+                int itemQtyW = itemScale == 2 ? 4 : (layout.PaperMm >= 76 ? 4 : 6);
                 int itemNameW = Math.Max(8, itemCols - itemQtyW - 1);
 
-                Add(LeftAlign("ITEM", itemNameW) + " " + RightAlign("QTY", itemQtyW), ThermalLineAlignment.Left, normalSize, true);
+                int headerQtyW = layout.PaperMm >= 76 ? 4 : 6;
+                int headerNameW = Math.Max(8, W - headerQtyW - 1);
+                Add(LeftAlign("ITEM", headerNameW) + " " + RightAlign("QTY", headerQtyW), ThermalLineAlignment.Left, normalSize, true);
                 Add(dashes);
                 foreach (var it in items)
                 {
@@ -1318,21 +1316,23 @@ namespace CafeQR.PrintService
 
             var kotReference = GetKotReference(order);
             var tableLabel = GetTableHighlightLabel(order);
-
             var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }));
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
-int qtyW = 6;
+            int qtyW = 6;
             int nameW = Math.Max(10, W - (qtyW + 1));
             var lines = new List<string>();
 
             bool is80 = layout.PaperMm >= 76;
+            string tFontSize = PickTemplateValue(tpl, new[] { "titleFontSize", "kotTitleFontSize" }, "DOUBLE");
+            string bFontSize = PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL");
+
             lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
             
             if (showRestaurantName)
             {
-                lines.Add(MODE_BOLD + (is80 ? SIZE_2X : SIZE_1X) + restaurantName + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + GetFontSizeCmd(tFontSize) + restaurantName + SIZE_1X + MODE_NO_BOLD);
             }
             lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
             lines.Add(WithMargins(dashes, layout));
@@ -1395,22 +1395,22 @@ int qtyW = 6;
             if (showTableLabel && !string.IsNullOrEmpty(tableLabel))
             {
                 lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
-                lines.Add(MODE_BOLD + SIZE_2X + tableLabel + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + GetFontSizeCmd(tFontSize) + tableLabel + SIZE_1X + MODE_NO_BOLD);
                 lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
                 lines.Add(WithMargins(dashes, layout));
             }
 
             if (items.Count > 0)
             {
-                int itemScale = is80 ? 2 : 1;
+                int itemScale = IsWideThermalSize(bFontSize) ? 2 : 1;
                 int itemCols = Math.Max(16, W / itemScale);
-                int itemQtyW = is80 ? 4 : qtyW;
+                int itemQtyW = itemScale == 2 ? 4 : qtyW;
                 int itemNameW = Math.Max(8, itemCols - itemQtyW - 1);
 
-                lines.Add(WithMargins(LeftAlign("ITEM", itemNameW) + " " + RightAlign("QTY", itemQtyW), layout));
+                lines.Add(WithMargins(LeftAlign("ITEM", nameW) + " " + RightAlign("QTY", qtyW), layout));
                 lines.Add(WithMargins(dashes, layout));
 
-                string bodySizeCmd = is80 ? GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize", "kotFontSize" }, "NORMAL")) : SIZE_1X;
+                string bodySizeCmd = GetFontSizeCmd(bFontSize);
                 lines.Add(MODE_BOLD + bodySizeCmd);
                 foreach (var it in items)
                 {
@@ -1553,11 +1553,12 @@ int qtyW = 6;
 
             var lines = new List<string>();
             bool is80 = layout.PaperMm >= 76;
+            string tFontSize = PickTemplateValue(tpl, new[] { "titleFontSize" }, "DOUBLE");
 
             lines.Add(ESC + "a" + "\u0001"); // ALIGN_CENTER
             if (showRestaurantName)
             {
-                lines.Add(MODE_BOLD + (is80 ? SIZE_2X : SIZE_1X) + restaurantName + SIZE_1X + MODE_NO_BOLD);
+                lines.Add(MODE_BOLD + GetFontSizeCmd(tFontSize) + restaurantName + SIZE_1X + MODE_NO_BOLD);
             }
             lines.Add(ESC + "a" + "\u0000"); // ALIGN_LEFT
 
