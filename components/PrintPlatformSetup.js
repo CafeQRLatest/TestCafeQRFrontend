@@ -276,13 +276,22 @@ const syncPrintConfigToLocalStorage = (config) => {
   let billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
   let kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
 
-  // ✅ FIX: If no explicit assignment, fall back to all thermal WINDOWS_QUEUE profiles
-  const allWindowsThermal = profiles
-    .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName)
-    .map((p) => p.windowsPrinterName);
+  const supportsDoc = (profile, docType) => {
+    const documents = Array.isArray(profile?.documents) ? profile.documents : [];
+    return documents.length === 0 || documents.includes(docType);
+  };
 
-  if (!billPrinters.length) billPrinters = allWindowsThermal;
-  if (!kotPrinters.length) kotPrinters = allWindowsThermal;
+  // ✅ FIX: If no explicit assignment, fall back to thermal WINDOWS_QUEUE profiles supporting the specific document type
+  if (!billPrinters.length) {
+    billPrinters = profiles
+      .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName && supportsDoc(p, 'BILL'))
+      .map((p) => p.windowsPrinterName);
+  }
+  if (!kotPrinters.length) {
+    kotPrinters = profiles
+      .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName && supportsDoc(p, 'KOT'))
+      .map((p) => p.windowsPrinterName);
+  }
 
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_BILL', JSON.stringify(billPrinters));
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_KOT', JSON.stringify(kotPrinters));

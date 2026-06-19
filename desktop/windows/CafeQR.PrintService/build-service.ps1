@@ -2,7 +2,7 @@ param(
     [ValidateSet("net48", "net461")]
     [string]$TargetFramework = "net48",
     [string]$Configuration = "Release",
-    [string]$Version = "2.0.6",
+    [string]$Version = "2.0.11",
     [string]$CertificateThumbprint = ""
 )
 
