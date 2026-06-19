@@ -1,7 +1,7 @@
 // utils/printGateway.ts
 import { Capacitor } from '@capacitor/core';
 import { textToEscPos } from './escpos';
-import { buildKotText } from './printUtils';
+import { buildKotText, buildReceiptText } from './printUtils';
 import { markPrintJobFailed, markPrintJobSent, queuePrintJob } from './offlineStore';
 import { isNativePrintServicePaired, submitNativePrintJob } from './printServiceClient';
 
@@ -174,6 +174,43 @@ function getOrderLikeDocument(document: Options['document']) {
   return order;
 }
 
+function looksLikeLegacyReceiptText(text: string) {
+  const clean = stripEscPosForMatch(text);
+  if (!clean) return false;
+  if (/\bPowered\s+by\s+Cafe\s+QR\b/i.test(clean)) return false;
+
+  return /\bTOTAL\s*:/i.test(clean) || /\bGRAND\s+TOTAL\s*:/i.test(clean) || /\bBill\s+No\s*:/i.test(clean);
+}
+
+function normalizeReceiptPrintOptions(opts: Options): Options {
+  if (!looksLikeLegacyReceiptText(opts.text)) return opts;
+
+  const order = getOrderLikeDocument(opts.document);
+  if (!order) {
+    console.warn('[print-gateway] Legacy receipt text detected, but no structured order payload was available to rebuild it.');
+    return opts;
+  }
+
+  try {
+    const document = (opts.document || {}) as Record<string, unknown>;
+    const restaurant = document.restaurant && typeof document.restaurant === 'object'
+      ? document.restaurant as Record<string, unknown>
+      : undefined;
+    const bill = document.bill && typeof document.bill === 'object'
+      ? document.bill as Record<string, unknown>
+      : undefined;
+    const rebuiltText = buildReceiptText(order, bill || null, restaurant);
+    console.info('[print-gateway] Rebuilt legacy receipt text with customized receipt renderer.', {
+      hasRestaurant: Boolean(restaurant),
+      hasBill: Boolean(bill),
+    });
+    return { ...opts, text: rebuiltText };
+  } catch (error: any) {
+    console.warn('[print-gateway] Failed to rebuild legacy receipt text. Printing original receipt payload.', error?.message || error);
+    return opts;
+  }
+}
+
 function normalizeKotPrintOptions(opts: Options): Options {
   if (!looksLikeLegacyKotText(opts.text)) return opts;
 
@@ -203,10 +240,12 @@ function normalizeKotPrintOptions(opts: Options): Options {
 function normalizePrintOptions(opts: Options): Options {
   const kind = opts.jobKind === 'kot' ? 'kot' : opts.jobKind === 'invoice' ? 'invoice' : 'bill';
   if (kind === 'kot') return normalizeKotPrintOptions(opts);
-  if (kind !== 'bill') return opts;
-
-  const text = removeUnexpectedFinalTotalRow(opts.text);
-  return text === opts.text ? opts : { ...opts, text };
+  if (kind === 'bill' || kind === 'invoice') {
+    const normalized = normalizeReceiptPrintOptions(opts);
+    const text = removeUnexpectedFinalTotalRow(normalized.text);
+    return text === normalized.text ? normalized : { ...normalized, text };
+  }
+  return opts;
 }
 
 function createPrintJobRecord(opts: Options) {

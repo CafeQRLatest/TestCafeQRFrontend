@@ -21,9 +21,13 @@ namespace CafeQR.PrintService
             Log.Info($"[Thermal Print] Document keys: {string.Join(", ", (submission.Document ?? new JObject()).Properties().Select(p => p.Name))}");
 
             var isKot = IsKotKind(submission.JobKind);
+            var isReceipt = IsReceiptKind(submission.JobKind);
             var document = submission.Document ?? new JObject();
-            var canRebuildKot = isKot && HasStructuredOrder(document) && string.IsNullOrWhiteSpace(submission.DataBase64);
-            Log.Info($"[Thermal Print] KOT custom renderer guard: isKot={isKot}, canRebuild={canRebuildKot}, hasKotTemplate={config?["kotTemplate"] != null}");
+            var canRebuildKot = isKot && HasStructuredOrder(document);
+            var canRebuildReceipt = isReceipt && HasStructuredOrder(document);
+            var shouldRebuild = canRebuildKot || canRebuildReceipt;
+
+            Log.Info($"[Thermal Print] Custom renderer guard: isKot={isKot}, isReceipt={isReceipt}, canRebuildKot={canRebuildKot}, canRebuildReceipt={canRebuildReceipt}, hasKotTemplate={config?["kotTemplate"] != null}");
 
             if (!string.IsNullOrWhiteSpace(submission.DataBase64))
             {
@@ -34,9 +38,9 @@ namespace CafeQR.PrintService
                     var textForDetection = !string.IsNullOrWhiteSpace(submission.Text)
                         ? submission.Text
                         : decodedText;
-                    if (canRebuildKot)
+                    if (shouldRebuild)
                     {
-                        Log.Info("[Thermal Print] Structured KOT DataBase64 ignored; rebuilding from order payload and effective KOT template.");
+                        Log.Info($"[Thermal Print] Structured {submission.JobKind} DataBase64 ignored; rebuilding from order payload and effective template.");
                     }
                     else
                     {
@@ -50,7 +54,7 @@ namespace CafeQR.PrintService
                 }
             }
 
-            var text = canRebuildKot
+            var text = shouldRebuild
                 ? BuildText(document, submission.JobKind, profile, config)
                 : !string.IsNullOrWhiteSpace(submission.Text)
                 ? submission.Text
@@ -58,6 +62,10 @@ namespace CafeQR.PrintService
             if (canRebuildKot)
             {
                 Log.Info("[Thermal Print] Structured KOT rebuilt with customized KOT renderer.");
+            }
+            else if (canRebuildReceipt)
+            {
+                Log.Info("[Thermal Print] Structured Receipt rebuilt with customized Receipt renderer.");
             }
             else if (isKot)
             {
@@ -401,6 +409,10 @@ namespace CafeQR.PrintService
 
         private static bool IsKotKind(string kind) =>
             (kind ?? "").Equals("kot", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsReceiptKind(string kind) =>
+            (kind ?? "").Equals("bill", StringComparison.OrdinalIgnoreCase) ||
+            (kind ?? "").Equals("invoice", StringComparison.OrdinalIgnoreCase);
 
         private static JObject ProfileThermalTemplate(PrinterProfile profile)
         {
