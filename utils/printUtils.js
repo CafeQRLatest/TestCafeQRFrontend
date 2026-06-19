@@ -650,6 +650,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     const tFontSize = getDocumentString("RECEIPT", "TITLE_FONT_SIZE", "PRINT_TITLE_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
     const bFontSize = getDocumentString("RECEIPT", "FONT_SIZE", "PRINT_FONT_SIZE", 'NORMAL');
+    const totalFontSize = getDocumentString("RECEIPT", "TOTAL_FONT_SIZE", "PRINT_TOTAL_FONT_SIZE", 'DOUBLE');
     const showRestaurantName = getDocumentBool("RECEIPT", "SHOW_RESTAURANT_NAME", "PRINT_SHOW_RESTAURANT_NAME", true);
     const showDailyBillNo = getDocumentBool("RECEIPT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
     const showCustomerDetails = getDocumentBool("RECEIPT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
@@ -664,7 +665,9 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       ? String(pickValue(restaurantProfile, ["bill_footer_text", "billFooter", "bill_footer"], "") || "").trim()
       : "";
 
-    const cols = getBillCols(W, hasLineDiscount);
+    const itemScale = (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
+    const effW = Math.max(16, Math.floor(W / itemScale));
+    const cols = getBillCols(effW, hasLineDiscount);
     const { name, qty, rate, disc, total, showDiscCol } = cols;
     const lines = [];
 
@@ -708,7 +711,12 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     let header = leftAlign("ITEM", name) + " " + rightAlign("QTY", qty) + " " + rightAlign("RATE", rate);
     if (showDiscCol) header += " " + rightAlign("DISC", disc);
     header += " " + rightAlign("TOTAL", total);
-    lines.push(withMargins(header, layout));
+    
+    if (itemScale === 2) {
+      lines.push(MODE_BOLD + getFontSizeCmd(bFontSize) + withMargins(header, layout) + SIZE_1X + MODE_NO_BOLD);
+    } else {
+      lines.push(withMargins(header, layout));
+    }
     lines.push(withMargins(dashes(), layout));
 
     lines.push(getFontSizeCmd(bFontSize));
@@ -755,8 +763,9 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
     }
     lines.push(withMargins(dashes(), layout));
-
-    lines.push(MODE_BOLD + (is80 ? SIZE_2X : SIZE_2X) + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
+    const totalScale = (totalFontSize === 'DOUBLE' || totalFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
+    const totalSizeCmd = getFontSizeCmd(totalFontSize);
+    lines.push(MODE_BOLD + totalSizeCmd + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, totalScale), layout) + SIZE_1X + MODE_NO_BOLD);
 
     lines.push(withMargins(dashes(), layout));
 

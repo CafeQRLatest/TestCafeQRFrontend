@@ -424,11 +424,15 @@ namespace CafeQR.PrintService
             {
                 if (legacy?["kotTitleFontSize"] != null) result["titleFontSize"] = legacy["kotTitleFontSize"];
                 if (legacy?["kotFontSize"] != null) result["fontSize"] = legacy["kotFontSize"];
+                if (legacy?["kotTotalFontSize"] != null) result["totalFontSize"] = legacy["kotTotalFontSize"];
                 if (legacy?["kotHeader"] != null) result["header"] = legacy["kotHeader"];
                 if (legacy?["kotFooter"] != null) result["footer"] = legacy["kotFooter"];
             }
             else
             {
+                if (legacy?["titleFontSize"] != null) result["titleFontSize"] = legacy["titleFontSize"];
+                if (legacy?["fontSize"] != null) result["fontSize"] = legacy["fontSize"];
+                if (legacy?["totalFontSize"] != null) result["totalFontSize"] = legacy["totalFontSize"];
                 if (legacy?["receiptHeader"] != null) result["header"] = legacy["receiptHeader"];
                 if (legacy?["receiptFooter"] != null) result["footer"] = legacy["receiptFooter"];
             }
@@ -1484,6 +1488,9 @@ namespace CafeQR.PrintService
             int W = layout.InnerCols;
             string dashes = new string('-', W);
 
+            string bFontSize = PickTemplateValue(tpl, new[] { "fontSize" }, "NORMAL");
+            string totalFontSize = PickTemplateValue(tpl, new[] { "totalFontSize" }, "DOUBLE");
+
             var restaurantProfile = config?["restaurant"] as JObject ?? order["restaurant"] as JObject ?? new JObject();
 
             string restaurantName = PickValue(restaurantProfile, new[] { "restaurantName", "restaurant_name", "name" });
@@ -1555,7 +1562,9 @@ namespace CafeQR.PrintService
                 : "";
 
             // Determine columns for bill printing
-            var billCols = GetBillCols(W, hasLineDiscount);
+            int itemScale = IsWideThermalSize(bFontSize) ? 2 : 1;
+            int effW = Math.Max(16, W / itemScale);
+            var billCols = GetBillCols(effW, hasLineDiscount);
             int nameW = billCols.Name;
             int qtyW = billCols.Qty;
             int rateW = billCols.Rate;
@@ -1617,13 +1626,21 @@ namespace CafeQR.PrintService
 
             lines.Add(WithMargins(dashes, layout));
             
+            string bodySizeCmd = GetFontSizeCmd(bFontSize);
             string header = LeftAlign("ITEM", nameW) + " " + RightAlign("QTY", qtyW) + " " + RightAlign("RATE", rateW);
             if (showDiscCol) header += " " + RightAlign("DISC", discW);
             header += " " + RightAlign("TOTAL", totalW);
-            lines.Add(WithMargins(header, layout));
+            
+            if (itemScale == 2)
+            {
+                lines.Add(bodySizeCmd + MODE_BOLD + WithMargins(header, layout) + SIZE_1X + MODE_NO_BOLD);
+            }
+            else
+            {
+                lines.Add(WithMargins(header, layout));
+            }
             lines.Add(WithMargins(dashes, layout));
 
-            string bodySizeCmd = GetFontSizeCmd(PickTemplateValue(tpl, new[] { "fontSize" }, "NORMAL"));
             lines.Add(bodySizeCmd);
 
             foreach (var it in items)
@@ -1684,7 +1701,9 @@ namespace CafeQR.PrintService
             }
             lines.Add(WithMargins(dashes, layout));
             
-            lines.Add(MODE_BOLD + SIZE_2X + WithMargins(KvLineScaled("TOTAL:", FmtRate(oGrandTotal), W, 2), layout) + SIZE_1X + MODE_NO_BOLD);
+            int totalScale = IsWideThermalSize(totalFontSize) ? 2 : 1;
+            string totalSizeCmd = GetFontSizeCmd(totalFontSize);
+            lines.Add(MODE_BOLD + totalSizeCmd + WithMargins(KvLineScaled("TOTAL:", FmtRate(oGrandTotal), W, totalScale), layout) + SIZE_1X + MODE_NO_BOLD);
             lines.Add(WithMargins(dashes, layout));
 
             if (!string.IsNullOrEmpty(receiptFooter))

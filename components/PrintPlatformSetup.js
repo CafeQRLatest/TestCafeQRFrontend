@@ -71,6 +71,7 @@ const DEFAULT_KOT_TEMPLATE = {
   showGstBreakdown: false,
   titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
+  totalFontSize: 'DOUBLE',
   header: '*** KOT ***',
   footer: '*** SEND TO KITCHEN ***',
 };
@@ -80,6 +81,7 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   showGstBreakdown: true,
   titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
+  totalFontSize: 'DOUBLE',
   header: '*** TAX INVOICE ***',
   footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -172,6 +174,7 @@ const mergeKotTemplate = (template) => {
     ...source,
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
+    totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
     header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
     footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
   };
@@ -184,6 +187,7 @@ const mergeReceiptTemplate = (template) => {
     ...source,
     titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
+    totalFontSize: source.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
     header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
     footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
   };
@@ -208,6 +212,7 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
+  localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
 };
 
 const profileDefaults = (format = 'THERMAL') => ({
@@ -336,6 +341,8 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_KOT_FONT_SIZE', kotTemplate.fontSize || 'NORMAL');
   localStorage.setItem('PRINT_TITLE_FONT_SIZE', receiptTemplate.titleFontSize || 'DOUBLE');
   localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kotTemplate.titleFontSize || 'DOUBLE');
+  localStorage.setItem('PRINT_TOTAL_FONT_SIZE', receiptTemplate.totalFontSize || 'DOUBLE');
+  localStorage.setItem('PRINT_KOT_TOTAL_FONT_SIZE', kotTemplate.totalFontSize || 'DOUBLE');
 
   localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', receiptTemplate.showRestaurantName !== false ? '1' : '0');
   localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', receiptTemplate.showDailyBillNo !== false ? '1' : '0');
@@ -1182,6 +1189,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
               </Field>
               <Field label="Body font">
                 <NiceSelect value={template.fontSize || 'NORMAL'} onChange={(value) => update({ fontSize: value })} options={FONT_SIZE_OPTIONS} />
+              </Field>
+              <Field label="Total font">
+                <NiceSelect value={template.totalFontSize || 'DOUBLE'} onChange={(value) => update({ totalFontSize: value })} options={FONT_SIZE_OPTIONS} />
               </Field>
             </div>
             <div className="document-toggles compact-toggles">

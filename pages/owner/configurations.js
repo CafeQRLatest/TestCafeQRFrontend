@@ -80,6 +80,7 @@ const DEFAULT_KOT_TEMPLATE = {
   showGstBreakdown: false,
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
+  totalFontSize: 'DOUBLE',
   header: '*** KOT ***',
   footer: '*** SEND TO KITCHEN ***',
 };
@@ -89,6 +90,7 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   showGstBreakdown: true,
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
+  totalFontSize: 'DOUBLE',
   header: '*** TAX INVOICE ***',
   footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -168,6 +170,7 @@ const mergeKotTemplate = (template) => {
     ...source,
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
+    totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
     header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
     footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
   };
@@ -180,6 +183,7 @@ const mergeReceiptTemplate = (template) => {
     ...source,
     titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
+    totalFontSize: source.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
     header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
     footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
   };
@@ -198,6 +202,7 @@ const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
     ...receipt,
     fontSize: receipt.fontSize,
     titleFontSize: receipt.titleFontSize,
+    totalFontSize: receipt.totalFontSize,
     showRestaurantName: receipt.showRestaurantName !== false,
     showDailyBillNo: receipt.showDailyBillNo !== false,
     showCustomerDetails: receipt.showCustomerDetails !== false,
@@ -206,6 +211,7 @@ const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
     showGstBreakdown: receipt.showGstBreakdown !== false,
     kotFontSize: kot.fontSize,
     kotTitleFontSize: kot.titleFontSize,
+    kotTotalFontSize: kot.totalFontSize,
     kotHeader: kot.header,
     kotFooter: kot.footer,
     receiptHeader: receipt.header,
@@ -232,6 +238,7 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
+  localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
 };
 
 function syncPrintSettingsToLocalStorage(config) {
@@ -252,8 +259,10 @@ function syncPrintSettingsToLocalStorage(config) {
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');
+    localStorage.setItem('PRINT_TOTAL_FONT_SIZE', receipt.totalFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kot.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_KOT_FONT_SIZE', kot.fontSize || 'NORMAL');
+    localStorage.setItem('PRINT_KOT_TOTAL_FONT_SIZE', kot.totalFontSize || 'DOUBLE');
 
     localStorage.setItem('PRINT_KOT_HEADER', kot.header ?? '*** KOT ***');
     localStorage.setItem('PRINT_KOT_FOOTER', kot.footer ?? '*** SEND TO KITCHEN ***');
@@ -737,6 +746,7 @@ function ConfigurationsContent() {
           {[
             ['titleFontSize', 'Title font'],
             ['fontSize', 'Body font'],
+            ['totalFontSize', 'Total font'],
           ].map(([key, label]) => (
             <div key={key} className="input-group">
               <label className="group-lbl">{label}</label>
