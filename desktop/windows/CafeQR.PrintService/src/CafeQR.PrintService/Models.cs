@@ -102,6 +102,7 @@ namespace CafeQR.PrintService
         public bool ShowSignature { get; set; } = true;
         public string Terms { get; set; }
         public string Footer { get; set; }
+        [JsonProperty("documents", ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public List<string> Documents { get; set; } = new List<string> { "KOT", "BILL", "INVOICE" };
         public JObject TemplateOverrides { get; set; } = new JObject();
     }
