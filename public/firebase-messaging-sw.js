@@ -85,6 +85,7 @@ function normalizePushPayload(raw) {
   const restaurantId = String(data.restaurantId || data.restaurant_id || data.rid || '');
   const itemsSummary = String(data.itemsSummary || payload.itemsSummary || '').trim();
   const type = String(data.type || 'new_order').toLowerCase();
+  const category = String(data.category || '').toUpperCase();
   const url = normalizeUrl(data.url || payload?.fcmOptions?.link || DEFAULT_URL);
 
   return {
@@ -95,6 +96,7 @@ function normalizePushPayload(raw) {
     restaurantId,
     itemsSummary,
     type,
+    category,
     data: {
       ...data,
       title,
@@ -104,6 +106,7 @@ function normalizePushPayload(raw) {
       restaurantId,
       itemsSummary,
       type,
+      category,
     },
   };
 }
