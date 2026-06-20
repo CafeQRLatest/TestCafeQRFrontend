@@ -195,6 +195,7 @@ self.addEventListener('push', (event) => {
       // If the app is fully closed, we let Windows play its default chime.
       if (appIsOpen) {
         options.silent = true;
+        delete options.vibrate; // Browser throws error if silent is true but vibrate exists
       }
 
       await safeShowNotification(detail.title, options);
