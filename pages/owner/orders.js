@@ -1808,10 +1808,18 @@ export default function OrdersPage() {
         const newId = putRes?.data?.data?.id;
         if (newId) settleId = newId;
       }
-      const url = settlementPayload?.paymentMethod === 'CREDIT'
+
+      // Suppress bill printing when settling from the Takeaway/Live orders grid
+      // because the bill is usually already printed via the "Bill" button.
+      const payloadToSend = {
+        ...settlementPayload,
+        skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill']
+      };
+
+      const url = payloadToSend.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
-      await api.post(url, settlementPayload);
+      await api.post(url, payloadToSend);
       setPaymentOrder(null);
       await loadOrders();
     } catch (e) {
@@ -2548,7 +2556,9 @@ export default function OrdersPage() {
                         <FaPrint /> KOT
                       </ActionBtn>
                       <ActionBtn $variant="secondary" onClick={() => {
-                        handlePrintBill(selectedTableOrder);
+                        if (localPrintWillHandleKind('bill')) {
+                          handlePrintBill(selectedTableOrder);
+                        }
                         updateStatus(selectedTableOrder.id, 'BILLED');
                         setSelectedTableOrder(null);
                       }}>
