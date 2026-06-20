@@ -1782,6 +1782,7 @@ export default function OrdersPage() {
       const newOrder = res?.data?.data;
       setEditingOrder(null);
       await loadOrders();
+      await fetchHistoryOrders(historyPage?.number || 0);
       if (newOrder?.id) {
         notify('success', `Order updated (new ID: #${String(newOrder.id).slice(0, 8)})`);
       }

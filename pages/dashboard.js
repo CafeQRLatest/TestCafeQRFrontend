@@ -401,8 +401,9 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses }) {
   const isSale = orderType === 'SALE';
   const stats = useMemo(() => {
     const safe = Array.isArray(orders) ? orders : [];
-    const total = safe.length;
-    const revenue  = safe.reduce((s,o)=>s+(o.totalAmount||0),0);
+    const activeSales = safe.filter(o => o.status !== 'CANCELLED');
+    const total = activeSales.length;
+    const revenue  = activeSales.reduce((s,o)=>s+(o.totalAmount||0),0);
     const avg      = total ? revenue/total : 0;
     const byStatus = {};
     const byType   = {};
@@ -416,7 +417,9 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses }) {
       const sk = String(o.status||'').toUpperCase();
       const grp = STATUS_META[sk] ? sk : 'OTHER';
       byStatus[grp] = (byStatus[grp]||0) + 1;
-      
+    });
+
+    activeSales.forEach(o => {
       const t = o.orderType || o.type || 'Unknown';
       byType[t] = { count:(byType[t]?.count||0)+1, total:(byType[t]?.total||0)+(o.totalAmount||0) };
 
@@ -551,7 +554,8 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses }) {
   const hourlyBins = useMemo(() => {
     const bins = Array(24).fill(0);
     const safe = Array.isArray(orders) ? orders : [];
-    safe.forEach(o => {
+    const activeSales = safe.filter(o => o.status !== 'CANCELLED');
+    activeSales.forEach(o => {
       const dateVal = o.orderDate || o.createdAt || o.created_at;
       if (!dateVal) return;
       const d = new Date(dateVal);
@@ -587,7 +591,8 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses }) {
   const topItems = useMemo(() => {
     const items = {};
     const safe = Array.isArray(orders) ? orders : [];
-    safe.forEach(o => {
+    const activeSales = safe.filter(o => o.status !== 'CANCELLED');
+    activeSales.forEach(o => {
       const lines = o.lines || [];
       lines.forEach(l => {
         const name = l.productName || 'Unknown Item';
@@ -952,7 +957,8 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
   /* ── breakdown stats ── */
   const breakdown = useMemo(() => {
     const safe = Array.isArray(orders) ? orders : [];
-    const totalRev = safe.reduce((s, o) => s + (o.totalAmount || 0), 0) || 1;
+    const activeSales = safe.filter(o => o.status !== 'CANCELLED');
+    const totalRev = activeSales.reduce((s, o) => s + (o.totalAmount || 0), 0) || 1;
 
     // fulfillment (sales)
     const byFulfillment = { DINE_IN: { count: 0, total: 0 }, TAKEAWAY: { count: 0, total: 0 }, DELIVERY: { count: 0, total: 0 } };
@@ -964,7 +970,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
     const byWarehouse = {};
     const byVendor = {};
 
-    safe.forEach(o => {
+    activeSales.forEach(o => {
       // fulfillment
       if (o.tableNumber || o.table_number) {
         byFulfillment.DINE_IN.count++; byFulfillment.DINE_IN.total += (o.totalAmount || 0);
@@ -1030,6 +1036,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
   // 1. Group orders by hour or day to create a continuous trend list
   const trendData = useMemo(() => {
     const safe = Array.isArray(orders) ? orders : [];
+    const activeSales = safe.filter(o => o.status !== 'CANCELLED');
     
     // Parse filters
     const start = new Date(dateFrom);
@@ -1053,7 +1060,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
       }
       
       // Accumulate order values
-      safe.forEach(o => {
+      activeSales.forEach(o => {
         const dateVal = o.orderDate || o.createdAt || o.created_at;
         if (!dateVal) return;
         const d = new Date(dateVal);
@@ -1079,7 +1086,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
       }
       
       // Accumulate order values
-      safe.forEach(o => {
+      activeSales.forEach(o => {
         const dateVal = o.orderDate || o.createdAt || o.created_at;
         if (!dateVal) return;
         const d = new Date(dateVal);

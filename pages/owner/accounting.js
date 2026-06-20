@@ -1030,7 +1030,7 @@ function AccountingContent() {
               <div style={{ display: 'contents' }}>
                 <span>
                   Gross Sales
-                  <InfoTooltip id="grossSalesTip" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales" />
+                  <InfoTooltip id="grossSalesTip" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Gross Sales = Net Sales + Discounts" />
                 </span>
                 <strong>{SYM}{money(grossSales)}</strong>
               </div>
@@ -1044,7 +1044,7 @@ function AccountingContent() {
               <div style={{ display: 'contents' }}>
                 <span>
                   Discounts
-                  <InfoTooltip id="discountsTip" text="Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Gross Sales − Net Sales = Discounts" />
+                  <InfoTooltip id="discountsTip" text="Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Discounts = Gross Sales − Net Sales" />
                 </span>
                 <strong>{SYM}{money(discounts)}</strong>
               </div>
@@ -1057,7 +1057,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Net Sales
-                <InfoTooltip id="netSalesTip" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
+                <InfoTooltip id="netSalesTip" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Net Sales = Billed Total − GST − Round Off" />
               </span>
               <strong style={{ color: '#16a34a' }}>{SYM}{money(netSales)}</strong>
             </div>
@@ -1069,7 +1069,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Billed Total
-                <InfoTooltip id="billedTotalTip" text="Billed Total: The actual amount billed to customers, including GST, across all settled orders. | Equation: Net Sales + GST + Round Off = Billed Total" />
+                <InfoTooltip id="billedTotalTip" text="Billed Total: The actual amount billed to customers, including GST, across all settled orders. | Equation: Billed Total = Net Sales + GST + Round Off" />
               </span>
               <strong>{SYM}{money(billedTotal)}</strong>
             </div>
@@ -1082,7 +1082,7 @@ function AccountingContent() {
               <div style={{ display: 'contents' }}>
                 <span>
                   Round Off
-                  <InfoTooltip id="roundOffTip" text="Round Off: Net round-off adjustments on invoices. | Equation: Billed Total − Net Sales − GST = Round Off" />
+                  <InfoTooltip id="roundOffTip" text="Round Off: Net round-off adjustments on invoices. | Equation: Round Off = Billed Total − Net Sales − GST" />
                 </span>
                 <strong>{SYM}{money(summaryValue('roundOff'))}</strong>
               </div>
@@ -1095,7 +1095,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Payment Collected
-                <InfoTooltip id="paymentCollectedTip" text="Payment Collected: Total money actually received via Cash, UPI, Cards, or other modes. | Equation: Cash + UPI + Card + Online + Bank + Cheque = Payment Collected" />
+                <InfoTooltip id="paymentCollectedTip" text="Payment Collected: Total money actually received via Cash, UPI, Cards, or other modes. | Equation: Payment Collected = Cash + UPI + Card + Online + Bank + Cheque" />
               </span>
               <strong>{SYM}{money(paymentCollected)}</strong>
             </div>
@@ -1108,7 +1108,7 @@ function AccountingContent() {
               <div style={{ display: 'contents' }}>
                 <span>
                   Output Tax
-                  <InfoTooltip id="outputTaxTip" text="Output Tax (GST): Tax collected from customers, payable to the government. NOT part of business revenue. | Equation: Billed Total − Net Sales − Round Off = Output Tax" />
+                  <InfoTooltip id="outputTaxTip" text="Output Tax (GST): Tax collected from customers, payable to the government. NOT part of business revenue. | Equation: Output Tax = Billed Total − Net Sales − Round Off" />
                 </span>
                 <strong>{SYM}{money(outputTax)}</strong>
               </div>
@@ -1121,7 +1121,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Expenses + COGS
-                <InfoTooltip id="expensesTip" text="Expenses + COGS: Total operating expenses plus Cost of Goods Sold (raw materials, stock, purchases). | Equation: COGS + Operating Expenses = Total Costs" />
+                <InfoTooltip id="expensesTip" text="Expenses + COGS: Total operating expenses plus Cost of Goods Sold (raw materials, stock, purchases). | Equation: Total Costs = COGS + Operating Expenses" />
               </span>
               <strong style={{ color: '#ef4444' }}>{SYM}{money(expenses)}</strong>
             </div>
@@ -1133,7 +1133,7 @@ function AccountingContent() {
             <div style={{ display: 'contents' }}>
               <span>
                 Profit
-                <InfoTooltip id="profitTip" text="Net Profit: Final business profit after all deductions. | Equation: Net Sales + Round Off − COGS − Operating Expenses = Net Profit" />
+                <InfoTooltip id="profitTip" text="Net Profit: Final business profit after all deductions. | Equation: Net Profit = Net Sales + Round Off − COGS − Operating Expenses" />
               </span>
               <strong style={{ color: profit >= 0 ? '#10b981' : '#ef4444' }}>{SYM}{money(profit)}</strong>
             </div>

@@ -307,15 +307,15 @@ export default function Reports() {
     const netSales = billedTotal - tax - roundOff;         // ex-tax, ex-roundoff: actual revenue earned
     const grossSales = netSales + discounts;    // ex-tax, ex-roundoff: pre-discount revenue
     const cards = [
-      { label: 'Billed Total',    val: `${SYM}${fmt(billedTotal)}`,          color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount billed and collected from customers (including GST) across all settled orders. | Equation: Net Sales + GST + Round Off = Billed Total', icon: <FaReceipt /> },
-      (config?.discountEnabled !== false) && { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales', icon: <FaChartBar /> },
-      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales', icon: <FaChartLine /> },
+      { label: 'Billed Total',    val: `${SYM}${fmt(billedTotal)}`,          color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount billed and collected from customers (including GST) across all settled orders. | Equation: Billed Total = Net Sales + GST + Round Off', icon: <FaReceipt /> },
+      (config?.discountEnabled !== false) && { label: 'Gross Sales',     val: `${SYM}${fmt(grossSales)}`,            color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Gross Sales = Net Sales + Discounts', icon: <FaChartBar /> },
+      { label: 'Net Sales',       val: `${SYM}${fmt(netSales)}`,              color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Net Sales = Billed Total − GST − Round Off', icon: <FaChartLine /> },
       { label: 'Total Orders',    val: summary.totalOrders,                   color: '#3b82f6', bg: '#eff6ff', tip: 'Total Orders: Number of completed and settled orders in the selected date range.', icon: <FaReceipt /> },
       { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', tip: 'Avg Order Value: Average billed amount per order. Calculated as Billed Total ÷ Total Orders.', icon: <FaChartLine /> },
       { label: 'Items Sold',      val: summary.itemsSold,                     color: '#f97316', bg: '#fff7ed', tip: 'Items Sold: Total number of individual menu items sold across all orders in this period.', icon: <FaBoxes /> },
-      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', tip: 'Tax (GST): Total output tax collected from customers, payable to the government. | Equation: Billed Total − Net Sales − Round Off = Tax', icon: <FaFileInvoice /> },
-      (config?.discountEnabled !== false) && { label: 'Discounts',       val: `${SYM}${fmt(discounts)}`,             color: '#ec4899', bg: '#fdf2f8', tip: 'Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Gross Sales − Net Sales = Discounts', icon: <FaTag /> },
-      (config?.roundOffEnabled !== false) && { label: 'Round Off',       val: `${SYM}${fmt(roundOff)}`, color: '#64748b', bg: '#f1f5f9', tip: 'Round Off: Adjustments made to round the bill total to the nearest whole value. | Equation: Billed Total − Net Sales − GST = Round Off', icon: <FaCoins /> }
+      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', tip: 'Tax (GST): Total output tax collected from customers, payable to the government. | Equation: Tax = Billed Total − Net Sales − Round Off', icon: <FaFileInvoice /> },
+      (config?.discountEnabled !== false) && { label: 'Discounts',       val: `${SYM}${fmt(discounts)}`,             color: '#ec4899', bg: '#fdf2f8', tip: 'Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Discounts = Gross Sales − Net Sales', icon: <FaTag /> },
+      (config?.roundOffEnabled !== false) && { label: 'Round Off',       val: `${SYM}${fmt(roundOff)}`, color: '#64748b', bg: '#f1f5f9', tip: 'Round Off: Adjustments made to round the bill total to the nearest whole value. | Equation: Round Off = Billed Total − Net Sales − GST', icon: <FaCoins /> }
     ].filter(Boolean);
     return (
       <>
@@ -746,7 +746,7 @@ export default function Reports() {
                     <div className="step-body">
                       <div className="step-title-row">
                         <span className="step-title">Gross Sales</span>
-                        <InfoTooltip id="grossSales" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Net Sales + Discounts = Gross Sales" />
+                        <InfoTooltip id="grossSales" text="Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Gross Sales = Net Sales + Discounts" />
                       </div>
                       <div className="step-subtitle">Pre-discount revenue excluding GST</div>
                     </div>
@@ -764,7 +764,7 @@ export default function Reports() {
                     <div className="step-body">
                       <div className="step-title-row">
                         <span className="step-title">Discounts</span>
-                        <InfoTooltip id="discounts" text="Discounts: Total price reductions granted on orders (item-level + order-level). | Equation: Gross Sales − Net Sales = Discounts" />
+                        <InfoTooltip id="discounts" text="Discounts: Total price reductions granted on orders (item-level + order-level). | Equation: Discounts = Gross Sales − Net Sales" />
                       </div>
                       <div className="step-subtitle">Price reductions, loyalty discounts, & promos</div>
                     </div>
@@ -782,7 +782,7 @@ export default function Reports() {
                     <div className="step-body">
                       <div className="step-title-row">
                         <span className="step-title">Net Sales</span>
-                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
+                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Net Sales = Billed Total − GST − Round Off" />
                       </div>
                       <div className="step-subtitle">Post-discount revenue excluding GST</div>
                     </div>
@@ -797,7 +797,7 @@ export default function Reports() {
                     <div className="step-body">
                       <div className="step-title-row">
                         <span className="step-title">Net Sales</span>
-                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue excluding GST and Round Off. | Equation: Billed Total − GST − Round Off = Net Sales" />
+                        <InfoTooltip id="netSales" text="Net Sales (Ex-Tax): Revenue excluding GST and Round Off. | Equation: Net Sales = Billed Total − GST − Round Off" />
                       </div>
                       <div className="step-subtitle">Revenue excluding GST</div>
                     </div>
