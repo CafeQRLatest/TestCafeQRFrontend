@@ -385,13 +385,13 @@ function getBillCols(innerW, hasDiscount) {
   const showDiscCol = false; 
   const gaps = showDiscCol ? 4 : 3;
   let qty = innerW >= 44 ? 6 : innerW >= 38 ? 6 : 4;
-  let rate = innerW >= 44 ? 7 : innerW >= 38 ? 7 : 6;
+  let rate = innerW >= 44 ? 7 : innerW >= 38 ? 7 : 5;
   let disc = showDiscCol ? (innerW >= 44 ? 7 : 6) : 0;
-  let total = innerW >= 44 ? 8 : innerW >= 38 ? 7 : 6;
+  let total = innerW >= 44 ? 8 : innerW >= 38 ? 7 : 7;
   const fixed = qty + rate + total + disc + gaps;
   let name = innerW - fixed;
   if (name < 8) {
-    qty = 3; rate = 5; disc = 0; total = 6;
+    qty = 3; rate = 5; disc = 0; total = 7;
     const fixed2 = qty + rate + total + disc + gaps;
     name = Math.max(6, innerW - fixed2);
   }
