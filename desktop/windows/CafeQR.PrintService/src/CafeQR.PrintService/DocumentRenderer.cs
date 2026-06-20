@@ -536,12 +536,13 @@ namespace CafeQR.PrintService
 
         private static string EscposPageSetup(ThermalLayout layout)
         {
+            char fontMode = (layout.PaperMm <= 58 && layout.Cols >= 32) ? (char)1 : (char)0;
             return ESC + "@" + // reset
                    ESC + " " + (char)0 +   // right character spacing
                    ESC + "a" + (char)0 + // left align
                    GS + "L" + (char)(layout.LeftDots & 0xff) + (char)((layout.LeftDots >> 8) & 0xff) + // left margin
                    GS + "W" + (char)(layout.AreaDots & 0xff) + (char)((layout.AreaDots >> 8) & 0xff) + // printable area width
-                   ESC + "M" + (char)0 + // Font A
+                   ESC + "M" + fontMode + // Font A or Font B
                    ESC + "E" + (char)0; // bold off
         }
 
