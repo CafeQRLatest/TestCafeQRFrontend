@@ -84,7 +84,13 @@ namespace CafeQR.PrintService
                 text = Center("*** REPRINT ***", layout.InnerCols) + Environment.NewLine + text;
             }
 
-            var body = Encoding.GetEncoding(437).GetBytes(text.Replace("\r\n", "\n").Replace("\n", "\r\n"));
+            var cleanText = text.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            var body = new byte[cleanText.Length];
+            for (int i = 0; i < cleanText.Length; i++)
+            {
+                body[i] = (byte)(cleanText[i] & 0xFF);
+            }
+
             using (var stream = new System.IO.MemoryStream())
             {
                 stream.Write(new byte[] { 0x1B, 0x40 }, 0, 2);
