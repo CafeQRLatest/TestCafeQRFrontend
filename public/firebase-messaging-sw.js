@@ -167,17 +167,6 @@ async function safeShowNotification(title, options) {
   }
 }
 
-async function postToClients(message) {
-  try {
-    const list = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of list) {
-      client.postMessage(message);
-    }
-  } catch (e) {
-    console.warn('[fcm-sw] postToClients failed:', e?.message || e);
-  }
-}
-
 self.addEventListener('push', (event) => {
   const raw = parsePushData(event);
   const detail = normalizePushPayload(raw);
@@ -185,7 +174,29 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     (async () => {
-      await postToClients({ type: 'new-order-push', payload: detail });
+      let appIsOpen = false;
+      try {
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (clientList.length > 0) {
+          appIsOpen = true;
+          for (const client of clientList) {
+            client.postMessage({ type: 'new-order-push', payload: detail });
+          }
+        }
+      } catch (e) {
+        console.warn('[fcm-sw] postToClients failed:', e?.message || e);
+      }
+
+      // Windows Workaround: Chrome/Edge on Windows ignores the `sound` property 
+      // for push notifications and always plays the default Windows chime.
+      // If the app is open, our frontend (PushNotificationBridge) will intercept
+      // the message and play the custom MP3. Therefore, we must silence the OS 
+      // notification to prevent the default Windows chime from overlapping.
+      // If the app is fully closed, we let Windows play its default chime.
+      if (appIsOpen) {
+        options.silent = true;
+      }
+
       await safeShowNotification(detail.title, options);
     })()
   );
