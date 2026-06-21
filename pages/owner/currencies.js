@@ -8,7 +8,7 @@ import api from '../../utils/api';
 import { FaPlus, FaSearch, FaChevronRight, FaMoneyBillWave, FaCheckCircle, FaTrash } from 'react-icons/fa';
 
 export default function CurrenciesPage() {
-  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']}><CurrenciesContent /></RoleGate>);
+  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']} requiredMenu="Configurations"><CurrenciesContent /></RoleGate>);
 }
 
 function CurrenciesContent() {

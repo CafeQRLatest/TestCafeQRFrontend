@@ -130,7 +130,7 @@ function accountingErrorMessage(err, fallback) {
 
 export default function AccountingPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Accounting">
       <AccountingContent />
     </RoleGate>
   );

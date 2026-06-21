@@ -9,7 +9,7 @@ import api from '../../utils/api';
 import { FaSearch, FaChevronRight, FaFileAlt, FaCheckCircle, FaPlus, FaFileInvoice } from 'react-icons/fa';
 
 export default function SequencesPage() {
-  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']}><SequencesContent /></RoleGate>);
+  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Document Sequences"><SequencesContent /></RoleGate>);
 }
 
 function SequencesContent() {

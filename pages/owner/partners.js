@@ -14,7 +14,7 @@ import {
 
 export default function PartnersPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']} requiredMenu="Partners">
       <PartnersContent />
     </RoleGate>
   );

@@ -24,7 +24,7 @@ const getRequestErrorMessage = (err, fallback = 'Request failed') => {
 
 export default function ProductManagementPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Product Management">
       <ProductManagementContent />
     </RoleGate>
   );

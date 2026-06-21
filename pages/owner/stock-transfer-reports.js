@@ -13,7 +13,7 @@ import {
 
 export default function StockTransferReportsPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Stock">
       <ModuleGate>
         <TransferReportContent />
       </ModuleGate>

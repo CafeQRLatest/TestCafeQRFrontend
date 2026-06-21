@@ -24,6 +24,8 @@ export const AuthProvider = ({ children }) => {
   const [country, setCountry] = useState(null);
   const [timezone, setTimezone] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [assignedMenus, setAssignedMenus] = useState([]);
+  const [menusLoading, setMenusLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -97,6 +99,11 @@ export const AuthProvider = ({ children }) => {
           updateSubscription(subData.status, subData.expiryDate);
         }
       }).catch(err => console.error("Subscription sync error", err));
+
+      // Fetch assigned menus for the logged-in user (for dynamic route protection)
+      fetchAssignedMenus();
+    } else {
+      setMenusLoading(false);
     }
     
     setLoading(false);
@@ -156,6 +163,9 @@ export const AuthProvider = ({ children }) => {
     if (data.currency) Cookies.set('currency', data.currency, cookieOptions);
     if (data.country) Cookies.set('country', data.country, cookieOptions);
     Cookies.set('timezone', tz, cookieOptions);
+
+    // Fetch assigned menus immediately after login
+    fetchAssignedMenus();
   };
 
   const updateSubscription = useCallback((status, expiry) => {
@@ -179,6 +189,26 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const fetchAssignedMenus = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setMenusLoading(false);
+      return;
+    }
+    try {
+      setMenusLoading(true);
+      const resp = await api.get('/api/v1/users/menus');
+      if (resp.data.success) {
+        setAssignedMenus(resp.data.data || []);
+      }
+    } catch (err) {
+      if (err?.message !== 'Network Error') {
+        console.error("Failed to fetch assigned menus:", err);
+      }
+    } finally {
+      setMenusLoading(false);
+    }
+  };
+
   const logout = async () => {
     setUserRole(null);
     setEmail(null);
@@ -196,6 +226,7 @@ export const AuthProvider = ({ children }) => {
     setCurrency(null);
     setCountry(null);
     setTimezone(null);
+    setAssignedMenus([]);
     
     const removeOptions = { path: '/' };
     Cookies.remove('access_token', removeOptions);
@@ -306,6 +337,9 @@ export const AuthProvider = ({ children }) => {
       currency,
       country,
       timezone,
+      assignedMenus,
+      menusLoading,
+      fetchAssignedMenus,
       loading 
     }}>
       {!loading && children}

@@ -18,7 +18,7 @@ const getRequestErrorMessage = (err, fallback = 'Request failed') => {
 
 export default function UsersManagementPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Organization">
       <UsersContent />
     </RoleGate>
   );

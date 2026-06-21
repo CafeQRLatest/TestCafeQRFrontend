@@ -69,7 +69,7 @@ const stockModules = [
 
 export default function StockMenuPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Stock">
       <ModuleGate>
         <DashboardLayout title="Stock Management">
           <div className="menu-wrap">

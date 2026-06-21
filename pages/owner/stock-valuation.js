@@ -11,7 +11,7 @@ import ReportTable from '../../components/ReportTable';
 
 export default function StockValuationPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Stock">
       <ModuleGate>
         <ValuationContent />
       </ModuleGate>

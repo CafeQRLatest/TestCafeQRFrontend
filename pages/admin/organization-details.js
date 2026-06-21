@@ -16,7 +16,7 @@ import {
  */
 export default function OrganizationDetailsPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Organization">
       <OrganizationSettingsContent />
     </RoleGate>
   );

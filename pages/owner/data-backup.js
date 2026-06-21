@@ -13,7 +13,7 @@ import styles from '../../components/backup/DataBackup.module.css';
 
 export default function DataBackupPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN']} requiredMenu="Data Backup">
       <DataBackupContent />
     </RoleGate>
   );

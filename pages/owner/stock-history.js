@@ -12,7 +12,7 @@ import ReportTable from '../../components/ReportTable';
 
 export default function StockHistoryPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Stock">
       <ModuleGate>
         <StockHistoryContent />
       </ModuleGate>

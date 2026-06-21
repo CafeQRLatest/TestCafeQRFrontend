@@ -18,14 +18,12 @@ import { isMenuVisibleForConfig } from '../utils/moduleVisibility';
  * DashboardLayout Component
  */
 export default function DashboardLayout({ children, title, subtitle, showBack = false, noSidebar = false, hideTitle = false, noPadding = false }) {
-  const { logout, userRole, email, firstName, lastName, fullName, orgId, orgName, clientName, terminalId, terminalName, isAuthenticated } = useAuth();
+  const { logout, userRole, email, firstName, lastName, fullName, orgId, orgName, clientName, terminalId, terminalName, isAuthenticated, assignedMenus } = useAuth();
   const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [assignedMenus, setAssignedMenus] = useState([]);
-  const [fetchingMenus, setFetchingMenus] = useState(false);
   const [config, setConfig] = useState(null);
   const userMenuRef = useRef(null);
   const touchStartRef = useRef(null);
@@ -53,7 +51,6 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchMenus();
       fetchConfig();
     }
   }, [isAuthenticated]);
@@ -64,23 +61,6 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       const resp = await api.get('/api/v1/configurations');
       if (resp.data.success) setConfig(resp.data.data);
     } catch {}
-  };
-
-  const fetchMenus = async () => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-    try {
-      setFetchingMenus(true);
-      const resp = await api.get('/api/v1/users/menus');
-      if (resp.data.success) {
-        setAssignedMenus(resp.data.data || []);
-      }
-    } catch (err) {
-      if (err?.message !== 'Network Error') {
-        console.error("Failed to fetch sidebar menus:", err);
-      }
-    } finally {
-      setFetchingMenus(false);
-    }
   };
 
   useEffect(() => {

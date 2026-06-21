@@ -14,7 +14,7 @@ import {
 
 export default function StockAdjustmentReportsPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']}>
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Stock">
       <ModuleGate>
         <AdjustmentReportContent />
       </ModuleGate>
