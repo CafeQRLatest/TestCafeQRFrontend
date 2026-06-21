@@ -148,8 +148,6 @@ function UsersContent() {
       missingFields.push("Branch");
     }
 
-
-
     if (missingFields.length > 0) {
       setMsgType('error');
       setMessage(`Missing mandatory fields: ${missingFields.join(', ')}`);
@@ -241,6 +239,235 @@ function UsersContent() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const startNewUser = () => {
+    if (!isAdmin) return;
+    setSelectedUser({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      phone: '',
+      roleId: roles.length > 0 ? roles[0].id : '',
+      orgId: '',
+      terminalId: '',
+      isactive: 'Y'
+    });
+  };
+
+
+
+  const handleSaveRole = async (e) => {
+    if (e) e.preventDefault();
+    if (!isAdmin) return;
+
+    // RBAC Validation
+    if (currentUserRank < 100 && getRank(selectedRole.name) >= currentUserRank) {
+       setMsgType('error');
+       setMessage("Privilege Escalation Blocked: You cannot modify a role equal to or higher than your own.");
+       return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      const resp = await api.post('/api/v1/roles', selectedRole);
+      if (resp.data.success) {
+        setMsgType('success');
+        setMessage("Role permissions updated!");
+        fetchData(resp.data.data);
+      } else {
+        throw new Error(resp.data.message || "Failed to update role");
+      }
+    } catch (err) {
+      setMsgType('error');
+      setMessage(err.response?.data?.message || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleMenu = (menu) => {
+    if (!isAdmin) return;
+    const currentMenus = [...(selectedRole.menus || [])];
+    const index = currentMenus.findIndex(m => m.id === menu.id);
+    if (index > -1) {
+      currentMenus.splice(index, 1);
+    } else {
+      currentMenus.push(menu);
+    }
+    setSelectedRole({ ...selectedRole, menus: currentMenus });
+  };
+
+  const startNewRole = () => {
+    if (!isAdmin) return;
+    setSelectedRole({
+      name: '',
+      description: '',
+      menus: [],
+      isactive: 'Y'
+    });
+  };
+
+  if (loading) return <div className="loading-state-premium"><span>Syncing Identity Network...</span></div>;
+
+  return (
+    <DashboardLayout title="Staff & Permissions" showBack={true}>
+      <div className="v2-layout-container">
+        {/* Navigation Rail */}
+        <aside className="v2-sidebar">
+          <div className="tab-switcher-modern">
+            <button className={activeTab === 'users' ? 'active' : ''} onClick={() => {setActiveTab('users'); setSearchTerm('');}}>Staff</button>
+            <button className={activeTab === 'roles' ? 'active' : ''} onClick={() => {setActiveTab('roles'); setSearchTerm('');}}>Roles</button>
+          </div>
+
+          <div className="sidebar-action-header">
+            <h3>{activeTab === 'users' ? "Staff Members" : "Static Roles"}</h3>
+            {activeTab === 'users' && isAdmin && (
+              <button className="v2-add-btn" onClick={startNewUser} title="Provision Staff">
+                <FaUserPlus />
+              </button>
+            )}
+          </div>
+
+          <div className="sidebar-search-box">
+             <FaSearch className="search-icon" />
+             <input 
+               type="text" 
+               placeholder={`Search ${activeTab}...`}
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+          </div>
+
+          <div className="v2-branch-grid">
+            {activeTab === 'users' ? (
+              users
+                .filter(u => {
+                  const targetRank = getRank(u.roleEntity?.name);
+                  if (currentUserRank < 100 && targetRank >= currentUserRank) return false;
+                  
+                  const search = searchTerm.toLowerCase();
+                  return u.firstName.toLowerCase().includes(search) || 
+                         u.lastName.toLowerCase().includes(search) ||
+                         u.email.toLowerCase().includes(search) ||
+                         (u.roleEntity?.name || '').toLowerCase().includes(search);
+                })
+                .map(u => (
+                  <div 
+                    key={u.id} 
+                    className={`v2-branch-card ${selectedUser?.id === u.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedUser({ ...u, password: '' })}
+                  >
+                    <div className="card-status-pip" data-status={u.isactive}></div>
+                    <div className="card-info">
+                      <span className="card-title">{u.firstName} {u.lastName}</span>
+                      <span className="card-code">{u.email}</span>
+                      <div className="card-tag-row">
+                        <span className="branch-tag">{u.roleEntity?.name || 'STAFF'}</span>
+                      </div>
+                    </div>
+                    <FaChevronRight className="card-chevron" />
+                  </div>
+                ))
+            ) : (
+              roles
+                .filter(r => {
+                  if (currentUserRank < 100 && getRank(r.name) >= currentUserRank) return false;
+                  return r.name.toLowerCase().includes(searchTerm.toLowerCase());
+                })
+                .map(r => (
+                  <div 
+                    key={r.id} 
+                    className={`v2-branch-card ${selectedRole?.id === r.id ? 'selected' : ''}`}
+                    onClick={() => setSelectedRole(r)}
+                  >
+                    <div className="card-status-pip" data-status={r.isactive}></div>
+                    <div className="card-info">
+                      <span className="card-title">{r.name}</span>
+                      <span className="card-code">{r.menus?.length || 0} Menus Assigned</span>
+                    </div>
+                    <FaChevronRight className="card-chevron" />
+                  </div>
+                ))
+            )}
+          </div>
+        </aside>
+
+        {/* Dynamic Workspace */}
+        <main className="v2-workspace">
+          {activeTab === 'users' ? (
+            selectedUser ? (
+              <div className="v2-form-container">
+                <div className="v2-hero-card">
+                  <div className="hero-identity">
+                    <div className="hero-icon-box"><FaUserCircle /></div>
+                    <div className="hero-text">
+                      <h2>{selectedUser.id ? `${selectedUser.firstName} ${selectedUser.lastName}` : "Provision Staff Account"}</h2>
+                      <p>{selectedUser.id ? `Staff ID: ${selectedUser.id.slice(0, 8)}` : "Configure authentication and access details"}</p>
+                    </div>
+                  </div>
+                  <div className="hero-actions">
+                     <div className={`v2-status-pill ${selectedUser.isactive === 'Y' ? 'active' : 'inactive'}`} 
+                          onClick={() => {
+                            if (!isAdmin) return;
+                            setSelectedUser({...selectedUser, isactive: selectedUser.isactive === 'Y' ? 'N' : 'Y'})
+                          }}>
+                       <FaPowerOff /> {selectedUser.isactive === 'Y' ? "Active" : "Inactive"}
+                     </div>
+                     {isAdmin && (
+                       <button onClick={handleSave} disabled={saving} className="v2-prime-save">
+                         {saving ? "SAVING..." : <><FaSave /> Save Staff</>}
+                       </button>
+                     )}
+                  </div>
+                </div>
+
+                <div className="v2-detail-grid">
+                  <section className="v2-data-block">
+                    <div className="block-header">
+                      <FaShieldAlt className="block-icon" />
+                      <h4>Identity & Authentication</h4>
+                    </div>
+                    <div className="block-content">
+                      <div className="v2-input-group">
+                        <label>First Name <span className="req">*</span></label>
+                        <input type="text" readOnly={!isAdmin} value={selectedUser.firstName} onChange={(e) => setSelectedUser({...selectedUser, firstName: e.target.value})} placeholder="John" required />
+                      </div>
+                      <div className="v2-input-group">
+                        <label>Last Name <span className="req">*</span></label>
+                        <input type="text" readOnly={!isAdmin} value={selectedUser.lastName} onChange={(e) => setSelectedUser({...selectedUser, lastName: e.target.value})} placeholder="Doe" required />
+                      </div>
+                      <div className="v2-input-group">
+                        <label>Official Email (Login) <span className="req">*</span></label>
+                        <input type="email" readOnly={!isAdmin} value={selectedUser.email} onChange={(e) => setSelectedUser({...selectedUser, email: e.target.value})} placeholder="john@example.com" required />
+                      </div>
+                      <div className="v2-input-group">
+                        <label>{!selectedUser.id ? <><span className="req">*</span> Initial Password</> : 'Set New Password (Optional)'}</label>
+                        <input type="password" readOnly={!isAdmin} value={selectedUser.password || ''} onChange={(e) => setSelectedUser({...selectedUser, password: e.target.value})} placeholder="••••••••" required={!selectedUser.id} />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="v2-data-block">
+                    <div className="block-header">
+                      <FaUserTag className="block-icon" />
+                      <h4>Access & Assignment</h4>
+                    </div>
+                    <div className="block-content">
+                      <div className="v2-input-group">
+                        <label>Staff Role <span className="req">*</span></label>
+                        <NiceSelect 
+                          disabled={!isAdmin || (currentUserRank < 100 && getRank(selectedUser.roleEntity?.name) >= currentUserRank)}
+                          options={roles
+                            .filter(r => currentUserRank >= 100 || getRank(r.name) < currentUserRank)
+                            .map(r => ({ value: r.id, label: r.name }))}
+                          value={selectedUser.roleId || (selectedUser.roleEntity?.id)}
+                          onChange={(val) => setSelectedUser({...selectedUser, roleId: val})}
+                        />
+                      </div>
+                      <div className="v2-input-group">
                         <label>Primary Branch <span className="req">*</span></label>
                         <NiceSelect 
                           disabled={!isAdmin}
