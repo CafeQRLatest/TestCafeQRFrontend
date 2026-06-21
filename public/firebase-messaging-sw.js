@@ -85,6 +85,7 @@ function normalizePushPayload(raw) {
   const restaurantId = String(data.restaurantId || data.restaurant_id || data.rid || '');
   const itemsSummary = String(data.itemsSummary || payload.itemsSummary || '').trim();
   const type = String(data.type || 'new_order').toLowerCase();
+  const category = String(data.category || '').toUpperCase();
   const url = normalizeUrl(data.url || payload?.fcmOptions?.link || DEFAULT_URL);
 
   return {
@@ -95,6 +96,7 @@ function normalizePushPayload(raw) {
     restaurantId,
     itemsSummary,
     type,
+    category,
     data: {
       ...data,
       title,
@@ -104,6 +106,7 @@ function normalizePushPayload(raw) {
       restaurantId,
       itemsSummary,
       type,
+      category,
     },
   };
 }
@@ -182,7 +185,30 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(
     (async () => {
-      await postToClients({ type: 'new-order-push', payload: detail });
+      let appIsOpen = false;
+      try {
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (clientList.length > 0) {
+          appIsOpen = true;
+          for (const client of clientList) {
+            client.postMessage({ type: 'new-order-push', payload: detail });
+          }
+        }
+      } catch (e) {
+        console.warn('[fcm-sw] postToClients failed:', e?.message || e);
+      }
+
+      // Windows Workaround: Chrome/Edge on Windows ignores the `sound` property 
+      // for push notifications and always plays the default Windows chime.
+      // If the app is open, our frontend (PushNotificationBridge) will intercept
+      // the message and play the custom MP3. Therefore, we must silence the OS 
+      // notification to prevent the default Windows chime from overlapping.
+      // If the app is fully closed, we let Windows play its default chime.
+      if (appIsOpen) {
+        options.silent = true;
+        delete options.vibrate; // Browser throws error if silent is true but vibrate exists
+      }
+
       await safeShowNotification(detail.title, options);
     })()
   );

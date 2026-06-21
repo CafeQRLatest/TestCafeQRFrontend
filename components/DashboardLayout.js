@@ -718,13 +718,11 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
           borderBottom: '1px solid rgba(226,232,240,0.5)',
         }}>
           <Link href="/owner/main-menu" style={{ textDecoration: 'none' }}>
-            <div style={{
+            <img src="/logo.png" alt="Cafe QR Logo" style={{
               width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 900, fontSize: 18,
-              boxShadow: '0 4px 12px rgba(249,115,22,0.2)'
-            }}>C</div>
+              objectFit: 'cover',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }} />
           </Link>
           {/* Expand button — same ☰ button as collapse */}
           <button
@@ -743,13 +741,11 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
           borderBottom: '1px solid rgba(226,232,240,0.5)',
         }}>
           <Link href="/owner/main-menu" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, overflow: 'hidden' }}>
-            <div style={{
+            <img src="/logo.png" alt="Cafe QR Logo" style={{
               width: 34, height: 34, borderRadius: 10,
-              background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 900, fontSize: 17, flexShrink: 0,
-              boxShadow: '0 4px 12px rgba(249,115,22,0.2)'
-            }}>C</div>
+              objectFit: 'cover', flexShrink: 0,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }} />
             <span style={{
               fontSize: 15, fontWeight: 900, color: '#0f172a',
               letterSpacing: '-0.03em', whiteSpace: 'nowrap',
@@ -944,7 +940,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
        <div style={{ padding: '32px 24px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 20 }}>C</div>
+          <img src="/logo.png" alt="Cafe QR Logo" style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover' }} />
           <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>Cafe QR POS</span>
        </div>
 

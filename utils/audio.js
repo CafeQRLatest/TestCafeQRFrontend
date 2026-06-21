@@ -35,9 +35,7 @@ function isSoundAllowed(category) {
 /**
  * Plays the synthesized delivery alert tone (or static fallback).
  */
-export function playDeliveryTone() {
-  if (typeof window === 'undefined') return;
-
+function playDeliverySynthesis() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (AudioContext) {
@@ -65,21 +63,21 @@ export function playDeliveryTone() {
       playTone(587.33, 0.15, 'triangle', 0.15, 0.12);
       playTone(880, 0.15, 'triangle', 0.3, 0.12);
       playTone(587.33, 0.25, 'triangle', 0.45, 0.12);
-      return;
     }
-  } catch (err) {
-    console.warn('[audio] playDeliveryTone synthesis failed, falling back to static MP3:', err);
+  } catch (synthErr) {
+    console.warn('[audio] playDeliverySynthesis failed:', synthErr);
   }
+}
 
-  // Fallback to static MP3
-  try {
-    const audio = new Audio('/sounds/delivery.mp3');
-    audio.play().catch((err) => {
-      console.warn('[audio] Static delivery play blocked:', err);
-    });
-  } catch (err) {
-    console.warn('[audio] Static delivery play failed:', err);
-  }
+export function playDeliveryTone() {
+  if (typeof window === 'undefined') return;
+
+  // Try playing MP3 first
+  const audio = new Audio('/sounds/delivery.mp3');
+  audio.play().catch((err) => {
+    console.warn('[audio] Static delivery MP3 play failed, falling back to synthesis:', err);
+    playDeliverySynthesis();
+  });
 }
 
 /**
@@ -97,19 +95,36 @@ export function startDeliveryAlarm(orderId) {
 
   console.log(`[audio] Starting looping delivery alarm for order: ${orderId}`);
 
-  // Play immediately
-  playDeliveryTone();
+  const audio = new Audio('/sounds/delivery.mp3');
+  audio.loop = true;
+  
+  const alarmState = { type: 'mixed', audio: audio, intervalId: null };
+  activeAlarms[orderId] = alarmState;
 
-  // Set interval to ring every 3.5 seconds
-  const intervalId = setInterval(() => {
-    if (!isSoundAllowed('DELIVERY')) {
-      stopDeliveryAlarm(orderId);
-      return;
-    }
-    playDeliveryTone();
-  }, 3500);
+  audio.play().catch((err) => {
+    console.warn('[audio] Initial MP3 delivery loop failed, using synthesis interval:', err);
+    
+    playDeliverySynthesis();
+    
+    alarmState.intervalId = setInterval(() => {
+      if (!isSoundAllowed('DELIVERY')) {
+        stopDeliveryAlarm(orderId);
+        return;
+      }
+      
+      // If the MP3 magically started playing (due to late user interaction), clear interval
+      if (!audio.paused) {
+        clearInterval(alarmState.intervalId);
+        alarmState.intervalId = null;
+        return;
+      }
 
-  activeAlarms[orderId] = intervalId;
+      // Try playing MP3 again
+      audio.play().catch(() => {
+        playDeliverySynthesis();
+      });
+    }, 3500);
+  });
 }
 
 /**
@@ -120,9 +135,22 @@ export function startDeliveryAlarm(orderId) {
 export function stopDeliveryAlarm(orderId) {
   if (typeof window === 'undefined' || !orderId) return;
 
-  if (activeAlarms[orderId]) {
+  const alarmState = activeAlarms[orderId];
+  if (alarmState) {
     console.log(`[audio] Stopping delivery alarm for order: ${orderId}`);
-    clearInterval(activeAlarms[orderId]);
+    
+    if (typeof alarmState === 'number' || typeof alarmState === 'string') {
+      clearInterval(alarmState);
+    } else {
+      if (alarmState.audio) {
+        alarmState.audio.pause();
+        alarmState.audio.currentTime = 0;
+      }
+      if (alarmState.intervalId) {
+        clearInterval(alarmState.intervalId);
+      }
+    }
+    
     delete activeAlarms[orderId];
   }
 }
@@ -143,76 +171,68 @@ export function playSoundAlert(type, category) {
   const mappedCategory = (t === 'order_settled') ? 'SETTLED' : c;
   if (!isSoundAllowed(mappedCategory)) return;
 
-  // 1. Try Web Audio API Synthesis (Clean, zero-latency, offline-first)
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-      const ctx = new AudioContext();
-      
-      const playTone = (frequency, duration, oscType = 'sine', startTime = 0, volume = 0.12) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        
-        osc.type = oscType;
-        osc.frequency.setValueAtTime(frequency, ctx.currentTime + startTime);
-        
-        gain.gain.setValueAtTime(volume, ctx.currentTime + startTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + startTime + duration);
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.start(ctx.currentTime + startTime);
-        osc.stop(ctx.currentTime + startTime + duration);
-      };
-
-      if (t === 'order_settled') {
-        // Settle Order: Cash register chime (double high ding)
-        playTone(2637.02, 0.08, 'sine', 0, 0.1);    // E7
-        playTone(3520.00, 0.3, 'sine', 0.06, 0.08);  // A7
-        return;
-      }
-
-      switch (c) {
-        case 'DELIVERY':
-          // Delivery single alert (alarm loop is handled separately, but play tone if triggered here)
-          playDeliveryTone();
-          break;
-        case 'TAKEAWAY':
-        case 'PARCEL':
-          // Takeaway/Parcel Order: Quick upbeat ascending arpeggio
-          playTone(1318.51, 0.1, 'sine', 0, 0.08);   // E6
-          playTone(1567.98, 0.1, 'sine', 0.1, 0.08);  // G6
-          playTone(2093.00, 0.22, 'sine', 0.2, 0.08); // C7
-          break;
-        default:
-          // Kitchen / Dine-in / Default: Pleasant double chime
-          playTone(1046.50, 0.1, 'sine', 0, 0.1);    // C6
-          playTone(1567.98, 0.25, 'sine', 0.1, 0.08); // G6
-          break;
-      }
-      return;
-    }
-  } catch (err) {
-    console.warn('[audio] Web Audio synthesis failed, falling back to static MP3:', err);
+  let mp3Path = '/sounds/kitchen.mp3';
+  if (t === 'order_settled') {
+    mp3Path = '/sounds/settle.mp3';
+  } else if (c === 'DELIVERY') {
+    playDeliveryTone();
+    return;
+  } else if (c === 'TAKEAWAY' || c === 'PARCEL') {
+    mp3Path = '/sounds/takeaway.mp3';
   }
 
-  // 2. Fallback to static MP3 file play
-  try {
-    let mp3Path = '/sounds/kitchen.mp3';
-    if (t === 'order_settled') {
-      mp3Path = '/sounds/settle.mp3';
-    } else if (c === 'DELIVERY') {
-      mp3Path = '/sounds/delivery.mp3';
-    } else if (c === 'TAKEAWAY' || c === 'PARCEL') {
-      mp3Path = '/sounds/takeaway.mp3';
-    }
+  // 1. Try static MP3 file play first
+  const audio = new Audio(mp3Path);
+  audio.play().catch((err) => {
+    console.warn('[audio] Static MP3 play blocked/failed, falling back to synthesis:', err);
+    
+    // 2. Fallback to Web Audio API Synthesis
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        
+        const playTone = (frequency, duration, oscType = 'sine', startTime = 0, volume = 0.12) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.type = oscType;
+          osc.frequency.setValueAtTime(frequency, ctx.currentTime + startTime);
+          
+          gain.gain.setValueAtTime(volume, ctx.currentTime + startTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + startTime + duration);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start(ctx.currentTime + startTime);
+          osc.stop(ctx.currentTime + startTime + duration);
+        };
 
-    const audio = new Audio(mp3Path);
-    audio.play().catch((err) => {
-      console.warn('[audio] Static MP3 play blocked:', err);
-    });
-  } catch (err) {
-    console.warn('[audio] Static MP3 play failed:', err);
-  }
+        if (t === 'order_settled') {
+          // Settle Order: Cash register chime (double high ding)
+          playTone(2637.02, 0.08, 'sine', 0, 0.1);    // E7
+          playTone(3520.00, 0.3, 'sine', 0.06, 0.08);  // A7
+          return;
+        }
+
+        switch (c) {
+          case 'TAKEAWAY':
+          case 'PARCEL':
+            // Takeaway/Parcel Order: Quick upbeat ascending arpeggio
+            playTone(1318.51, 0.1, 'sine', 0, 0.08);   // E6
+            playTone(1567.98, 0.1, 'sine', 0.1, 0.08);  // G6
+            playTone(2093.00, 0.22, 'sine', 0.2, 0.08); // C7
+            break;
+          default:
+            // Kitchen / Dine-in / Default: Pleasant double chime
+            playTone(1046.50, 0.1, 'sine', 0, 0.1);    // C6
+            playTone(1567.98, 0.25, 'sine', 0.1, 0.08); // G6
+            break;
+        }
+      }
+    } catch (synthErr) {
+      console.warn('[audio] Web Audio synthesis also failed:', synthErr);
+    }
+  });
 }

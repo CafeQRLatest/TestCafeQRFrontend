@@ -542,7 +542,7 @@ namespace CafeQR.PrintService
 
         private static string EscposPageSetup(ThermalLayout layout)
         {
-            char fontMode = (layout.PaperMm <= 58 && layout.Cols >= 32) ? (char)1 : (char)0;
+            char fontMode = (char)0; // Always use Font A to match the old app's behavior
             return ESC + "@" + // reset
                    ESC + " " + (char)0 +   // right character spacing
                    ESC + "a" + (char)0 + // left align
@@ -940,9 +940,9 @@ namespace CafeQR.PrintService
             bool showDiscCol = false;
             int gaps = showDiscCol ? 4 : 3;
             int qty = innerW >= 44 ? 6 : (innerW >= 38 ? 6 : 4);
-            int rate = innerW >= 44 ? 7 : (innerW >= 38 ? 7 : 6);
+            int rate = innerW >= 44 ? 7 : (innerW >= 38 ? 7 : 5);
             int disc = 0;
-            int total = innerW >= 44 ? 8 : (innerW >= 38 ? 7 : 6);
+            int total = innerW >= 44 ? 8 : (innerW >= 38 ? 7 : 7);
             int fixedCols = qty + rate + total + disc + gaps;
             int name = innerW - fixedCols;
             if (name < 8)
@@ -950,7 +950,7 @@ namespace CafeQR.PrintService
                 qty = 3;
                 rate = 5;
                 disc = 0;
-                total = 6;
+                total = 7;
                 int fixedCols2 = qty + rate + total + disc + gaps;
                 name = Math.Max(6, innerW - fixedCols2);
             }
