@@ -17,7 +17,6 @@ function OrganizationContent() {
     { name: 'Warehouse Management', url: '/admin/warehouses',             desc: 'Manage storage locations & distribution',       icon: <FaWarehouse />,     color: '#06b6d4', bg: '#f0f9ff' },
     { name: 'Currency Masters',     url: '/owner/currencies',             desc: 'Multi-currency setup & exchange rates',         icon: <FaMoneyBillWave />, color: '#14b8a6', bg: '#f0fdfa' },
     { name: 'Price List Masters',   url: '/owner/pricelists',             desc: 'Sales & purchase pricing with versioning',      icon: <FaTags />,          color: '#f97316', bg: '#fff7ed' },
-    { name: 'Accounting Foundation',url: '/owner/accounting',             desc: 'Chart of accounts, journals & ledgers',         icon: <FaBalanceScale />,  color: '#0f766e', bg: '#f0fdfa' },
   ];
 
   return (
