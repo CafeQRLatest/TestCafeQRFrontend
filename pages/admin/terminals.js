@@ -16,7 +16,7 @@ import {
  */
 export default function TerminalsPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Organization">
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'STAFF']} requiredMenu="Organization">
       <TerminalsContent />
     </RoleGate>
   );

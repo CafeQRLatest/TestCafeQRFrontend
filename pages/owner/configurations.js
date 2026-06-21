@@ -287,7 +287,7 @@ function syncPrintSettingsToLocalStorage(config) {
 
 export default function ConfigurationsPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'STAFF']}>
       <ConfigurationsContent />
     </RoleGate>
   );
