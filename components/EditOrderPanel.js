@@ -6,6 +6,7 @@ import { calculateOrderTotals } from '../utils/orderCalculations';
 import VariantSelector from './VariantSelector';
 import { useNotification } from '../context/NotificationContext';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
+import { useAuth } from '../context/AuthContext';
 
 const Overlay = styled.div`
   position: fixed;
@@ -680,6 +681,7 @@ function normalizeLine(line, index) {
     discount_percent: initialType === 'percent' ? initialVal : 0,
     discount_amount: initialType === 'amount' ? initialVal : 0,
     discount: { type: initialType, value: initialVal },
+    originalQuantity: toNumber(line.quantity || line.qty || 1) || 1,
   };
 }
 
@@ -699,11 +701,13 @@ function productToLine(product) {
     discount_percent: 0,
     discount_amount: 0,
     discount: { type: 'amount', value: 0 },
+    originalQuantity: 0,
   };
 }
 
 export default function EditOrderPanel({ order, onClose, onSave, saving = false }) {
   const { notify } = useNotification();
+  const { canDeleteOrderItem, canDecrementOrderItem } = useAuth();
   const [fullOrder, setFullOrder] = useState(order);
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
@@ -1004,6 +1008,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         discount_percent: 0,
         discount_amount: 0,
         discount: { type: 'amount', value: 0 },
+        originalQuantity: 0,
       });
     }
 
@@ -1023,6 +1028,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           discount_percent: 0,
           discount_amount: 0,
           discount: { type: 'amount', value: 0 },
+          originalQuantity: 0,
         });
       });
     }
@@ -1057,6 +1063,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           discount_percent: 0,
           discount_amount: 0,
           discount: { type: 'amount', value: 0 },
+          originalQuantity: 0,
         });
       });
 
@@ -1079,6 +1086,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           discount_percent: 0,
           discount_amount: 0,
           discount: { type: 'amount', value: 0 },
+          originalQuantity: 0,
         });
       });
     }
@@ -1099,11 +1107,32 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
   const updateQty = (cartKey, delta) => {
     setLines((current) => current
-      .map((line) => line.cartKey === cartKey ? { ...line, quantity: Math.max(0, line.quantity + delta) } : line)
-      .filter((line) => line.quantity > 0));
+      .map((line) => {
+        if (line.cartKey === cartKey) {
+          const nextQty = Math.max(0, line.quantity + delta);
+          if (delta < 0 && !canDecrementOrderItem && nextQty < line.originalQuantity) {
+            notify('error', 'You do not have permission to decrease the quantity of an existing item');
+            return line;
+          }
+          return { ...line, quantity: nextQty };
+        }
+        return line;
+      })
+      .filter((line) => {
+        if (line.quantity <= 0 && line.originalQuantity > 0 && !canDeleteOrderItem) {
+          notify('error', 'You do not have permission to delete an existing item');
+          return true; // Keep it
+        }
+        return line.quantity > 0;
+      }));
   };
 
   const removeLine = (cartKey) => {
+    const lineToRemove = lines.find((line) => line.cartKey === cartKey);
+    if (lineToRemove && lineToRemove.originalQuantity > 0 && !canDeleteOrderItem) {
+      notify('error', 'You do not have permission to delete an existing item');
+      return;
+    }
     setLines((current) => current.filter((line) => line.cartKey !== cartKey));
   };
 
@@ -1262,11 +1291,21 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                         const val = parseInt(e.target.value, 10);
                         if (!isNaN(val)) {
                           setLines((current) =>
-                            current.map((lineItem) =>
-                              lineItem.cartKey === line.cartKey
-                                ? { ...lineItem, quantity: Math.max(0, val) }
-                                : lineItem
-                            )
+                            current.map((lineItem) => {
+                              if (lineItem.cartKey === line.cartKey) {
+                                const nextQty = Math.max(0, val);
+                                if (!canDecrementOrderItem && nextQty < lineItem.originalQuantity) {
+                                  notify('error', 'You do not have permission to decrease the quantity of an existing item');
+                                  return lineItem;
+                                }
+                                if (nextQty <= 0 && lineItem.originalQuantity > 0 && !canDeleteOrderItem) {
+                                  notify('error', 'You do not have permission to delete an existing item');
+                                  return lineItem;
+                                }
+                                return { ...lineItem, quantity: nextQty };
+                              }
+                              return lineItem;
+                            })
                           );
                         } else {
                           setLines((current) =>

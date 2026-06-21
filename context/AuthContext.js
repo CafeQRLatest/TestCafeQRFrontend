@@ -25,6 +25,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [assignedMenus, setAssignedMenus] = useState([]);
   const [menusLoading, setMenusLoading] = useState(true);
+  const [canCancelOrder, setCanCancelOrder] = useState(true);
+  const [canDeleteOrderItem, setCanDeleteOrderItem] = useState(true);
+  const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -45,6 +48,9 @@ export const AuthProvider = ({ children }) => {
     const storedCurrency = Cookies.get('currency');
     const storedCountry = Cookies.get('country');
     const storedTimezone = Cookies.get('timezone');
+    const storedCanCancelOrder = Cookies.get('canCancelOrder');
+    const storedCanDeleteOrderItem = Cookies.get('canDeleteOrderItem');
+    const storedCanDecrementOrderItem = Cookies.get('canDecrementOrderItem');
     
     if (storedEmail) setEmail(storedEmail);
     if (storedFirstName) setFirstName(storedFirstName);
@@ -61,6 +67,9 @@ export const AuthProvider = ({ children }) => {
     if (storedCurrency) setCurrency(storedCurrency);
     if (storedCountry) setCountry(storedCountry);
     if (storedTimezone) setTimezone(storedTimezone);
+    if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');
+    if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
+    if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
     
     if (storedExpiry) {
       try {
@@ -136,6 +145,15 @@ export const AuthProvider = ({ children }) => {
     setCountry(data.country || null);
     setTimezone(tz);
     
+    // Explicit boolean casting for permissions (default true if undefined)
+    const pCanCancelOrder = data.canCancelOrder !== undefined ? data.canCancelOrder : true;
+    const pCanDeleteOrderItem = data.canDeleteOrderItem !== undefined ? data.canDeleteOrderItem : true;
+    const pCanDecrementOrderItem = data.canDecrementOrderItem !== undefined ? data.canDecrementOrderItem : true;
+
+    setCanCancelOrder(pCanCancelOrder);
+    setCanDeleteOrderItem(pCanDeleteOrderItem);
+    setCanDecrementOrderItem(pCanDecrementOrderItem);
+    
     // Metadata cookies (Non-HttpOnly) for frontend logic
     const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
     
@@ -162,6 +180,10 @@ export const AuthProvider = ({ children }) => {
     if (data.currency) Cookies.set('currency', data.currency, cookieOptions);
     if (data.country) Cookies.set('country', data.country, cookieOptions);
     Cookies.set('timezone', tz, cookieOptions);
+    
+    Cookies.set('canCancelOrder', String(pCanCancelOrder), cookieOptions);
+    Cookies.set('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
+    Cookies.set('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
 
     // Fetch assigned menus immediately after login
     fetchAssignedMenus();
@@ -246,6 +268,9 @@ export const AuthProvider = ({ children }) => {
     Cookies.remove('currency', removeOptions);
     Cookies.remove('country', removeOptions);
     Cookies.remove('timezone', removeOptions);
+    Cookies.remove('canCancelOrder', removeOptions);
+    Cookies.remove('canDeleteOrderItem', removeOptions);
+    Cookies.remove('canDecrementOrderItem', removeOptions);
     
     try {
       await api.post('/api/v1/auth/logout');
@@ -339,6 +364,9 @@ export const AuthProvider = ({ children }) => {
       assignedMenus,
       menusLoading,
       fetchAssignedMenus,
+      canCancelOrder,
+      canDeleteOrderItem,
+      canDecrementOrderItem,
       loading 
     }}>
       {!loading && children}

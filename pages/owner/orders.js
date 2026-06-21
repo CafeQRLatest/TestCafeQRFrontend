@@ -1454,7 +1454,7 @@ const OrderDetailsModal = styled(ModalContent)`
 export default function OrdersPage() {
   const { notify } = useNotification();
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder } = useAuth();
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
 
@@ -2282,13 +2282,15 @@ export default function OrdersPage() {
                                     <HistActionBtn type="button" onClick={() => setEditingOrder(order)}>
                                       <FaEdit style={{ fontSize: 10 }} /> Edit
                                     </HistActionBtn>
-                                    <HistActionBtn type="button" onClick={(e) => {
-                                      e.stopPropagation();
-                                      setCancelReason('');
-                                      setCancelOrder(order);
-                                    }} style={{ color: '#ef4444' }}>
-                                      <FaTimesCircle style={{ fontSize: 10, color: '#ef4444' }} /> Cancel
-                                    </HistActionBtn>
+                                    {canCancelOrder && (
+                                      <HistActionBtn type="button" onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCancelReason('');
+                                        setCancelOrder(order);
+                                      }} style={{ color: '#ef4444' }}>
+                                        <FaTimesCircle style={{ fontSize: 10, color: '#ef4444' }} /> Cancel
+                                      </HistActionBtn>
+                                    )}
                                   </>
                                 )}
                               </HistActionGroup>
