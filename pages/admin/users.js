@@ -42,7 +42,20 @@ function UsersContent() {
   const [config, setConfig] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN';
+  // Frontend RBAC Hierarchy
+  const ROLE_RANKS = {
+    'SUPER_ADMIN': 100,
+    'ROLE_SUPER_ADMIN': 100,
+    'ADMIN': 80,
+    'ROLE_ADMIN': 80,
+    'MANAGER': 50,
+    'ROLE_MANAGER': 50,
+    'STAFF': 10,
+    'ROLE_STAFF': 10
+  };
+  const getRank = (roleName) => ROLE_RANKS[roleName?.toUpperCase()] || 0;
+  const currentUserRank = getRank(userRole);
+  const isAdmin = userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || userRole === 'ROLE_ADMIN';
 
   useEffect(() => {
     fetchData();
@@ -143,6 +156,23 @@ function UsersContent() {
 
     const isNew = !selectedUser.id;
 
+    // RBAC Security Validation: Prevent Privilege Escalation
+    const targetRoleObj = roles.find(r => r.id === (selectedUser.roleId || selectedUser.roleEntity?.id));
+    if (targetRoleObj && currentUserRank < 100 && getRank(targetRoleObj.name) >= currentUserRank) {
+       setMsgType('error');
+       setMessage("Privilege Escalation Blocked: You cannot assign a role equal to or higher than your own.");
+       return;
+    }
+    
+    if (!isNew && currentUserRank < 100) {
+       const originalRank = getRank(selectedUser.roleEntity?.name);
+       if (originalRank >= currentUserRank) {
+          setMsgType('error');
+          setMessage("Privilege Escalation Blocked: You cannot edit a user whose rank is equal to or higher than your own.");
+          return;
+       }
+    }
+
     if (isNew && !selectedUser.password?.trim()) {
       setMsgType('error');
       setMessage("Password is required for new staff accounts.");
@@ -231,6 +261,14 @@ function UsersContent() {
   const handleSaveRole = async (e) => {
     if (e) e.preventDefault();
     if (!isAdmin) return;
+
+    // RBAC Validation
+    if (currentUserRank < 100 && getRank(selectedRole.name) >= currentUserRank) {
+       setMsgType('error');
+       setMessage("Privilege Escalation Blocked: You cannot modify a role equal to or higher than your own.");
+       return;
+    }
+
     setSaving(true);
     setMessage(null);
     try {
@@ -307,6 +345,9 @@ function UsersContent() {
             {activeTab === 'users' ? (
               users
                 .filter(u => {
+                  const targetRank = getRank(u.roleEntity?.name);
+                  if (currentUserRank < 100 && targetRank >= currentUserRank) return false;
+                  
                   const search = searchTerm.toLowerCase();
                   return u.firstName.toLowerCase().includes(search) || 
                          u.lastName.toLowerCase().includes(search) ||
@@ -332,7 +373,10 @@ function UsersContent() {
                 ))
             ) : (
               roles
-                .filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                .filter(r => {
+                  if (currentUserRank < 100 && getRank(r.name) >= currentUserRank) return false;
+                  return r.name.toLowerCase().includes(searchTerm.toLowerCase());
+                })
                 .map(r => (
                   <div 
                     key={r.id} 
@@ -415,8 +459,10 @@ function UsersContent() {
                       <div className="v2-input-group">
                         <label>Staff Role <span className="req">*</span></label>
                         <NiceSelect 
-                          disabled={!isAdmin}
-                          options={roles.map(r => ({ value: r.id, label: r.name }))}
+                          disabled={!isAdmin || (currentUserRank < 100 && getRank(selectedUser.roleEntity?.name) >= currentUserRank)}
+                          options={roles
+                            .filter(r => currentUserRank >= 100 || getRank(r.name) < currentUserRank)
+                            .map(r => ({ value: r.id, label: r.name }))}
                           value={selectedUser.roleId || (selectedUser.roleEntity?.id)}
                           onChange={(val) => setSelectedUser({...selectedUser, roleId: val})}
                         />
