@@ -16,7 +16,7 @@ import VariantSelector from '../../components/VariantSelector';
 
 export default function StockAdjustmentsPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Stock">
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Stock">
       <ModuleGate>
         <BranchRequiredGate>
           <AdjustmentContent />

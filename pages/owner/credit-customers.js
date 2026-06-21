@@ -1386,7 +1386,7 @@ function CreditCustomersContent() {
 
 export default function CreditCustomersPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Credit Customers">
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Credit Customers">
       <ModuleGate>
         <CreditCustomersContent />
       </ModuleGate>

@@ -152,7 +152,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function ClientProfilePage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Organization">
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'STAFF']} requiredMenu="Organization">
       <ClientProfileContent />
     </RoleGate>
   );

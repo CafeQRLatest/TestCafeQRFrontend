@@ -15,7 +15,7 @@ import {
  */
 export default function DevicesPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']} requiredMenu="Organization">
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Organization">
       <DevicesContent />
     </RoleGate>
   );

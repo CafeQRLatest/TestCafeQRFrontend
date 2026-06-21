@@ -21,7 +21,7 @@ import styles from '../../components/purchasing/Purchasing.module.css';
 
 export default function PurchaseOrdersPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Purchase Orders">
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Purchase Orders">
       <BranchRequiredGate>
         <ErrorBoundary>
           <PurchaseContent />

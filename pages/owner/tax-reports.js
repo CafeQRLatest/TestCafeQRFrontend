@@ -50,7 +50,7 @@ const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 export default function TaxReportsPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Reports & Billing">
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Reports & Billing">
       <TaxReportsContent />
     </RoleGate>
   );

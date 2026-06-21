@@ -9,7 +9,7 @@ import api from '../../utils/api';
 import { FaPlus, FaSearch, FaChevronRight, FaTags, FaCalendarAlt, FaTimes, FaCheckCircle, FaTrash } from 'react-icons/fa';
 
 export default function PricelistsPage() {
-  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER']} requiredMenu="Product Management"><PricelistsContent /></RoleGate>);
+  return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Product Management"><PricelistsContent /></RoleGate>);
 }
 
 function PricelistsContent() {

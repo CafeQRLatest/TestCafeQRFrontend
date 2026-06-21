@@ -37,7 +37,7 @@ function saveList(key, list) {
 
 export default function TableManagementPage() {
   return (
-    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER']} requiredMenu="Table Management">
+    <RoleGate allowedRoles={['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Table Management">
       <ModuleGate>
         <TableContent />
       </ModuleGate>
