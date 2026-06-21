@@ -306,7 +306,10 @@ function UsersContent() {
       name: '',
       description: '',
       menus: [],
-      isactive: 'Y'
+      isactive: 'Y',
+      canCancelOrder: true,
+      canDeleteOrderItem: true,
+      canDecrementOrderItem: true
     });
   };
 
@@ -567,6 +570,47 @@ function UsersContent() {
                             </div>
                           </div>
                         ))}
+                      </div>
+                   </section>
+
+                   <section className="v2-data-block margin-top">
+                      <div className="block-header">
+                        <FaShieldAlt className="block-icon" />
+                        <h4>POS Operation Permissions</h4>
+                      </div>
+                      <div className="permissions-grid-premium">
+                        <div 
+                          className={`perm-chip ${selectedRole.canCancelOrder ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canCancelOrder: !selectedRole.canCancelOrder})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Cancel Orders</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow cancelling active orders</p>
+                          </div>
+                        </div>
+
+                        <div 
+                          className={`perm-chip ${selectedRole.canDeleteOrderItem ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canDeleteOrderItem: !selectedRole.canDeleteOrderItem})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Delete Items</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow removing items from an order</p>
+                          </div>
+                        </div>
+
+                        <div 
+                          className={`perm-chip ${selectedRole.canDecrementOrderItem ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canDecrementOrderItem: !selectedRole.canDecrementOrderItem})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Decrement Quantity</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow reducing item quantity</p>
+                          </div>
+                        </div>
                       </div>
                    </section>
                 </div>
