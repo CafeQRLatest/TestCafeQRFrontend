@@ -14,7 +14,7 @@ import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import {
   FaSave, FaCheckCircle, FaExclamationCircle,
   FaBolt, FaReceipt, FaCalculator, FaPrint,
-  FaSearch, FaCreditCard, FaCamera, FaBook, FaChair,
+  FaSearch, FaCreditCard, FaCamera, FaBook, FaChair, FaShoppingCart,
   FaQrcode, FaBoxes, FaIndustry, FaUsers,
   FaTags, FaUtensils, FaTruck, FaUserFriends,
   FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff, FaInfoCircle
@@ -43,6 +43,7 @@ const MODULES = [
   { key: 'pm_table_management', icon: <FaChair />,       title: 'Table Management',  desc: 'Manage floor plan & tables',                color: '#f59e0b' },
   { key: 'pm_qr_ordering',      icon: <FaQrcode />,      title: 'QR Ordering',       desc: 'QR codes for customer self-ordering',       color: '#8b5cf6' },
   { key: 'pm_inventory',        icon: <FaBoxes />,       title: 'Inventory',         desc: 'Stock tracking & management',               color: '#0ea5e9' },
+  { key: 'pm_purchase',         icon: <FaShoppingCart />,title: 'Purchase Orders',   desc: 'Vendor order & purchasing management',      color: '#ef4444' },
   { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
   { key: 'pm_loyalty',          icon: <FaTags />,        title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#ef4444' },
   { key: 'pm_discount',         icon: <FaTags />,        title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f59e0b' },
@@ -286,7 +287,7 @@ function syncPrintSettingsToLocalStorage(config) {
 
 export default function ConfigurationsPage() {
   return (
-    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']} requiredMenu="Configurations">
+    <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN']}>
       <ConfigurationsContent />
     </RoleGate>
   );
@@ -321,6 +322,7 @@ function ConfigurationsContent() {
   const [config, setConfig] = useState({
     pm_online_payment: false, pm_menu_images: false, pm_credit_ledger: false,
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
+    pm_purchase: true,
     pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_online_delivery: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
@@ -448,6 +450,7 @@ function ConfigurationsContent() {
             pm_online_payment: !!d.onlinePaymentEnabled, pm_menu_images: !!d.menuImagesEnabled,
             pm_credit_ledger: !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
             pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: !!d.inventoryEnabled,
+            pm_purchase: d.purchaseEnabled !== false,
             pm_customers: !!d.customersEnabled,
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: false,
@@ -571,6 +574,7 @@ function ConfigurationsContent() {
         creditEnabled: config.pm_credit_ledger, tableManagementEnabled: config.pm_table_management,
         creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: config.pm_inventory,
+        purchaseEnabled: config.pm_purchase,
         productionEnabled: false, customersEnabled: config.pm_customers,
         loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
         onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: false,
