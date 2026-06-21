@@ -1,6 +1,7 @@
 const FEATURE_DEFAULTS = {
   tableManagementEnabled: true,
   inventoryEnabled: true,
+  purchaseEnabled: true,
   creditEnabled: false,
   customersEnabled: false,
   discountEnabled: true,
@@ -10,6 +11,7 @@ const FEATURE_DEFAULTS = {
 const MENU_FEATURES = {
   'Table Management': 'tableManagementEnabled',
   Stock: 'inventoryEnabled',
+  'Purchase Orders': 'purchaseEnabled',
   'Credit Customers': 'creditEnabled',
   'Credit Sales': 'creditEnabled',
 };
@@ -18,6 +20,7 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/table-management(?:\/)?$/, flag: 'tableManagementEnabled', label: 'Table Management' },
   { pattern: /^\/owner\/credit-customers(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Ledger' },
   { pattern: /^\/owner\/stock(?:-|\/|$)/, flag: 'inventoryEnabled', label: 'Stock and Inventory' },
+  { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
 ];
 
 export function isFeatureEnabled(config, flag) {
