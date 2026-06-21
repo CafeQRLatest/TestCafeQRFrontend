@@ -7,7 +7,8 @@ import { isMenuVisibleForConfig } from '../../utils/moduleVisibility';
 import {
   FaChartLine, FaCreditCard, FaBoxes, FaBookOpen, FaBalanceScale,
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
-  FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle
+  FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle,
+  FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -45,30 +46,38 @@ function MainMenuContent() {
     'Sales':              { name: 'POS',                  desc: 'Point of sale terminal',        icon: <FaCashRegister />, color: '#10b981', bg: '#f0fdf4', cat: 'Operations'  },
     'Table Management':   { name: 'Table Management',     desc: 'Dine-in floor plan',            icon: <FaTable />,        color: '#f97316', bg: '#fff7ed', cat: 'Operations'  },
     'Billing & Reports':  { name: 'Reports & Billing',    desc: 'Invoices & tax reports',        icon: <FaFileInvoice />,  color: '#8b5cf6', bg: '#faf5ff', cat: 'Insights',   url: '/owner/reports' },
-    'Reports & Billing':  { name: 'Reports & Billing',    desc: 'Invoices & tax reports',        icon: <FaFileInvoice />,  color: '#8b5cf6', bg: '#faf5ff', cat: 'Insights',   url: '/owner/reports' },
+    'Reports & Billing':  { name: 'Reports & Billing',    desc: 'Tax & invoices',                icon: <FaCalculator />,   color: '#3b82f6', bg: '#eff6ff', cat: 'Insights',   url: '/owner/reports' },
+    'Billing & Reports':  { name: 'Reports & Billing',    desc: 'Tax & invoices',                icon: <FaCalculator />,   color: '#3b82f6', bg: '#eff6ff', cat: 'Insights',   url: '/owner/reports' },
     'Stock':              { name: 'Stock & Inventory',    desc: 'Manage inventory & stock',      icon: <FaBoxes />,        color: '#ea580c', bg: '#fff7ed', cat: 'Operations'  },
-    'Accounting':         { name: 'Accounting',           desc: 'Ledger & journal entries',      icon: <FaBalanceScale />, color: '#0f766e', bg: '#f0fdfa', cat: 'Insights'    },
+    'Accounting':         { name: 'Accounting',           desc: 'Journal & ledgers',             icon: <FaBalanceScale />, color: '#10b981', bg: '#f0fdf4', cat: 'Insights'    },
     'Credit Customers':   { name: 'Credit Customers',     desc: 'Customer credit ledger',        icon: <FaUsers />,        color: '#14b8a6', bg: '#f0fdfa', cat: 'Insights'    },
-    'Document Sequences': { name: 'Document Sequences',   desc: 'Invoice numbering',             icon: <FaFileInvoice />,  color: '#6366f1', bg: '#eef2ff', cat: 'Settings'    },
-    'Purchase Orders':    { name: 'Purchase Orders',      desc: 'Vendor order management',       icon: <FaShoppingCart />, color: '#ef4444', bg: '#fef2f2', cat: 'Operations'  },
-    'Partners':           { name: 'Partners',             desc: 'Customers & vendors',           icon: <FaUserFriends />,  color: '#06b6d4', bg: '#f0f9ff', cat: 'Operations'  },
-    'Data Backup':        { name: 'Data Backup',          desc: 'Backup & restore data',         icon: <FaDatabase />,     color: '#64748b', bg: '#f8fafc', cat: 'Settings'    },
+    'Document Sequences': { name: 'Document Sequences',   desc: 'Invoice numbering',             icon: <FaFileInvoice />,  color: '#3b82f6', bg: '#eff6ff', cat: 'Account'    },
+    'Purchase Orders':    { name: 'Purchase Orders',      desc: 'Vendor PO management',          icon: <FaShoppingCart />, color: '#8b5cf6', bg: '#f5f3ff', cat: 'Operations' },
+    'Partners':           { name: 'Partners',             desc: 'B2B Integrations',              icon: <FaUserFriends />,  color: '#f59e0b', bg: '#fffbeb', cat: 'Account'    },
+    'Data Backup':        { name: 'Data Backup',          desc: 'Export & archive',              icon: <FaDatabase />,     color: '#10b981', bg: '#f0fdf4', cat: 'Account'    },
     'Waste Management':   { name: 'Waste Management',     desc: 'Track & reduce food waste',     icon: <FaRecycle />,      color: '#84cc16', bg: '#f7fee7', cat: 'Operations'  },
-    'Expenses':           { name: 'Expenses',             desc: 'Expense tracking & profit',     icon: <FaFileInvoice />,  color: '#f43f5e', bg: '#fff1f2', cat: 'Insights'    },
-    'Configurations':     { name: 'Configurations',       desc: 'System configuration',          icon: <FaBuilding />,     color: '#64748b', bg: '#f8fafc', cat: 'Settings'    },
+    'Expenses':           { name: 'Expenses & Bills',     desc: 'Track outgoing cash',           icon: <FaReceipt />,      color: '#f43f5e', bg: '#fff1f2', cat: 'Insights'    },
+    'Configurations':     { name: 'Settings',             desc: 'Global settings',               icon: <FaCog />,          color: '#64748b', bg: '#f8fafc', cat: 'Account'    },
+    'Point of Sale':      { name: 'POS',                  desc: 'Point of sale terminal',        icon: <FaCashRegister />, color: '#10b981', bg: '#f0fdf4', cat: 'Operations', url: '/owner/sales' },
+    'Customers':          { name: 'Customers',            desc: 'Client CRM & profiles',         icon: <FaIdBadge />,      color: '#3b82f6', bg: '#eff6ff', cat: 'Customers' },
+    'Loyalty':            { name: 'Loyalty',              desc: 'Reward points & tiers',         icon: <FaCrown />,        color: '#f59e0b', bg: '#fffbeb', cat: 'Customers' },
+    'Analytics':          { name: 'Analytics',            desc: 'Business intelligence',         icon: <FaChartBar />,     color: '#8b5cf6', bg: '#f5f3ff', cat: 'Insights' },
+    'Sales_Insight':      { name: 'Sales',                desc: 'Sales performance',             icon: <FaChartLine />,    color: '#06b6d4', bg: '#ecfeff', cat: 'Insights' },
   };
 
-  const categoryOrder = ['Operations', 'Insights', 'Settings'];
+  const categoryOrder = ['Operations', 'Insights', 'Customers', 'Account'];
 
-  const parentMenus = assignedMenus.filter(m => {
-    if (m.parentId || m.parent_id || m.name === 'Point of Sale' || m.name === 'Offline Sync Center') return false;
+  const hasPointOfSale = assignedMenus.some(menu => menu.name === 'Point of Sale');
+  const allowedMenus = assignedMenus.filter(m => {
+    if (m.parentId || m.parent_id || m.name === 'Offline Sync Center') return false;
+    if (m.name === 'Sales' && hasPointOfSale) return false;
     return isMenuVisibleForConfig(m, config);
   });
 
   // Deduplicate by resolved name to avoid showing same item twice
   const seenNames = new Set();
   const filteredItems = [];
-  parentMenus.forEach(m => {
+  allowedMenus.forEach(m => {
     const cfg = iconMap[m.name] || {};
     const resolvedName = cfg.name || m.name;
     if (seenNames.has(resolvedName)) return;

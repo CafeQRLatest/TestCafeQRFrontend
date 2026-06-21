@@ -598,6 +598,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Offline Sync Center":{ name: "Offline Sync Center", icon: <FaClock /> },
     "Waste Management":   { name: "Waste Management", icon: <FaRecycle /> },
     
+    "Point of Sale":      { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
     "Customers":          { name: "Customers", icon: <FaIdBadge /> },
     "Loyalty":            { name: "Loyalty", icon: <FaCrown /> },
     
@@ -632,6 +633,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Offline Sync Center": "ADD ON",
     "Waste Management": "ADD ON",
     
+    "Point of Sale": "OPERATIONS",
     "Customers": "CUSTOMERS",
     "Loyalty": "CUSTOMERS",
     
@@ -650,17 +652,18 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
   };
 
   const menuOrder = [
-    "Dashboard", "Product Management", "Orders", "Sales", "Table Management",
+    "Dashboard", "Product Management", "Orders", "Point of Sale", "Sales", "Table Management",
     "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
     "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup"
   ];
 
+  const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
   const parentMenus = menus.filter(m => {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
-    if (m.name === "Point of Sale") return false;
+    if (m.name === "Sales" && hasPointOfSale) return false;
     return isMenuVisibleForConfig(m, config);
   });
 
@@ -828,6 +831,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Offline Sync Center":{ name: "Offline Sync Center", icon: <FaClock /> },
     "Waste Management":   { name: "Waste Management", icon: <FaRecycle /> },
     
+    "Point of Sale":      { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
     "Customers":          { name: "Customers", icon: <FaIdBadge /> },
     "Loyalty":            { name: "Loyalty", icon: <FaCrown /> },
     
@@ -862,6 +866,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Offline Sync Center": "ADD ON",
     "Waste Management": "ADD ON",
     
+    "Point of Sale": "OPERATIONS",
     "Customers": "CUSTOMERS",
     "Loyalty": "CUSTOMERS",
     
@@ -880,17 +885,18 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   };
 
   const menuOrder = [
-    "Dashboard", "Product Management", "Orders", "Sales", "Table Management",
+    "Dashboard", "Product Management", "Orders", "Point of Sale", "Sales", "Table Management",
     "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
     "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup"
   ];
 
+  const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
   const parentMenus = menus.filter(m => {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
-    if (m.name === "Point of Sale") return false;
+    if (m.name === "Sales" && hasPointOfSale) return false;
     return isMenuVisibleForConfig(m, config);
   });
 
