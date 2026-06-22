@@ -21,6 +21,9 @@
 *.pem
 .idea/
 android/.idea/
+*.swp
+.*.swp
+
 
 # debug
 npm-debug.log*
