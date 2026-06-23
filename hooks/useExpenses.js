@@ -13,7 +13,7 @@ export function useExpenses() {
   // Convert ISO 4217 code to display symbol; getCurrencySymbol falls back to '₹' if null
   const currencySymbol = getCurrencySymbol(currency);
   const { notify, showConfirm } = useNotification();
-  
+
   // Stabilize notify callback reference to prevent infinite re-renders in useEffect
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -315,7 +315,7 @@ export function useExpenses() {
     branches,
     isSuperAdmin,
     totalAll,
-    
+
     // Form visibility
     showForm,
     setShowForm,
@@ -325,11 +325,11 @@ export function useExpenses() {
     openEdit,
     handleSubmit,
     handleDelete,
-    
+
     // pendingCatId: when addCategory succeeds, ExpenseForm picks this up to auto-select
     pendingCatId,
     clearPendingCatId,
-    
+
     // Category CRUD
     showCatMgr,
     setShowCatMgr,
@@ -339,7 +339,7 @@ export function useExpenses() {
     setCatActiveFilter,
     addCategory,
     toggleCatActive,
-    
+
     // Exposed so ExpenseForm can reload categories on scope change
     loadCategoriesForScope,
     loadData

@@ -14,6 +14,7 @@ import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isKnownOffline } from '../utils/networkState';
 import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../utils/offlineSequences';
 import { isAndroidPrintStationEnabled } from '../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { isCustomersModuleEnabled, isDiscountModuleEnabled, isKitchenModuleEnabled } from '../utils/moduleVisibility';
 import VariantSelector from './VariantSelector';
 import NiceSelect from './NiceSelect';
@@ -25,7 +26,7 @@ import PaymentDialog from './PaymentDialog';
 function localPrintWillHandleOrder(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
-  return isAndroidPrintStationEnabled();
+  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
 }
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI

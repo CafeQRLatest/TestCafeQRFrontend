@@ -24,6 +24,7 @@ import { isKnownOffline } from '../../utils/networkState';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
 import { enqueueCloudPrintJob, fetchCloudPrintJobs, isAndroidPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 
@@ -50,7 +51,7 @@ function resolveCreatedPrintKind(order, requestedKind) {
 function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
-  return isAndroidPrintStationEnabled();
+  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
 }
 
 function normalizeTableStatus(status) {

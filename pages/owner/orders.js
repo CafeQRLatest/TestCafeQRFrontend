@@ -20,6 +20,7 @@ import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
 import { isAndroidPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
@@ -41,7 +42,7 @@ const slideIn = keyframes`
 function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
-  return isAndroidPrintStationEnabled();
+  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
 }
 
 const TABLE_STATUS_CUBE = {
