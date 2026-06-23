@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import NiceSelect from './NiceSelect';
 import styled from 'styled-components';
 import {
   FaEdit,
@@ -198,16 +199,7 @@ const MoveBox = styled.div`
   gap: 10px;
 `;
 
-const Select = styled.select`
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 14px;
-  background: white;
-  color: #0f172a;
-  padding: 12px 14px;
-  font-size: 14px;
-  font-weight: 800;
-`;
+
 
 const BlockedNotice = styled.div`
   grid-column: 1 / -1;
@@ -301,24 +293,27 @@ export default function TablePopover({
                 <span>Total</span>
                 <strong>₹{Number(order.grandTotal ?? order.grand_total ?? 0).toFixed(2)}</strong>
               </InfoLine>
-              <InfoLine>
-                <span>Table transfer</span>
-                <LinkButton type="button" onClick={() => setShowMove(value => !value)}>
-                  <FaExchangeAlt /> Change Table
-                </LinkButton>
-              </InfoLine>
+              {!['BILLED', 'COMPLETED', 'CANCELLED', 'VOID', 'PAID'].includes(orderStatus) && (
+                <InfoLine>
+                  <span>Table transfer</span>
+                  <LinkButton type="button" onClick={() => setShowMove(value => !value)}>
+                    <FaExchangeAlt /> Change Table
+                  </LinkButton>
+                </InfoLine>
+              )}
             </InfoStack>
 
-            {showMove && (
+            {!['BILLED', 'COMPLETED', 'CANCELLED', 'VOID', 'PAID'].includes(orderStatus) && showMove && (
               <MoveBox>
-                <Select value={targetTableId} onChange={(event) => setTargetTableId(event.target.value)}>
-                  <option value="">Select available table</option>
-                  {availableTables.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      Table {candidate.tableNumber} ({candidate.seatingCapacity || 0} seats)
-                    </option>
-                  ))}
-                </Select>
+                <NiceSelect
+                  value={targetTableId}
+                  onChange={(val) => setTargetTableId(val)}
+                  placeholder="Select available table..."
+                  options={availableTables.map((candidate) => ({
+                    value: candidate.id,
+                    label: `Table ${candidate.tableNumber} (${candidate.seatingCapacity || 0} seats)${candidate.section ? ` · ${candidate.section}` : ''}`,
+                  }))}
+                />
                 <ActionButton
                   type="button"
                   $bg="#ecfdf5"
