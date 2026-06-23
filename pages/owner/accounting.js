@@ -950,7 +950,7 @@ function AccountingContent() {
   const profit = summaryValue('profit');
 
   return (
-    <DashboardLayout title="Money Book" showBack={true}>
+    <DashboardLayout title="Money Book" showBack={false}>
       <div className="accounting-page" onClick={() => setActiveTooltip(null)}>
         {/* Period control panel (exact alignment with Reports screen layout) */}
         <div className="period-toolbar top-period-toolbar">

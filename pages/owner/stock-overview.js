@@ -214,7 +214,7 @@ function StockContent() {
   if (loading && warehouses.length === 0) return <div className="loading-state-premium"><span>Scanning Inventory Grid...</span></div>;
 
   return (
-    <DashboardLayout title="Inventory Intelligence" showBack={true}>
+    <DashboardLayout title="Inventory Intelligence" showBack={false}>
       <div className="overview-container">
         
         {/* Top Intelligence Bar */}

@@ -528,7 +528,7 @@ function ProductManagementContent() {
     : uoms.filter(u => u.isActive !== false);
 
   return (
-    <DashboardLayout title="Product Management" showBack={true}>
+    <DashboardLayout title="Product Management" showBack={false}>
       <div className="erp-container">
         {/* Summary Row removed as per user request */}
         

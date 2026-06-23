@@ -168,7 +168,7 @@ function PartnersContent() {
   if (loading) return <div className="loading-state"><span>Loading Partners...</span></div>;
 
   return (
-    <DashboardLayout title="Partners" showBack={true}>
+    <DashboardLayout title="Partners" showBack={false}>
       <div className="erp-container">
         <div className="erp-main-card">
           <header className="erp-header">

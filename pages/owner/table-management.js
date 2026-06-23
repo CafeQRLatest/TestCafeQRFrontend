@@ -287,7 +287,7 @@ function TableContent() {
   const currentTitle = managePanel === 'floors' ? 'Floors' : managePanel === 'sections' ? 'Sections' : 'Shapes';
 
   return (
-    <DashboardLayout title="Table Management" showBack>
+    <DashboardLayout title="Table Management" showBack={false}>
       {loading ? (
         <div className="tl">
           <div className="tsp" />

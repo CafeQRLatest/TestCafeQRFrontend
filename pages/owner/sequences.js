@@ -128,7 +128,7 @@ function SequencesContent() {
   if (loading) return <div className="loading-state"><span>Loading Configurations...</span></div>;
 
   return (
-    <DashboardLayout title="Document Sequences" showBack={true}>
+    <DashboardLayout title="Document Sequences" showBack={false}>
       <div className="erp-container">
         <div className="erp-main-card">
           <header className="erp-header">

@@ -775,7 +775,7 @@ function ConfigurationsContent() {
 
   if (loading) {
     return (
-      <DashboardLayout title="System Configurations" showBack={true}>
+      <DashboardLayout title="System Configurations" showBack={false}>
          <div className="loading-state">
             <div className="loader-box">
                <div className="spinner"></div>
@@ -794,7 +794,7 @@ function ConfigurationsContent() {
   }
 
   return (
-    <DashboardLayout title="System Configurations" showBack={true}>
+    <DashboardLayout title="System Configurations" showBack={false}>
       <div className="config-container">
         
         {/* Segmented Control Tabs */}

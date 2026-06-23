@@ -132,7 +132,7 @@ function PurchaseContent() {
   // ── Loading Skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <DashboardLayout title="Purchase Orders" showBack>
+      <DashboardLayout title="Purchase Orders" showBack={false}>
         <div className={styles['po-skeleton-wrapper']}>
           <div className={styles['sk-header']} />
           <div className={styles['sk-body']}>
@@ -157,7 +157,7 @@ function PurchaseContent() {
         <Head>
           <title>PO History — Cafe QR</title>
         </Head>
-        <DashboardLayout title="Purchase Orders" showBack>
+        <DashboardLayout title="Purchase Orders" showBack={false}>
           <div className={`${styles['po-wrap']} po-wrap`}>
             {/* Toolbar */}
             <div className={styles['hist-toolbar']}>
@@ -249,7 +249,7 @@ function PurchaseContent() {
       <Head>
         <title>Purchase Orders — Cafe QR</title>
       </Head>
-      <DashboardLayout title="Purchase Orders" showBack>
+      <DashboardLayout title="Purchase Orders" showBack={false}>
         <PurchaseForm
           po={po} setPo={setPo}
           vendors={vendors} warehouses={warehouses} products={products} filteredProducts={filteredProducts}
