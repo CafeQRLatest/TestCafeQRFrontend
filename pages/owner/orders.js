@@ -1,6 +1,6 @@
 // pages/owner/orders.js
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import styled, { keyframes } from 'styled-components';
 import api from '../../utils/api';
@@ -14,7 +14,7 @@ import {
   FaUtensils, FaShoppingBag, FaTruck, FaArrowLeft, FaArrowRight, FaClock,
   FaUser, FaPhoneAlt, FaMapMarkerAlt, FaEnvelope, FaStickyNote,
   FaVolumeUp, FaVolumeMute, FaBell, FaBellSlash,
-  FaWhatsapp, FaCopy
+  FaWhatsapp, FaCopy, FaExchangeAlt
 } from 'react-icons/fa';
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
@@ -1501,6 +1501,12 @@ export default function OrdersPage() {
   const [creditCustomers, setCreditCustomers] = useState([]);
   const [actionBusy, setActionBusy] = useState(null);
 
+  // Tables state (for change-table feature)
+  const [tables, setTables] = useState([]);
+  const [changeTableMode, setChangeTableMode] = useState(false);
+  const [changeTableTarget, setChangeTableTarget] = useState('');
+  const [changeTableBusy, setChangeTableBusy] = useState(false);
+
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
@@ -1626,6 +1632,15 @@ export default function OrdersPage() {
     }
   }, []);
 
+  const fetchTables = useCallback(async () => {
+    try {
+      const res = await api.get('/api/v1/tables/active');
+      setTables(res.data?.data || []);
+    } catch (e) {
+      console.error('Failed to fetch tables', e);
+    }
+  }, []);
+
   const fetchHistoryOrders = useCallback(async (page = 0, filters = historyFilters) => {
     setHistoryLoading(true);
     try {
@@ -1690,12 +1705,13 @@ export default function OrdersPage() {
     api.get('/api/v1/terminals')
       .then(res => setTerminals(res.data?.data || []))
       .catch(console.error);
+    fetchTables();
     if (userRole === 'SUPER_ADMIN') {
       api.get('/api/v1/organizations')
         .then(res => setBranches(res.data?.data || []))
         .catch(console.error);
     }
-  }, [userRole]);
+  }, [userRole, fetchTables]);
 
   useEffect(() => {
     if (config && config.tableManagementEnabled === false && activeSegment === 'table') {
@@ -1705,9 +1721,13 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadOrders();
-    const interval = setInterval(loadOrders, 12000);
+    fetchTables();
+    const interval = setInterval(() => {
+      loadOrders();
+      fetchTables();
+    }, 12000);
     return () => clearInterval(interval);
-  }, [loadOrders]);
+  }, [loadOrders, fetchTables]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
@@ -1718,12 +1738,14 @@ export default function OrdersPage() {
       if (event.data.type === 'order-updated') {
         console.log('[push:web] Order updated message received from service worker:', event.data);
         loadOrders();
+        fetchTables();
         if (activeSegment === 'completed') {
           fetchHistoryOrders(historyPage.number || 0);
         }
       } else if (event.data.type === 'new-order-push') {
         console.log('[push:web] New order push received from service worker:', event.data);
         loadOrders();
+        fetchTables();
       } else if (event.data.type === 'stop-order-alarm') {
         const orderId = event.data.orderId;
         if (orderId) {
@@ -1736,7 +1758,7 @@ export default function OrdersPage() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage);
     };
-  }, [loadOrders, activeSegment, fetchHistoryOrders, historyPage.number]);
+  }, [loadOrders, activeSegment, fetchHistoryOrders, historyPage.number, fetchTables]);
 
   const updateStatus = async (id, nextStatus) => {
     stopDeliveryAlarm(id);
@@ -1936,6 +1958,8 @@ export default function OrdersPage() {
 
   const handleOpenOrderDetails = async (order) => {
     if (!order) return;
+    setChangeTableMode(false);
+    setChangeTableTarget('');
     setSelectedTableOrder(order);
     try {
       const full = await loadFullOrder(order.id);
@@ -1944,6 +1968,48 @@ export default function OrdersPage() {
       }
     } catch (err) {
       console.warn('Failed to load full order details:', err);
+    }
+  };
+
+  // Available tables = all active tables minus the current order's table and those already occupied
+  const availableMoveTables = useMemo(() => {
+    if (!tables.length) return [];
+    const occupiedTableNums = new Set(
+      liveOrders
+        .filter(o => o.tableNumber != null)
+        .map(o => String(o.tableNumber))
+    );
+    const currentTableNum = selectedTableOrder
+      ? String(selectedTableOrder.tableNumber || '')
+      : '';
+    return tables.filter(t => {
+      const tNum = String(t.tableNumber || '');
+      if (tNum && tNum === currentTableNum) return false;
+      if (occupiedTableNums.has(tNum)) return false;
+      const status = String(t.status || 'AVAILABLE').toUpperCase();
+      return status === 'AVAILABLE';
+    });
+  }, [tables, liveOrders, selectedTableOrder]);
+
+  const handleMoveTable = async () => {
+    if (!selectedTableOrder || !changeTableTarget) return;
+    const target = tables.find(t => String(t.id) === String(changeTableTarget));
+    setChangeTableBusy(true);
+    try {
+      await api.post(`/api/v1/orders/${selectedTableOrder.id}/move-table`, {
+        tableId: changeTableTarget,
+        tableNumber: target?.tableNumber,
+      });
+      notify('success', `Order moved to Table ${target?.tableNumber || changeTableTarget}`);
+      setChangeTableMode(false);
+      setChangeTableTarget('');
+      setSelectedTableOrder(null);
+      await loadOrders();
+      await fetchTables();
+    } catch (e) {
+      notify('error', 'Failed to move table: ' + (e.response?.data?.message || e.message));
+    } finally {
+      setChangeTableBusy(false);
     }
   };
 
@@ -2355,7 +2421,7 @@ export default function OrdersPage() {
                     )}
                     <span className="detail-status-chip">{tableCubeColor(selectedTableOrder.orderStatus).label}</span>
                   </div>
-                  <button className="close-btn" onClick={() => setSelectedTableOrder(null)}><FaTimes /></button>
+                  <button className="close-btn" onClick={() => { setSelectedTableOrder(null); setChangeTableMode(false); setChangeTableTarget(''); }}><FaTimes /></button>
                 </div>
 
                 <div className="detail-body">
@@ -2383,6 +2449,71 @@ export default function OrdersPage() {
                       <strong>{selectedTableOrder.dailyBillNo || '—'}</strong>
                     </div>
                   </div>
+
+                  {/* Change Table Section - only for active dine-in orders with a table (not billed, completed, paid, void, cancelled) */}
+                  {selectedTableOrder.tableNumber && !['BILLED', 'COMPLETED', 'CANCELLED', 'VOID', 'PAID'].includes(String(selectedTableOrder.orderStatus).toUpperCase()) && (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px' }}>
+                      {!changeTableMode ? (
+                        <button
+                          type="button"
+                          onClick={() => { setChangeTableMode(true); setChangeTableTarget(''); }}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#f97316', fontSize: 12, fontWeight: 700, padding: 0,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          <FaExchangeAlt size={11} /> Change Table
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Select Available Table</span>
+                          <NiceSelect
+                            value={changeTableTarget}
+                            onChange={(val) => setChangeTableTarget(val)}
+                            placeholder="-- Select a table --"
+                            options={availableMoveTables.length === 0
+                              ? [{ value: '', label: 'No available tables' }]
+                              : availableMoveTables.map(t => ({
+                                  value: t.id,
+                                  label: `Table ${t.tableNumber}${t.seatingCapacity ? ` (${t.seatingCapacity} seats)` : ''}${t.section ? ` · ${t.section}` : ''}`,
+                                }))
+                            }
+                          />
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setChangeTableMode(false); setChangeTableTarget(''); }}
+                              style={{
+                                flex: 1, padding: '5px 10px', borderRadius: 8, border: '1px solid #e2e8f0',
+                                background: '#f8fafc', color: '#475569', fontSize: 11, fontWeight: 700,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!changeTableTarget || changeTableBusy}
+                              onClick={handleMoveTable}
+                              style={{
+                                flex: 1, padding: '5px 10px', borderRadius: 8, border: 'none',
+                                background: changeTableTarget ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#e2e8f0',
+                                color: changeTableTarget ? 'white' : '#94a3b8', fontSize: 11, fontWeight: 700,
+                                cursor: changeTableTarget ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
+                                display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'center',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <FaExchangeAlt size={10} />
+                              {changeTableBusy ? 'Moving…' : 'Move'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {selectedTableOrder.fulfillmentType === 'DELIVERY' && (() => {
                     const details = parseDeliveryDetails(selectedTableOrder.description);
