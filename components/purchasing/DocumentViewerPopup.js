@@ -97,15 +97,9 @@ export default function DocumentViewerPopup({
   config = null,
   onOrderUpdated = null,
 }) {
-  const [showDiscount, setShowDiscount] = React.useState(false);
-  const [discountTab, setDiscountTab] = React.useState('line'); // 'line' | 'total'
   const taxEnabled = config ? !!config.taxEnabled : true;
   const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
   const isInclusiveTax = !!config?.pricesIncludeTax;
-  const [localDiscounts, setLocalDiscounts] = React.useState({});
-  const [localOrderDiscountType, setLocalOrderDiscountType] = React.useState('amount');
-  const [localOrderDiscountValue, setLocalOrderDiscountValue] = React.useState(0);
-  const [updating, setUpdating] = React.useState(false);
 
   const [showHistory, setShowHistory] = React.useState(false);
   const [revisions, setRevisions] = React.useState([]);
@@ -138,142 +132,6 @@ export default function DocumentViewerPopup({
     }
     return currentOrder?.lines || [];
   }, [docType, invoiceData, currentOrder?.lines]);
-
-  // Load defaults when discount panel opens
-  React.useEffect(() => {
-    if (showDiscount && currentOrder) {
-      const initial = {};
-      const cartItems = toCartItems(currentOrder.lines);
-      cartItems.forEach((item) => {
-        const disc = item.discount || { type: 'amount', value: 0 };
-        initial[item.cartKey] = {
-          type: disc.type === 'percentage' || disc.type === 'percent' ? 'percentage' : 'amount',
-          value: disc.value || 0,
-        };
-      });
-      setLocalDiscounts(initial);
-      const totalLineDisc = cartItems.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
-      const totalDisc = Number(currentOrder.totalDiscountAmount ?? currentOrder.total_discount_amount ?? 0);
-      const ordDiscType = currentOrder.orderDiscount?.type || 'amount';
-      // Only pre-fill the order-level (bill) discount value — never fall back to
-      // totalDiscountAmount, which is line + bill combined and would double the discount.
-      const ordDiscVal = currentOrder.orderDiscount?.value || Math.max(0, totalDisc - totalLineDisc);
-      setLocalOrderDiscountType(ordDiscType === 'percent' ? 'percentage' : 'amount');
-      setLocalOrderDiscountValue(ordDiscVal);
-    }
-  }, [showDiscount, currentOrder]);
-
-  const handleApplyDiscounts = async () => {
-    try {
-      setUpdating(true);
-      const dp = config?.currencyDecimalPlaces ?? 2;
-      const items = toCartItems(currentOrder.lines || []);
-      const updatedItems = items.map((item) => {
-        const disc = localDiscounts[item.cartKey] || { type: 'amount', value: 0 };
-        return {
-          ...item,
-          discount_percent: disc.type === 'percentage' ? disc.value : 0,
-          discount_amount: disc.type === 'amount' ? disc.value : 0,
-          discount: { type: disc.type === 'percentage' ? 'percent' : 'amount', value: disc.value },
-        };
-      });
-
-      const configProfile = {
-        gst_enabled: config?.taxEnabled,
-        default_tax_rate: (() => {
-          if (!config?.taxEnabled) return 0;
-          const rates = config?.taxRates || [];
-          const def = rates.find(r => r.id === config?.taxDefaultId);
-          return def ? parseFloat(def.value) || 0 : (rates[0] ? parseFloat(rates[0].value) || 0 : 0);
-        })(),
-        prices_include_tax: config?.pricesIncludeTax,
-        currencyDecimalPlaces: config?.currencyDecimalPlaces,
-        round_off_config: { round_off_enabled: config?.roundOffEnabled },
-      };
-
-      const orderDisc = {
-        type: localOrderDiscountType === 'percentage' ? 'percent' : 'amount',
-        value: localOrderDiscountValue,
-      };
-
-      const calculatedData = calculateOrderTotals(
-        updatedItems.map((line) => ({
-          id: line.cartKey,
-          productId: line.productId,
-          name: line.displayName,
-          price: line.price,
-          quantity: line.qty,
-          tax_rate: (line.taxRate !== undefined && line.taxRate !== null && line.taxRate !== '') ? Number(line.taxRate) : ((line.tax_rate !== undefined && line.tax_rate !== null && line.tax_rate !== '') ? Number(line.tax_rate) : null),
-          is_packaged_good: line.isPackagedGood,
-          is_packaged: line.isPackagedGood,
-          discount_percent: line.discount_percent,
-          discount_amount: line.discount_amount,
-          discount: line.discount,
-        })),
-        orderDisc,
-        configProfile
-      );
-
-      const processedLines = (calculatedData.processed_items || []).map((processed, idx) => {
-        const original = updatedItems[idx];
-        const gstEnabled = Boolean(config?.taxEnabled);
-        const taxRatePct = Number(processed.tax_rate || 0);
-        const isInclusive = gstEnabled && (processed.is_packaged_good || Boolean(config?.pricesIncludeTax));
-        const discType = original.discount?.type;
-        const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
-        const taxCode = gstEnabled && taxRatePct > 0 ? (matchedRate?.code || `GST_${taxRatePct}`) : null;
-        const taxName = gstEnabled && taxRatePct > 0 ? (matchedRate?.name || `GST ${taxRatePct}%`) : null;
-        const qty = Number(processed.quantity || 1);
-        const unitPrice = Number(processed.unit_price || original.price || 0);
-        return {
-          ...original,
-          quantity: processed.quantity,
-          unitPrice: processed.unit_price,
-          taxRate: processed.tax_rate,
-          taxAmount: processed.tax_amount,
-          discountAmount: processed.discount_amount,
-          lineTotal: processed.line_total,
-          // GST enrichment fields (V1_110)
-          grossLineAmount:        Number((unitPrice * qty).toFixed(dp)),
-          unitPriceExTax:         Number((processed.unit_price_ex_tax || processed.unit_price_ex_tax_orig || 0).toFixed(dp + 2)),
-          taxableAmount:          Number((processed.taxable_amount || 0).toFixed(dp)),
-          taxType:                isInclusive ? 'INCLUSIVE' : (gstEnabled && taxRatePct > 0 ? 'EXCLUSIVE' : 'NONE'),
-          taxSnapshotRate:        taxRatePct,
-          taxCode,
-          taxName,
-          manualDiscountAmount:   (discType !== 'percent' && original.discount?.value > 0) ? Number(original.discount.value.toFixed(dp)) : null,
-          manualDiscountPercent:  (discType === 'percent' && original.discount?.value > 0) ? Number(original.discount.value.toFixed(dp + 2)) : null,
-          allocatedOrderDiscount: Number((processed.order_discount_share || 0).toFixed(dp)),
-        };
-      });
-
-      const updatedOrderPayload = {
-        ...currentOrder,
-        grandTotal: calculatedData.total_amount,
-        totalTaxAmount: calculatedData.total_tax,
-        totalAmount: calculatedData.total_inc_tax,
-        totalDiscountAmount: calculatedData.discount_amount,
-        // GST Discount Engine order-level fields (V1_110)
-        grossAmount: Number((calculatedData.gross_face_total || 0).toFixed(dp)),
-        orderDiscountType: orderDisc.type === 'percent' ? 'PERCENT' : 'AMOUNT',
-        orderDiscountValue: Number(orderDisc.value || 0),
-        discountSource: currentOrder.discountSource || 'MANUAL',
-        lines: processedLines,
-        orderDiscount: orderDisc,
-      };
-
-      const response = await api.put(`/api/v1/orders/${currentOrder.id}`, updatedOrderPayload);
-      const savedOrder = response.data?.data || updatedOrderPayload;
-      setCurrentOrder(savedOrder);
-      setShowDiscount(false);
-      onOrderUpdated?.(savedOrder);
-    } catch (err) {
-      console.error('Failed to update discounts:', err);
-      alert('Error updating discounts. Please try again.');
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const calculated = React.useMemo(() => {
     if (!currentOrder) return { subtotal: 0, tax: 0, discount: 0, grandTotal: 0 };
@@ -393,10 +251,7 @@ export default function DocumentViewerPopup({
 
   const handleLinked = (type) => { onClose(); onViewLinked?.(currentOrder, type); };
 
-  const canDiscount = isSale && docType === 'order'
-    && currentOrder.orderStatus !== 'COMPLETED'
-    && currentOrder.orderStatus !== 'CANCELLED'
-    && currentOrder.orderStatus !== 'PAID';
+
 
   const hasRevisions = Number(currentOrder.revisionNumber ?? currentOrder.revision_number ?? 0) > 0
     || Boolean(currentOrder.originalOrderId || currentOrder.original_order_id);
@@ -820,16 +675,7 @@ export default function DocumentViewerPopup({
 
           {/* Totals column */}
           <div className="dv-totals">
-            {canDiscount && (
-              <button
-                type="button"
-                className={`dv-disc-btn ${showDiscount ? 'active' : ''}`}
-                onClick={() => setShowDiscount(v => !v)}
-              >
-                {showDiscount ? 'Hide Discount' : 'Add Discount'}
-                {!showDiscount && parseFloat(calculated.discount || 0) > 0 && ` (−${currencySymbol}${fmt(calculated.discount)})`}
-              </button>
-            )}
+
             {parseFloat(calculated.gross || 0) > 0 && (
               <div className="dv-trow dv-trow-muted"><span>Gross Total</span><span>{currencySymbol}{fmt(calculated.gross)}</span></div>
             )}
@@ -855,120 +701,7 @@ export default function DocumentViewerPopup({
             </div>
           </div>
 
-          {/* Inline discount panel — slides in beside totals */}
-          {showDiscount && (
-            <div className="disc-panel">
-              {/* Tabs */}
-              <div className="disc-tabs">
-                <button
-                  type="button"
-                  className={`disc-tab ${discountTab === 'line' ? 'active' : ''}`}
-                  onClick={() => setDiscountTab('line')}
-                >Item Discount</button>
-                <button
-                  type="button"
-                  className={`disc-tab ${discountTab === 'total' ? 'active' : ''}`}
-                  onClick={() => setDiscountTab('total')}
-                >Bill Discount</button>
-              </div>
 
-              {/* Content */}
-              <div className="disc-content">
-                {discountTab === 'line' ? (
-                  (!currentOrder.lines || currentOrder.lines.length === 0) ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>No items</div>
-                  ) : (
-                    toCartItems(currentOrder.lines).map(item => {
-                      const key = item.cartKey;
-                      const disc = localDiscounts[key] || { type: 'amount', value: 0 };
-                      return (
-                        <div className="disc-item" key={key}>
-                          <div className="disc-item-name">
-                            <span>{item.displayName}</span>
-                            <small>{currencySymbol}{item.price.toFixed(config?.currencyDecimalPlaces ?? 2)} × {item.qty}</small>
-                          </div>
-                          <div className="disc-item-ctrl">
-                            <div className="disc-inp-wrap">
-                              <input
-                                type="number" min="0"
-                                max={disc.type === 'percentage' ? 100 : undefined}
-                                value={disc.value || ''}
-                                onChange={e => {
-                                  const val = parseFloat(e.target.value) || 0;
-                                  setLocalDiscounts(prev => ({ ...prev, [key]: { ...prev[key], value: val } }));
-                                }}
-                                className="disc-inp"
-                                placeholder="0"
-                              />
-                            </div>
-                            <div className="disc-toggle">
-                              <button
-                                type="button"
-                                className={`disc-tgl ${disc.type === 'amount' ? 'active' : ''}`}
-                                onClick={() => setLocalDiscounts(prev => ({ ...prev, [key]: { ...prev[key], type: 'amount' } }))}
-                              >₹</button>
-                              <button
-                                type="button"
-                                className={`disc-tgl ${disc.type === 'percentage' ? 'active' : ''}`}
-                                onClick={() => setLocalDiscounts(prev => ({ ...prev, [key]: { ...prev[key], type: 'percentage' } }))}
-                              >%</button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )
-                ) : (
-                  <div className="disc-item" style={{ justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 700, fontSize: '12px', color: '#1e293b' }}>Total Discount</span>
-                    <div className="disc-item-ctrl">
-                      <div className="disc-inp-wrap">
-                        <input
-                          type="number" min="0"
-                          max={localOrderDiscountType === 'percentage' ? 100 : undefined}
-                          value={localOrderDiscountValue || ''}
-                          onChange={e => setLocalOrderDiscountValue(parseFloat(e.target.value) || 0)}
-                          className="disc-inp"
-                          placeholder="0"
-                        />
-                      </div>
-                      <div className="disc-toggle">
-                        <button
-                          type="button"
-                          className={`disc-tgl ${localOrderDiscountType === 'amount' ? 'active' : ''}`}
-                          onClick={() => setLocalOrderDiscountType('amount')}
-                        >₹</button>
-                        <button
-                          type="button"
-                          className={`disc-tgl ${localOrderDiscountType === 'percentage' ? 'active' : ''}`}
-                          onClick={() => setLocalOrderDiscountType('percentage')}
-                        >%</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="disc-actions">
-                <button
-                  type="button"
-                  className="disc-clear"
-                  onClick={() => {
-                    setLocalDiscounts({});
-                    setLocalOrderDiscountType('amount');
-                    setLocalOrderDiscountValue(0);
-                  }}
-                >Clear</button>
-                <button
-                  type="button"
-                  className="disc-apply"
-                  disabled={updating}
-                  onClick={handleApplyDiscounts}
-                >{updating ? 'Saving…' : 'Apply'}</button>
-              </div>
-            </div>
-          )}
         </div>
 
       </div>
