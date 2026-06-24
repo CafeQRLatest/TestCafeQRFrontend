@@ -215,6 +215,7 @@ async function printClaimedJob(job) {
     allowPrompt: false,
     allowSystemDialog: false,
     codepage: 0,
+    jobId: normalized.id,
     jobKind: normalized.kind,
     document: {
       order: normalized.order,
@@ -231,7 +232,7 @@ async function printClaimedJob(job) {
 }
 
 export async function claimAndPrintCloudJobs(limit = 3) {
-  if (!isPrintStationEnabled() || isKnownOffline() || isCloudPrintCoolingDown()) {
+  if ((!isPrintStationEnabled() && !isNativePrintServicePaired()) || isKnownOffline() || isCloudPrintCoolingDown()) {
     return [];
   }
 
