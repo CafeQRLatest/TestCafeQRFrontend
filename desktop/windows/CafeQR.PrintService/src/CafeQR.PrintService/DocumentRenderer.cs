@@ -23,7 +23,7 @@ namespace CafeQR.PrintService
             var isKot = IsKotKind(submission.JobKind);
             var isReceipt = IsReceiptKind(submission.JobKind);
             var document = submission.Document ?? new JObject();
-            var canRebuildKot = isKot && HasStructuredOrder(document);
+            var canRebuildKot = false; // Disabled to respect Cloud KOT Templates
             var canRebuildReceipt = isReceipt && HasStructuredOrder(document);
             var shouldRebuild = canRebuildKot || canRebuildReceipt;
 

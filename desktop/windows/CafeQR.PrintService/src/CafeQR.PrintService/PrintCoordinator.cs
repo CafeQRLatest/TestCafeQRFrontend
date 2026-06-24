@@ -236,14 +236,15 @@ namespace CafeQR.PrintService
 
                 byte[] thermal = null;
                 PrintDocument regular = null;
-                if (profile.Format.Equals(PrintConstants.Regular, StringComparison.OrdinalIgnoreCase))
-                {
-                    regular = renderer.Regular(task.Submission, profile, task.Attempts);
-                }
-                else if (IsKotWindowsQueue(task, profile))
+
+                if (IsKotWindowsQueue(task, profile))
                 {
                     Log.Info($"[PrintCoordinator] rendererPath=WINDOWS_QUEUE_GDI_KOT jobKind={task.JobKind} profileId={profile.Id} connectionType={profile.ConnectionType}");
                     regular = renderer.WindowsQueueKot(task.Submission, profile, task.Attempts, options.EffectiveConfiguration);
+                }
+                else if (profile.Format.Equals(PrintConstants.Regular, StringComparison.OrdinalIgnoreCase))
+                {
+                    regular = renderer.Regular(task.Submission, profile, task.Attempts);
                 }
                 else
                 {
