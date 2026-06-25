@@ -104,7 +104,8 @@ function OrganizationSettingsContent() {
       isactive: 'Y',
       deliveryRadiusKm: 5,
       latitude: null,
-      longitude: null
+      longitude: null,
+      timezone: 'Asia/Kolkata'
     });
   };
 
@@ -317,6 +318,25 @@ function OrganizationSettingsContent() {
                         onChange={(e) => setSelectedOrg({...selectedOrg, pinCode: e.target.value})}
                         placeholder="670101"
                       />
+                    </div>
+                  </div>
+                  <div className="block-content dual" style={{ marginTop: '0px' }}>
+                    <div className="v2-input-group">
+                      <label>Timezone</label>
+                      <select 
+                        value={selectedOrg.timezone || 'Asia/Kolkata'}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, timezone: e.target.value})}
+                      >
+                        <option value="Asia/Kolkata">Asia/Kolkata (India - IST)</option>
+                        <option value="Asia/Muscat">Asia/Muscat (Oman - GST)</option>
+                        <option value="Asia/Dubai">Asia/Dubai (UAE - GST)</option>
+                        <option value="Asia/Qatar">Asia/Qatar (AST)</option>
+                        <option value="Asia/Riyadh">Asia/Riyadh (Saudi Arabia - AST)</option>
+                        <option value="Asia/Bahrain">Asia/Bahrain (AST)</option>
+                        <option value="Asia/Kuwait">Asia/Kuwait (AST)</option>
+                        <option value="UTC">UTC (Universal Time)</option>
+                      </select>
+                      <small>Used for daily reports and order timing</small>
                     </div>
                   </div>
                 </section>
@@ -552,8 +572,8 @@ function OrganizationSettingsContent() {
         
         .v2-input-group { display: flex; flex-direction: column; gap: 6px; }
         .v2-input-group label { font-size: 11px; font-weight: 700; color: #64748b; }
-        .v2-input-group input, .v2-input-group textarea { background: #fcfcfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: #1e293b; }
-        .v2-input-group input:focus, .v2-input-group textarea:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 3px #fff7ed; }
+        .v2-input-group input, .v2-input-group textarea, .v2-input-group select { background: #fcfcfd; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: #1e293b; }
+        .v2-input-group input:focus, .v2-input-group textarea:focus, .v2-input-group select:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 3px #fff7ed; }
         .v2-input-group small { font-size: 11px; color: #94a3b8; font-weight: 500; }
 
         .icon-input { position: relative; }

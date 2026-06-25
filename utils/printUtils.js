@@ -1,7 +1,8 @@
 // utils/printUtils.js
-// --- PART 1 ---
 const ESC = "\x1b";
 const GS = "\x1d";
+
+import { formatTzDate } from './timezoneUtils';
 
 function b(n) {
   return String.fromCharCode(n & 0xff);
@@ -422,12 +423,13 @@ export function buildKotText(order, restaurantProfile) {
     const tableLabel = getTableHighlightLabel(order);
 
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
-    const dateStr = orderDate.toLocaleDateString("en-IN", {
+    const profileTz = restaurantProfile?.timezone || null;
+    const dateStr = formatTzDate(orderDate, profileTz, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
-    const timeStr = orderDate.toLocaleTimeString("en-IN", {
+    const timeStr = formatTzDate(orderDate, profileTz, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
@@ -623,8 +625,13 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     const billNo = pickValue(bill, ["bill_no", "billNo"], pickValue(order, ["bill_no", "billNo"], ""));
 
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
-    const dateStr = orderDate.toLocaleDateString("en-IN");
-    const timeStr = orderDate.toLocaleTimeString("en-IN", {
+    const profileTz = restaurantProfile?.timezone || null;
+    const dateStr = formatTzDate(orderDate, profileTz, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+    const timeStr = formatTzDate(orderDate, profileTz, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
