@@ -219,6 +219,7 @@ function fallbackRestaurantProfile() {
   return {
     restaurant_name: Cookies.get('orgName') || Cookies.get('clientName') || 'CafeQR',
     bill_footer_enabled: true,
+    timezone: Cookies.get('timezone'),
   };
 }
 
@@ -368,7 +369,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             print_logo_bitmap: logoBitmap,
             print_logo_cols: logoCols,
             print_logo_rows: logoRows,
-            logo_base64: logoBase64 || (logoBitmap ? bitmapToPngBase64(logoBitmap, logoCols, logoRows) : null)
+            logo_base64: logoBase64 || (logoBitmap ? bitmapToPngBase64(logoBitmap, logoCols, logoRows) : null),
+            timezone: cfg.timezone || Cookies.get('timezone')
           });
         }
       } catch (err) {
