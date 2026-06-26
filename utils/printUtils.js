@@ -423,7 +423,7 @@ export function buildKotText(order, restaurantProfile) {
     const tableLabel = getTableHighlightLabel(order);
 
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
-    const profileTz = restaurantProfile?.timezone || null;
+    const profileTz = order?.timezone || restaurantProfile?.timezone || null;
     const dateStr = formatTzDate(orderDate, profileTz, {
       day: "2-digit",
       month: "2-digit",
@@ -625,7 +625,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     const billNo = pickValue(bill, ["bill_no", "billNo"], pickValue(order, ["bill_no", "billNo"], ""));
 
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
-    const profileTz = restaurantProfile?.timezone || null;
+    const profileTz = order?.timezone || restaurantProfile?.timezone || null;
     const dateStr = formatTzDate(orderDate, profileTz, {
       day: "2-digit",
       month: "2-digit",
