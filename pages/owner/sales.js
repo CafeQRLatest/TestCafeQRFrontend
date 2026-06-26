@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import styled, { keyframes } from 'styled-components';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow, getLocalISOString, businessTimeToUtc } from '../../utils/timezoneUtils';
 import DashboardLayout from '../../components/DashboardLayout';
 import {
   FaReceipt, FaPrint, FaCheck, FaExclamationCircle,
@@ -1112,11 +1112,7 @@ function defaultHistoryRange(timezone) {
   };
 }
 
-function localInputToIso(value) {
-  if (!value) return undefined;
-  const date = new Date(`${value}:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
+// localInputToIso has been replaced by businessTimeToUtc from timezoneUtils
 
 function orderTime(order) {
   const raw = order?.orderDate || order?.order_date || order?.createdAt || order?.created_at;
@@ -1445,8 +1441,8 @@ function SalesContent() {
       const res = await api.get('/api/v1/orders/history', {
         params: {
           type: 'SALE',
-          fromDate: localInputToIso(filters.from),
-          toDate: localInputToIso(filters.to),
+          fromDate: businessTimeToUtc(filters.from, timezone),
+          toDate: businessTimeToUtc(filters.to, timezone),
           q: filters.q?.trim() || undefined,
           status: filters.status || undefined,
           page,

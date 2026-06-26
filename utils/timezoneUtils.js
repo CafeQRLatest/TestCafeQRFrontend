@@ -283,3 +283,56 @@ export function getLocalISOString(profileTz, date) {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/**
+ * Converts a business local ISO string (YYYY-MM-DDTHH:mm) to a real UTC ISO string.
+ * This ensures that when the user selects a time in the UI, we send the exact matching UTC time to the backend.
+ *
+ * @param {string|null} localIso - Local ISO string (e.g. "2026-06-26T03:53")
+ * @param {string|null} profileTz - Timezone string from AuthContext
+ * @returns {string|undefined} UTC ISO string (e.g. "2026-06-25T23:53:00.000Z")
+ */
+export function businessTimeToUtc(localIso, profileTz) {
+  if (!localIso) return undefined;
+  const tz = resolveTimezone(profileTz);
+  
+  // 1. Guess the Date by parsing localIso as browser local time.
+  const guess = new Date(`${localIso}:00`);
+  if (isNaN(guess.getTime())) return undefined;
+
+  // 2. Format the guess in the target timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+
+  const getParts = (d) => {
+    const parts = formatter.formatToParts(d);
+    return {
+      year: parseInt(parts.find(p => p.type === 'year')?.value || '0'),
+      month: parseInt(parts.find(p => p.type === 'month')?.value || '1') - 1,
+      day: parseInt(parts.find(p => p.type === 'day')?.value || '1'),
+      hour: parseInt(parts.find(p => p.type === 'hour')?.value || '0'),
+      minute: parseInt(parts.find(p => p.type === 'minute')?.value || '0'),
+      second: parseInt(parts.find(p => p.type === 'second')?.value || '0'),
+    };
+  };
+
+  // We want the getParts(actualDate) to match our target parts.
+  const target = new Date(localIso + 'Z'); // Treats it as UTC just to extract parts
+  const targetMs = target.getTime();
+
+  // Find the offset of the guess date in the target timezone
+  const guessParts = getParts(guess);
+  const guessLocalAsUtc = Date.UTC(guessParts.year, guessParts.month, guessParts.day, guessParts.hour, guessParts.minute, guessParts.second);
+  
+  // The difference between the formatted guess and the true guess is the offset
+  const offsetMs = guessLocalAsUtc - guess.getTime();
+  
+  // So the actual UTC time is target local time minus offset
+  const actualDate = new Date(targetMs - offsetMs);
+  
+  return actualDate.toISOString();
+}

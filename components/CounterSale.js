@@ -4,7 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { formatTzDate } from '../utils/timezoneUtils';
+import { formatTzDate, businessTimeToUtc } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
   FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
@@ -2616,7 +2616,7 @@ export default function CounterSale({
       let parsedDate = null;
       try {
         if (orderDateTime) {
-          parsedDate = new Date(orderDateTime).toISOString();
+          parsedDate = businessTimeToUtc(orderDateTime, timezone);
         }
       } catch (err) {
         console.error('Failed to parse custom date time', err);
