@@ -850,7 +850,215 @@ namespace CafeQR.PrintService
             };
         }
 
-        private static DateTime ParseDate(string raw)
+        private static readonly Dictionary<string, string> IanaToWindowsMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // Asia
+            { "Asia/Kolkata", "India Standard Time" },
+            { "Asia/Calcutta", "India Standard Time" },
+            { "Asia/Riyadh", "Arab Standard Time" },
+            { "Asia/Dubai", "Arabian Standard Time" },
+            { "Asia/Qatar", "Arab Standard Time" },
+            { "Asia/Kuwait", "Arab Standard Time" },
+            { "Asia/Bahrain", "Arab Standard Time" },
+            { "Asia/Muscat", "Arabian Standard Time" },
+            { "Asia/Aden", "Arab Standard Time" },
+            { "Asia/Singapore", "Singapore Standard Time" },
+            { "Asia/Kuala_Lumpur", "Singapore Standard Time" },
+            { "Asia/Hong_Kong", "China Standard Time" },
+            { "Asia/Manila", "Singapore Standard Time" },
+            { "Asia/Jakarta", "SE Asia Standard Time" },
+            { "Asia/Bangkok", "SE Asia Standard Time" },
+            { "Asia/Colombo", "Sri Lanka Standard Time" },
+            { "Asia/Dhaka", "Bangladesh Standard Time" },
+            { "Asia/Karachi", "Pakistan Standard Time" },
+            { "Asia/Kabul", "Afghanistan Standard Time" },
+            { "Asia/Kathmandu", "Nepal Standard Time" },
+            { "Asia/Katmandu", "Nepal Standard Time" },
+            { "Asia/Tashkent", "West Asia Standard Time" },
+            { "Asia/Seoul", "Korea Standard Time" },
+            { "Asia/Tokyo", "Tokyo Standard Time" },
+            { "Asia/Shanghai", "China Standard Time" },
+            { "Asia/Taipei", "Taipei Standard Time" },
+            { "Asia/Ulaanbaatar", "Ulaanbaatar Standard Time" },
+            { "Asia/Rangoon", "Myanmar Standard Time" },
+            { "Asia/Yangon", "Myanmar Standard Time" },
+            { "Asia/Baghdad", "Arabic Standard Time" },
+            { "Asia/Jerusalem", "Israel Standard Time" },
+            { "Asia/Gaza", "West Bank Standard Time" },
+            { "Asia/Hebron", "West Bank Standard Time" },
+            { "Asia/Beirut", "Middle East Standard Time" },
+            { "Asia/Damascus", "Syria Standard Time" },
+            { "Asia/Amman", "Jordan Standard Time" },
+            { "Asia/Nicosia", "GTB Standard Time" },
+            { "Asia/Baku", "Azerbaijan Standard Time" },
+            { "Asia/Tbilisi", "Georgian Standard Time" },
+            { "Asia/Yerevan", "Caucasus Standard Time" },
+            { "Asia/Tehran", "Iran Standard Time" },
+            { "Asia/Yekaterinburg", "Ekaterinburg Standard Time" },
+            { "Asia/Novosibirsk", "N. Central Asia Standard Time" },
+            { "Asia/Krasnoyarsk", "North Asia Standard Time" },
+            { "Asia/Irkutsk", "North Asia East Standard Time" },
+            { "Asia/Yakutsk", "Yakutsk Standard Time" },
+            { "Asia/Vladivostok", "Vladivostok Standard Time" },
+            { "Asia/Sakhalin", "Sakhalin Standard Time" },
+            { "Asia/Magadan", "Magadan Standard Time" },
+            { "Asia/Kamchatka", "Kamchatka Standard Time" },
+            { "Asia/Anadyr", "Russia Time Zone 11" },
+
+            // Europe
+            { "Europe/London", "GMT Standard Time" },
+            { "Europe/Belfast", "GMT Standard Time" },
+            { "Europe/Dublin", "GMT Standard Time" },
+            { "Europe/Lisbon", "GMT Standard Time" },
+            { "Europe/Paris", "Romance Standard Time" },
+            { "Europe/Berlin", "W. Europe Standard Time" },
+            { "Europe/Rome", "W. Europe Standard Time" },
+            { "Europe/Madrid", "Romance Standard Time" },
+            { "Europe/Brussels", "Romance Standard Time" },
+            { "Europe/Amsterdam", "W. Europe Standard Time" },
+            { "Europe/Vienna", "W. Europe Standard Time" },
+            { "Europe/Zurich", "W. Europe Standard Time" },
+            { "Europe/Prague", "Central Europe Standard Time" },
+            { "Europe/Warsaw", "Central Europe Standard Time" },
+            { "Europe/Budapest", "Central Europe Standard Time" },
+            { "Europe/Belgrade", "Central Europe Standard Time" },
+            { "Europe/Sofia", "FLE Standard Time" },
+            { "Europe/Bucharest", "GTB Standard Time" },
+            { "Europe/Athens", "GTB Standard Time" },
+            { "Europe/Istanbul", "Turkey Standard Time" },
+            { "Europe/Moscow", "Russian Standard Time" },
+            { "Europe/Minsk", "Belarus Standard Time" },
+            { "Europe/Kiev", "FLE Standard Time" },
+            { "Europe/Uzhgorod", "FLE Standard Time" },
+            { "Europe/Zaporozhye", "FLE Standard Time" },
+            { "Europe/Chisinau", "E. Europe Standard Time" },
+            { "Europe/Helsinki", "FLE Standard Time" },
+            { "Europe/Stockholm", "W. Europe Standard Time" },
+            { "Europe/Oslo", "W. Europe Standard Time" },
+            { "Europe/Copenhagen", "Romance Standard Time" },
+            { "Europe/Tallinn", "FLE Standard Time" },
+            { "Europe/Riga", "FLE Standard Time" },
+            { "Europe/Vilnius", "FLE Standard Time" },
+            { "Europe/Monaco", "W. Europe Standard Time" },
+            { "Europe/Andorra", "W. Europe Standard Time" },
+            { "Europe/Gibraltar", "W. Europe Standard Time" },
+            { "Europe/Malta", "W. Europe Standard Time" },
+
+            // America
+            { "America/New_York", "Eastern Standard Time" },
+            { "America/Chicago", "Central Standard Time" },
+            { "America/Denver", "Mountain Standard Time" },
+            { "America/Los_Angeles", "Pacific Standard Time" },
+            { "America/Phoenix", "US Mountain Standard Time" },
+            { "America/Anchorage", "Alaskan Standard Time" },
+            { "America/Adak", "Hawaiian Standard Time" },
+            { "America/Honolulu", "Hawaiian Standard Time" },
+            { "America/Toronto", "Eastern Standard Time" },
+            { "America/Vancouver", "Pacific Standard Time" },
+            { "America/Mexico_City", "Central Standard Time" },
+            { "America/Sao_Paulo", "E. South America Standard Time" },
+            { "America/Argentina/Buenos_Aires", "Argentina Standard Time" },
+            { "America/Bogota", "SA Pacific Standard Time" },
+            { "America/Lima", "SA Pacific Standard Time" },
+            { "America/Caracas", "Venezuela Standard Time" },
+            { "America/La_Paz", "SA Western Standard Time" },
+            { "America/Santiago", "Pacific SA Standard Time" },
+            { "America/Montevideo", "Montevideo Standard Time" },
+            { "America/Asuncion", "Paraguay Standard Time" },
+            { "America/Manaus", "SA Western Standard Time" },
+            { "America/Guayaquil", "SA Pacific Standard Time" },
+            { "America/Panama", "SA Pacific Standard Time" },
+            { "America/Costa_Rica", "Central America Standard Time" },
+            { "America/El_Salvador", "Central America Standard Time" },
+            { "America/Guatemala", "Central America Standard Time" },
+            { "America/Honduras", "Central America Standard Time" },
+            { "America/Managua", "Central America Standard Time" },
+            { "America/Belize", "Central America Standard Time" },
+            { "America/Halifax", "Atlantic Standard Time" },
+            { "America/St_Johns", "Newfoundland Standard Time" },
+            { "America/Indianapolis", "US Eastern Standard Time" },
+
+            // Africa
+            { "Africa/Cairo", "Egypt Standard Time" },
+            { "Africa/Johannesburg", "South Africa Standard Time" },
+            { "Africa/Nairobi", "E. Africa Standard Time" },
+            { "Africa/Lagos", "W. Central Africa Standard Time" },
+            { "Africa/Casablanca", "Morocco Standard Time" },
+            { "Africa/Tripoli", "Libya Standard Time" },
+            { "Africa/Tunis", "W. Central Africa Standard Time" },
+            { "Africa/Algiers", "W. Central Africa Standard Time" },
+            { "Africa/Khartoum", "East Africa Standard Time" },
+            { "Africa/Addis_Ababa", "E. Africa Standard Time" },
+            { "Africa/Dar_es_Salaam", "E. Africa Standard Time" },
+            { "Africa/Kampala", "E. Africa Standard Time" },
+
+            // Australia
+            { "Australia/Sydney", "AUS Eastern Standard Time" },
+            { "Australia/Melbourne", "AUS Eastern Standard Time" },
+            { "Australia/Brisbane", "E. Australia Standard Time" },
+            { "Australia/Adelaide", "Cen. Australia Standard Time" },
+            { "Australia/Perth", "W. Australia Standard Time" },
+            { "Australia/Hobart", "Tasmania Standard Time" },
+            { "Australia/Darwin", "AUS Central Standard Time" },
+
+            // Pacific
+            { "Pacific/Auckland", "New Zealand Standard Time" },
+            { "Pacific/Fiji", "Fiji Standard Time" },
+            { "Pacific/Port_Moresby", "West Pacific Standard Time" },
+            { "Pacific/Guadalcanal", "Central Pacific Standard Time" },
+            { "Pacific/Noumea", "Central Pacific Standard Time" },
+            { "Pacific/Tongatapu", "Tonga Standard Time" },
+            { "Pacific/Apia", "Samoa Standard Time" },
+
+            // Etc
+            { "UTC", "UTC" },
+            { "GMT", "UTC" },
+            { "Z", "UTC" }
+        };
+
+        private static bool TryGetTimeSpanFromOffset(string tzId, out TimeSpan offset)
+        {
+            offset = TimeSpan.Zero;
+            if (string.IsNullOrEmpty(tzId)) return false;
+
+            var clean = tzId.Replace("UTC", "").Replace("GMT", "").Trim();
+            if (clean.StartsWith("+") || clean.StartsWith("-"))
+            {
+                bool isNegative = clean.StartsWith("-");
+                var parts = clean.Substring(1).Split(':');
+                if (parts.Length > 0 && double.TryParse(parts[0], NumberStyles.Any, CultureInfo.InvariantCulture, out double hours))
+                {
+                    double minutes = 0;
+                    if (parts.Length > 1 && double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out double mins))
+                    {
+                        minutes = mins;
+                    }
+                    var totalMinutes = (hours * 60) + minutes;
+                    if (isNegative) totalMinutes = -totalMinutes;
+                    offset = TimeSpan.FromMinutes(totalMinutes);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static string GetTimezoneId(JObject order, JObject config)
+        {
+            if (order != null)
+            {
+                var tz = PickValue(order, new[] { "timezone" });
+                if (!string.IsNullOrEmpty(tz)) return tz;
+            }
+            var restaurant = config?["restaurant"] as JObject ?? order?["restaurant"] as JObject;
+            if (restaurant != null)
+            {
+                var tz = PickValue(restaurant, new[] { "timezone" });
+                if (!string.IsNullOrEmpty(tz)) return tz;
+            }
+            return null;
+        }
+
+        private static DateTime ParseDate(string raw, string tzId = null)
         {
             if (string.IsNullOrEmpty(raw)) return DateTime.Now;
             var s = raw;
@@ -858,15 +1066,69 @@ namespace CafeQR.PrintService
             {
                 s += "Z";
             }
-            if (DateTime.TryParse(s, null, DateTimeStyles.RoundtripKind, out DateTime dt))
+
+            DateTime dt;
+            bool parsed = false;
+            DateTimeKind kind = DateTimeKind.Unspecified;
+
+            if (DateTime.TryParse(s, null, DateTimeStyles.RoundtripKind, out dt))
             {
-                return dt.ToLocalTime();
+                parsed = true;
+                kind = dt.Kind;
             }
-            if (DateTime.TryParse(raw, out dt))
+            else if (DateTime.TryParse(raw, out dt))
             {
-                return dt;
+                parsed = true;
+                kind = dt.Kind;
             }
-            return DateTime.Now;
+
+            if (!parsed) return DateTime.Now;
+
+            string cleanTzId = tzId;
+            if (!string.IsNullOrEmpty(cleanTzId))
+            {
+                int idx = cleanTzId.IndexOf(' ');
+                if (idx > 0) cleanTzId = cleanTzId.Substring(0, idx);
+                idx = cleanTzId.IndexOf('(');
+                if (idx > 0) cleanTzId = cleanTzId.Substring(0, idx);
+                cleanTzId = cleanTzId.Trim();
+            }
+
+            if (string.IsNullOrEmpty(cleanTzId))
+            {
+                return kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
+            }
+
+            if (TryGetTimeSpanFromOffset(cleanTzId, out TimeSpan offset))
+            {
+                var utcDt = kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime();
+                return utcDt.Add(offset);
+            }
+
+            TimeZoneInfo tzInfo = null;
+            try
+            {
+                tzInfo = TimeZoneInfo.FindSystemTimeZoneById(cleanTzId);
+            }
+            catch
+            {
+                if (IanaToWindowsMap.TryGetValue(cleanTzId, out string winId))
+                {
+                    try
+                    {
+                        tzInfo = TimeZoneInfo.FindSystemTimeZoneById(winId);
+                    }
+                    catch { }
+                }
+            }
+
+            if (tzInfo != null)
+            {
+                var utcDt = (kind == DateTimeKind.Utc) ? dt : TimeZoneInfo.ConvertTimeToUtc(dt);
+                return TimeZoneInfo.ConvertTimeFromUtc(utcDt, tzInfo);
+            }
+
+            return kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
         }
 
         private static string GetOrderTypeLabel(JObject order)
@@ -1050,7 +1312,7 @@ namespace CafeQR.PrintService
                 Add("** EDITED ORDER **", ThermalLineAlignment.Center, normalSize, true);
             }
 
-            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }));
+            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }), GetTimezoneId(order, config));
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
             Add(dateStr + " " + timeStr);
@@ -1345,7 +1607,7 @@ namespace CafeQR.PrintService
 
             var kotReference = GetKotReference(order);
             var tableLabel = GetTableHighlightLabel(order);
-            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }));
+            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }), GetTimezoneId(order, config));
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
@@ -1542,7 +1804,7 @@ namespace CafeQR.PrintService
             string billNo = PickValue(bill, new[] { "bill_no", "billNo" });
             if (string.IsNullOrEmpty(billNo)) billNo = PickValue(order, new[] { "bill_no", "billNo" });
 
-            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }));
+            var orderDate = ParseDate(PickValue(order, new[] { "created_at", "createdAt", "order_date", "orderDate" }), GetTimezoneId(order, config));
             var dateStr = orderDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             var timeStr = orderDate.ToString("hh:mm tt", CultureInfo.InvariantCulture).ToLowerInvariant();
 
@@ -1974,7 +2236,8 @@ namespace CafeQR.PrintService
                     : "TAX INVOICE";
                 InvoiceNo = Value(order, "invoiceNo", "invoice_no");
                 OrderNo = Value(order, "orderNo", "order_no");
-                Date = Value(order, "orderDate", "order_date", "createdAt");
+                var rawDate = Value(order, "orderDate", "order_date", "createdAt");
+                Date = ParseDate(rawDate, GetTimezoneId(order, source)).ToString("dd/MM/yyyy hh:mm tt", CultureInfo.InvariantCulture);
                 OrderType = Value(order, "orderType", "order_type", "fulfillmentType");
                 CustomerName = Value(order, "customerName", "customer_name");
                 CustomerPhone = Value(order, "customerPhone", "customer_phone");
