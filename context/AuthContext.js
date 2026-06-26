@@ -334,9 +334,10 @@ export const AuthProvider = ({ children }) => {
     return isTrialOrActive && !isExpired;
   })();
 
-  const switchBranch = (newOrgId, newOrgName) => {
+  const switchBranch = (newOrgId, newOrgName, newTimezone) => {
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
+    setTimezone(newTimezone || null);
     const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
     if (newOrgId) {
       Cookies.set('orgId', newOrgId, cookieOptions);
@@ -347,6 +348,11 @@ export const AuthProvider = ({ children }) => {
       Cookies.set('orgName', newOrgName, cookieOptions);
     } else {
       Cookies.remove('orgName', { path: '/' });
+    }
+    if (newTimezone) {
+      Cookies.set('timezone', newTimezone, cookieOptions);
+    } else {
+      Cookies.remove('timezone', { path: '/' });
     }
     if (typeof window !== 'undefined') {
       window.location.reload();

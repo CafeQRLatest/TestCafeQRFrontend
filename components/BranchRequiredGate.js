@@ -35,7 +35,7 @@ export default function BranchRequiredGate({ children }) {
 
   const handleSelectBranch = () => {
     if (selectedBranch) {
-      switchBranch(selectedBranch.id, selectedBranch.name);
+      switchBranch(selectedBranch.id, selectedBranch.name, selectedBranch.timezone);
     }
   };
 
