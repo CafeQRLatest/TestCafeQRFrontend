@@ -21,7 +21,7 @@ export default function BranchSwitcher() {
   useEffect(() => {
     if (isSuperAdmin && branches.length > 0 && !orgId) {
       const firstBranch = branches[0];
-      switchBranch(firstBranch.id, firstBranch.name);
+      switchBranch(firstBranch.id, firstBranch.name, firstBranch.timezone);
     }
   }, [branches, orgId, isSuperAdmin, switchBranch]);
 
@@ -51,9 +51,9 @@ export default function BranchSwitcher() {
 
   const handleSelect = (branch) => {
     if (branch === 'ALL') {
-      switchBranch(null, null);
+      switchBranch(null, null, null);
     } else {
-      switchBranch(branch.id, branch.name);
+      switchBranch(branch.id, branch.name, branch.timezone);
     }
     setIsOpen(false);
   };

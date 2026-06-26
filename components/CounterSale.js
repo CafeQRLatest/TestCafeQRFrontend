@@ -4,7 +4,7 @@ import styled, { keyframes } from 'styled-components';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { formatTzDate, businessTimeToUtc } from '../utils/timezoneUtils';
+import { formatTzDate, businessTimeToUtc, getLocalISOString } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
   FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
@@ -1770,32 +1770,19 @@ export default function CounterSale({
   const isStandardUi = false; // Standard UI removed as per requirements
 
   const [isDateTimeManuallyEdited, setIsDateTimeManuallyEdited] = useState(false);
-  const [orderDateTime, setOrderDateTime] = useState(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  });
+  const [orderDateTime, setOrderDateTime] = useState('');
 
   useEffect(() => {
     if (isDateTimeManuallyEdited) return;
 
     const updateTime = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      setOrderDateTime(`${year}-${month}-${day}T${hours}:${minutes}`);
+      setOrderDateTime(getLocalISOString(timezone));
     };
 
+    updateTime();
     const interval = setInterval(updateTime, 5000);
     return () => clearInterval(interval);
-  }, [isDateTimeManuallyEdited]);
+  }, [timezone, isDateTimeManuallyEdited]);
 
   const propConfigRef = useRef(propConfig);
   const initialCreditCustomersRef = useRef(initialCreditCustomers);

@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
-import { getFrontendCookieOptions } from '../utils/cookieOptions';
 
 const AuthContext = createContext();
 
@@ -160,7 +159,7 @@ export const AuthProvider = ({ children }) => {
     setCanDecrementOrderItem(pCanDecrementOrderItem);
     
     // Metadata cookies (Non-HttpOnly) for frontend logic
-    const cookieOptions = getFrontendCookieOptions();
+    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
     
     // Store access token for cross-domain Authorization header
     if (data.accessToken) Cookies.set('access_token', data.accessToken, cookieOptions);
@@ -210,7 +209,7 @@ export const AuthProvider = ({ children }) => {
 
   const updateSubscription = useCallback((status, expiry) => {
     const normalizedStatus = (status || '').toUpperCase();
-    const cookieOptions = getFrontendCookieOptions();
+    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
 
     setSubscriptionStatus(normalizedStatus || null);
     setSubscriptionExpiryDate(expiry || null);
@@ -335,10 +334,11 @@ export const AuthProvider = ({ children }) => {
     return isTrialOrActive && !isExpired;
   })();
 
-  const switchBranch = (newOrgId, newOrgName) => {
+  const switchBranch = (newOrgId, newOrgName, newTimezone) => {
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
-    const cookieOptions = getFrontendCookieOptions();
+    setTimezone(newTimezone || null);
+    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
     if (newOrgId) {
       Cookies.set('orgId', newOrgId, cookieOptions);
     } else {
@@ -348,6 +348,11 @@ export const AuthProvider = ({ children }) => {
       Cookies.set('orgName', newOrgName, cookieOptions);
     } else {
       Cookies.remove('orgName', { path: '/' });
+    }
+    if (newTimezone) {
+      Cookies.set('timezone', newTimezone, cookieOptions);
+    } else {
+      Cookies.remove('timezone', { path: '/' });
     }
     if (typeof window !== 'undefined') {
       window.location.reload();

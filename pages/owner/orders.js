@@ -23,7 +23,7 @@ import { isAndroidPrintStationEnabled, enqueueCloudPrintJob, markCloudPrintJobPr
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { toDisplayItems } from '../../utils/printUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
-import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
 import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import { getFCMToken } from '../../lib/firebase/messaging';
@@ -119,18 +119,13 @@ function toDateTimeInputValue(date) {
 }
 
 function defaultHistoryRange(timezone) {
-  const now = getBusinessNow(timezone);
+  const tz = timezone || (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || 'Asia/Kolkata';
+  const now = getBusinessNow(tz);
   const from = new Date(now);
   from.setHours(0, 0, 0, 0);
   const to = new Date(now);
   to.setHours(23, 59, 59, 999);
   return { from: toDateTimeInputValue(from), to: toDateTimeInputValue(to), q: '', status: '' };
-}
-
-function localInputToIso(value) {
-  if (!value) return undefined;
-  const date = new Date(`${value}:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function parseDeliveryDetails(description) {
@@ -1492,7 +1487,7 @@ export default function OrdersPage() {
   // ── History tab state ──
   const [historyOrders, setHistoryOrders] = useState([]);
   const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
-  const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange('Asia/Kolkata'));
+  const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange());
   const [historyLoading, setHistoryLoading] = useState(false);
   const [branches, setBranches] = useState([]);
   const [terminals, setTerminals] = useState([]);
@@ -1661,13 +1656,14 @@ export default function OrdersPage() {
   const fetchHistoryOrders = useCallback(async (page = 0, filters = historyFilters) => {
     setHistoryLoading(true);
     try {
+      const activeTz = timezone || Cookies.get('timezone') || 'Asia/Kolkata';
       const params = {
         page,
         size: 20,
         ...(filters.q?.trim() ? { q: filters.q.trim() } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.from ? { fromDate: localInputToIso(filters.from) } : {}),
-        ...(filters.to ? { toDate: localInputToIso(filters.to) } : {}),
+        ...(filters.from ? { fromDate: businessTimeToUtc(filters.from, activeTz) } : {}),
+        ...(filters.to ? { toDate: businessTimeToUtc(filters.to, activeTz) } : {}),
         ...(filters.terminalId ? { terminalId: filters.terminalId } : {}),
         ...(filters.branchId ? { orgId: filters.branchId } : {}),
       };
@@ -1685,7 +1681,7 @@ export default function OrdersPage() {
     } finally {
       setHistoryLoading(false);
     }
-  }, [historyFilters]);
+  }, [historyFilters, timezone]);
 
   // Handle ?tab=completed query param from navigation
   useEffect(() => {
