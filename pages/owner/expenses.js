@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Head from 'next/head';
 import DashboardLayout from '../../components/DashboardLayout';
 import ErrorBoundary from '../../components/expenses/ErrorBoundary';
@@ -10,6 +10,7 @@ import CategoryManager from '../../components/expenses/CategoryManager';
 import { useExpenses } from '../../hooks/useExpenses';
 import { useExpenseExport } from '../../hooks/useExpenseExport';
 import { SCOPE_ALL, SCOPE_GLOBAL } from '../../constants/expenseScopes';
+import { prettyMethod } from '../../constants/payMethods';
 import { FaPlus, FaCog, FaFileExcel, FaFileCsv, FaFileAlt } from 'react-icons/fa';
 import styles from '../../components/expenses/Expenses.module.css';
 
@@ -39,6 +40,22 @@ export default function ExpensesPage() {
   const catMgrScope = isSuperAdmin
     ? (filters.branch === SCOPE_ALL ? SCOPE_GLOBAL : filters.branch)
     : (orgId || SCOPE_GLOBAL);
+
+  const totalExpenses = useMemo(() => {
+    return records.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+  }, [records]);
+
+  const expensesByPaymentMethod = useMemo(() => {
+    const map = {};
+    records.forEach(r => {
+      const method = r.paymentMethod || 'OTHER';
+      map[method] = (map[method] || 0) + (parseFloat(r.amount) || 0);
+    });
+    return Object.entries(map).map(([method, amount]) => ({
+      method,
+      amount
+    })).sort((a, b) => b.amount - a.amount);
+  }, [records]);
 
   return (
     <>
@@ -75,6 +92,36 @@ export default function ExpensesPage() {
               branches={branches}
               isSuperAdmin={isSuperAdmin}
             />
+
+            {/* ── SUMMARY SECTION ── */}
+            {!loading && records.length > 0 && (
+              <div className={styles['summary-container']}>
+                <div className={styles['summary-card']}>
+                  <div className={styles['kpi-title']}>Total Expenses</div>
+                  <div className={styles['kpi-value']}>
+                    {currencySymbol}{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div className={styles['kpi-subtitle']}>
+                    Calculated for the selected period
+                  </div>
+                </div>
+                <div className={styles['breakdown-card']}>
+                  <div className={styles['breakdown-title']}>Expenses By Payment Method</div>
+                  <div className={styles['breakdown-grid']}>
+                    {expensesByPaymentMethod.map(({ method, amount }) => (
+                      <div key={method} className={styles['breakdown-item']}>
+                        <span className={styles['breakdown-method-label']}>
+                          {prettyMethod(method)}
+                        </span>
+                        <span className={styles['breakdown-method-value']}>
+                          {currencySymbol}{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── LOADING skeleton (no records yet) ── */}
             {loading && (
