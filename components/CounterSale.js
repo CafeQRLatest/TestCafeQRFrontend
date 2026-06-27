@@ -1695,12 +1695,13 @@ export default function CounterSale({
       if (pResp.data.success) {
         const pList = pResp.data.data || [];
         setProducts(pList);
-        const currentOrgId = orgId && orgId !== '0' ? orgId : null;
-        const activeCats = (catResp?.data?.data || [])
-          .filter(c => c.isActive !== false && (!c.orgId || (currentOrgId && String(c.orgId) === String(currentOrgId))))
-          .map(c => c.name);
-        const productCats = pList.map(p => p.categoryName).filter(Boolean);
-        const cats = ['ALL', ...new Set([...activeCats, ...productCats])];
+        const activeProducts = pList.filter(p => {
+          if (p.isActive === false || p.isactive === 'N') return false;
+          if (p.isIngredient === true || p.is_ingredient === true || String(p.isIngredient).toUpperCase() === 'Y' || String(p.is_ingredient).toUpperCase() === 'Y') return false;
+          return true;
+        });
+        const productCats = activeProducts.map(p => p.categoryName).filter(Boolean);
+        const cats = ['ALL', ...new Set(productCats)];
         setCategories(cats);
 
         if (updatedProduct) {
@@ -2048,12 +2049,13 @@ export default function CounterSale({
             setDefaultPricelistId(def.id);
           }
         }
-        const currentOrgId = orgId && orgId !== '0' ? orgId : null;
-        const activeCats = (catRes?.data?.data || [])
-          .filter(c => c.isActive !== false && (!c.orgId || (currentOrgId && String(c.orgId) === String(currentOrgId))))
-          .map(c => c.name);
-        const productCats = pList.map(p => p.categoryName).filter(Boolean);
-        const cats = ['ALL', ...new Set([...activeCats, ...productCats])];
+        const activeProducts = pList.filter(p => {
+          if (p.isActive === false || p.isactive === 'N') return false;
+          if (p.isIngredient === true || p.is_ingredient === true || String(p.isIngredient).toUpperCase() === 'Y' || String(p.is_ingredient).toUpperCase() === 'Y') return false;
+          return true;
+        });
+        const productCats = activeProducts.map(p => p.categoryName).filter(Boolean);
+        const cats = ['ALL', ...new Set(productCats)];
         setCategories(cats);
       } catch (e) {
         if (e?.code === 'OFFLINE_CACHE_MISS') {
