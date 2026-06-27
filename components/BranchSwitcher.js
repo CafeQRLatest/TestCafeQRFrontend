@@ -221,7 +221,7 @@ export default function BranchSwitcher() {
         .switcher-dropdown {
           position: absolute;
           top: calc(100% + 8px);
-          left: 0;
+          right: 0;
           width: 260px;
           background: white;
           border: 1px solid #edf2f7;
@@ -323,6 +323,34 @@ export default function BranchSwitcher() {
           font-size: 12px;
           color: #94a3b8;
           font-weight: 600;
+        }
+
+        @media (max-width: 640px) {
+          .switcher-trigger {
+            min-width: auto;
+            padding: 6px 10px;
+            gap: 6px;
+            border-radius: 10px;
+          }
+          .label {
+            display: none;
+          }
+          .current-branch {
+            max-width: 80px;
+            font-size: 11px;
+          }
+          .building-icon {
+            font-size: 12px;
+          }
+          .chevron-icon {
+            font-size: 10px;
+          }
+          .branch-static-badge {
+            padding: 6px 10px;
+            font-size: 11px;
+            gap: 6px;
+            border-radius: 10px;
+          }
         }
       `}</style>
     </div>

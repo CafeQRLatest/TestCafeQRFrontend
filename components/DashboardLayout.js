@@ -36,7 +36,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
     if (touchStartRef.current === null) return;
     const touchEnd = e.changedTouches[0].clientX;
     const diff = touchStartRef.current - touchEnd;
-    const isEdgeSwipe = touchStartRef.current < 40; // Start from left edge
+    const isEdgeSwipe = touchStartRef.current < 80; // Start from left edge (increased to 80px)
 
     // Swipe Left to Right (Open) - only from edge
     if (diff < -50 && isEdgeSwipe) {
@@ -242,8 +242,17 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       {/* Mobile Sidebar */}
       {!noSidebar && (
         <>
-          <div className={`mobile-sidebar-backdrop ${mobileOpen ? 'visible' : ''}`} onClick={() => setMobileOpen(false)} />
-          <aside className={`mobile-sidebar ${mobileOpen ? 'open' : ''}`}>
+          <div 
+            className={`mobile-sidebar-backdrop ${mobileOpen ? 'visible' : ''}`} 
+            onClick={() => setMobileOpen(false)} 
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          />
+          <aside 
+            className={`mobile-sidebar ${mobileOpen ? 'open' : ''}`}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <MobileSidebar onNavigate={() => setMobileOpen(false)} menus={assignedMenus} config={config} />
           </aside>
         </>
@@ -445,7 +454,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         .dashboard-wrapper { min-height: 100dvh; position: relative; }
         
-        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; }
+        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; flex-shrink: 0; }
         .header-text { min-width: 0; }
         
         .header-text h1 { 
@@ -490,15 +499,15 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         .user-menu-container { position: relative; }
         
         .avatar-btn {
-           display: flex; align-items: center; gap: 10px;
-           padding: 6px 10px 6px 6px; border-radius: 14px;
-           background: white; border: 1px solid rgba(226, 232, 240, 0.8);
+           display: flex; align-items: center; gap: 8px;
+           padding: 4px 8px 4px 4px; border-radius: 12px;
+           background: transparent; border: 1px solid transparent;
            cursor: pointer; transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
         }
         .avatar-btn:hover, .avatar-btn.active { 
-          border-color: #f97316; 
-          transform: translateY(-2px);
-          box-shadow: 0 8px 20px -8px rgba(249, 115, 22, 0.3);
+          background: rgba(249, 115, 22, 0.05);
+          border-color: rgba(249, 115, 22, 0.1);
+          transform: translateY(-1px);
         }
 
         .avatar {
@@ -506,7 +515,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
            background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
            color: white; display: flex; align-items: center; justify-content: center;
            font-weight: 800; font-size: 14px;
-           box-shadow: 0 4px 8px rgba(249, 115, 22, 0.2);
+           box-shadow: 0 4px 8px rgba(249, 115, 22, 0.15);
         }
 
         .user-info-brief { display: flex; align-items: center; gap: 8px; }
@@ -596,11 +605,13 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         @media (max-width: 640px) {
           .dashboard-header { min-height: 58px; }
           .header-inner { min-height: 58px; }
-          .header-text h1 { font-size: 16px; max-width: 46vw; }
-          .icon-btn, .ctrl-btn, .back-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .header-text { display: none !important; }
+          .ctrl-btn { display: none !important; }
+          .icon-btn, .back-btn { width: 36px; height: 36px; border-radius: 11px; }
           .user-info-brief { display: none; }
-          .avatar-btn { padding: 4px; border-radius: 12px; }
-          .avatar { width: 30px; height: 30px; border-radius: 9px; }
+          .avatar-btn { padding: 0; border: none; background: transparent; }
+          .avatar-btn:hover, .avatar-btn.active { background: transparent; transform: scale(1.05); }
+          .avatar { width: 32px; height: 32px; border-radius: 10px; }
           .content-area { padding: 12px; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
         }
 
