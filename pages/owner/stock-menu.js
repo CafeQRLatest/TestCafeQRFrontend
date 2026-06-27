@@ -83,18 +83,18 @@ export default function StockMenuPage() {
           {/* Card grid */}
           <div className="card-grid">
             {stockModules.map((mod, i) => (
-              <Link
-                href={mod.href}
-                key={i}
-                className="m-card"
-                style={{ '--c': mod.color, '--cbg': mod.bg }}
-              >
-                <div className="m-icon">{mod.icon}</div>
-                <div className="m-text">
-                  <span className="m-title">{mod.title}</span>
-                  <span className="m-desc">{mod.desc}</span>
-                </div>
-                <FaArrowRight className="m-arrow" />
+              <Link href={mod.href} key={i} legacyBehavior>
+                <a
+                  className="m-card"
+                  style={{ '--c': mod.color, '--cbg': mod.bg }}
+                >
+                  <div className="m-icon">{mod.icon}</div>
+                  <div className="m-text">
+                    <span className="m-title">{mod.title}</span>
+                    <span className="m-desc">{mod.desc}</span>
+                  </div>
+                  <FaArrowRight className="m-arrow" />
+                </a>
               </Link>
             ))}
           </div>

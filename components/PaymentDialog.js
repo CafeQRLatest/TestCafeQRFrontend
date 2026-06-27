@@ -5,6 +5,7 @@ import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
+import api from '../utils/api';
 
 const THEMES = {
   orange: {
@@ -545,6 +546,73 @@ export default function PaymentDialog({
   const [paymentSplits, setPaymentSplits] = useState([]);
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
+  const [paymentTypes, setPaymentTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    api.get('/api/v1/purchasing/payment-types?applicableFor=SALES')
+      .then(res => {
+        if (active && res?.data?.success && res?.data?.data) {
+          setPaymentTypes(res.data.data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load active sales payment types:', err);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const selectOptions = useMemo(() => {
+    const list = paymentTypes.length > 0 ? paymentTypes : [
+      { displayName: 'Cash', paymentType: 'OTHERS', sales: 'Y', isactive: 'Y' },
+      { displayName: 'Online', paymentType: 'OTHERS', sales: 'Y', isactive: 'Y' },
+      { displayName: 'Credit', paymentType: 'CREDIT', sales: 'Y', isactive: 'Y' }
+    ];
+
+    const filtered = list.filter(pt => {
+      const act = pt.isActive ?? pt.isactive ?? 'Y';
+      if (act !== 'Y') return false;
+      if (pt.sales !== 'Y') return false;
+      if (pt.paymentType === 'CREDIT' && !creditEnabled) return false;
+      if (pt.displayName?.toUpperCase() === 'MIXED') return false;
+      return true;
+    });
+
+    const mapped = filtered.map(pt => ({
+      value: pt.displayName.toUpperCase(),
+      label: pt.displayName + (pt.paymentType === 'CREDIT' ? ' (Credit Ledger)' : ''),
+      paymentType: pt.paymentType
+    }));
+
+    mapped.push({ value: 'MIXED', label: 'Mixed / Split Payment', paymentType: 'OTHERS' });
+    return mapped;
+  }, [paymentTypes, creditEnabled]);
+
+  const splitMethodOptions = useMemo(() => {
+    const list = paymentTypes.length > 0 ? paymentTypes : [
+      { displayName: 'Cash', paymentType: 'OTHERS', sales: 'Y', isactive: 'Y' },
+      { displayName: 'Online', paymentType: 'OTHERS', sales: 'Y', isactive: 'Y' }
+    ];
+    return list
+      .filter(pt => {
+        const act = pt.isActive ?? pt.isactive ?? 'Y';
+        if (pt.displayName?.toUpperCase() === 'MIXED') return false;
+        return act === 'Y' && pt.sales === 'Y' && pt.paymentType !== 'CREDIT';
+      })
+      .map(pt => ({
+        value: pt.displayName.toUpperCase(),
+        label: pt.displayName
+      }));
+  }, [paymentTypes]);
+
+  useEffect(() => {
+    if (selectOptions.length > 0) {
+      const hasCurrent = selectOptions.some(o => o.value === paymentMethod);
+      if (!hasCurrent) {
+        setPaymentMethod(selectOptions[0].value);
+      }
+    }
+  }, [selectOptions, paymentMethod]);
 
   // Discount Modal States
   const [showDiscountModal, setShowDiscountModal] = useState(false);
@@ -777,13 +845,18 @@ export default function PaymentDialog({
 
   const isDiscountValid = true; // Fully managed inside the discount modal!
 
+  const isCreditSelected = useMemo(() => {
+    const currentOpt = selectOptions.find(o => o.value === paymentMethod);
+    return currentOpt?.paymentType === 'CREDIT';
+  }, [paymentMethod, selectOptions]);
+
   const mixedTotal = paymentSplits.reduce((sum, split) => sum + toNumber(split.amount), 0);
   const selectedSplitMethods = paymentSplits.map((split) => split.paymentMethod).filter(Boolean);
   const hasDuplicateSplitMethod = new Set(selectedSplitMethods).size !== selectedSplitMethods.length;
   const hasInvalidSplitRow = paymentSplits.some((split) => !split.paymentMethod || toNumber(split.amount) < 0);
   const mixedInvalid = paymentMethod === 'MIXED'
     && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01);
-  const creditInvalid = paymentMethod === 'CREDIT' && !creditCustomerId;
+  const creditInvalid = isCreditSelected && !creditCustomerId;
   const creditCustomerOptions = useMemo(
     () => creditCustomers.map((customer) => ({
       value: customer.id,
@@ -814,8 +887,10 @@ export default function PaymentDialog({
       setPaymentSplits((current) =>
         current.map((split, currentIndex) => {
           if (currentIndex === index) return { ...split, amount: value };
-          // auto-fill the other row with remaining
-          return { ...split, amount: String(remaining) };
+          if (current.length === 2) {
+            return { ...split, amount: String(remaining) };
+          }
+          return split;
         })
       );
     } else {
@@ -915,9 +990,9 @@ export default function PaymentDialog({
       roundOffAmount: finalRoundOff,
     } : null;
 
-    if (paymentMethod === 'CREDIT') {
+    if (isCreditSelected) {
       onConfirm?.({
-        paymentMethod: 'CREDIT',
+        paymentMethod,
         creditCustomerId,
         amountPaid: 0,
         discountAmount: Number(disc.toFixed(dp)),
@@ -1012,24 +1087,19 @@ export default function PaymentDialog({
           </Field>
         )}
 
-        <MethodGrid>
-          <MethodButton type="button" $theme={theme} $active={paymentMethod === 'CASH'} onClick={() => chooseMethod('CASH')}>
-            <FaMoneyBillWave /> Cash
-          </MethodButton>
-          <MethodButton type="button" $theme={theme} $active={paymentMethod === 'ONLINE'} onClick={() => chooseMethod('ONLINE')}>
-            <FaCreditCard /> Online
-          </MethodButton>
-          <MethodButton type="button" $theme={theme} $active={paymentMethod === 'MIXED'} onClick={() => chooseMethod('MIXED')}>
-            <FaExchangeAlt /> Mixed
-          </MethodButton>
-          {creditEnabled && (
-            <MethodButton type="button" $theme={theme} $active={paymentMethod === 'CREDIT'} onClick={() => chooseMethod('CREDIT')}>
-              <FaBook /> Credit
-            </MethodButton>
-          )}
-        </MethodGrid>
+        <Field style={{ marginBottom: 4 }}>
+          Payment Method
+          <NiceSelect
+            value={paymentMethod}
+            onChange={chooseMethod}
+            placeholder="Select Payment Method..."
+            options={selectOptions}
+            maxHeight={300}
+            style={{ height: 42, minWidth: 0 }}
+          />
+        </Field>
 
-        {paymentMethod === 'CREDIT' && (
+        {isCreditSelected && (
           <CreditPanel>
             <CreditLabel>Credit Customer</CreditLabel>
             <CreditPickerRow>
@@ -1051,7 +1121,7 @@ export default function PaymentDialog({
         {paymentMethod === 'MIXED' && (
           <SplitPanel>
             {paymentSplits.map((split, index) => (
-              <SplitRow key={`${split.paymentMethod}-${index}`}>
+              <SplitRow key={`${split.paymentMethod}-${index}`} style={{ gridTemplateColumns: '1.1fr 1fr' }}>
                 <Field>
                   Method
                   <div style={{
@@ -1067,7 +1137,7 @@ export default function PaymentDialog({
                     border: '1.5px solid #e2e8f0',
                     userSelect: 'none'
                   }}>
-                    {split.paymentMethod}
+                    {split.paymentMethod === 'CASH' ? 'Cash' : 'Online'}
                   </div>
                 </Field>
                 <Field>

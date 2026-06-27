@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
 import {
@@ -8,6 +8,7 @@ import {
   FaHashtag, FaTruck, FaTimesCircle, FaFileAlt, FaUserTie,
   FaShoppingCart, FaChevronRight
 } from 'react-icons/fa';
+import api from '../../utils/api';
 
 const STEPS = [
   { id: 1, label: 'Supplier',  icon: <FaUserTie /> },
@@ -39,6 +40,57 @@ export default function PurchaseForm({
   const searchRef = useRef(null);
   const searchInp = useRef(null);
   const linesEndRef = useRef(null);
+  const [paymentTypes, setPaymentTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const orgParam = po.orgId ? `&orgId=${po.orgId}` : '';
+    api.get(`/api/v1/purchasing/payment-types?applicableFor=PURCHASES${orgParam}`)
+      .then(res => {
+        if (active && res?.data?.success && res?.data?.data) {
+          setPaymentTypes(res.data.data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load purchase payment types:', err);
+      });
+    return () => { active = false; };
+  }, [po.orgId]);
+
+  const payMethodOptions = useMemo(() => {
+    if (paymentTypes.length === 0) {
+      return [
+        { value: 'CREDIT', label: 'Credit' },
+        { value: 'CASH', label: 'Cash' },
+        { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+        { value: 'UPI', label: 'UPI / Digital' },
+        { value: 'CARD', label: 'Card' },
+        { value: 'CHEQUE', label: 'Cheque' }
+      ];
+    }
+    return paymentTypes
+      .filter(pt => {
+        const act = pt.isActive ?? pt.isactive ?? 'Y';
+        return act === 'Y';
+      })
+      .map(pt => ({
+        value: pt.paymentType === 'CREDIT' ? 'CREDIT' : pt.displayName.toUpperCase(),
+        label: pt.displayName
+      }));
+  }, [paymentTypes]);
+
+  useEffect(() => {
+    if (payMethodOptions.length > 0) {
+      const hasCurrent = payMethodOptions.some(o => o.value === po.paymentMethod);
+      if (!hasCurrent) {
+        setPo(p => ({
+          ...p,
+          paymentMethod: payMethodOptions[0].value,
+          paymentStatus: payMethodOptions[0].value === 'CREDIT' ? 'PENDING' : 'PAID'
+        }));
+      }
+    }
+  }, [payMethodOptions, po.paymentMethod, setPo]);
 
   // Click outside suggestions dropdown handler
   useEffect(() => {
@@ -592,18 +644,11 @@ export default function PurchaseForm({
               )}
 
               {!isLocked && (
-                <div className={`${styles['summary-payment-row']} ${styles['no-border']}`}>
-                  <span className={styles['info-label']}>Payment Mode</span>
-                  <NiceSelect
-                    placeholder="Select Mode"
-                    options={[
-                      { value: 'CREDIT', label: 'Credit' },
-                      { value: 'CASH', label: 'Cash' },
-                      { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-                      { value: 'UPI', label: 'UPI / Digital' },
-                      { value: 'CARD', label: 'Card' },
-                      { value: 'CHEQUE', label: 'Cheque' }
-                    ]}
+                <div className={styles['summary-field-group']}>
+                  <label className={styles['sf-label']}>Payment Mode</label>
+                  <NiceSelect 
+                    placeholder="Select payment method..."
+                    options={payMethodOptions}
                     value={po.paymentMethod}
                     onChange={(v) => setPo(p => ({
                       ...p,

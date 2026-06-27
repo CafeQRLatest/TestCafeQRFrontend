@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CafeQRPopup from '../CafeQRPopup';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
-import { PAY_METHODS } from '../../constants/payMethods';
 import { SCOPE_ALL, SCOPE_GLOBAL, getCurrencySymbol } from '../../constants/expenseScopes';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { FaEdit, FaPlus } from 'react-icons/fa';
 import styles from './Expenses.module.css';
+import api from '../../utils/api';
 
 /**
  * Timezone-safe "business now" using the IANA Intl API.
@@ -75,6 +75,55 @@ export default function ExpenseForm({
   const [fDesc,     setFDesc]     = useState('');
   const [fMethod,   setFMethod]   = useState('CASH');
   const [fBranchId, setFBranchId] = useState('');
+  const [paymentTypes, setPaymentTypes] = useState([]);
+  const [cashAmount, setCashAmount] = useState('');
+  const [onlineAmount, setOnlineAmount] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const orgParam = (isSuperAdmin && fBranchId && fBranchId !== SCOPE_GLOBAL) ? `&orgId=${fBranchId}` : '';
+    api.get(`/api/v1/purchasing/payment-types?applicableFor=EXPENSES${orgParam}`)
+      .then(res => {
+        if (active && res?.data?.success && res?.data?.data) {
+          setPaymentTypes(res.data.data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load expense payment types:', err);
+      });
+    return () => { active = false; };
+  }, [fBranchId, isSuperAdmin]);
+
+  const payMethodOptions = useMemo(() => {
+    if (paymentTypes.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'CARD', label: 'Card' },
+        { value: 'UPI', label: 'UPI' },
+        { value: 'BANK', label: 'Bank Transfer' },
+        { value: 'CHEQUE', label: 'Cheque' },
+        { value: 'ONLINE', label: 'Online' }
+      ];
+    }
+    return paymentTypes
+      .filter(pt => {
+        const act = pt.isActive ?? pt.isactive ?? 'Y';
+        return act === 'Y';
+      })
+      .map(pt => ({
+        value: pt.displayName.toUpperCase(),
+        label: pt.displayName
+      }));
+  }, [paymentTypes]);
+
+  useEffect(() => {
+    if (payMethodOptions.length > 0) {
+      const hasCurrent = payMethodOptions.some(o => o.value === fMethod);
+      if (!hasCurrent) {
+        setFMethod(payMethodOptions[0].value);
+      }
+    }
+  }, [payMethodOptions, fMethod]);
 
   // Initialize field state from `editing` (or safe defaults for new expense)
   useEffect(() => {
@@ -85,6 +134,8 @@ export default function ExpenseForm({
       setFCatId(editing.categoryId || '');
       setFAmount(String(editing.amount || ''));
       setFMethod(editing.paymentMethod || 'CASH');
+      setCashAmount(editing.cashAmount ? String(editing.cashAmount) : '');
+      setOnlineAmount(editing.onlineAmount ? String(editing.onlineAmount) : '');
       setFDesc(editing.description || '');
       setFBranchId(editing.scope === SCOPE_GLOBAL || !editing.orgId ? SCOPE_GLOBAL : editing.orgId);
     } else {
@@ -95,6 +146,8 @@ export default function ExpenseForm({
       setFAmount('');
       setFDesc('');
       setFMethod('CASH');
+      setCashAmount('');
+      setOnlineAmount('');
       setFBranchId(defaultBranchId || (isSuperAdmin ? SCOPE_GLOBAL : (orgId || '')));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,6 +164,29 @@ export default function ExpenseForm({
     setFCatId(''); // invalidate previous selection when scope changes
     if (onBranchChange) onBranchChange(value);
   }, [onBranchChange]);
+
+  useEffect(() => {
+    if (fMethod === 'MIXED') {
+      if (!cashAmount && !onlineAmount) {
+        setCashAmount(fAmount || '');
+        setOnlineAmount('0');
+      }
+    }
+  }, [fMethod, fAmount]);
+
+  const handleCashChange = useCallback((val) => {
+    setCashAmount(val);
+    const cash = parseFloat(val) || 0;
+    const online = parseFloat(onlineAmount) || 0;
+    setFAmount(String(Number((cash + online).toFixed(2))));
+  }, [onlineAmount]);
+
+  const handleOnlineChange = useCallback((val) => {
+    setOnlineAmount(val);
+    const cash = parseFloat(cashAmount) || 0;
+    const online = parseFloat(val) || 0;
+    setFAmount(String(Number((cash + online).toFixed(2))));
+  }, [cashAmount]);
 
   // ── Validation + payload assembly ───────────────────────────────────────────
   const handleSave = useCallback(() => {
@@ -132,17 +208,31 @@ export default function ExpenseForm({
       ? { scope: 'GLOBAL', branchId: null }
       : { scope: 'BRANCH', branchId: scopeValue };
 
+    let cashVal = null;
+    let onlineVal = null;
+
+    if (fMethod === 'MIXED') {
+      cashVal = parseFloat(cashAmount) || 0;
+      onlineVal = parseFloat(onlineAmount) || 0;
+      if (cashVal <= 0 && onlineVal <= 0) {
+        notify('error', 'Enter a valid amount for Cash or Online');
+        return;
+      }
+    }
+
     const payload = {
       categoryId:    fCatId,
       expenseDate:   new Date(`${fDate}T${fTime}:00`).toISOString(),
       amount:        parseFloat(fAmount),
       description:   fDesc || null,
       paymentMethod: fMethod || 'CASH',
+      cashAmount:    cashVal,
+      onlineAmount:  onlineVal,
       ...scopePayload
     };
 
     onSubmit(payload);
-  }, [fAmount, fCatId, fBranchId, fDate, fTime, fDesc, fMethod, isSuperAdmin, orgId, notify, onSubmit]);
+  }, [fAmount, fCatId, fBranchId, fDate, fTime, fDesc, fMethod, isSuperAdmin, orgId, notify, onSubmit, cashAmount, onlineAmount]);
 
   const expenseScopeOptions = [
     { value: SCOPE_GLOBAL, label: 'Organization' },
@@ -212,36 +302,80 @@ export default function ExpenseForm({
 
       {/* Amount + Payment Mode — two-column row */}
       <div className={styles['mdl-row']}>
-        <div className={styles['mdl-field']}>
-          <label className={styles['mdl-lbl']}>
-            Amount <span className={styles.req}>*</span>
-          </label>
-          <div className={styles['amt-input-w']}>
-            <span className={styles['amt-pre']}>{currencySymbol}</span>
-            <input
-              id="expense-amount"
-              className={styles['amt-input']}
-              type="number"
-              step="0.01"
-              min="0"
-              value={fAmount}
-              onChange={e => setFAmount(e.target.value)}
-              placeholder="0.00"
-              required
-            />
+        {fMethod !== 'MIXED' && (
+          <div className={styles['mdl-field']}>
+            <label className={styles['mdl-lbl']}>
+              Amount <span className={styles.req}>*</span>
+            </label>
+            <div className={styles['amt-input-w']}>
+              <span className={styles['amt-pre']}>{currencySymbol}</span>
+              <input
+                id="expense-amount"
+                className={styles['amt-input']}
+                type="number"
+                step="0.01"
+                min="0"
+                value={fAmount}
+                onChange={e => setFAmount(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
           </div>
-        </div>
-        <div className={styles['mdl-field']}>
+        )}
+        <div className={styles['mdl-field']} style={{ gridColumn: fMethod === 'MIXED' ? 'span 2' : 'span 1' }}>
           <label className={styles['mdl-lbl']}>
             Payment Mode <span className={styles.req}>*</span>
           </label>
           <NiceSelect
             value={fMethod}
             onChange={setFMethod}
-            options={PAY_METHODS}
+            options={payMethodOptions}
           />
         </div>
       </div>
+
+      {/* Cash + Online Splits for MIXED payments */}
+      {fMethod === 'MIXED' && (
+        <div className={styles['mdl-row']} style={{ marginTop: '0px', marginBottom: '12px' }}>
+          <div className={styles['mdl-field']}>
+            <label className={styles['mdl-lbl']}>
+              Cash Amount <span className={styles.req}>*</span>
+            </label>
+            <div className={styles['amt-input-w']}>
+              <span className={styles['amt-pre']}>{currencySymbol}</span>
+              <input
+                className={styles['amt-input']}
+                type="number"
+                step="0.01"
+                min="0"
+                value={cashAmount}
+                onChange={e => handleCashChange(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+          <div className={styles['mdl-field']}>
+            <label className={styles['mdl-lbl']}>
+              Online Amount <span className={styles.req}>*</span>
+            </label>
+            <div className={styles['amt-input-w']}>
+              <span className={styles['amt-pre']}>{currencySymbol}</span>
+              <input
+                className={styles['amt-input']}
+                type="number"
+                step="0.01"
+                min="0"
+                value={onlineAmount}
+                onChange={e => handleOnlineChange(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       <div className={styles['mdl-field']}>

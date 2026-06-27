@@ -36,7 +36,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
     if (touchStartRef.current === null) return;
     const touchEnd = e.changedTouches[0].clientX;
     const diff = touchStartRef.current - touchEnd;
-    const isEdgeSwipe = touchStartRef.current < 40; // Start from left edge
+    const isEdgeSwipe = touchStartRef.current < 80; // Start from left edge (increased to 80px)
 
     // Swipe Left to Right (Open) - only from edge
     if (diff < -50 && isEdgeSwipe) {
@@ -242,8 +242,17 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       {/* Mobile Sidebar */}
       {!noSidebar && (
         <>
-          <div className={`mobile-sidebar-backdrop ${mobileOpen ? 'visible' : ''}`} onClick={() => setMobileOpen(false)} />
-          <aside className={`mobile-sidebar ${mobileOpen ? 'open' : ''}`}>
+          <div 
+            className={`mobile-sidebar-backdrop ${mobileOpen ? 'visible' : ''}`} 
+            onClick={() => setMobileOpen(false)} 
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          />
+          <aside 
+            className={`mobile-sidebar ${mobileOpen ? 'open' : ''}`}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <MobileSidebar onNavigate={() => setMobileOpen(false)} menus={assignedMenus} config={config} />
           </aside>
         </>
@@ -315,7 +324,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         }
         .collapsed-link:hover { background: transparent !important; transform: none !important; }
 
-        /* Icon pill — the container inside collapsed links */
+        /* Icon pill â€” the container inside collapsed links */
         .icon-pill {
           width: 38px;
           height: 38px;
@@ -445,7 +454,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
         .dashboard-wrapper { min-height: 100dvh; position: relative; }
         
-        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; }
+        .header-left { display: flex; align-items: center; gap: clamp(10px, 2vw, 24px); min-width: 0; flex-shrink: 0; }
         .header-text { min-width: 0; }
         
         .header-text h1 { 
@@ -490,15 +499,15 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         .user-menu-container { position: relative; }
         
         .avatar-btn {
-           display: flex; align-items: center; gap: 10px;
-           padding: 6px 10px 6px 6px; border-radius: 14px;
-           background: white; border: 1px solid rgba(226, 232, 240, 0.8);
+           display: flex; align-items: center; gap: 8px;
+           padding: 4px 8px 4px 4px; border-radius: 12px;
+           background: transparent; border: 1px solid transparent;
            cursor: pointer; transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
         }
         .avatar-btn:hover, .avatar-btn.active { 
-          border-color: #f97316; 
-          transform: translateY(-2px);
-          box-shadow: 0 8px 20px -8px rgba(249, 115, 22, 0.3);
+          background: rgba(249, 115, 22, 0.05);
+          border-color: rgba(249, 115, 22, 0.1);
+          transform: translateY(-1px);
         }
 
         .avatar {
@@ -506,7 +515,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
            background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
            color: white; display: flex; align-items: center; justify-content: center;
            font-weight: 800; font-size: 14px;
-           box-shadow: 0 4px 8px rgba(249, 115, 22, 0.2);
+           box-shadow: 0 4px 8px rgba(249, 115, 22, 0.15);
         }
 
         .user-info-brief { display: flex; align-items: center; gap: 8px; }
@@ -596,11 +605,13 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         @media (max-width: 640px) {
           .dashboard-header { min-height: 58px; }
           .header-inner { min-height: 58px; }
-          .header-text h1 { font-size: 16px; max-width: 46vw; }
-          .icon-btn, .ctrl-btn, .back-btn { width: 36px; height: 36px; border-radius: 11px; }
+          .header-text { display: none !important; }
+          .ctrl-btn { display: none !important; }
+          .icon-btn, .back-btn { width: 36px; height: 36px; border-radius: 11px; }
           .user-info-brief { display: none; }
-          .avatar-btn { padding: 4px; border-radius: 12px; }
-          .avatar { width: 30px; height: 30px; border-radius: 9px; }
+          .avatar-btn { padding: 0; border: none; background: transparent; }
+          .avatar-btn:hover, .avatar-btn.active { background: transparent; transform: scale(1.05); }
+          .avatar { width: 32px; height: 32px; border-radius: 10px; }
           .content-area { padding: 12px; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
         }
 
@@ -613,7 +624,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   );
 }
 
-// ─── INTERNAL COMPONENTS ──────────────────────────────────────────────────────
+// â”€â”€â”€ INTERNAL COMPONENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 function Sidebar({ collapsed, menus = [], config, onToggle }) {
@@ -652,7 +663,8 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "Configurations":     { name: "Settings", icon: <FaCog /> },
     "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
-    "Partners":           { name: "Partners", icon: <FaUserFriends /> }
+    "Partners":           { name: "Partners", icon: <FaUserFriends /> },
+    "Payment Types":      { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" }
   };
 
   const categoryMapping = {
@@ -728,9 +740,15 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     });
   });
 
+  // Static sub-page links injected into ACCOUNT section
+  const hasOrgOrConfigAccess = menus.some(m => m.name === 'Organization' || m.name === 'Configurations');
+  const STATIC_ACCOUNT_LINKS = hasOrgOrConfigAccess ? [
+    { id: '__payment_types', name: 'Payment Types', url: '/owner/payment-types' },
+  ] : [];
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-      {/* ── Sidebar Header ── */}
+      {/* â”€â”€ Sidebar Header â”€â”€ */}
       {collapsed ? (
         /* COLLAPSED: logo + expand button stacked */
         <div style={{
@@ -745,7 +763,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
             }} />
           </Link>
-          {/* Expand button — same ☰ button as collapse */}
+          {/* Expand button â€” same â˜° button as collapse */}
           <button
             onClick={onToggle}
             className="sidebar-toggle-btn"
@@ -785,13 +803,15 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '12px', paddingTop: '8px' }} className="custom-scrollbar">
           {Object.entries(groupedMenus).map(([categoryName, items]) => {
-            if (items.length === 0) return null;
+            const staticItems = categoryName === 'ACCOUNT' ? STATIC_ACCOUNT_LINKS : [];
+            const allItems = [...items, ...staticItems];
+            if (allItems.length === 0) return null;
             return (
               <React.Fragment key={categoryName}>
-                {/* Section title — hidden in collapsed */}
+                {/* Section title â€” hidden in collapsed */}
                 {!collapsed && <div className="sidebar-section-title">{categoryName}</div>}
                 {collapsed && <div style={{ height: 6 }} />}
-                {items.map(m => {
+                {allItems.map(m => {
                   const configItem = menuConfig[m.name] || {};
                   const targetUrl = configItem.url || m.url;
                   const active = router.pathname === targetUrl;
@@ -828,7 +848,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
         )}
         {!collapsed && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px 14px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Café QR v1.2</span>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>CafÃ© QR v1.2</span>
           </div>
         )}
       </div>
@@ -885,7 +905,8 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Configurations":     { name: "Settings", icon: <FaCog /> },
     "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup":        { name: "Data Backup", icon: <FaDatabase /> },
-    "Partners":           { name: "Partners", icon: <FaUserFriends /> }
+    "Partners":           { name: "Partners", icon: <FaUserFriends /> },
+    "Payment Types":      { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" }
   };
 
   const categoryMapping = {
@@ -961,6 +982,12 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     });
   });
 
+  // Static sub-page links injected into ACCOUNT section
+  const hasOrgOrConfigAccess = menus.some(m => m.name === 'Organization' || m.name === 'Configurations');
+  const STATIC_ACCOUNT_LINKS = hasOrgOrConfigAccess ? [
+    { id: '__payment_types', name: 'Payment Types', url: '/owner/payment-types' },
+  ] : [];
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
        <div style={{ padding: '32px 24px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -970,11 +997,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
        <div style={{ flex: 1, overflowY: 'auto' }}>
           {Object.entries(groupedMenus).map(([categoryName, items]) => {
-            if (items.length === 0) return null;
+            const staticItems = categoryName === 'ACCOUNT' ? STATIC_ACCOUNT_LINKS : [];
+            const allItems = [...items, ...staticItems];
+            if (allItems.length === 0) return null;
             return (
               <React.Fragment key={categoryName}>
                 <div className="sidebar-section-title">{categoryName}</div>
-                {items.map(m => {
+                {allItems.map(m => {
                   const configItem = menuConfig[m.name] || {};
                   const targetUrl = configItem.url || m.url;
                   const active = router.pathname === targetUrl;

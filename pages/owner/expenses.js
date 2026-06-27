@@ -31,7 +31,8 @@ export default function ExpensesPage() {
     catSaving, catActiveFilter, setCatActiveFilter,
     addCategory, toggleCatActive,
     // Misc
-    isSuperAdmin, timezone, orgId, currencySymbol, loadCategoriesForScope
+    isSuperAdmin, timezone, orgId, currencySymbol, loadCategoriesForScope,
+    expPage, expTotalPages, expTotalElements, fetchPage
   } = useExpenses();
 
   const { exportToCSV, exportToExcel } = useExpenseExport({ categories, timezone });
@@ -187,6 +188,56 @@ export default function ExpensesPage() {
                   filterStatus={filters.status}
                   currencySymbol={currencySymbol}
                 />
+
+                {/* ── PAGINATION BAR ── */}
+                {expTotalPages > 1 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '16px',
+                    padding: '16px 0',
+                    borderTop: '1px solid #f1f5f9',
+                    marginTop: '12px'
+                  }}>
+                    <button
+                      disabled={expPage === 0}
+                      onClick={() => fetchPage(expPage - 1)}
+                      style={{
+                        padding: '8px 20px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: '#fff',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: expPage === 0 ? 'not-allowed' : 'pointer',
+                        opacity: expPage === 0 ? 0.4 : 1
+                      }}
+                    >
+                      ← Prev
+                    </button>
+                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
+                      Page {expPage + 1} of {expTotalPages}
+                      <span style={{ marginLeft: '8px', fontWeight: '400' }}>({expTotalElements} records)</span>
+                    </span>
+                    <button
+                      disabled={expPage >= expTotalPages - 1}
+                      onClick={() => fetchPage(expPage + 1)}
+                      style={{
+                        padding: '8px 20px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: '#fff',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: expPage >= expTotalPages - 1 ? 'not-allowed' : 'pointer',
+                        opacity: expPage >= expTotalPages - 1 ? 0.4 : 1
+                      }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </>
             )}
 

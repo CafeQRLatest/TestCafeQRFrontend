@@ -56,6 +56,7 @@ function PurchaseContent() {
     drafts,
     history,
     historyLoading,
+    historyPage,
     productSearch,
     setProductSearch,
     showSuggestions,
@@ -217,6 +218,49 @@ function PurchaseContent() {
                   onViewDocument={handleViewDocument}
                   onInvoiceOrder={handleInvoiceOrder}
                 />
+                {historyPage.totalPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', padding: '20px 0 8px' }}>
+                    <button
+                      disabled={historyLoading || historyPage.number === 0}
+                      onClick={() => fetchHistory(historyPage.number - 1)}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
+                        background: 'white',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        color: '#0ea5e9',
+                        cursor: (historyLoading || historyPage.number === 0) ? 'not-allowed' : 'pointer',
+                        opacity: (historyLoading || historyPage.number === 0) ? 0.4 : 1,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      ← Previous
+                    </button>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>
+                      Page {historyPage.number + 1} of {historyPage.totalPages} &nbsp;·&nbsp; {historyPage.totalElements} total
+                    </span>
+                    <button
+                      disabled={historyLoading || historyPage.number >= historyPage.totalPages - 1}
+                      onClick={() => fetchHistory(historyPage.number + 1)}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
+                        background: 'white',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        color: '#0ea5e9',
+                        cursor: (historyLoading || historyPage.number >= historyPage.totalPages - 1) ? 'not-allowed' : 'pointer',
+                        opacity: (historyLoading || historyPage.number >= historyPage.totalPages - 1) ? 0.4 : 1,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

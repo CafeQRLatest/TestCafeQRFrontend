@@ -144,20 +144,20 @@ function MainMenuContent() {
               {/* Grid of cards */}
               <div className="card-grid">
                 {items.map((item, i) => (
-                  <Link
-                    href={item.href}
-                    key={i}
-                    className="m-card"
-                    style={{ '--c': item.color, '--cbg': item.bg }}
-                  >
-                    <div className="m-icon">
-                      {item.icon}
-                    </div>
-                    <div className="m-text">
-                      <span className="m-title">{item.title}</span>
-                      <span className="m-desc">{item.desc}</span>
-                    </div>
-                    <FaArrowRight className="m-arrow" />
+                  <Link href={item.href} key={i} legacyBehavior>
+                    <a
+                      className="m-card"
+                      style={{ '--c': item.color, '--cbg': item.bg }}
+                    >
+                      <div className="m-icon">
+                        {item.icon}
+                      </div>
+                      <div className="m-text">
+                        <span className="m-title">{item.title}</span>
+                        <span className="m-desc">{item.desc}</span>
+                      </div>
+                      <FaArrowRight className="m-arrow" />
+                    </a>
                   </Link>
                 ))}
               </div>

@@ -58,7 +58,7 @@ export default function TaxReportsPage() {
 
 function TaxReportsContent() {
   const router = useRouter();
-  const { timezone, userRole, currency } = useAuth();
+  const { timezone, userRole, currency, orgId } = useAuth();
   const { notify } = useNotification();
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
@@ -77,6 +77,7 @@ function TaxReportsContent() {
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [showFilingAssistant, setShowFilingAssistant] = useState(false);
+  const [config, setConfig] = useState(null);
 
   // Load superadmin filters
   useEffect(() => {
@@ -99,6 +100,22 @@ function TaxReportsContent() {
     if (!selectedOrgId) return allTerminals;
     return allTerminals.filter(t => t.orgId === selectedOrgId || t.organization?.id === selectedOrgId);
   }, [allTerminals, selectedOrgId]);
+
+  useEffect(() => {
+    let active = true;
+    const params = {};
+    if (isSuperAdmin && selectedOrgId) {
+      params.orgId = selectedOrgId;
+    }
+    api.get('/api/v1/configurations', { params })
+      .then(res => {
+        if (active && res.data?.data) {
+          setConfig(res.data.data);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [selectedOrgId, isSuperAdmin, orgId]);
 
   // API query routine
   const fetchTaxData = useCallback(async () => {
@@ -130,7 +147,7 @@ function TaxReportsContent() {
   }, [fetchTaxData]);
 
   // Memoized calculations and formatting
-  const SYM = getCurrencySymbol(currency);
+  const SYM = config?.currencySymbol || getCurrencySymbol(currency);
   const fmt = money;
 
   const taxCodeRows = useMemo(() => {

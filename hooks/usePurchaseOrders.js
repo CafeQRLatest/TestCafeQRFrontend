@@ -50,6 +50,7 @@ export function usePurchaseOrders() {
   const [drafts,         setDrafts]         = useState([]);
   const [history,        setHistory]        = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage,    setHistoryPage]    = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
 
   /* ── product search ── */
   const [productSearch,   setProductSearch]   = useState('');
@@ -184,7 +185,7 @@ export function usePurchaseOrders() {
     } catch { /* silent */ }
   }, []);
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (pageNum = 0) => {
     setHistoryLoading(true);
     try {
       const params = {
@@ -194,13 +195,24 @@ export function usePurchaseOrders() {
         warehouseId: filterWarehouse || null,
         paymentMethod: filterPayMethod || null,
         fromDate: fromDate ? new Date(fromDate).toISOString() : null,
-        toDate: toDate ? new Date(toDate).toISOString() : null
+        toDate: toDate ? new Date(toDate).toISOString() : null,
+        page: pageNum,
+        size: historyPage.size || 20
       };
       const r = await api.get('/api/v1/orders/search', { params });
-      if (r.data.success) setHistory(r.data.data.content || []);
+      if (r.data.success) {
+        const payload = r.data.data || {};
+        setHistory(payload.content || []);
+        setHistoryPage({
+          number: payload.number || 0,
+          size: payload.size || historyPage.size || 20,
+          totalPages: payload.totalPages || 0,
+          totalElements: payload.totalElements || 0,
+        });
+      }
     } catch { toast('Failed to load history', 'error'); }
     finally { setHistoryLoading(false); }
-  }, [filterStatus, filterVendor, filterWarehouse, filterPayMethod, fromDate, toDate, toast]);
+  }, [filterStatus, filterVendor, filterWarehouse, filterPayMethod, fromDate, toDate, historyPage.size, toast]);
 
   /* ── load master data ── */
   useEffect(() => {
@@ -434,6 +446,8 @@ export function usePurchaseOrders() {
     drafts,
     history,
     historyLoading,
+    historyPage,
+    setHistoryPage,
     productSearch,
     setProductSearch,
     showSuggestions,

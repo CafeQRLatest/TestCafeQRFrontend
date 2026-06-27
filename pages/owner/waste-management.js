@@ -72,14 +72,25 @@ export default function WasteManagement() {
   const [dateRange, setDateRange] = useState({ start: new Date(Date.now()-30*864e5).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) });
   const [search, setSearch] = useState('');
   const [filterReason, setFilterReason] = useState('ALL');
+  const [logPage, setLogPage] = useState(0);
+  const [logTotalPages, setLogTotalPages] = useState(0);
+  const [logTotalElements, setLogTotalElements] = useState(0);
+  const LOG_PAGE_SIZE = 50;
 
   const showToast = (msg, type='success') => { setToast({msg,type}); setTimeout(()=>setToast(null),3200); };
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageNum = 0) => {
     setLoading(true);
     try {
-      const [logsR, catsR] = await Promise.all([api.get('/api/v1/waste/logs'), api.get('/api/v1/waste/categories')]);
-      setLogs(logsR.data.data || []);
+      const [logsR, catsR] = await Promise.all([
+        api.get(`/api/v1/waste/logs?page=${pageNum}&size=${LOG_PAGE_SIZE}`),
+        api.get('/api/v1/waste/categories')
+      ]);
+      const pageData = logsR.data.data;
+      setLogs(pageData.content || []);
+      setLogTotalPages(pageData.totalPages || 0);
+      setLogTotalElements(pageData.totalElements || 0);
+      setLogPage(pageNum);
       setCats(catsR.data.data || []);
     } catch { showToast('Failed to load','error'); }
     finally { setLoading(false); }
@@ -113,13 +124,13 @@ export default function WasteManagement() {
       const payload = { ...form, quantity: parseFloat(form.quantity)||1, unitCost: parseFloat(form.unitCost)||0 };
       editLog ? await api.put(`/api/v1/waste/logs/${editLog.id}`, payload) : await api.post('/api/v1/waste/logs', payload);
       showToast(editLog ? 'Updated!' : 'Waste recorded!');
-      setShowForm(false); load();
+      setShowForm(false); load(logPage);
     } catch { showToast('Save failed','error'); }
   };
 
   const deleteLog = async (id) => {
     if(!confirm('Delete this entry?')) return;
-    try { await api.delete(`/api/v1/waste/logs/${id}`); showToast('Deleted'); load(); }
+    try { await api.delete(`/api/v1/waste/logs/${id}`); showToast('Deleted'); load(logPage); }
     catch { showToast('Delete failed','error'); }
   };
 
@@ -253,8 +264,8 @@ export default function WasteManagement() {
 
         {/* KPIs */}
         <div className="wm-kpis">
-          <div className="wm-kpi"><div className="wm-kpi-lbl">Total Entries</div><div className="wm-kpi-v">{logs.length}</div><div className="wm-kpi-sub">All time</div></div>
-          <div className="wm-kpi"><div className="wm-kpi-lbl">Waste Cost</div><div className="wm-kpi-v red">₹{fmt(totalCost)}</div><div className="wm-kpi-sub">Estimated loss</div></div>
+          <div className="wm-kpi"><div className="wm-kpi-lbl">Total Entries</div><div className="wm-kpi-v">{logTotalElements || logs.length}</div><div className="wm-kpi-sub">All time</div></div>
+          <div className="wm-kpi"><div className="wm-kpi-lbl">Waste Cost</div><div className="wm-kpi-v red">₹{fmt(totalCost)}</div><div className="wm-kpi-sub">This page</div></div>
           <div className="wm-kpi"><div className="wm-kpi-lbl">Top Reason</div><div className="wm-kpi-v" style={{fontSize:'14px',marginTop:'4px'}}>{topReason}</div><div className="wm-kpi-sub">Most frequent</div></div>
           <div className="wm-kpi"><div className="wm-kpi-lbl">Categories</div><div className="wm-kpi-v">{cats.length}</div><div className="wm-kpi-sub">Active</div></div>
         </div>
@@ -311,6 +322,23 @@ export default function WasteManagement() {
               </table>
             )}
           </div>
+
+          {/* Pagination Bar */}
+          {logTotalPages > 1 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'14px',padding:'16px 0 8px'}}>
+              <button
+                onClick={() => load(logPage - 1)}
+                disabled={logPage === 0}
+                style={{padding:'8px 18px',borderRadius:'10px',border:'1px solid #e5e7eb',background:'#fff',fontWeight:700,fontSize:'13px',color:'#10b981',cursor:logPage===0?'not-allowed':'pointer',opacity:logPage===0?0.4:1}}
+              >← Prev</button>
+              <span style={{fontSize:'13px',fontWeight:700,color:'#6b7280'}}>Page {logPage + 1} of {logTotalPages} &nbsp;·&nbsp; {logTotalElements} total</span>
+              <button
+                onClick={() => load(logPage + 1)}
+                disabled={logPage >= logTotalPages - 1}
+                style={{padding:'8px 18px',borderRadius:'10px',border:'1px solid #e5e7eb',background:'#fff',fontWeight:700,fontSize:'13px',color:'#10b981',cursor:logPage>=logTotalPages-1?'not-allowed':'pointer',opacity:logPage>=logTotalPages-1?0.4:1}}
+              >Next →</button>
+            </div>
+          )}
         </>)}
 
         {/* ── ANALYTICS TAB ─────────────── */}

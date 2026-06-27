@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import DashboardLayout from '../../components/DashboardLayout';
-import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaWarehouse } from 'react-icons/fa';
+import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaWarehouse, FaCreditCard } from 'react-icons/fa';
 
 export default function OrganizationPage() {
   return <OrganizationContent />;
@@ -17,6 +17,7 @@ function OrganizationContent() {
     { name: 'Warehouse Management', url: '/admin/warehouses',             desc: 'Manage storage locations & distribution',       icon: <FaWarehouse />,     color: '#06b6d4', bg: '#f0f9ff' },
     { name: 'Currency Masters',     url: '/owner/currencies',             desc: 'Multi-currency setup & exchange rates',         icon: <FaMoneyBillWave />, color: '#14b8a6', bg: '#f0fdfa' },
     { name: 'Price List Masters',   url: '/owner/pricelists',             desc: 'Sales & purchase pricing with versioning',      icon: <FaTags />,          color: '#f97316', bg: '#fff7ed' },
+    { name: 'Payment Types',        url: '/owner/payment-types',          desc: 'Payment methods for sales, purchases & expenses', icon: <FaCreditCard />,   color: '#6366f1', bg: '#eef2ff' },
   ];
 
   return (
@@ -30,18 +31,18 @@ function OrganizationContent() {
 
         <div className="card-grid">
           {organizationMenus.map((item, i) => (
-            <Link
-              href={item.url}
-              key={i}
-              className="m-card"
-              style={{ '--c': item.color, '--cbg': item.bg }}
-            >
-              <div className="m-icon">{item.icon}</div>
-              <div className="m-text">
-                <span className="m-title">{item.name}</span>
-                <span className="m-desc">{item.desc}</span>
-              </div>
-              <FaArrowRight className="m-arrow" />
+            <Link href={item.url} key={i} legacyBehavior>
+              <a
+                className="m-card"
+                style={{ '--c': item.color, '--cbg': item.bg }}
+              >
+                <div className="m-icon">{item.icon}</div>
+                <div className="m-text">
+                  <span className="m-title">{item.name}</span>
+                  <span className="m-desc">{item.desc}</span>
+                </div>
+                <FaArrowRight className="m-arrow" />
+              </a>
             </Link>
           ))}
         </div>

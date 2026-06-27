@@ -393,10 +393,6 @@ function ClientProfileContent() {
                         onChange={val => handleChange('country', val)}
                       />
                     </div>
-                    <div className="field-group">
-                      <label>Base Currency</label>
-                      <input placeholder="INR" value={formData.currency} onChange={e => handleChange('currency', e.target.value)} />
-                    </div>
                   </div>
                   <div className="field-row">
                     <div className="field-group">

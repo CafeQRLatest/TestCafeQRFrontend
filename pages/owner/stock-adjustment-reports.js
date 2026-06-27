@@ -30,6 +30,10 @@ function AdjustmentReportContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [reasonFilter, setReasonFilter] = useState('ALL');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const PAGE_SIZE = 50;
   const getTodayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -39,16 +43,22 @@ function AdjustmentReportContent() {
   const [dateTo, setDateTo] = useState(getTodayStr());
 
   useEffect(() => {
-    fetchData();
+    fetchData(0);
   }, [orgId]);
 
-  const fetchData = async () => {
+  const fetchData = async (pageNum = 0) => {
     try {
       const [aResp, wResp] = await Promise.all([
-        api.get('/api/v1/inventory/adjustments'),
+        api.get(`/api/v1/inventory/adjustments?page=${pageNum}&size=${PAGE_SIZE}`),
         api.get('/api/v1/warehouses')
       ]);
-      if (aResp.data.success) setAdjustments(aResp.data.data || []);
+      if (aResp.data.success) {
+        const pageData = aResp.data.data;
+        setAdjustments(pageData.content || []);
+        setTotalPages(pageData.totalPages || 0);
+        setTotalElements(pageData.totalElements || 0);
+        setPage(pageNum);
+      }
       if (wResp.data.success) setWarehouses(wResp.data.data || []);
     } catch (err) {
       console.error("Failed to fetch adjustment report data:", err);
@@ -249,8 +259,17 @@ function AdjustmentReportContent() {
           accentColor="#8b5cf6"
         />
 
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button className="pg-btn" disabled={page === 0} onClick={() => fetchData(page - 1)}>← Prev</button>
+            <span className="pg-info">Page {page + 1} of {totalPages} &nbsp;·&nbsp; {totalElements} total</span>
+            <button className="pg-btn" disabled={page >= totalPages - 1} onClick={() => fetchData(page + 1)}>Next →</button>
+          </div>
+        )}
+
         <div className="report-footer">
-          <span>Showing {filteredAdjustments.length} of {adjustments.length} adjustments</span>
+          <span>Showing {filteredAdjustments.length} of {totalElements || adjustments.length} adjustments</span>
         </div>
       </div>
 
@@ -299,6 +318,12 @@ function AdjustmentReportContent() {
         .report-footer { padding: 16px 0; text-align: center; }
         .report-footer span { font-size: 12px; font-weight: 700; color: #94a3b8; }
         .loading-state-premium { height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #64748b; }
+
+        .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 16px 0 4px; }
+        .pg-btn { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 700; color: #8b5cf6; cursor: pointer; transition: all 0.2s; }
+        .pg-btn:hover:not(:disabled) { background: #f5f3ff; border-color: #8b5cf6; }
+        .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pg-info { font-size: 13px; font-weight: 700; color: #64748b; }
       `}</style>
     </DashboardLayout>
   );

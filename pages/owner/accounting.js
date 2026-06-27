@@ -138,8 +138,7 @@ export default function AccountingPage() {
 
 function AccountingContent() {
   const router = useRouter();
-  const { timezone, userRole, currency } = useAuth();
-  const SYM = getCurrencySymbol(currency);
+  const { timezone, userRole, currency, orgId } = useAuth();
 
   const { notify, showConfirm } = useNotification();
   const canManagePostingErrors = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
@@ -151,6 +150,7 @@ function AccountingContent() {
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
+  const SYM = config?.currencySymbol || getCurrencySymbol(currency);
 
   // Load organizations and terminals for superadmin
   useEffect(() => {
@@ -180,7 +180,7 @@ function AccountingContent() {
         if (active) setConfig(null);
       });
     return () => { active = false; };
-  }, [isSuperAdmin, selectedOrgId]);
+  }, [isSuperAdmin, selectedOrgId, orgId]);
 
   // When org changes, clear terminal selection
   const handleOrgChange = (val) => {
@@ -1437,9 +1437,9 @@ function AccountingContent() {
                           <td className="mono">{view.documentNo}</td>
                           <td>{entry.entryDate?.replace('T', ' ').slice(0, 16)}</td>
                           <td>{entry.description || '-'}</td>
-                          <td className="amount" style={{ color: '#10b981' }}>{view.received ? `₹${money(view.received)}` : '-'}</td>
-                          <td className="amount" style={{ color: '#ef4444' }}>{view.paid ? `₹${money(view.paid)}` : '-'}</td>
-                          <td className="amount">{view.adjustment ? `₹${money(view.adjustment)}` : '-'}</td>
+                          <td className="amount" style={{ color: '#10b981' }}>{view.received ? `${SYM}${money(view.received)}` : '-'}</td>
+                          <td className="amount" style={{ color: '#ef4444' }}>{view.paid ? `${SYM}${money(view.paid)}` : '-'}</td>
+                          <td className="amount">{view.adjustment ? `${SYM}${money(view.adjustment)}` : '-'}</td>
                           <td><span className="status active">{entry.status}</span></td>
                           <td>
                             {view.type === 'Journal' && (
@@ -1499,9 +1499,9 @@ function AccountingContent() {
                         <td className="mono">{row.code}</td>
                         <td>{row.name || accountById[row.accountId]?.name || '-'}</td>
                         <td><span style={{ color: TYPE_COLORS[row.accountType] || '#64748b', fontWeight: 800, fontSize: '11px' }}>{TYPE_LABELS[row.accountType] || row.accountType}</span></td>
-                        <td className="amount" style={{ color: '#10b981' }}>₹{money(row.debit)}</td>
-                        <td className="amount" style={{ color: '#ef4444' }}>₹{money(row.credit)}</td>
-                        <td className="amount" style={{ fontWeight: 900 }}>₹{money(row.balance)}</td>
+                        <td className="amount" style={{ color: '#10b981' }}>{SYM}{money(row.debit)}</td>
+                        <td className="amount" style={{ color: '#ef4444' }}>{SYM}{money(row.credit)}</td>
+                        <td className="amount" style={{ fontWeight: 900 }}>{SYM}{money(row.balance)}</td>
                       </tr>
                     ))}
                     {trialBalance.length === 0 && (
@@ -1543,11 +1543,11 @@ function AccountingContent() {
                     <input className="form-input" value={accountForm.accountSubType} onChange={e => setAccountForm({ ...accountForm, accountSubType: e.target.value })} placeholder="e.g. Cash, Bank, Sales" />
                   </div>
                   <div className="form-group">
-                    <label>Starting Amount (₹)</label>
+                    <label>Starting Amount ({SYM})</label>
                     <input className="form-input" type="number" step="0.01" value={accountForm.openingBalance} onChange={e => setAccountForm({ ...accountForm, openingBalance: e.target.value, currentBalance: e.target.value })} placeholder="0.00" />
                   </div>
                   <div className="form-group">
-                    <label>Current Amount (₹)</label>
+                    <label>Current Amount ({SYM})</label>
                     <input className="form-input" type="number" step="0.01" value={accountForm.currentBalance} onChange={e => setAccountForm({ ...accountForm, currentBalance: e.target.value })} placeholder="0.00" />
                   </div>
                 </div>
@@ -1603,11 +1603,11 @@ function AccountingContent() {
                     <input className="form-input" value={editAccountForm.accountSubType || ''} onChange={e => setEditAccountForm({ ...editAccountForm, accountSubType: e.target.value })} placeholder="e.g. Cash, Bank, Sales" />
                   </div>
                   <div className="form-group">
-                    <label>Opening Balance (₹)</label>
+                    <label>Opening Balance ({SYM})</label>
                     <input className="form-input" type="number" step="0.01" value={editAccountForm.openingBalance} onChange={e => setEditAccountForm({ ...editAccountForm, openingBalance: e.target.value })} placeholder="0.00" />
                   </div>
                   <div className="form-group">
-                    <label>Current Balance (₹)</label>
+                    <label>Current Balance ({SYM})</label>
                     <input className="form-input" type="number" step="0.01" value={editAccountForm.currentBalance} onChange={e => setEditAccountForm({ ...editAccountForm, currentBalance: e.target.value })} placeholder="0.00" />
                   </div>
                 </div>
@@ -1688,7 +1688,7 @@ function AccountingContent() {
                 </div>
                 <button type="button" className="rpt-modal-btn rpt-modal-btn-outline" style={{ marginTop: '10px', width: 'fit-content' }} onClick={addJournalLine}>+ Add Row</button>
                 <div className={`journal-total ${Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? 'balanced' : ''}`} style={{ margin: '10px 0 0' }}>
-                  Money In: ₹{money(journalTotals.debit)} &nbsp;/&nbsp; Money Out: ₹{money(journalTotals.credit)}
+                  Money In: {SYM}{money(journalTotals.debit)} &nbsp;/&nbsp; Money Out: {SYM}{money(journalTotals.credit)}
                   &nbsp;{Math.abs(journalTotals.debit - journalTotals.credit) < 0.001 && journalTotals.debit > 0 ? '✓ Balanced' : '⚠ Must match'}
                 </div>
               </div>

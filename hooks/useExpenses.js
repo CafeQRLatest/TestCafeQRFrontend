@@ -10,10 +10,11 @@ const filterReducer = (state, action) => {
 
 export function useExpenses() {
   const { timezone, userRole, orgId, currency } = useAuth();
-  // Convert ISO 4217 code to display symbol; getCurrencySymbol falls back to '₹' if null
-  const currencySymbol = getCurrencySymbol(currency);
+  // Org's default currency symbol fetched from the currencies API (overrides cookie ISO code)
+  const [orgCurrencySymbol, setOrgCurrencySymbol] = useState(null);
+  const currencySymbol = orgCurrencySymbol || getCurrencySymbol(currency);
   const { notify, showConfirm } = useNotification();
-
+  
   // Stabilize notify callback reference to prevent infinite re-renders in useEffect
   const notifyRef = useRef(notify);
   useEffect(() => {
@@ -88,6 +89,23 @@ export function useExpenses() {
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState([]);
 
+  // Pagination state
+  const [expPage, setExpPage] = useState(0);
+  const [expTotalPages, setExpTotalPages] = useState(0);
+  const [expTotalElements, setExpTotalElements] = useState(0);
+  const EXP_PAGE_SIZE = 10;
+
+  // Fetch org's default currency symbol from the currencies API
+  useEffect(() => {
+    api.get('/api/v1/purchasing/currencies')
+      .then(res => {
+        const list = res.data?.data || res.data || [];
+        const def = Array.isArray(list) ? list.find(c => c.isDefault === true) : null;
+        if (def?.symbol) setOrgCurrencySymbol(def.symbol);
+      })
+      .catch(() => {}); // silently fall back to cookie-derived symbol
+  }, []);
+
   const isSuperAdmin = useMemo(() => {
     const role = userRole?.toUpperCase() || '';
     return role.includes('SUPER_ADMIN') || role.includes('ADMIN');
@@ -122,7 +140,7 @@ export function useExpenses() {
     return [];
   }, [toScopeParams]);
 
-  const loadData = useCallback(async (silent = false) => {
+  const loadData = useCallback(async (silent = false, pageOverride = 0) => {
     if (!filters.dateFrom) return; // Wait for dates initialization
     if (!isSuperAdmin && !orgId) return; // Wait for branch context to resolve
     if (!silent) setLoading(true);
@@ -133,8 +151,8 @@ export function useExpenses() {
         categoryId: filters.category || undefined,
         paymentMethod: filters.payMethod || undefined,
         status: filters.status || 'ACTIVE',
-        size: 500,
-        page: 0,
+        size: EXP_PAGE_SIZE,
+        page: pageOverride,
         sort: 'orderDate,desc',
         ...toScopeParams(isSuperAdmin ? filters.branch : orgId),
       };
@@ -155,12 +173,10 @@ export function useExpenses() {
         const responseData = expRes.value.data.data;
         const page = Array.isArray(responseData) ? null : responseData;
         const data = page?.content ?? responseData ?? [];
-
-        // Warn users on server-side data truncation
-        if (page && page.totalElements > data.length) {
-          notifyRef.current('warning', `Showing ${data.length} of ${page.totalElements} records. Narrow your date range to see all.`);
-        }
         setExpenses(data);
+        setExpPage(page?.number ?? pageOverride);
+        setExpTotalPages(page?.totalPages ?? (data.length > 0 ? 1 : 0));
+        setExpTotalElements(page?.totalElements ?? data.length);
       } else {
         throw expRes.reason || new Error('Expenses could not be loaded');
       }
@@ -299,6 +315,11 @@ export function useExpenses() {
     });
   }, [loadData, showConfirm]);
 
+  // fetchPage: navigate to a specific page without resetting filters
+  const fetchPage = useCallback((pageIndex) => {
+    loadData(false, pageIndex);
+  }, [loadData]);
+
   return {
     timezone,
     userRole,
@@ -316,6 +337,12 @@ export function useExpenses() {
     isSuperAdmin,
     totalAll,
 
+    // Pagination
+    expPage,
+    expTotalPages,
+    expTotalElements,
+    fetchPage,
+    
     // Form visibility
     showForm,
     setShowForm,
@@ -325,11 +352,11 @@ export function useExpenses() {
     openEdit,
     handleSubmit,
     handleDelete,
-
+    
     // pendingCatId: when addCategory succeeds, ExpenseForm picks this up to auto-select
     pendingCatId,
     clearPendingCatId,
-
+    
     // Category CRUD
     showCatMgr,
     setShowCatMgr,
@@ -339,7 +366,7 @@ export function useExpenses() {
     setCatActiveFilter,
     addCategory,
     toggleCatActive,
-
+    
     // Exposed so ExpenseForm can reload categories on scope change
     loadCategoriesForScope,
     loadData

@@ -28,6 +28,10 @@ function StockHistoryContent() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     fetchInitialData();
@@ -53,7 +57,7 @@ function StockHistoryContent() {
         if (wResp.data.data?.length > 0) {
           const firstWh = wResp.data.data[0].id;
           setSelectedWarehouseId(firstWh);
-          fetchHistory(firstWh);
+          fetchHistory(firstWh, 0);
         }
       }
       if (pResp.data && pResp.data.success) {
@@ -66,13 +70,17 @@ function StockHistoryContent() {
     }
   };
 
-  const fetchHistory = async (whId) => {
+  const fetchHistory = async (whId, pageNum = 0) => {
     if (!whId) return;
     setLoading(true);
     try {
-      const resp = await api.get(`/api/v1/inventory/history/${whId}`);
+      const resp = await api.get(`/api/v1/inventory/history/${whId}?page=${pageNum}&size=${PAGE_SIZE}`);
       if (resp.data.success) {
-        setLedgers(resp.data.data || []);
+        const pageData = resp.data.data;
+        setLedgers(pageData.content || []);
+        setTotalPages(pageData.totalPages || 0);
+        setTotalElements(pageData.totalElements || 0);
+        setPage(pageNum);
       }
     } catch (err) {
       console.error("Failed to fetch stock history:", err);
@@ -84,7 +92,8 @@ function StockHistoryContent() {
   const handleWarehouseChange = (e) => {
     const id = e.target.value;
     setSelectedWarehouseId(id);
-    fetchHistory(id);
+    setPage(0);
+    fetchHistory(id, 0);
   };
 
   const getProduct = (id) => {
@@ -198,6 +207,23 @@ function StockHistoryContent() {
           emptyText="This warehouse has no internal stock events recorded matching your query."
         />
 
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button
+              className="pg-btn"
+              disabled={page === 0}
+              onClick={() => fetchHistory(selectedWarehouseId, page - 1)}
+            >← Prev</button>
+            <span className="pg-info">Page {page + 1} of {totalPages} &nbsp;·&nbsp; {totalElements} records</span>
+            <button
+              className="pg-btn"
+              disabled={page >= totalPages - 1}
+              onClick={() => fetchHistory(selectedWarehouseId, page + 1)}
+            >Next →</button>
+          </div>
+        )}
+
       </div>
 
       <style jsx>{`
@@ -238,6 +264,12 @@ function StockHistoryContent() {
         .text-right { text-align: right; }
         
         .loading-state-premium { height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #64748b; }
+
+        .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 20px 0 8px; }
+        .pg-btn { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 20px; font-size: 13px; font-weight: 700; color: #4f46e5; cursor: pointer; transition: all 0.2s; }
+        .pg-btn:hover:not(:disabled) { background: #e0e7ff; border-color: #4f46e5; }
+        .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pg-info { font-size: 13px; font-weight: 700; color: #64748b; }
       `}</style>
     </DashboardLayout>
   );
