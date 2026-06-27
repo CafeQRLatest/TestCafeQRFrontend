@@ -26,7 +26,6 @@ const TABS = [
 ];
 const CREDIT_TAB = { key: 'credit', label: 'Credit Sales', icon: <FaBook /> };
 
-const SYM = '₹';
 
 function reportErrorMessage(err) {
   const status = err?.response?.status;
@@ -99,6 +98,7 @@ export default function Reports() {
   const [voidReason, setVoidReason] = useState('');
   const [voidingInProgress, setVoidingInProgress] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const SYM = config?.currencySymbol || '₹';
 
   const toInstant = (dtLocal) => {
     if (!dtLocal) return undefined;
@@ -853,7 +853,7 @@ export default function Reports() {
                 <div className="step-body">
                   <div className="step-title-row">
                     <span className="step-title">Operating Expenses</span>
-                    <InfoTooltip id="expenses" text="Operating Expenses: General business running costs (rent, salaries, utilities, etc.) excluding COGS. | Equation: Gross Margin − Operating Expenses = Net Profit" />
+                    <InfoTooltip id="expenses" text="Operating Expenses: General business running costs (rent, salaries, utilities, etc.) excluding COGS." />
                   </div>
                   <div className="step-subtitle">General business costs (salaries, rent, utilities, etc.)</div>
                 </div>

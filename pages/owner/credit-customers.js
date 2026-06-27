@@ -10,8 +10,6 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import { FaBook, FaCheck, FaEye, FaPause, FaWallet, FaUsers } from 'react-icons/fa';
 
-const SYM = '₹';
-const money = (value) => `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const emptyForm = {
   name: '',
@@ -27,6 +25,8 @@ function CreditCustomersContent() {
   const { timezone } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [config, setConfig] = useState(null);
+  const SYM = config?.currencySymbol || '₹';
+  const money = (value) => `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
