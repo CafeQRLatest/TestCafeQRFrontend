@@ -425,11 +425,13 @@ export function buildKotText(order, restaurantProfile) {
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
     const profileTz = order?.timezone || restaurantProfile?.timezone || null;
     const dateStr = formatTzDate(orderDate, profileTz, {
+      format: "date",
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
     const timeStr = formatTzDate(orderDate, profileTz, {
+      format: "time",
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
@@ -627,11 +629,13 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     const orderDate = parseDate(pickValue(order, ["created_at", "createdAt", "order_date", "orderDate"], Date.now()));
     const profileTz = order?.timezone || restaurantProfile?.timezone || null;
     const dateStr = formatTzDate(orderDate, profileTz, {
+      format: "date",
       day: "2-digit",
       month: "2-digit",
       year: "numeric"
     });
     const timeStr = formatTzDate(orderDate, profileTz, {
+      format: "time",
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
