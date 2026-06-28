@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { 
   FaSave, FaCheckCircle, FaExclamationCircle, FaPlus, FaStore, 
@@ -9,6 +10,126 @@ import {
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
   FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch
 } from 'react-icons/fa';
+
+// ─── Comprehensive Country → Currency / Timezone mapping ───────────────
+const COUNTRY_DATA = {
+  // Asia - South
+  'India':          { currency: 'INR', timezone: 'Asia/Kolkata',         tzLabel: 'India (GMT+5:30)' },
+  'Sri Lanka':      { currency: 'LKR', timezone: 'Asia/Colombo',        tzLabel: 'Sri Lanka (GMT+5:30)' },
+  'Nepal':          { currency: 'NPR', timezone: 'Asia/Kathmandu',      tzLabel: 'Nepal (GMT+5:45)' },
+  'Pakistan':       { currency: 'PKR', timezone: 'Asia/Karachi',        tzLabel: 'Pakistan (GMT+5:00)' },
+  'Bangladesh':     { currency: 'BDT', timezone: 'Asia/Dhaka',          tzLabel: 'Bangladesh (GMT+6:00)' },
+  'Maldives':       { currency: 'MVR', timezone: 'Indian/Maldives',     tzLabel: 'Maldives (GMT+5:00)' },
+  // Asia - Middle East
+  'UAE':            { currency: 'AED', timezone: 'Asia/Dubai',           tzLabel: 'UAE (GMT+4:00)' },
+  'Saudi Arabia':   { currency: 'SAR', timezone: 'Asia/Riyadh',         tzLabel: 'Saudi Arabia (GMT+3:00)' },
+  'Qatar':          { currency: 'QAR', timezone: 'Asia/Qatar',           tzLabel: 'Qatar (GMT+3:00)' },
+  'Oman':           { currency: 'OMR', timezone: 'Asia/Muscat',          tzLabel: 'Oman (GMT+4:00)' },
+  'Kuwait':         { currency: 'KWD', timezone: 'Asia/Kuwait',          tzLabel: 'Kuwait (GMT+3:00)' },
+  'Bahrain':        { currency: 'BHD', timezone: 'Asia/Bahrain',         tzLabel: 'Bahrain (GMT+3:00)' },
+  'Jordan':         { currency: 'JOD', timezone: 'Asia/Amman',           tzLabel: 'Jordan (GMT+3:00)' },
+  'Lebanon':        { currency: 'LBP', timezone: 'Asia/Beirut',          tzLabel: 'Lebanon (GMT+2:00)' },
+  'Iraq':           { currency: 'IQD', timezone: 'Asia/Baghdad',         tzLabel: 'Iraq (GMT+3:00)' },
+  'Iran':           { currency: 'IRR', timezone: 'Asia/Tehran',          tzLabel: 'Iran (GMT+3:30)' },
+  'Turkey':         { currency: 'TRY', timezone: 'Europe/Istanbul',      tzLabel: 'Turkey (GMT+3:00)' },
+  'Israel':         { currency: 'ILS', timezone: 'Asia/Jerusalem',       tzLabel: 'Israel (GMT+2:00)' },
+  // Asia - Southeast
+  'Singapore':      { currency: 'SGD', timezone: 'Asia/Singapore',       tzLabel: 'Singapore (GMT+8:00)' },
+  'Malaysia':       { currency: 'MYR', timezone: 'Asia/Kuala_Lumpur',    tzLabel: 'Malaysia (GMT+8:00)' },
+  'Thailand':       { currency: 'THB', timezone: 'Asia/Bangkok',         tzLabel: 'Thailand (GMT+7:00)' },
+  'Indonesia':      { currency: 'IDR', timezone: 'Asia/Jakarta',         tzLabel: 'Indonesia (GMT+7:00)' },
+  'Philippines':    { currency: 'PHP', timezone: 'Asia/Manila',          tzLabel: 'Philippines (GMT+8:00)' },
+  'Vietnam':        { currency: 'VND', timezone: 'Asia/Ho_Chi_Minh',     tzLabel: 'Vietnam (GMT+7:00)' },
+  'Cambodia':       { currency: 'KHR', timezone: 'Asia/Phnom_Penh',      tzLabel: 'Cambodia (GMT+7:00)' },
+  'Myanmar':        { currency: 'MMK', timezone: 'Asia/Yangon',          tzLabel: 'Myanmar (GMT+6:30)' },
+  // Asia - East
+  'Japan':          { currency: 'JPY', timezone: 'Asia/Tokyo',           tzLabel: 'Japan (GMT+9:00)' },
+  'South Korea':    { currency: 'KRW', timezone: 'Asia/Seoul',           tzLabel: 'South Korea (GMT+9:00)' },
+  'China':          { currency: 'CNY', timezone: 'Asia/Shanghai',        tzLabel: 'China (GMT+8:00)' },
+  'Hong Kong':      { currency: 'HKD', timezone: 'Asia/Hong_Kong',       tzLabel: 'Hong Kong (GMT+8:00)' },
+  'Taiwan':         { currency: 'TWD', timezone: 'Asia/Taipei',          tzLabel: 'Taiwan (GMT+8:00)' },
+  // Europe
+  'United Kingdom': { currency: 'GBP', timezone: 'Europe/London',        tzLabel: 'UK (GMT+0:00)' },
+  'Germany':        { currency: 'EUR', timezone: 'Europe/Berlin',        tzLabel: 'Germany (GMT+1:00)' },
+  'France':         { currency: 'EUR', timezone: 'Europe/Paris',         tzLabel: 'France (GMT+1:00)' },
+  'Italy':          { currency: 'EUR', timezone: 'Europe/Rome',          tzLabel: 'Italy (GMT+1:00)' },
+  'Spain':          { currency: 'EUR', timezone: 'Europe/Madrid',        tzLabel: 'Spain (GMT+1:00)' },
+  'Portugal':       { currency: 'EUR', timezone: 'Europe/Lisbon',        tzLabel: 'Portugal (GMT+0:00)' },
+  'Netherlands':    { currency: 'EUR', timezone: 'Europe/Amsterdam',     tzLabel: 'Netherlands (GMT+1:00)' },
+  'Belgium':        { currency: 'EUR', timezone: 'Europe/Brussels',      tzLabel: 'Belgium (GMT+1:00)' },
+  'Switzerland':    { currency: 'CHF', timezone: 'Europe/Zurich',        tzLabel: 'Switzerland (GMT+1:00)' },
+  'Austria':        { currency: 'EUR', timezone: 'Europe/Vienna',        tzLabel: 'Austria (GMT+1:00)' },
+  'Sweden':         { currency: 'SEK', timezone: 'Europe/Stockholm',     tzLabel: 'Sweden (GMT+1:00)' },
+  'Norway':         { currency: 'NOK', timezone: 'Europe/Oslo',          tzLabel: 'Norway (GMT+1:00)' },
+  'Denmark':        { currency: 'DKK', timezone: 'Europe/Copenhagen',    tzLabel: 'Denmark (GMT+1:00)' },
+  'Finland':        { currency: 'EUR', timezone: 'Europe/Helsinki',      tzLabel: 'Finland (GMT+2:00)' },
+  'Ireland':        { currency: 'EUR', timezone: 'Europe/Dublin',        tzLabel: 'Ireland (GMT+0:00)' },
+  'Greece':         { currency: 'EUR', timezone: 'Europe/Athens',        tzLabel: 'Greece (GMT+2:00)' },
+  'Poland':         { currency: 'PLN', timezone: 'Europe/Warsaw',        tzLabel: 'Poland (GMT+1:00)' },
+  'Czech Republic': { currency: 'CZK', timezone: 'Europe/Prague',        tzLabel: 'Czech Republic (GMT+1:00)' },
+  'Romania':        { currency: 'RON', timezone: 'Europe/Bucharest',     tzLabel: 'Romania (GMT+2:00)' },
+  'Hungary':        { currency: 'HUF', timezone: 'Europe/Budapest',      tzLabel: 'Hungary (GMT+1:00)' },
+  'Russia':         { currency: 'RUB', timezone: 'Europe/Moscow',        tzLabel: 'Russia (GMT+3:00)' },
+  // Americas
+  'United States':  { currency: 'USD', timezone: 'America/New_York',     tzLabel: 'US Eastern (GMT-5:00)' },
+  'Canada':         { currency: 'CAD', timezone: 'America/Toronto',      tzLabel: 'Canada Eastern (GMT-5:00)' },
+  'Mexico':         { currency: 'MXN', timezone: 'America/Mexico_City',  tzLabel: 'Mexico (GMT-6:00)' },
+  'Brazil':         { currency: 'BRL', timezone: 'America/Sao_Paulo',    tzLabel: 'Brazil (GMT-3:00)' },
+  'Argentina':      { currency: 'ARS', timezone: 'America/Argentina/Buenos_Aires', tzLabel: 'Argentina (GMT-3:00)' },
+  'Colombia':       { currency: 'COP', timezone: 'America/Bogota',       tzLabel: 'Colombia (GMT-5:00)' },
+  'Chile':          { currency: 'CLP', timezone: 'America/Santiago',     tzLabel: 'Chile (GMT-4:00)' },
+  'Peru':           { currency: 'PEN', timezone: 'America/Lima',         tzLabel: 'Peru (GMT-5:00)' },
+  // Africa
+  'South Africa':   { currency: 'ZAR', timezone: 'Africa/Johannesburg',  tzLabel: 'South Africa (GMT+2:00)' },
+  'Nigeria':        { currency: 'NGN', timezone: 'Africa/Lagos',         tzLabel: 'Nigeria (GMT+1:00)' },
+  'Kenya':          { currency: 'KES', timezone: 'Africa/Nairobi',       tzLabel: 'Kenya (GMT+3:00)' },
+  'Egypt':          { currency: 'EGP', timezone: 'Africa/Cairo',         tzLabel: 'Egypt (GMT+2:00)' },
+  'Ghana':          { currency: 'GHS', timezone: 'Africa/Accra',         tzLabel: 'Ghana (GMT+0:00)' },
+  'Tanzania':       { currency: 'TZS', timezone: 'Africa/Dar_es_Salaam', tzLabel: 'Tanzania (GMT+3:00)' },
+  'Ethiopia':       { currency: 'ETB', timezone: 'Africa/Addis_Ababa',   tzLabel: 'Ethiopia (GMT+3:00)' },
+  'Morocco':        { currency: 'MAD', timezone: 'Africa/Casablanca',    tzLabel: 'Morocco (GMT+1:00)' },
+  // Oceania
+  'Australia':      { currency: 'AUD', timezone: 'Australia/Sydney',     tzLabel: 'Australia Eastern (GMT+10:00)' },
+  'New Zealand':    { currency: 'NZD', timezone: 'Pacific/Auckland',     tzLabel: 'New Zealand (GMT+12:00)' },
+  'Fiji':           { currency: 'FJD', timezone: 'Pacific/Fiji',         tzLabel: 'Fiji (GMT+12:00)' },
+};
+
+// Build timezone options from all known countries
+const TIMEZONE_OPTIONS = (() => {
+  const seen = new Set();
+  const opts = [];
+  Object.entries(COUNTRY_DATA).forEach(([, data]) => {
+    if (!seen.has(data.timezone)) {
+      seen.add(data.timezone);
+      opts.push({ value: data.timezone, label: data.tzLabel });
+    }
+  });
+  // Add extra US timezones
+  const extras = [
+    { value: 'America/Chicago',      label: 'US Central (GMT-6:00)' },
+    { value: 'America/Denver',       label: 'US Mountain (GMT-7:00)' },
+    { value: 'America/Los_Angeles',  label: 'US Pacific (GMT-8:00)' },
+    { value: 'America/Anchorage',    label: 'US Alaska (GMT-9:00)' },
+    { value: 'Pacific/Honolulu',     label: 'US Hawaii (GMT-10:00)' },
+    { value: 'America/Vancouver',    label: 'Canada Pacific (GMT-8:00)' },
+    { value: 'America/Edmonton',     label: 'Canada Mountain (GMT-7:00)' },
+    { value: 'America/Winnipeg',     label: 'Canada Central (GMT-6:00)' },
+    { value: 'Australia/Perth',      label: 'Australia Western (GMT+8:00)' },
+    { value: 'Australia/Adelaide',   label: 'Australia Central (GMT+9:30)' },
+  ];
+  extras.forEach(e => { if (!seen.has(e.value)) { seen.add(e.value); opts.push(e); } });
+  // Sort by GMT offset for easy browsing
+  opts.sort((a, b) => {
+    const extractOffset = (label) => {
+      const m = label.match(/GMT([+-]\d+:\d+)/);
+      if (!m) return 0;
+      const [h, min] = m[1].split(':').map(Number);
+      return h + (h < 0 ? -(min / 60) : min / 60);
+    };
+    return extractOffset(a.label) - extractOffset(b.label);
+  });
+  return opts;
+})();
 
 /**
  * Premium Branch Management Page (v2)
@@ -323,19 +444,11 @@ function OrganizationSettingsContent() {
                   <div className="block-content dual" style={{ marginTop: '0px' }}>
                     <div className="v2-input-group">
                       <label>Timezone</label>
-                      <select 
+                      <NiceSelect 
+                        options={TIMEZONE_OPTIONS}
                         value={selectedOrg.timezone || 'Asia/Kolkata'}
-                        onChange={(e) => setSelectedOrg({...selectedOrg, timezone: e.target.value})}
-                      >
-                        <option value="Asia/Kolkata">Asia/Kolkata (India - IST)</option>
-                        <option value="Asia/Muscat">Asia/Muscat (Oman - GST)</option>
-                        <option value="Asia/Dubai">Asia/Dubai (UAE - GST)</option>
-                        <option value="Asia/Qatar">Asia/Qatar (AST)</option>
-                        <option value="Asia/Riyadh">Asia/Riyadh (Saudi Arabia - AST)</option>
-                        <option value="Asia/Bahrain">Asia/Bahrain (AST)</option>
-                        <option value="Asia/Kuwait">Asia/Kuwait (AST)</option>
-                        <option value="UTC">UTC (Universal Time)</option>
-                      </select>
+                        onChange={(val) => setSelectedOrg({...selectedOrg, timezone: val})}
+                      />
                       <small>Used for daily reports and order timing</small>
                     </div>
                   </div>

@@ -1108,11 +1108,19 @@ namespace CafeQR.PrintService
             TimeZoneInfo tzInfo = null;
             try
             {
-                tzInfo = TimeZoneInfo.FindSystemTimeZoneById(cleanTzId);
+                var searchId = cleanTzId;
+                if (string.Equals(searchId, "India", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Kolkata";
+                if (string.Equals(searchId, "Oman", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Muscat";
+                if (string.Equals(searchId, "UAE", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Dubai";
+                tzInfo = TimeZoneInfo.FindSystemTimeZoneById(searchId);
             }
             catch
             {
-                if (IanaToWindowsMap.TryGetValue(cleanTzId, out string winId))
+                var searchId = cleanTzId;
+                if (string.Equals(searchId, "India", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Kolkata";
+                if (string.Equals(searchId, "Oman", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Muscat";
+                if (string.Equals(searchId, "UAE", StringComparison.OrdinalIgnoreCase)) searchId = "Asia/Dubai";
+                if (IanaToWindowsMap.TryGetValue(searchId, out string winId))
                 {
                     try
                     {
