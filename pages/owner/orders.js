@@ -43,6 +43,7 @@ const slideIn = keyframes`
 function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
+  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
   return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
 }
 

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing.Printing;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -21,6 +23,7 @@ namespace CafeQR.PrintService
         private readonly CancellationTokenSource stop = new CancellationTokenSource();
         private readonly SemaphoreSlim signal = new SemaphoreSlim(0, 1);
         private Task loop;
+        private Task sseLoop;
         private DateTime lastHeartbeatUtc = DateTime.MinValue;
         private DateTime nextCloudAttemptUtc = DateTime.MinValue;
         private DateTime lastCloudCycleUtc = DateTime.MinValue;
@@ -51,6 +54,7 @@ namespace CafeQR.PrintService
         public void Start()
         {
             loop = Task.Run(() => RunAsync(stop.Token));
+            sseLoop = Task.Run(() => ListenToSseAsync(stop.Token));
         }
 
         public async Task<IReadOnlyList<LocalPrintTask>> SubmitAsync(
@@ -339,6 +343,72 @@ namespace CafeQR.PrintService
             }
         }
 
+        private async Task ListenToSseAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                if (!cloud.IsPaired)
+                {
+                    try { await Task.Delay(5000, token).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
+                    continue;
+                }
+
+                var options = optionsStore.Load();
+                var stationToken = OptionsStore.Unprotect(options.StationTokenProtected);
+                var baseUrl = options.CloudBaseUrl.TrimEnd('/');
+                var sseUrl = $"{baseUrl}/api/v1/public/print-stations/stream?token={Uri.EscapeDataString(stationToken)}";
+
+                try
+                {
+                    using (var sseHttp = new HttpClient())
+                    {
+                        sseHttp.Timeout = TimeSpan.FromMilliseconds(-1); // Infinite timeout for stream
+                        using (var response = await sseHttp.GetAsync(sseUrl, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                        {
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                Log.Warn($"Print SSE stream returned status: {response.StatusCode}. Retrying in 5 seconds...");
+                                try { await Task.Delay(5000, token).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
+                                continue;
+                            }
+
+                            using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                            using (var reader = new StreamReader(stream))
+                            {
+                                while (!reader.EndOfStream && !token.IsCancellationRequested)
+                                {
+                                    var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                                    if (line != null && line.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        var data = line.Substring(5).Trim();
+                                        if (data.Equals("connected", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            Log.Info("Print SSE stream connected successfully.");
+                                        }
+                                        else
+                                        {
+                                            Log.Info("Print SSE received new-job signal. Triggering immediate cloud cycle.");
+                                            lastCloudCycleUtc = DateTime.MinValue;
+                                            ReleaseSignal();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Print SSE stream disconnected with error. Reconnecting in 5 seconds...", ex);
+                    try { await Task.Delay(5000, token).ConfigureAwait(false); } catch (OperationCanceledException) { return; }
+                }
+            }
+        }
+
         private static bool IsSuccessful(string status) =>
             string.Equals(status, "SPOOLED", StringComparison.OrdinalIgnoreCase)
             || string.Equals(status, "COMPLETED", StringComparison.OrdinalIgnoreCase)
@@ -348,6 +418,7 @@ namespace CafeQR.PrintService
         {
             stop.Cancel();
             try { loop?.Wait(TimeSpan.FromSeconds(10)); } catch { }
+            try { sseLoop?.Wait(TimeSpan.FromSeconds(5)); } catch { }
             foreach (var gate in printerLocks.Values) gate.Dispose();
             signal.Dispose();
             stop.Dispose();

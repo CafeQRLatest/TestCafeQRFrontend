@@ -517,12 +517,31 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     cancelLabel: 'Cancel',
   });
   const [hideWidget, setHideWidget] = useState(false);
+  const [preferCloudPrint, setPreferCloudPrint] = useState(() => (
+    typeof window !== 'undefined'
+      ? window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1'
+      : false
+  ));
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setHideWidget(window.localStorage.getItem('CAFEQR_HIDE_PRINT_WIDGET') === '1');
     }
   }, []);
+
+  useEffect(() => {
+    if (scopeId && stations.length > 0) {
+      const matched = stations.find((s) => s.terminalId === scopeId);
+      if (matched) {
+        setStationName(matched.name || `${Cookies.get('terminalName') || 'POS'} Print Station`);
+        setFallback(matched.fallbackForBranch === true);
+      } else {
+        const term = terminals.find(t => t.id === scopeId);
+        setStationName(`${term ? term.name : 'POS'} Print Station`);
+        setFallback(false);
+      }
+    }
+  }, [scopeId, stations, terminals]);
 
   const toggleHideWidget = (event) => {
     const checked = event.target.checked;
@@ -1442,6 +1461,24 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             <label className="check">
               <input type="checkbox" checked={hideWidget} onChange={toggleHideWidget} />
               <span>Hide the floating print station status widget on this device</span>
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={preferCloudPrint}
+                onChange={(event) => {
+                  const val = event.target.checked;
+                  setPreferCloudPrint(val);
+                  if (typeof window !== 'undefined') {
+                    if (val) {
+                      window.localStorage.setItem('CAFEQR_PREFER_CLOUD_PRINT', '1');
+                    } else {
+                      window.localStorage.removeItem('CAFEQR_PREFER_CLOUD_PRINT');
+                    }
+                  }
+                }}
+              />
+              <span>{"Route this billing station's prints through Cloud Queue (Cloud Mode) instead of Direct Local Loopback"}</span>
             </label>
           </div>
 
