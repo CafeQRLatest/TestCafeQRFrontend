@@ -108,6 +108,28 @@ export default function DocumentViewerPopup({
   const [currentOrder, setCurrentOrder] = React.useState(order);
   React.useEffect(() => { setCurrentOrder(order); setRevisions([]); setShowHistory(false); }, [order]);
 
+  const [splits, setSplits] = React.useState([]);
+  const [loadingSplits, setLoadingSplits] = React.useState(false);
+  const [showSplitsToggle, setShowSplitsToggle] = React.useState(false);
+  const isMixed = currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED';
+
+  React.useEffect(() => {
+    if (currentOrder?.id && isMixed) {
+      setLoadingSplits(true);
+      api.get(`/api/v1/orders/${currentOrder.id}/payment-splits`)
+        .then(res => {
+          if (res.data?.data) {
+            setSplits(res.data.data);
+          }
+        })
+        .catch(err => console.warn('Failed to load splits', err))
+        .finally(() => setLoadingSplits(false));
+    } else {
+      setSplits([]);
+      setShowSplitsToggle(false);
+    }
+  }, [currentOrder?.id, isMixed]);
+
   const [invoiceData, setInvoiceData] = React.useState(null);
   React.useEffect(() => {
     if (docType === 'invoice' && currentOrder?.id) {
@@ -340,9 +362,54 @@ export default function DocumentViewerPopup({
 
         {/* ── reference · cross-ref · payment ── */}
         <div className="dv-row3">
-          <div className="dv-cell">
+          <div className="dv-cell" style={{ position: 'relative' }}>
             <span className="dv-lbl">Reference</span>
-            <span className="dv-val dv-mono">{currentOrder.referenceNo || currentOrder.reference || '—'}</span>
+            {isMixed ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <button 
+                  onClick={() => setShowSplitsToggle(!showSplitsToggle)}
+                  className="dv-link"
+                  style={{ textTransform: 'capitalize', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}
+                >
+                  Mixed <span style={{ fontSize: '10px' }}>ℹ️</span>
+                </button>
+                {showSplitsToggle && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '4px',
+                    padding: '8px 12px',
+                    background: '#f8fafc',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    color: '#475569',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    zIndex: 99,
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {loadingSplits ? (
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
+                    ) : splits.length === 0 ? (
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
+                    ) : (
+                      splits.map((s, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: '600' }}>{s.paymentMethod}:</span>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{currencySymbol}{fmt(s.amount)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="dv-val dv-mono">{currentOrder.referenceNo || currentOrder.reference || '—'}</span>
+            )}
           </div>
           <div className="dv-cell">
             {docType === 'order' ? (
