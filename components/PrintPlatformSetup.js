@@ -125,6 +125,7 @@ const DEFAULT_CONFIG = {
     billMode: 'MIRROR',
     kotMode: 'MIRROR',
     invoiceMode: 'MIRROR',
+    preferCloudPrint: false,
   },
   kotTemplate: DEFAULT_KOT_TEMPLATE,
   receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
@@ -517,11 +518,16 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     cancelLabel: 'Cancel',
   });
   const [hideWidget, setHideWidget] = useState(false);
-  const [preferCloudPrint, setPreferCloudPrint] = useState(() => (
-    typeof window !== 'undefined'
-      ? window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1'
-      : false
-  ));
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (printConfig.defaults?.preferCloudPrint === true) {
+        window.localStorage.setItem('CAFEQR_PREFER_CLOUD_PRINT', '1');
+      } else {
+        window.localStorage.removeItem('CAFEQR_PREFER_CLOUD_PRINT');
+      }
+    }
+  }, [printConfig.defaults?.preferCloudPrint]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1465,17 +1471,16 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             <label className="check">
               <input
                 type="checkbox"
-                checked={preferCloudPrint}
+                checked={printConfig.defaults?.preferCloudPrint === true}
                 onChange={(event) => {
                   const val = event.target.checked;
-                  setPreferCloudPrint(val);
-                  if (typeof window !== 'undefined') {
-                    if (val) {
-                      window.localStorage.setItem('CAFEQR_PREFER_CLOUD_PRINT', '1');
-                    } else {
-                      window.localStorage.removeItem('CAFEQR_PREFER_CLOUD_PRINT');
-                    }
-                  }
+                  setPrintConfig((previous) => ({
+                    ...previous,
+                    defaults: {
+                      ...previous.defaults,
+                      preferCloudPrint: val,
+                    },
+                  }));
                 }}
               />
               <span>{"Route this billing station's prints through Cloud Queue (Cloud Mode) instead of Direct Local Loopback"}</span>
