@@ -1,5 +1,6 @@
 // utils/printGateway.ts
 import { Capacitor } from '@capacitor/core';
+import Cookies from 'js-cookie';
 import { textToEscPos } from './escpos';
 import { buildKotText, buildReceiptText } from './printUtils';
 import { markPrintJobFailed, markPrintJobSent, queuePrintJob } from './offlineStore';
@@ -508,6 +509,20 @@ async function printUniversalNow(opts: Options) {
     // 1b) Paired CafeQR Windows Service. It persists the job before returning,
     // so browser closure or a Windows restart cannot lose an acknowledged job.
     if (isNativePrintServicePaired()) {
+      const tz = Cookies.get('timezone') || 'UTC';
+      const cleanDocument: any = opts.document ? { ...opts.document } : {};
+      if (cleanDocument) {
+        if (!cleanDocument.timezone) cleanDocument.timezone = tz;
+        if (cleanDocument.order && typeof cleanDocument.order === 'object') {
+          cleanDocument.order = { timezone: tz, ...cleanDocument.order };
+        }
+        if (cleanDocument.restaurant && typeof cleanDocument.restaurant === 'object') {
+          cleanDocument.restaurant = { timezone: tz, ...cleanDocument.restaurant };
+        } else {
+          cleanDocument.restaurant = { timezone: tz };
+        }
+      }
+
       const result = await submitNativePrintJob({
         idempotencyKey: opts.jobId || (
           opts.offlineOperationId || opts.orderId || opts.orderNo
@@ -520,7 +535,7 @@ async function printUniversalNow(opts: Options) {
         routeId: opts.routeId,
         text: opts.text,
         dataBase64: base64,
-        document: opts.document,
+        document: cleanDocument,
         metadata: {
           ...(opts.metadata || {}),
           orderId: opts.orderId,
