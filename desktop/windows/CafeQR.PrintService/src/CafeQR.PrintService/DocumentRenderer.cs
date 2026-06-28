@@ -1132,11 +1132,13 @@ namespace CafeQR.PrintService
 
             if (tzInfo != null)
             {
-                var utcDt = (kind == DateTimeKind.Utc) ? dt : TimeZoneInfo.ConvertTimeToUtc(dt);
+                var utcDt = (kind == DateTimeKind.Utc || kind == DateTimeKind.Unspecified)
+                    ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                    : TimeZoneInfo.ConvertTimeToUtc(dt);
                 return TimeZoneInfo.ConvertTimeFromUtc(utcDt, tzInfo);
             }
 
-            return kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
+            return (kind == DateTimeKind.Utc || kind == DateTimeKind.Unspecified) ? dt.ToLocalTime() : dt;
         }
 
         private static string GetOrderTypeLabel(JObject order)
