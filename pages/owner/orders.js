@@ -67,7 +67,7 @@ function tableCubeColor(status) {
 
 // ─── Sales History Helpers ───────────────────────────────────────────────────
 
-const money = (value) => `\u20b9${Number(value || 0).toFixed(2)}`;
+const money = (value, symbol = '\u20b9') => `${symbol}${Number(value || 0).toFixed(2)}`;
 
 function histOrderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
@@ -1511,6 +1511,7 @@ export default function OrdersPage() {
   const [printKind, setPrintKind] = useState('kot');
 
   const [config, setConfig] = useState(null);
+  const sym = config?.currencySymbol || '₹';
   const [creditCustomers, setCreditCustomers] = useState([]);
   const [actionBusy, setActionBusy] = useState(null);
 
@@ -2346,7 +2347,7 @@ export default function OrdersPage() {
                             )}
                             <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
                             <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
-                            <td><strong>{money(histOrderTotal(order))}</strong></td>
+                            <td><strong>{money(histOrderTotal(order), sym)}</strong></td>
                             <td>
                               <HistStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
                                 {histStatusText(order)}
@@ -2405,7 +2406,7 @@ export default function OrdersPage() {
               vendors={[]}
               warehouses={[]}
               timezone={timezone || config?.timezone || 'Asia/Kolkata'}
-              currencySymbol={'₹'}
+              currencySymbol={sym}
               formatTzDate={formatTzDate}
               onClose={() => setViewingDoc(null)}
               onViewLinked={(order, type) => setViewingDoc({ order, type })}
@@ -2649,7 +2650,7 @@ export default function OrdersPage() {
                       const displayName = line.variant_name ? `${line.name} (${line.variant_name})` : (line.name || line.productName || 'Item');
                       const metaParts = [
                         line.category || line.categoryName,
-                        unitPrice ? `\u20b9${unitPrice.toFixed(2)} each` : null,
+                        unitPrice ? `${sym}${unitPrice.toFixed(2)} each` : null,
                       ].filter(Boolean);
 
                       return (
@@ -2659,11 +2660,11 @@ export default function OrdersPage() {
                             <span className="name">{displayName}</span>
                             <span className="line-meta">
                               {metaParts.join(' - ')}
-                              {discount > 0 && <span className="discount"> - Discount &#8377;{discount.toFixed(2)}</span>}
-                              {config?.taxEnabled && tax > 0 && <span className="tax"> - Tax &#8377;{tax.toFixed(2)}</span>}
+                              {discount > 0 && <span className="discount"> - Discount {sym}{discount.toFixed(2)}</span>}
+                              {config?.taxEnabled && tax > 0 && <span className="tax"> - Tax {sym}{tax.toFixed(2)}</span>}
                             </span>
                           </div>
-                          <span className="line-total">&#8377;{lineTotal.toFixed(2)}</span>
+                          <span className="line-total">{sym}{lineTotal.toFixed(2)}</span>
                         </div>
                       );
                     })}
@@ -2674,26 +2675,26 @@ export default function OrdersPage() {
                   <div className="price-breakdown">
                     <div className="breakdown-row">
                       <span>Gross Total</span>
-                      <span>&#8377;{Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0).toFixed(2)}</span>
+                      <span>{sym}{Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0).toFixed(2)}</span>
                     </div>
                     {Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0) > 0 && (
                       <div className="breakdown-row discount">
                         <span>Discount</span>
-                        <span>-&#8377;{Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0).toFixed(2)}</span>
+                        <span>-{sym}{Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0).toFixed(2)}</span>
                       </div>
                     )}
                     {config?.taxEnabled && Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0) > 0 && (() => {
                       return (
                         <div className="breakdown-row">
                           <span>Tax Amount</span>
-                          <span>&#8377;{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
+                          <span>{sym}{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
                         </div>
                       );
                     })()}
                     <div className="breakdown-divider" />
                     <div className="breakdown-row total">
                       <span>Grand Total</span>
-                      <span>&#8377;{(() => {
+                      <span>{sym}{(() => {
                         const sub = Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0);
                         const tax = Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0);
                         const disc = Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0);

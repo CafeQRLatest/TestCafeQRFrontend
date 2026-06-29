@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CafeQRPopup from '../CafeQRPopup';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
-import { SCOPE_ALL, SCOPE_GLOBAL, getCurrencySymbol } from '../../constants/expenseScopes';
+import { SCOPE_ALL, SCOPE_GLOBAL } from '../../constants/expenseScopes';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { useNotification } from '../../context/NotificationContext';
 import { FaEdit, FaPlus } from 'react-icons/fa';
 import styles from './Expenses.module.css';
@@ -62,8 +63,8 @@ export default function ExpenseForm({
   onClose,
   onOpenCatMgr
 }) {
-  const { timezone, orgId, currency } = useAuth();
-  const currencySymbol = getCurrencySymbol(currency);
+  const { timezone, orgId } = useAuth();
+  const currencySymbol = useCurrencySymbol();
   const { notify } = useNotification();
 
 

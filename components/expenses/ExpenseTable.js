@@ -80,9 +80,20 @@ export default function ExpenseTable({
                 </td>
                 <td>
                   <div className={styles['row-pay']}>
-                    <span className={`${styles['method-tag']} ${styles[r.paymentMethod?.toLowerCase() || '']}`}>
-                      {prettyMethod(r.paymentMethod)}
-                    </span>
+                    {r.paymentMethod === 'MIXED' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span className={`${styles['method-tag']} ${styles.cash}`} style={{ fontSize: '10px', padding: '1px 4px' }}>
+                          Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(2)}
+                        </span>
+                        <span className={`${styles['method-tag']} ${styles.online}`} style={{ fontSize: '10px', padding: '1px 4px' }}>
+                          Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className={`${styles['method-tag']} ${styles[r.paymentMethod?.toLowerCase() || '']}`}>
+                        {prettyMethod(r.paymentMethod)}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td>

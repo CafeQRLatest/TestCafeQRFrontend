@@ -2,17 +2,16 @@ import { useState, useEffect, useMemo, useCallback, useReducer, useRef } from 'r
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import api from '../utils/api';
-import { SCOPE_ALL, SCOPE_GLOBAL, getCurrencySymbol } from '../constants/expenseScopes';
+import { SCOPE_ALL, SCOPE_GLOBAL } from '../constants/expenseScopes';
+import { useCurrencySymbol } from './useCurrencySymbol';
 
 const filterReducer = (state, action) => {
   return { ...state, [action.field]: action.value };
 };
 
 export function useExpenses() {
-  const { timezone, userRole, orgId, currency } = useAuth();
-  // Org's default currency symbol fetched from the currencies API (overrides cookie ISO code)
-  const [orgCurrencySymbol, setOrgCurrencySymbol] = useState(null);
-  const currencySymbol = orgCurrencySymbol || getCurrencySymbol(currency);
+  const { timezone, userRole, orgId } = useAuth();
+  const currencySymbol = useCurrencySymbol();
   const { notify, showConfirm } = useNotification();
   
   // Stabilize notify callback reference to prevent infinite re-renders in useEffect
@@ -95,16 +94,7 @@ export function useExpenses() {
   const [expTotalElements, setExpTotalElements] = useState(0);
   const EXP_PAGE_SIZE = 10;
 
-  // Fetch org's default currency symbol from the currencies API
-  useEffect(() => {
-    api.get('/api/v1/purchasing/currencies')
-      .then(res => {
-        const list = res.data?.data || res.data || [];
-        const def = Array.isArray(list) ? list.find(c => c.isDefault === true) : null;
-        if (def?.symbol) setOrgCurrencySymbol(def.symbol);
-      })
-      .catch(() => {}); // silently fall back to cookie-derived symbol
-  }, []);
+
 
   const isSuperAdmin = useMemo(() => {
     const role = userRole?.toUpperCase() || '';

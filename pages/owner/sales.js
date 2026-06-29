@@ -1251,6 +1251,7 @@ function SalesContent() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [config, setConfig] = useState(null);
+  const sym = config?.currencySymbol || '₹';
   const [selectedTable, setSelectedTable] = useState(null);
   const [popoverTable, setPopoverTable] = useState(null);
   const [paymentOrder, setPaymentOrder] = useState(null);
@@ -2456,7 +2457,7 @@ function SalesContent() {
             vendors={[]}
             warehouses={[]}
             timezone={timezone}
-            currencySymbol={money(0).replace(/[0-9.,\s]/g, '') || '₹'}
+            currencySymbol={sym}
             formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
             onViewLinked={(order, type) => setViewingDoc({ order, type })}
@@ -2710,7 +2711,7 @@ function OrderHistory({
                       </ItemsPill>
                     </td>
                     <td>
-                      <strong>{money(orderTotal(order))}</strong>
+                      <strong>{money(orderTotal(order), sym)}</strong>
                     </td>
                     <td>
                       <StatusBadge style={{

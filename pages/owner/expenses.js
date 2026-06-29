@@ -49,8 +49,15 @@ export default function ExpensesPage() {
   const expensesByPaymentMethod = useMemo(() => {
     const map = {};
     records.forEach(r => {
-      const method = r.paymentMethod || 'OTHER';
-      map[method] = (map[method] || 0) + (parseFloat(r.amount) || 0);
+      const method = (r.paymentMethod || 'OTHER').toUpperCase();
+      if (method === 'MIXED') {
+        const cash = parseFloat(r.cashAmount) || 0;
+        const online = parseFloat(r.onlineAmount) || 0;
+        map['CASH'] = (map['CASH'] || 0) + cash;
+        map['ONLINE'] = (map['ONLINE'] || 0) + online;
+      } else {
+        map[method] = (map[method] || 0) + (parseFloat(r.amount) || 0);
+      }
     });
     return Object.entries(map).map(([method, amount]) => ({
       method,

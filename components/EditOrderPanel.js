@@ -711,6 +711,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [fullOrder, setFullOrder] = useState(order);
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
+  const sym = config?.currencySymbol || '₹';
   const [lines, setLines] = useState(() => (order?.lines || []).map(normalizeLine));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -1252,7 +1253,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                           <FaChevronRight />
                         </ProductAction>
                       ) : (
-                        <strong>₹{Number(product.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
+                        <strong>{sym}{Number(product.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
                       )}
                     </ProductButton>
                   );
@@ -1281,7 +1282,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                     }}
                   >
                     <strong>{line.displayName || line.productName}</strong>
-                    <span>₹{Number(line.unitPrice || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each</span>
+                    <span>{sym}{Number(line.unitPrice || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each</span>
                   </LineInfo>
                   <QtyGroup>
                     <IconButton type="button" onClick={() => updateQty(line.cartKey, -1)}><FaMinus /></IconButton>
@@ -1347,42 +1348,42 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           <SummaryDetails>
             <div className="row">
               <span>Gross Total:</span>
-              <span>₹{Number(totals.gross_face_total || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+              <span>{sym}{Number(totals.gross_face_total || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
             </div>
             {totals.discount_amount > 0 && (
               <div className="row" style={{ color: '#dc2626' }}>
                 <span>Discount:</span>
-                <span>-₹{Number(totals.discount_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                <span>-{sym}{Number(totals.discount_amount).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             {config?.taxEnabled && totals.taxable_amount > 0 && (
               <div className="row">
                 <span>Subtotal:</span>
-                <span>₹{Number(totals.taxable_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                <span>{sym}{Number(totals.taxable_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             {config?.taxEnabled && totals.total_tax > 0 && (
               <div className="row">
                 <span>Tax Amount:</span>
-                <span>₹{Number(totals.total_tax).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                <span>{sym}{Number(totals.total_tax).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             {totals.round_off_amount !== 0 && (
               <div className="row">
                 <span>Round Off:</span>
-                <span>{totals.round_off_amount > 0 ? '+' : ''}₹{Number(Math.abs(totals.round_off_amount)).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                <span>{totals.round_off_amount > 0 ? '+' : ''}{sym}{Number(Math.abs(totals.round_off_amount)).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
               </div>
             )}
             <div className="row total-row">
               <span>Grand Total:</span>
-              <strong>₹{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
+              <strong>{sym}{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}</strong>
             </div>
           </SummaryDetails>
           {isCompleted && (
             <FooterControls>
               {discountsEnabled && (
                 <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
-                  {totals.discount_amount > 0 ? `Edit Discounts (₹${Number(totals.discount_amount).toFixed(dp)})` : 'Apply Discount'}
+                  {totals.discount_amount > 0 ? `Edit Discounts (${sym}${Number(totals.discount_amount).toFixed(dp)})` : 'Apply Discount'}
                 </DiscountBtn>
               )}
               {roundOffEnabled && roundOffMode === 'manual' && (
@@ -1492,7 +1493,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                         <DiscountRow key={key}>
                           <DiscountRowInfo>
                             <span>{item.displayName || item.productName}</span>
-                            <small>₹{Number(item.unitPrice || 0).toFixed(dp)} x {item.quantity}</small>
+                            <small>{sym}{Number(item.unitPrice || 0).toFixed(dp)} x {item.quantity}</small>
                           </DiscountRowInfo>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <DiscountInputWrapper $themeColor="#ea580c">
@@ -1532,7 +1533,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                                   }));
                                 }}
                               >
-                                ₹
+                                {sym}
                               </DiscUnitToggle>
                               <DiscUnitToggle 
                                 type="button"
@@ -1589,7 +1590,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                           $themeColor="#ea580c"
                           onClick={() => setLocalOrderDiscountType('amount')}
                         >
-                          ₹
+                          {sym}
                         </DiscUnitToggle>
                         <DiscUnitToggle 
                           type="button"

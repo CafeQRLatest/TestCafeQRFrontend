@@ -4,8 +4,49 @@ import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import CafeQRPopup from '../../components/CafeQRPopup';
+import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { FaPlus, FaSearch, FaChevronRight, FaMoneyBillWave, FaCheckCircle, FaTrash } from 'react-icons/fa';
+
+const WORLD_CURRENCIES = [
+  { code: 'INR', symbol: '₹', name: 'Indian Rupee', countryCode: 'IN' },
+  { code: 'USD', symbol: '$', name: 'US Dollar', countryCode: 'US' },
+  { code: 'EUR', symbol: '€', name: 'Euro', countryCode: 'EU' },
+  { code: 'GBP', symbol: '£', name: 'British Pound', countryCode: 'GB' },
+  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', countryCode: 'JP' },
+  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar', countryCode: 'CA' },
+  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar', countryCode: 'AU' },
+  { code: 'CHF', symbol: 'Fr', name: 'Swiss Franc', countryCode: 'CH' },
+  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan', countryCode: 'CN' },
+  { code: 'NZD', symbol: 'NZ$', name: 'New Zealand Dollar', countryCode: 'NZ' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', countryCode: 'AE' },
+  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal', countryCode: 'SA' },
+  { code: 'QAR', symbol: 'ر.ق', name: 'Qatari Riyal', countryCode: 'QA' },
+  { code: 'OMR', symbol: 'ر.ع.', name: 'Omani Rial', countryCode: 'OM' },
+  { code: 'BHD', symbol: 'د.ب', name: 'Bahraini Dinar', countryCode: 'BH' },
+  { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar', countryCode: 'KW' },
+  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', countryCode: 'SG' },
+  { code: 'HKD', symbol: 'HK$', name: 'Hong Kong Dollar', countryCode: 'HK' },
+  { code: 'ZAR', symbol: 'R', name: 'South African Rand', countryCode: 'ZA' },
+  { code: 'RUB', symbol: '₽', name: 'Russian Ruble', countryCode: 'RU' },
+  { code: 'TRY', symbol: '₺', name: 'Turkish Lira', countryCode: 'TR' },
+  { code: 'BRL', symbol: 'R$', name: 'Brazilian Real', countryCode: 'BR' },
+  { code: 'MXN', symbol: '$', name: 'Mexican Peso', countryCode: 'MX' },
+  { code: 'THB', symbol: '฿', name: 'Thai Baht', countryCode: 'TH' },
+  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', countryCode: 'MY' },
+  { code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', countryCode: 'ID' },
+  { code: 'PHP', symbol: '₱', name: 'Philippine Peso', countryCode: 'PH' },
+  { code: 'VND', symbol: '₫', name: 'Vietnamese Dong', countryCode: 'VN' },
+  { code: 'KRW', symbol: '₩', name: 'South Korean Won', countryCode: 'KR' },
+  { code: 'LKR', symbol: '₨', name: 'Sri Lankan Rupee', countryCode: 'LK' },
+  { code: 'NPR', symbol: '₨', name: 'Nepalese Rupee', countryCode: 'NP' },
+  { code: 'PKR', symbol: '₨', name: 'Pakistani Rupee', countryCode: 'PK' },
+  { code: 'BDT', symbol: '৳', name: 'Bangladeshi Taka', countryCode: 'BD' },
+  { code: 'EGP', symbol: 'E£', name: 'Egyptian Pound', countryCode: 'EG' },
+  { code: 'NGN', symbol: '₦', name: 'Nigerian Naira', countryCode: 'NG' },
+  { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling', countryCode: 'KE' },
+  { code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi', countryCode: 'GH' },
+];
 
 export default function CurrenciesPage() {
   return (<RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Configurations"><CurrenciesContent /></RoleGate>);
@@ -18,6 +59,13 @@ function CurrenciesContent() {
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selected, setSelected] = useState(null);
+
+  const templateOptions = React.useMemo(() => {
+    return WORLD_CURRENCIES.map(c => ({
+      value: c.code,
+      label: `${c.code} (${c.symbol}) - ${c.name}`
+    }));
+  }, []);
 
   useEffect(() => { fetchCurrencies(); }, []);
 
@@ -106,10 +154,29 @@ function CurrenciesContent() {
           </div>
         </div>
 
-        {/* CURRENCY POPUP */}
         {selected && (
           <CafeQRPopup title={selected.id ? 'Edit Currency' : 'New Currency'} onClose={() => setSelected(null)} onSave={handleSave} saveLabel={selected.id ? 'Update' : 'Create'} isSaving={saving} icon={FaMoneyBillWave}>
             <div className="drawer-form">
+              <div className="input-group">
+                <label>Quick Fill Template</label>
+                <NiceSelect
+                  placeholder="Choose standard currency template..."
+                  value=""
+                  onChange={val => {
+                    const selectedCur = WORLD_CURRENCIES.find(c => c.code === val);
+                    if (selectedCur) {
+                      setSelected({
+                        ...selected,
+                        code: selectedCur.code,
+                        symbol: selectedCur.symbol,
+                        name: selectedCur.name,
+                        countryCode: selectedCur.countryCode
+                      });
+                    }
+                  }}
+                  options={templateOptions}
+                />
+              </div>
               <div className="input-row"><div className="input-group"><label>Code *</label><input value={selected.code} onChange={e => setSelected({...selected, code: e.target.value.toUpperCase()})} placeholder="INR" maxLength={10} /></div><div className="input-group"><label>Symbol *</label><input value={selected.symbol} onChange={e => setSelected({...selected, symbol: e.target.value})} placeholder="₹" maxLength={10} /></div></div>
               <div className="input-row"><div className="input-group"><label>Name *</label><input value={selected.name} onChange={e => setSelected({...selected, name: e.target.value})} placeholder="Indian Rupee" /></div><div className="input-group"><label>Country Code</label><input value={selected.countryCode || ''} onChange={e => setSelected({...selected, countryCode: e.target.value.toUpperCase()})} placeholder="IN" maxLength={10} /></div></div>
               <div className="input-row"><div className="input-group"><label>Exchange Rate</label><input type="number" step="0.000001" value={selected.exchangeRate} onChange={e => setSelected({...selected, exchangeRate: parseFloat(e.target.value) || 1})} /></div><div className="input-group"><label>Decimal Places</label><input type="number" min="0" max="6" value={selected.decimalPlaces ?? 2} onChange={e => setSelected({...selected, decimalPlaces: parseInt(e.target.value) || 0})} /></div></div>
@@ -159,6 +226,8 @@ function CurrenciesContent() {
         .input-group label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; }
         .input-group input, .input-group textarea { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #0f172a; font-family: inherit; }
         .input-group input:focus, .input-group textarea:focus { border-color: #FF7A00; outline: none; box-shadow: 0 0 0 3px rgba(255,122,0,0.08); }
+        .erp-select-template { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 13px; font-weight: 500; color: #0f172a; font-family: inherit; background: white; outline: none; cursor: pointer; }
+        .erp-select-template:focus { border-color: #FF7A00; box-shadow: 0 0 0 3px rgba(255,122,0,0.08); }
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .control-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #fcfdfe; border: 1px solid #f1f5f9; border-radius: 10px; margin-top: 10px; }
         .control-row label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0; }

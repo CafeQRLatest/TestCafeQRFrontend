@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
@@ -22,6 +23,7 @@ export default function StockOverviewPage() {
 
 function StockContent() {
   const { orgId: userOrgId } = useAuth();
+  const sym = useCurrencySymbol();
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [warehouses, setWarehouses] = useState([]);
@@ -308,7 +310,7 @@ function StockContent() {
                 <span className="stat-label">Low Stock</span>
              </div>
              <div className="stat-item valuation">
-                <span className="stat-val">₹{totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span className="stat-val">{sym}{totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 <span className="stat-label">Stock Value</span>
              </div>
           </div>
@@ -328,7 +330,7 @@ function StockContent() {
                         <span className="unit">Units Available</span>
                      </div>
                      <div className="sku-valuation">
-                        Valuation: ₹{(item.currentQuantity * getProductCost(item.productId)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        Valuation: {sym}{(item.currentQuantity * getProductCost(item.productId)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                      </div>
                   </div>
                   

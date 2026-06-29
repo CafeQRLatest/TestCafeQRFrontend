@@ -5,6 +5,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import ProductManagementPopup from '../../components/ProductManagementPopup';
 import { 
   FaBoxOpen, FaUtensils, FaFilter, FaCheckCircle, 
@@ -32,6 +33,7 @@ export default function ProductManagementPage() {
 
 function ProductManagementContent() {
   const { userRole, orgId } = useAuth();
+  const sym = useCurrencySymbol();
   const { notify, showConfirm } = useNotification();
   const isMounted = React.useRef(true);
   const [products, setProducts] = useState([]);
@@ -615,7 +617,7 @@ function ProductManagementContent() {
                           <td className="code-cell">{p.productCode || '-'}</td>
                           <td><span className="name-text">{p.name}</span></td>
                           <td>{p.category?.name || 'N/A'}</td>
-                          <td>₹{p.price} <small>/ {p.uom?.shortName || 'Unit'}</small></td>
+                          <td>{sym}{p.price} <small>/ {p.uom?.shortName || 'Unit'}</small></td>
                           <td><span className={`type-badge ${p.productType?.toLowerCase().replace('_', '-')}`}>{p.productType || 'N/A'}</span></td>
                           <td title={p.description}>
                               {p.description || '-'}
@@ -720,7 +722,7 @@ function ProductManagementContent() {
                   <div className="card-img" style={{ backgroundImage: `url(${p.imageUrl || 'https://via.placeholder.com/40'})` }}></div>
                   <div className="card-info">
                      <span className="card-name">{p.name} {p.isIngredient && <FaUtensilSpoon style={{ color: '#db2777', fontSize: '10px', marginLeft: '4px' }}/>}</span>
-                     <span className="card-sub">{p.category?.name || p.categoryName || 'No Category'} • ₹{p.price}</span>
+                     <span className="card-sub">{p.category?.name || p.categoryName || 'No Category'} • {sym}{p.price}</span>
                      {p.hasVariants && <span className="variant-badge mobile">{p.variantCount || 1} variant{(p.variantCount || 1) > 1 ? 's' : ''}</span>}
                   </div>
                   <div className="card-action" onClick={e => { e.stopPropagation(); /* could add a small menu here */ }}>
