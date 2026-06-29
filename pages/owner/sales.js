@@ -105,7 +105,6 @@ function calculateKotDeltaJs(oldOrder, newOrder) {
   });
 
   return { addedLines, removedLines };
->>>>>>> 9e86a3e (printer: transition to direct local print method)
 }
 
 function normalizeTableStatus(status) {
