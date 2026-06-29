@@ -3,6 +3,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import api from '../../utils/api';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { 
   FaDollarSign, FaWarehouse, FaSearch, FaBoxes, FaChartPie,
   FaSortAmountDown, FaSortAmountUp, FaDownload
@@ -20,6 +21,7 @@ export default function StockValuationPage() {
 }
 
 function ValuationContent() {
+  const sym = useCurrencySymbol();
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [stock, setStock] = useState([]);
@@ -157,7 +159,7 @@ function ValuationContent() {
           <div className="summary-card primary">
             <div className="sc-icon"><FaDollarSign /></div>
             <div className="sc-data">
-              <span className="sc-value">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              <span className="sc-value">{sym}{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               <span className="sc-label">Total Inventory Value</span>
             </div>
           </div>
@@ -228,13 +230,13 @@ function ValuationContent() {
               key: 'unitCost', 
               label: 'Unit Cost', 
               align: 'right',
-              render: (item) => <span className="cost-cell">₹{item.unitCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              render: (item) => <span className="cost-cell">{sym}{item.unitCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             },
             { 
               key: 'totalValue', 
               label: 'Total Value', 
               align: 'right',
-              render: (item) => <span className="value-cell">₹{item.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              render: (item) => <span className="value-cell">{sym}{item.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             },
             { 
               key: 'pct', 
@@ -256,7 +258,7 @@ function ValuationContent() {
               <td colSpan="2"><strong>GRAND TOTAL</strong></td>
               <td className="text-right"><strong>{totalUnits.toLocaleString('en-IN')}</strong></td>
               <td className="text-right">—</td>
-              <td className="text-right"><strong className="grand-total">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+              <td className="text-right"><strong className="grand-total">{sym}{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
               <td className="text-right"><strong>100%</strong></td>
             </tr>
           }

@@ -79,10 +79,21 @@ export default function ExpenseCards({
 
             <div className={styles['mc-btm']}>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <div className={styles['mc-pay-pill']}>
-                  <FaWallet style={{ fontSize: 8 }} />
-                  <span>{prettyMethod(r.paymentMethod)}</span>
-                </div>
+                {r.paymentMethod === 'MIXED' ? (
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className={`${styles['mc-pay-pill']} ${styles.cash}`}>
+                      <span>Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className={`${styles['mc-pay-pill']} ${styles.online}`}>
+                      <span>Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles['mc-pay-pill']}>
+                    <FaWallet style={{ fontSize: 8 }} />
+                    <span>{prettyMethod(r.paymentMethod)}</span>
+                  </div>
+                )}
                 {r.updatedBy && (
                   <div className={styles['mc-by-pill']}>
                     <span>By: {r.updatedBy.includes('@') ? r.updatedBy.split('@')[0] : r.updatedBy}</span>

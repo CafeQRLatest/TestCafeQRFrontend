@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../utils/api';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import PremiumDateTimePicker from '../components/PremiumDateTimePicker';
 import NiceSelect from '../components/NiceSelect';
 import DocumentViewerPopup from '../components/purchasing/DocumentViewerPopup';
@@ -52,17 +53,7 @@ function Dashboard() {
   const [menus, setMenus] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [currencySymbol, setCurrencySymbol] = useState('₹');
-
-  useEffect(() => {
-    api.get('/api/v1/purchasing/currencies')
-      .then(res => {
-        const list = res.data?.data || res.data || [];
-        const def = Array.isArray(list) ? list.find(c => c.isDefault === true) : null;
-        if (def?.symbol) setCurrencySymbol(def.symbol);
-      })
-      .catch(() => {});
-  }, []);
+  const currencySymbol = useCurrencySymbol();
 
   useEffect(() => {
     let active = true;

@@ -44,7 +44,59 @@ function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
   if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
+  return (
+    isAndroidPrintStationEnabled() ||
+    isNativePrintServicePaired() ||
+    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
+  );
+}
+
+function calculateKotDeltaJs(oldOrder, newOrder) {
+  const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
+  const newLines = newOrder?.lines || newOrder?.orderLines || newOrder?.order_items || [];
+
+  const oldMap = new Map();
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    oldMap.set(key, (oldMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const newMap = new Map();
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    newMap.set(key, (newMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const addedLines = [];
+  const removedLines = [];
+
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = oldMap.get(key) || 0;
+    const newQty = Number(line.quantity || line.qty || 0);
+    if (newQty > oldQty) {
+      addedLines.push({
+        ...line,
+        quantity: newQty - oldQty,
+        qty: newQty - oldQty
+      });
+    }
+  });
+
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = Number(line.quantity || line.qty || 0);
+    const newQty = newMap.get(key) || 0;
+    if (oldQty > newQty) {
+      removedLines.push({
+        ...line,
+        quantity: oldQty - newQty,
+        qty: oldQty - newQty
+      });
+    }
+  });
+
+  return { addedLines, removedLines };
 }
 
 const TABLE_STATUS_CUBE = {
@@ -68,7 +120,7 @@ function tableCubeColor(status) {
 
 // ─── Sales History Helpers ───────────────────────────────────────────────────
 
-const money = (value) => `\u20b9${Number(value || 0).toFixed(2)}`;
+const money = (value, symbol = '\u20b9') => `${symbol}${Number(value || 0).toFixed(2)}`;
 
 function histOrderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
@@ -1491,6 +1543,7 @@ export default function OrdersPage() {
   const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
   const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange());
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySummary, setHistorySummary] = useState(null);
   const [branches, setBranches] = useState([]);
   const [terminals, setTerminals] = useState([]);
 
@@ -1512,6 +1565,7 @@ export default function OrdersPage() {
   const [printKind, setPrintKind] = useState('kot');
 
   const [config, setConfig] = useState(null);
+  const sym = config?.currencySymbol || '₹';
   const [creditCustomers, setCreditCustomers] = useState([]);
   const [actionBusy, setActionBusy] = useState(null);
 
@@ -1659,25 +1713,35 @@ export default function OrdersPage() {
     setHistoryLoading(true);
     try {
       const activeTz = timezone || Cookies.get('timezone') || 'Asia/Kolkata';
+      const fromUtc = filters.from ? businessTimeToUtc(filters.from, activeTz) : undefined;
+      const toUtc = filters.to ? businessTimeToUtc(filters.to, activeTz) : undefined;
       const params = {
         page,
         size: 20,
         ...(filters.q?.trim() ? { q: filters.q.trim() } : {}),
         ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.from ? { fromDate: businessTimeToUtc(filters.from, activeTz) } : {}),
-        ...(filters.to ? { toDate: businessTimeToUtc(filters.to, activeTz) } : {}),
+        ...(fromUtc ? { fromDate: fromUtc } : {}),
+        ...(toUtc ? { toDate: toUtc } : {}),
         ...(filters.terminalId ? { terminalId: filters.terminalId } : {}),
         ...(filters.branchId ? { orgId: filters.branchId } : {}),
       };
-      const res = await api.get('/api/v1/orders/history', { params });
-      const data = res.data?.data || {};
-      setHistoryOrders(data.content || []);
-      setHistoryPage({
-        number: data.number || 0,
-        size: data.size || 20,
-        totalPages: data.totalPages || 0,
-        totalElements: data.totalElements || 0,
-      });
+      const [res, summaryRes] = await Promise.allSettled([
+        api.get('/api/v1/orders/history', { params }),
+        (fromUtc && toUtc) ? api.get('/api/v1/reports/sales-summary', { params: { from: fromUtc, to: toUtc } }) : Promise.resolve(null),
+      ]);
+      if (res.status === 'fulfilled') {
+        const data = res.value.data?.data || {};
+        setHistoryOrders(data.content || []);
+        setHistoryPage({
+          number: data.number || 0,
+          size: data.size || 20,
+          totalPages: data.totalPages || 0,
+          totalElements: data.totalElements || 0,
+        });
+      }
+      if (summaryRes.status === 'fulfilled' && summaryRes.value?.data?.success) {
+        setHistorySummary(summaryRes.value.data.data || null);
+      }
     } catch (e) {
       console.error('Failed to fetch order history', e);
     } finally {
@@ -1812,12 +1876,57 @@ export default function OrdersPage() {
   };
 
   const handleSaveEditedOrder = async (editedPayload) => {
+    // If the order is already completed, redirect to the payment dialog first!
+    if (editingOrder.orderStatus === 'COMPLETED' || editingOrder.order_status === 'COMPLETED') {
+      setPaymentOrder({
+        ...editingOrder,
+        lines: editedPayload.lines,
+        totalAmount: editedPayload.totalAmount,
+        totalTaxAmount: editedPayload.totalTaxAmount,
+        totalDiscountAmount: editedPayload.totalDiscountAmount,
+        grandTotal: editedPayload.grandTotal,
+        roundOffAmount: editedPayload.roundOffAmount,
+        grossAmount: editedPayload.grossAmount,
+        orderDiscountType: editedPayload.orderDiscountType,
+        orderDiscountValue: editedPayload.orderDiscountValue,
+        isCompletedEdit: true, // Force PUT during settlement
+      });
+      return;
+    }
+
     try {
       setActionBusy(editingOrder.id);
+      
+      const localKotPrint = localPrintWillHandleKind('kot');
+      const payloadWithSkip = {
+        ...editedPayload,
+        skipAutoPrintKinds: [
+          ...(editedPayload.skipAutoPrintKinds || []),
+          ...(localKotPrint ? ['KOT'] : [])
+        ]
+      };
+
       // Backend voids the old order and creates a new one with a fresh UUID.
       // The response will have the new order's data.
-      const res = await api.put(`/api/v1/orders/${editingOrder.id}`, editedPayload);
+      const res = await api.put(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
       const newOrder = res?.data?.data;
+
+      if (localKotPrint && newOrder) {
+        const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, newOrder);
+        if (addedLines.length > 0 || removedLines.length > 0) {
+          setPrintOrder({
+            ...newOrder,
+            lines: addedLines,
+            removed_items: removedLines,
+            removedItems: removedLines,
+            is_edited: true,
+            isEdited: true,
+            _manualPrint: true,
+          });
+          setPrintKind('kot');
+        }
+      }
+
       setEditingOrder(null);
       await loadOrders();
       await fetchHistoryOrders(historyPage?.number || 0);
@@ -1842,6 +1951,7 @@ export default function OrdersPage() {
       //     applies them in-place without voiding the order
       // We only void+recreate when items were added, removed, or qty changed.
       const linesChanged = (() => {
+        if (paymentOrder?.isCompletedEdit) return true; // Force PUT for completed order edits
         const updatedLines = settlementPayload?.updatedOrder?.lines;
         const originalLines = paymentOrder?.lines;
         if (!updatedLines || !originalLines) return false;
@@ -1859,7 +1969,11 @@ export default function OrdersPage() {
       if (settlementPayload?.updatedOrder && linesChanged) {
         // Lines changed → void the old order and create a new one with updated items.
         // The backend returns a NEW UUID; we must use that for the settle call.
-        const putRes = await api.put(`/api/v1/orders/${paymentOrder.id}`, settlementPayload.updatedOrder);
+        const orderPayload = {
+          ...settlementPayload.updatedOrder,
+          paymentStatus: 'PENDING', // Force pending so backend doesn't auto-generate old payment during update
+        };
+        const putRes = await api.put(`/api/v1/orders/${paymentOrder.id}`, orderPayload);
         const newId = putRes?.data?.data?.id;
         if (newId) settleId = newId;
       }
@@ -1879,6 +1993,7 @@ export default function OrdersPage() {
         : `/api/v1/orders/${settleId}/settle`;
       await api.post(url, payloadToSend);
       setPaymentOrder(null);
+      setEditingOrder(null); // Only hide the edit panel after payment success!
       await loadOrders();
     } catch (e) {
       notify('error', 'Payment settlement failed: ' + (e.response?.data?.message || e.message));
@@ -2303,6 +2418,7 @@ export default function OrdersPage() {
                   <span>{historyFilters.q?.trim() ? 'Try a different search or date range.' : 'Completed and paid orders will appear here.'}</span>
                 </EmptyState>
               ) : (
+                <>
                 <HistTableWrap>
                   <HistTable>
                     <thead>
@@ -2347,7 +2463,7 @@ export default function OrdersPage() {
                             )}
                             <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
                             <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
-                            <td><strong>{money(histOrderTotal(order))}</strong></td>
+                            <td><strong>{money(histOrderTotal(order), sym)}</strong></td>
                             <td>
                               <HistStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
                                 {histStatusText(order)}
@@ -2383,6 +2499,7 @@ export default function OrdersPage() {
                     </tbody>
                   </HistTable>
                 </HistTableWrap>
+                </>
               )}
 
               <HistPager>
@@ -2406,7 +2523,7 @@ export default function OrdersPage() {
               vendors={[]}
               warehouses={[]}
               timezone={timezone || config?.timezone || 'Asia/Kolkata'}
-              currencySymbol={'₹'}
+              currencySymbol={sym}
               formatTzDate={formatTzDate}
               onClose={() => setViewingDoc(null)}
               onViewLinked={(order, type) => setViewingDoc({ order, type })}
@@ -2650,7 +2767,7 @@ export default function OrdersPage() {
                       const displayName = line.variant_name ? `${line.name} (${line.variant_name})` : (line.name || line.productName || 'Item');
                       const metaParts = [
                         line.category || line.categoryName,
-                        unitPrice ? `\u20b9${unitPrice.toFixed(2)} each` : null,
+                        unitPrice ? `${sym}${unitPrice.toFixed(2)} each` : null,
                       ].filter(Boolean);
 
                       return (
@@ -2660,11 +2777,11 @@ export default function OrdersPage() {
                             <span className="name">{displayName}</span>
                             <span className="line-meta">
                               {metaParts.join(' - ')}
-                              {discount > 0 && <span className="discount"> - Discount &#8377;{discount.toFixed(2)}</span>}
-                              {config?.taxEnabled && tax > 0 && <span className="tax"> - Tax &#8377;{tax.toFixed(2)}</span>}
+                              {discount > 0 && <span className="discount"> - Discount {sym}{discount.toFixed(2)}</span>}
+                              {config?.taxEnabled && tax > 0 && <span className="tax"> - Tax {sym}{tax.toFixed(2)}</span>}
                             </span>
                           </div>
-                          <span className="line-total">&#8377;{lineTotal.toFixed(2)}</span>
+                          <span className="line-total">{sym}{lineTotal.toFixed(2)}</span>
                         </div>
                       );
                     })}
@@ -2675,26 +2792,26 @@ export default function OrdersPage() {
                   <div className="price-breakdown">
                     <div className="breakdown-row">
                       <span>Gross Total</span>
-                      <span>&#8377;{Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0).toFixed(2)}</span>
+                      <span>{sym}{Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0).toFixed(2)}</span>
                     </div>
                     {Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0) > 0 && (
                       <div className="breakdown-row discount">
                         <span>Discount</span>
-                        <span>-&#8377;{Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0).toFixed(2)}</span>
+                        <span>-{sym}{Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0).toFixed(2)}</span>
                       </div>
                     )}
                     {config?.taxEnabled && Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0) > 0 && (() => {
                       return (
                         <div className="breakdown-row">
                           <span>Tax Amount</span>
-                          <span>&#8377;{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
+                          <span>{sym}{Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0).toFixed(2)}</span>
                         </div>
                       );
                     })()}
                     <div className="breakdown-divider" />
                     <div className="breakdown-row total">
                       <span>Grand Total</span>
-                      <span>&#8377;{(() => {
+                      <span>{sym}{(() => {
                         const sub = Number(selectedTableOrder.totalAmount || selectedTableOrder.total_amount || 0);
                         const tax = Number(selectedTableOrder.totalTaxAmount || selectedTableOrder.total_tax_amount || 0);
                         const disc = Number(selectedTableOrder.totalDiscountAmount || selectedTableOrder.total_discount_amount || 0);

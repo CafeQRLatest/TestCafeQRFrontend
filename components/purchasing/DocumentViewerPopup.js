@@ -389,38 +389,78 @@ export default function DocumentViewerPopup({
                 <button 
                   onClick={() => setShowSplitsToggle(!showSplitsToggle)}
                   className="dv-link"
-                  style={{ textTransform: 'capitalize', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}
+                  style={{ 
+                    textTransform: 'capitalize', 
+                    fontWeight: '700', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px',
+                    color: '#ea580c',
+                    borderBottom: '1px dashed #ea580c',
+                    paddingBottom: '1px',
+                    background: 'none',
+                    borderTop: 'none',
+                    borderLeft: 'none',
+                    borderRight: 'none',
+                    cursor: 'pointer'
+                  }}
                 >
-                  Mixed <span style={{ fontSize: '10px' }}>ℹ️</span>
+                  Mixed
                 </button>
                 {showSplitsToggle && (
                   <div style={{
                     position: 'absolute',
                     top: '100%',
                     left: 0,
-                    marginTop: '4px',
-                    padding: '8px 12px',
-                    background: '#f8fafc',
-                    border: '1.5px solid #cbd5e1',
+                    marginTop: '6px',
+                    padding: '10px 14px',
+                    background: '#ffffff',
+                    border: '1px solid #ffedd5',
+                    borderLeft: '3.5px solid #ea580c',
                     borderRadius: '8px',
                     fontSize: '11px',
                     color: '#475569',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    gap: '6px',
+                    boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.15), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
                     zIndex: 99,
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    minWidth: '150px'
                   }}>
+                    <div style={{ 
+                      fontSize: '9px', 
+                      fontWeight: '800', 
+                      color: '#ea580c', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '0.05em',
+                      borderBottom: '1px solid #ffedd5',
+                      paddingBottom: '4px',
+                      marginBottom: '2px'
+                    }}>
+                      Split Details
+                    </div>
                     {loadingSplits ? (
                       <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
                     ) : splits.length === 0 ? (
                       <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
                     ) : (
                       splits.map((s, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
-                          <span style={{ fontWeight: '600' }}>{s.paymentMethod}:</span>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{currencySymbol}{fmt(s.amount)}</span>
+                        <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ 
+                            fontWeight: '600', 
+                            fontSize: '10px',
+                            background: s.paymentMethod === 'CASH' ? '#fff7ed' : '#f0f9ff',
+                            color: s.paymentMethod === 'CASH' ? '#c2410c' : '#0369a1',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase'
+                          }}>
+                            {s.paymentMethod}
+                          </span>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
+                            {currencySymbol}{fmt(s.amount)}
+                          </span>
                         </div>
                       ))
                     )}

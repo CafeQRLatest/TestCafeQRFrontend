@@ -52,7 +52,59 @@ function localPrintWillHandleKind(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
   if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
+  return (
+    isAndroidPrintStationEnabled() ||
+    isNativePrintServicePaired() ||
+    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
+  );
+}
+
+function calculateKotDeltaJs(oldOrder, newOrder) {
+  const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
+  const newLines = newOrder?.lines || newOrder?.orderLines || newOrder?.order_items || [];
+
+  const oldMap = new Map();
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    oldMap.set(key, (oldMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const newMap = new Map();
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    newMap.set(key, (newMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const addedLines = [];
+  const removedLines = [];
+
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = oldMap.get(key) || 0;
+    const newQty = Number(line.quantity || line.qty || 0);
+    if (newQty > oldQty) {
+      addedLines.push({
+        ...line,
+        quantity: newQty - oldQty,
+        qty: newQty - oldQty
+      });
+    }
+  });
+
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = Number(line.quantity || line.qty || 0);
+    const newQty = newMap.get(key) || 0;
+    if (oldQty > newQty) {
+      removedLines.push({
+        ...line,
+        quantity: oldQty - newQty,
+        qty: oldQty - newQty
+      });
+    }
+  });
+
+  return { addedLines, removedLines };
 }
 
 function normalizeTableStatus(status) {
@@ -1208,6 +1260,7 @@ function SalesContent() {
   const [historyOrders, setHistoryOrders] = useState([]);
   const [historyPage, setHistoryPage] = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
   const [historyFilters, setHistoryFilters] = useState(() => defaultHistoryRange(timezone));
+  const [historySummary, setHistorySummary] = useState(null);
   const [branches, setBranches] = useState([]);
   const [terminals, setTerminals] = useState([]);
 
@@ -1252,6 +1305,7 @@ function SalesContent() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [config, setConfig] = useState(null);
+  const sym = config?.currencySymbol || '₹';
   const [selectedTable, setSelectedTable] = useState(null);
   const [popoverTable, setPopoverTable] = useState(null);
   const [paymentOrder, setPaymentOrder] = useState(null);
@@ -1439,25 +1493,37 @@ function SalesContent() {
     historyInFlightRef.current = true;
     setOrdersLoading(true);
     try {
-      const res = await api.get('/api/v1/orders/history', {
-        params: {
-          type: 'SALE',
-          fromDate: businessTimeToUtc(filters.from, timezone),
-          toDate: businessTimeToUtc(filters.to, timezone),
-          q: filters.q?.trim() || undefined,
-          status: filters.status || undefined,
-          page,
-          size: historyPage.size || 20,
-        },
-      });
-      const payload = res.data.data || {};
-      setHistoryOrders(payload.content || []);
-      setHistoryPage({
-        number: payload.number || 0,
-        size: payload.size || historyPage.size || 20,
-        totalPages: payload.totalPages || 0,
-        totalElements: payload.totalElements || 0,
-      });
+      const fromUtc = businessTimeToUtc(filters.from, timezone);
+      const toUtc = businessTimeToUtc(filters.to, timezone);
+      const [res, summaryRes] = await Promise.allSettled([
+        api.get('/api/v1/orders/history', {
+          params: {
+            type: 'SALE',
+            fromDate: fromUtc,
+            toDate: toUtc,
+            q: filters.q?.trim() || undefined,
+            status: filters.status || undefined,
+            page,
+            size: historyPage.size || 20,
+          },
+        }),
+        api.get('/api/v1/reports/sales-summary', {
+          params: { from: fromUtc, to: toUtc },
+        }),
+      ]);
+      if (res.status === 'fulfilled') {
+        const payload = res.value.data.data || {};
+        setHistoryOrders(payload.content || []);
+        setHistoryPage({
+          number: payload.number || 0,
+          size: payload.size || historyPage.size || 20,
+          totalPages: payload.totalPages || 0,
+          totalElements: payload.totalElements || 0,
+        });
+      }
+      if (summaryRes.status === 'fulfilled' && summaryRes.value.data?.success) {
+        setHistorySummary(summaryRes.value.data.data || null);
+      }
     } catch (e) {
       if (e?.code === 'OFFLINE_CACHE_MISS') {
         showToast('Open order history once online to prepare offline data.', 'error');
@@ -1469,7 +1535,7 @@ function SalesContent() {
       historyInFlightRef.current = false;
       setOrdersLoading(false);
     }
-  }, [historyFilters, historyPage.size, showToast]);
+  }, [historyFilters, historyPage.size, showToast, timezone]);
 
   useEffect(() => {
     setSelectedTable(null);
@@ -2048,15 +2114,19 @@ function SalesContent() {
     setActionBusy('settle');
     try {
       const localBillPrint = localPrintWillHandleKind('bill');
-      if (payload?.updatedOrder) {
-        await api.put(`/api/v1/orders/${paymentOrder.id}`, {
+      let settleId = paymentOrder.id;
+      if (payload?.updatedOrder || paymentOrder.isCompletedEdit) {
+        const putRes = await api.put(`/api/v1/orders/${paymentOrder.id}`, {
           ...payload.updatedOrder,
+          paymentStatus: 'PENDING', // Force pending so backend doesn't auto-generate old payment during update
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
         });
+        const newId = putRes?.data?.data?.id;
+        if (newId) settleId = newId;
       }
       const endpoint = payload?.paymentMethod === 'CREDIT'
-        ? `/api/v1/orders/${paymentOrder.id}/complete-credit`
-        : `/api/v1/orders/${paymentOrder.id}/settle`;
+        ? `/api/v1/orders/${settleId}/complete-credit`
+        : `/api/v1/orders/${settleId}/settle`;
       const requestPayload = payload?.paymentMethod === 'CREDIT'
         ? {
             creditCustomerId: payload.creditCustomerId,
@@ -2076,6 +2146,7 @@ function SalesContent() {
       ));
       showToast(payload?.paymentMethod === 'CREDIT' ? 'Order completed as credit' : 'Order settled successfully');
       setPaymentOrder(null);
+      setEditingOrder(null); // Only hide the edit panel after payment success!
       publishAccountingRefresh(payload?.paymentMethod === 'CREDIT' ? 'order-credit-completed' : 'order-settled', settledOrder);
       if (localPrintWillHandleKind('bill')) {
         await handlePrintOrder(settledOrder, 'bill');
@@ -2197,10 +2268,55 @@ function SalesContent() {
 
   const handleSaveEditedOrder = async (payload) => {
     if (!editingOrder) return;
+
+    // If the order is already completed, redirect to the payment dialog first!
+    if (editingOrder.orderStatus === 'COMPLETED' || editingOrder.order_status === 'COMPLETED') {
+      setPaymentOrder({
+        ...editingOrder,
+        lines: payload.lines,
+        totalAmount: payload.totalAmount,
+        totalTaxAmount: payload.totalTaxAmount,
+        totalDiscountAmount: payload.totalDiscountAmount,
+        grandTotal: payload.grandTotal,
+        roundOffAmount: payload.roundOffAmount,
+        grossAmount: payload.grossAmount,
+        orderDiscountType: payload.orderDiscountType,
+        orderDiscountValue: payload.orderDiscountValue,
+        isCompletedEdit: true, // Force PUT during settlement
+      });
+      return;
+    }
+
     setEditSaving(true);
     try {
-      const { data } = await api.put(`/api/v1/orders/${editingOrder.id}`, payload);
+      const localKotPrint = localPrintWillHandleKind('kot');
+      const payloadWithSkip = {
+        ...payload,
+        skipAutoPrintKinds: [
+          ...(payload.skipAutoPrintKinds || []),
+          ...(localKotPrint ? ['KOT'] : [])
+        ]
+      };
+
+      const { data } = await api.put(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
       const savedOrder = data.data || payload;
+
+      if (localKotPrint && savedOrder) {
+        const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, savedOrder);
+        if (addedLines.length > 0 || removedLines.length > 0) {
+          setPrintOrder({
+            ...savedOrder,
+            lines: addedLines,
+            removed_items: removedLines,
+            removedItems: removedLines,
+            is_edited: true,
+            isEdited: true,
+            _manualPrint: true,
+          });
+          setPrintKind('kot');
+        }
+      }
+
       // Backend voids old order and creates new one with a fresh UUID.
       // Remove OLD order (by original ID), insert new order at front.
       setFloorOrders((current) => [savedOrder, ...current.filter((order) => order.id !== editingOrder.id && order.id !== savedOrder.id)]);
@@ -2298,6 +2414,8 @@ function SalesContent() {
             filters={historyFilters}
             loading={ordersLoading}
             timezone={timezone}
+            historySummary={historySummary}
+            sym={sym}
             onRefresh={() => fetchHistoryOrders(historyPage.number || 0)}
             onPageChange={(page) => fetchHistoryOrders(page)}
             onFilterChange={(nextFilters) => {
@@ -2457,7 +2575,7 @@ function SalesContent() {
             vendors={[]}
             warehouses={[]}
             timezone={timezone}
-            currencySymbol={money(0).replace(/[0-9.,\s]/g, '') || '₹'}
+            currencySymbol={sym}
             formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
             onViewLinked={(order, type) => setViewingDoc({ order, type })}
@@ -2520,6 +2638,8 @@ function OrderHistory({
   filters,
   loading,
   timezone,
+  historySummary = null,
+  sym = '₹',
   onRefresh,
   onPageChange,
   onFilterChange,
@@ -2642,7 +2762,6 @@ function OrderHistory({
       </HistoryToolbar>
 
 
-
       {orders.length === 0 ? (
         <EmptyState>
           <FaReceipt />
@@ -2711,7 +2830,7 @@ function OrderHistory({
                       </ItemsPill>
                     </td>
                     <td>
-                      <strong>{money(orderTotal(order))}</strong>
+                      <strong>{money(orderTotal(order), sym)}</strong>
                     </td>
                     <td>
                       <StatusBadge style={{

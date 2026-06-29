@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
-import { getCurrencySymbol } from '../constants/expenseScopes';
+import { useCurrencySymbol } from './useCurrencySymbol';
 
 const STATUS_CFG = {
   DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
@@ -27,10 +27,9 @@ const blankPO = () => ({
   totalTaxAmount: 0,
   grandTotal:     0,
 });
-
 export function usePurchaseOrders() {
-  const { timezone, userRole, currency } = useAuth();
-  const currencySymbol = getCurrencySymbol(currency);
+  const { timezone, userRole } = useAuth();
+  const currencySymbol = useCurrencySymbol();
 
   /* ── master data ── */
   const [vendors,    setVendors]    = useState([]);

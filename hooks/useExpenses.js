@@ -2,17 +2,16 @@ import { useState, useEffect, useMemo, useCallback, useReducer, useRef } from 'r
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import api from '../utils/api';
-import { SCOPE_ALL, SCOPE_GLOBAL, getCurrencySymbol } from '../constants/expenseScopes';
+import { SCOPE_ALL, SCOPE_GLOBAL } from '../constants/expenseScopes';
+import { useCurrencySymbol } from './useCurrencySymbol';
 
 const filterReducer = (state, action) => {
   return { ...state, [action.field]: action.value };
 };
 
 export function useExpenses() {
-  const { timezone, userRole, orgId, currency } = useAuth();
-  // Org's default currency symbol fetched from the currencies API (overrides cookie ISO code)
-  const [orgCurrencySymbol, setOrgCurrencySymbol] = useState(null);
-  const currencySymbol = orgCurrencySymbol || getCurrencySymbol(currency);
+  const { timezone, userRole, orgId } = useAuth();
+  const currencySymbol = useCurrencySymbol();
   const { notify, showConfirm } = useNotification();
   
   // Stabilize notify callback reference to prevent infinite re-renders in useEffect
@@ -93,18 +92,11 @@ export function useExpenses() {
   const [expPage, setExpPage] = useState(0);
   const [expTotalPages, setExpTotalPages] = useState(0);
   const [expTotalElements, setExpTotalElements] = useState(0);
+  const [totalExpensesAllPages, setTotalExpensesAllPages] = useState(0);
+  const [allExpensesPeriodBreakdown, setAllExpensesPeriodBreakdown] = useState({});
   const EXP_PAGE_SIZE = 10;
 
-  // Fetch org's default currency symbol from the currencies API
-  useEffect(() => {
-    api.get('/api/v1/purchasing/currencies')
-      .then(res => {
-        const list = res.data?.data || res.data || [];
-        const def = Array.isArray(list) ? list.find(c => c.isDefault === true) : null;
-        if (def?.symbol) setOrgCurrencySymbol(def.symbol);
-      })
-      .catch(() => {}); // silently fall back to cookie-derived symbol
-  }, []);
+
 
   const isSuperAdmin = useMemo(() => {
     const role = userRole?.toUpperCase() || '';
@@ -157,10 +149,11 @@ export function useExpenses() {
         ...toScopeParams(isSuperAdmin ? filters.branch : orgId),
       };
 
-      const [catRes, expRes, orgRes] = await Promise.allSettled([
+      const [catRes, expRes, orgRes, bulkRes] = await Promise.allSettled([
         api.get('/api/v1/expense-categories', { params: toScopeParams(isSuperAdmin ? filters.branch : orgId) }),
         api.get('/api/v1/expenses', { params: expParams }),
-        isSuperAdmin ? api.get('/api/v1/organizations') : Promise.resolve({ data: { success: true, data: [] } })
+        isSuperAdmin ? api.get('/api/v1/organizations') : Promise.resolve({ data: { success: true, data: [] } }),
+        api.get('/api/v1/expenses', { params: { ...expParams, size: 5000, page: 0 } })
       ]);
 
       if (catRes.status === 'fulfilled' && catRes.value.data.success) {
@@ -179,6 +172,31 @@ export function useExpenses() {
         setExpTotalElements(page?.totalElements ?? data.length);
       } else {
         throw expRes.reason || new Error('Expenses could not be loaded');
+      }
+
+      if (bulkRes.status === 'fulfilled' && bulkRes.value.data.success) {
+        const resData = bulkRes.value.data.data;
+        const bulkPage = Array.isArray(resData) ? null : resData;
+        const bulkItems = bulkPage?.content ?? resData ?? [];
+
+        // 1. Calculate grand total across all pages
+        const grandTotal = bulkItems.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+        setTotalExpensesAllPages(grandTotal);
+
+        // 2. Calculate payment method breakdown across all pages
+        const breakdown = {};
+        bulkItems.forEach(r => {
+          const method = (r.paymentMethod || 'OTHER').toUpperCase();
+          if (method === 'MIXED') {
+            const cash = parseFloat(r.cashAmount) || 0;
+            const online = parseFloat(r.onlineAmount) || 0;
+            breakdown['CASH'] = (breakdown['CASH'] || 0) + cash;
+            breakdown['ONLINE'] = (breakdown['ONLINE'] || 0) + online;
+          } else {
+            breakdown[method] = (breakdown[method] || 0) + (parseFloat(r.amount) || 0);
+          }
+        });
+        setAllExpensesPeriodBreakdown(breakdown);
       }
 
       if (orgRes.status === 'fulfilled' && orgRes.value.data.success) {
@@ -336,6 +354,8 @@ export function useExpenses() {
     branches,
     isSuperAdmin,
     totalAll,
+    totalExpensesAllPages,
+    allExpensesPeriodBreakdown,
 
     // Pagination
     expPage,

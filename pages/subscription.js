@@ -343,6 +343,13 @@ export default function SubscriptionPage() {
              .pricing-card { padding: 32px 24px; }
              .val { font-size: 52px; }
           }
+          @media (max-width: 480px) {
+             .module-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+             .module-price { text-align: left; min-width: auto; }
+             .builder-card { padding: 16px 12px; }
+             h1 { font-size: 26px; }
+             .container { padding: 0 8px; }
+          }
         `}</style>
       </div>
     </DashboardLayout>

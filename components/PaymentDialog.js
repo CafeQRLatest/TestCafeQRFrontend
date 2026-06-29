@@ -26,7 +26,7 @@ const THEMES = {
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 1250;
+  z-index: 1400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -360,7 +360,7 @@ const ModalBackdrop = styled.div`
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(4px);
-  z-index: 1300;
+  z-index: 1500;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -525,7 +525,8 @@ export default function PaymentDialog({
   disableEditDiscount = false
 }) {
   const dp = Number(config?.currencyDecimalPlaces ?? 2);
-  const money = useCallback((value) => `\u20B9${Number(value || 0).toFixed(dp)}`, [dp]);
+  const sym = config?.currencySymbol || '₹';
+  const money = useCallback((value) => `${sym}${Number(value || 0).toFixed(dp)}`, [dp, sym]);
 
   const createInitialSplits = () => {
     return [
@@ -854,8 +855,10 @@ export default function PaymentDialog({
   const selectedSplitMethods = paymentSplits.map((split) => split.paymentMethod).filter(Boolean);
   const hasDuplicateSplitMethod = new Set(selectedSplitMethods).size !== selectedSplitMethods.length;
   const hasInvalidSplitRow = paymentSplits.some((split) => !split.paymentMethod || toNumber(split.amount) < 0);
+  const activeSplitsCount = paymentSplits.filter(split => toNumber(split.amount) > 0).length;
+  const isMixedNotSplit = paymentMethod === 'MIXED' && activeSplitsCount < 2;
   const mixedInvalid = paymentMethod === 'MIXED'
-    && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01);
+    && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01 || isMixedNotSplit);
   const creditInvalid = isCreditSelected && !creditCustomerId;
   const creditCustomerOptions = useMemo(
     () => creditCustomers.map((customer) => ({
@@ -1159,13 +1162,17 @@ export default function PaymentDialog({
           </SplitPanel>
         )}
         {mixedInvalid && (
-          <ErrorText>Mixed payment split must be valid and equal {money(payable)}.</ErrorText>
+          <ErrorText>
+            {isMixedNotSplit
+              ? `Mixed payment requires at least two payment methods with a non-zero amount. Total must equal ${money(payable)}.`
+              : `Mixed payment split must be valid and equal ${money(payable)}.`}
+          </ErrorText>
         )}
         {creditInvalid && (
           <ErrorText>Choose a credit customer to complete this order as credit.</ErrorText>
         )}
         {!isRoundOffValid && (
-          <ErrorText>Manual round off must not exceed the limit of ±₹{roundOffManualLimit.toFixed(dp)}.</ErrorText>
+          <ErrorText>Manual round off must not exceed the limit of ±{sym}{roundOffManualLimit.toFixed(dp)}.</ErrorText>
         )}
  
         <Actions>
@@ -1242,7 +1249,7 @@ export default function PaymentDialog({
                           <DiscountRow key={key}>
                             <DiscountRowInfo>
                               <span>{item.displayName || item.name}</span>
-                              <small>₹{Number(item.price || 0).toFixed(dp)} x {item.qty}</small>
+                              <small>{sym}{Number(item.price || 0).toFixed(dp)} x {item.qty}</small>
                             </DiscountRowInfo>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <DiscountInputWrapper $themeColor={theme.primaryDark}>
@@ -1282,7 +1289,7 @@ export default function PaymentDialog({
                                     }));
                                   }}
                                 >
-                                  ₹
+                                  {sym}
                                 </DiscUnitToggle>
                                 <DiscUnitToggle 
                                   type="button"
@@ -1339,7 +1346,7 @@ export default function PaymentDialog({
                             $themeColor={theme.primaryDark}
                             onClick={() => setLocalOrderDiscountType('amount')}
                           >
-                            ₹
+                            {sym}
                           </DiscUnitToggle>
                           <DiscUnitToggle 
                             type="button"

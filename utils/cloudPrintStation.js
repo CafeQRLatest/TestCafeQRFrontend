@@ -54,7 +54,10 @@ export function isAndroidPrintStationEnabled() {
 export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
   if (isNativePrintServicePaired()) return false;
-  return isAndroidPrintStationEnabled();
+  return (
+    isAndroidPrintStationEnabled() ||
+    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
+  );
 }
 
 export function isCloudPrintCoolingDown() {

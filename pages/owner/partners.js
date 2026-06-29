@@ -11,6 +11,7 @@ import {
   FaUserFriends, FaUsers, FaTruck, FaPlus, FaSearch, FaChevronRight,
   FaTimes, FaFileInvoice, FaTrash
 } from 'react-icons/fa';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
 export default function PartnersPage() {
   return (
@@ -22,6 +23,7 @@ export default function PartnersPage() {
 
 function PartnersContent() {
   const { notify, showConfirm } = useNotification();
+  const sym = useCurrencySymbol();
   const [activeTab, setActiveTab] = useState('customers');
   const [config, setConfig] = useState(null);
   const [customers, setCustomers] = useState([]);
@@ -233,8 +235,8 @@ function PartnersContent() {
                             {(c.customerCategory || 'REGULAR').toLowerCase()}
                           </span>
                         </td>
-                        <td className="code-cell">₹{parseFloat(c.creditLimit || 0).toLocaleString()}</td>
-                        <td className="code-cell">₹{parseFloat(c.openingBalance || 0).toLocaleString()}</td>
+                        <td className="code-cell">{sym}{parseFloat(c.creditLimit || 0).toLocaleString()}</td>
+                        <td className="code-cell">{sym}{parseFloat(c.openingBalance || 0).toLocaleString()}</td>
                         <td>
                           <span className={`status-pill ${c.isActive === 'Y' ? 'active' : 'inactive'}`}>
                             <span className="status-dot"></span>
@@ -300,8 +302,8 @@ function PartnersContent() {
                         <td>{v.contactPerson || '—'}</td>
                         <td>{v.phone || '—'}</td>
                         <td><span className="code-cell">{v.gstin || '—'}</span></td>
-                        <td className="code-cell">₹{parseFloat(v.creditLimit || 0).toLocaleString()}</td>
-                        <td className="code-cell">₹{parseFloat(v.openingBalance || 0).toLocaleString()}</td>
+                        <td className="code-cell">{sym}{parseFloat(v.creditLimit || 0).toLocaleString()}</td>
+                        <td className="code-cell">{sym}{parseFloat(v.openingBalance || 0).toLocaleString()}</td>
                         <td>
                           <span className={`status-pill ${v.isActive === 'Y' ? 'active' : 'inactive'}`}>
                             <span className="status-dot"></span>

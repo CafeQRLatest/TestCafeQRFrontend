@@ -98,6 +98,8 @@ export default function Reports() {
   const [voidReason, setVoidReason] = useState('');
   const [voidingInProgress, setVoidingInProgress] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [invoicePage, setInvoicePage] = useState(0);
+  const INVOICE_PAGE_SIZE = 25;
   const SYM = config?.currencySymbol || '₹';
 
   const toInstant = (dtLocal) => {
@@ -148,7 +150,7 @@ export default function Reports() {
       if (res.data?.success) {
         const d = res.data.data;
         if (t === 'summary') setSummary(d);
-        else if (t === 'salesInvoices') setSalesInvoices(d || []);
+        else if (t === 'salesInvoices') { setSalesInvoices(d || []); setInvoicePage(0); }
         else if (t === 'items') setItems(d || []);
         else if (t === 'payments') setPayments(d || []);
         else if (t === 'tax') setTaxData(d || []);
@@ -368,10 +370,18 @@ export default function Reports() {
     );
   };
 
-  const renderSalesInvoices = () => (
+  const renderSalesInvoices = () => {
+    const invoiceTotalPages = Math.ceil(salesInvoices.length / INVOICE_PAGE_SIZE) || 1;
+    const pagedInvoices = salesInvoices.slice(invoicePage * INVOICE_PAGE_SIZE, (invoicePage + 1) * INVOICE_PAGE_SIZE);
+    // All-page totals (computed from full dataset, not just current page)
+    const allTax = salesInvoices.reduce((s, tx) => s + Number(tx.totalTaxAmount || 0), 0);
+    const allDiscount = salesInvoices.reduce((s, tx) => s + Number(tx.totalDiscountAmount || 0), 0);
+    const allGrand = salesInvoices.reduce((s, tx) => s + Number(tx.grandTotal || 0), 0);
+    const allDue = salesInvoices.reduce((s, tx) => s + Number(tx.amountDue || 0), 0);
+    return (
     <>
       <div className="rpt-toolbar">
-        <NiceSelect value={invoiceFilter} onChange={setInvoiceFilter} options={[
+        <NiceSelect value={invoiceFilter} onChange={(v) => { setInvoiceFilter(v); setInvoicePage(0); }} options={[
           {value:'ALL',label:'All Sales'},{value:'PAID',label:'Paid'},{value:'CREDIT',label:'Credit/Unpaid'},{value:'VOIDED',label:'Voided'}
         ]} style={{width:180}} />
         <button className="rpt-exp-btn" onClick={() => exportCSV(
@@ -423,7 +433,7 @@ export default function Reports() {
               <th className="r" style={{ width: '1%' }}>Due</th>
               <th style={{ width: '1%' }}></th>
             </tr></thead>
-            <tbody>{salesInvoices.map(tx => {
+            <tbody>{pagedInvoices.map(tx => {
               const rowId = tx.id || tx.orderId || tx.invoiceId;
               const typeLabel = [tx.fulfillmentType || 'SALE', tx.tableNumber ? `Table ${tx.tableNumber}` : null].filter(Boolean).join(' / ');
               return (
@@ -465,12 +475,46 @@ export default function Reports() {
                    <td>{tx.voidable && <button className="rpt-void-btn" onClick={(e) => { e.stopPropagation(); handleVoid(tx); }} title="Cancel Order"><FaBan /></button>}</td>
                 </tr>
               );
-            })}</tbody>
+            })}
+            </tbody>
+            {salesInvoices.length > 0 && (
+              <tfoot>
+                <tr style={{ fontWeight: 700, background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                  <td colSpan={config?.taxEnabled !== false ? 7 : 6} style={{ fontSize: '12px', color: '#64748b', textAlign: 'right', padding: '10px 8px' }}>
+                    Grand Totals ({salesInvoices.length} records)
+                  </td>
+                  {config?.taxEnabled !== false && <td className="r" style={{ color: '#ef4444' }}>{SYM}{fmt(allTax)}</td>}
+                  <td className="r" style={{ color: '#ec4899' }}>{SYM}{fmt(allDiscount)}</td>
+                  <td className="r rpt-amt" style={{ color: '#10b981' }}>{SYM}{fmt(allGrand)}</td>
+                  <td className="r" style={{ color: '#f97316' }}>{SYM}{fmt(allDue)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
+        </div>
+      )}
+      {salesInvoices.length > INVOICE_PAGE_SIZE && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '14px 0', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+          <button
+            disabled={invoicePage <= 0}
+            onClick={() => setInvoicePage(p => Math.max(0, p - 1))}
+            style={{ padding: '7px 18px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: '700', fontSize: '13px', cursor: invoicePage <= 0 ? 'not-allowed' : 'pointer', opacity: invoicePage <= 0 ? 0.4 : 1 }}
+          >← Prev</button>
+          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
+            Page {invoicePage + 1} of {invoiceTotalPages}
+            <span style={{ marginLeft: '8px', fontWeight: '400' }}>({salesInvoices.length} invoices)</span>
+          </span>
+          <button
+            disabled={invoicePage >= invoiceTotalPages - 1}
+            onClick={() => setInvoicePage(p => Math.min(invoiceTotalPages - 1, p + 1))}
+            style={{ padding: '7px 18px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: '700', fontSize: '13px', cursor: invoicePage >= invoiceTotalPages - 1 ? 'not-allowed' : 'pointer', opacity: invoicePage >= invoiceTotalPages - 1 ? 0.4 : 1 }}
+          >Next →</button>
         </div>
       )}
     </>
   );
+  };
 
   const renderItems = () => {
     const maxRev = items.length ? Math.max(...items.map(i => Number(i.revenue || 0))) : 1;

@@ -26,7 +26,11 @@ import PaymentDialog from './PaymentDialog';
 function localPrintWillHandleOrder(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
-  return isAndroidPrintStationEnabled() || isNativePrintServicePaired();
+  return (
+    isAndroidPrintStationEnabled() ||
+    isNativePrintServicePaired() ||
+    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
+  );
 }
 
 // Ported Styled Components from legacy counter.js & PremiumPOSUI
@@ -1676,6 +1680,7 @@ export default function CounterSale({
   const customersEnabled = isCustomersModuleEnabled(config);
   const discountsEnabled = isDiscountModuleEnabled(config);
   const kitchenEnabled = isKitchenModuleEnabled(config);
+  const sym = config?.currencySymbol || '₹';
 
   const startNewProductForPopup = () => {
     setSelectedProductForPopup({
@@ -2101,7 +2106,7 @@ export default function CounterSale({
       const dp = config?.currencyDecimalPlaces ?? 2;
       return {
         value: customer.id,
-        label: `${customer.name || 'Credit Customer'}${customer.phone ? ` (${customer.phone})` : ''} - ₹${Number(customer.balance || 0).toFixed(dp)}`,
+        label: `${customer.name || 'Credit Customer'}${customer.phone ? ` (${customer.phone})` : ''} - ${sym}${Number(customer.balance || 0).toFixed(dp)}`,
       };
     }),
     [creditCustomers, config]
@@ -2408,7 +2413,7 @@ export default function CounterSale({
     const dp = config?.currencyDecimalPlaces ?? 2;
     if (limit <= 0) return '';
     const projected = Number(selectedCreditCustomer.balance || 0) + Number(totals?.total_inc_tax || 0);
-    return projected > limit ? `Credit limit warning: projected balance ₹${projected.toFixed(dp)} exceeds ₹${limit.toFixed(dp)}.` : '';
+    return projected > limit ? `Credit limit warning: projected balance ${sym}${projected.toFixed(dp)} exceeds ${sym}${limit.toFixed(dp)}.` : '';
   }, [selectedCreditCustomer, totals?.total_inc_tax, config]);
 
   const buildCustomerSelections = () => {
@@ -2924,7 +2929,7 @@ export default function CounterSale({
                             >
                               <SuggestItemMeta>
                                 <strong>{p.name}</strong>
-                                <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options' : `₹${Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`}</span>
+                                <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options' : `${sym}${Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`}</span>
                               </SuggestItemMeta>
                               {hasOptions ? (
                                 <SuggestAddBtn $themeColor={THEME.main} $outline>
@@ -2984,7 +2989,7 @@ export default function CounterSale({
                           >
                             <StandardProductMeta>
                               <strong>{p.name}</strong>
-                              <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options available' : `₹${Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`}</span>
+                              <span>{p.categoryName || 'Menu item'} • {hasOptions ? 'Options available' : `${sym}${Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`}</span>
                             </StandardProductMeta>
                             {hasOptions ? (
                               <AddBtn $themeColor={THEME.main} $outline>
@@ -3068,10 +3073,10 @@ export default function CounterSale({
                                 </button>
                               </div>
                               <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
-                                ₹{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
+                                {sym}{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
                                 {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                                   <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
-                                    (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
+                                    (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `${sym}${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
                                   </span>
                                 )}
                               </div>
@@ -3082,7 +3087,7 @@ export default function CounterSale({
                               <QtyBtn onClick={() => updateQty(cartKeyFor(item), 1)}><FaPlus /></QtyBtn>
                             </QtyGroup>
                             <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', minWidth: '50px', textAlign: 'right' }}>
-                              ₹{(Number(item.price || 0) * item.qty).toFixed(config?.currencyDecimalPlaces ?? 2)}
+                              {sym}{(Number(item.price || 0) * item.qty).toFixed(config?.currencyDecimalPlaces ?? 2)}
                             </div>
                           </StandardOrderRow>
                         ))
@@ -3099,47 +3104,47 @@ export default function CounterSale({
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Gross Total</div>
-                          <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                          <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>{sym}{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                         </div>
 
                         {totals.discount_amount > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#dc2626', fontWeight: 700, textTransform: 'uppercase' }}>Discount</div>
-                            <div style={{ fontSize: '12.5px', color: '#dc2626', fontWeight: 800 }}>-₹{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#dc2626', fontWeight: 800 }}>-{sym}{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
 
                         {config?.taxEnabled && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Subtotal</div>
-                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>{sym}{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
                         
                         {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Tax Amount</div>
-                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#0f172a', fontWeight: 800 }}>{sym}{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
                         
                         {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Round Off</div>
-                            <div style={{ fontSize: '12.5px', color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                            <div style={{ fontSize: '12.5px', color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}{sym}{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                           </div>
                         )}
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7' }}>
                           <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Grand Total</div>
-                          <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
+                          <div style={{ fontSize: '15px', color: THEME.main, fontWeight: 900 }}>{sym}{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</div>
                         </div>
                       </div>
                       
                       <div style={{ flexShrink: 0 }}>
                         {discountsEnabled && activeOrderMode === 'settle' && (
                           <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px', height: '36px' }}>
-                            {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
+                            {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
                           </DiscountBtn>
                         )}
 
@@ -3220,7 +3225,7 @@ export default function CounterSale({
                             <ProdName>{p.name}</ProdName>
                             <CategoryTag>{p.categoryName || 'Menu item'}</CategoryTag>
                             <ProdPriceRow>
-                              <ProdPrice $themeColor={THEME.main}>₹{Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}{hasOptions ? '+' : ''}</ProdPrice>
+                              <ProdPrice $themeColor={THEME.main}>{sym}{Number(p.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}{hasOptions ? '+' : ''}</ProdPrice>
                               {hasOptions ? (
                                 <AddBtn $themeColor={THEME.main} $outline>
                                   {quantity > 0 && <VariantCount $themeColor={THEME.main}>{quantity}</VariantCount>}
@@ -3347,15 +3352,15 @@ export default function CounterSale({
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
                                   <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
-                                    ₹{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
+                                    {sym}{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
                                     {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                                       <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
-                                        (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
+                                        (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `${sym}${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
                                       </span>
                                     )}
                                   </div>
                                   <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', textAlign: 'right' }}>
-                                    ₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(config?.currencyDecimalPlaces ?? 2)}
+                                    {sym}{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(config?.currencyDecimalPlaces ?? 2)}
                                   </div>
                                 </div>
                               </div>
@@ -3374,34 +3379,34 @@ export default function CounterSale({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'white', padding: '8px 10px', borderRadius: '8px', border: '1px solid #edf2f7', boxShadow: '0 4px 12px rgba(15,23,42,0.02)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                               <span style={{ color: '#64748b', fontWeight: 600 }}>Gross Total</span>
-                              <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                              <span style={{ color: '#0f172a', fontWeight: 700 }}>{sym}{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                             </div>
 
                             {totals.discount_amount > 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: '#dc2626' }}>
                                 <span style={{ fontWeight: 600 }}>Discount</span>
-                                <span style={{ fontWeight: 700 }}>-₹{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                                <span style={{ fontWeight: 700 }}>-{sym}{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
 
                             {config?.taxEnabled && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Subtotal</span>
-                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>{sym}{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
                             
                             {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#64748b', fontWeight: 600 }}>Tax Amount</span>
-                                <span style={{ color: '#0f172a', fontWeight: 700 }}>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                                <span style={{ color: '#0f172a', fontWeight: 700 }}>{sym}{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
 
                             {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px' }}>
                                 <span style={{ color: '#94a3b8', fontWeight: 600 }}>Round Off</span>
-                                <span style={{ color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                                <span style={{ color: '#94a3b8', fontWeight: 700 }}>{(roundOffPreview > 0 ? '+' : '')}{sym}{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                               </div>
                             )}
                             
@@ -3409,7 +3414,7 @@ export default function CounterSale({
                             
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span style={{ color: '#0f172a', fontWeight: 800, fontSize: '12px' }}>Grand Total</span>
-                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
+                              <span style={{ color: THEME.main, fontWeight: 900, fontSize: '16px' }}>{sym}{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span>
                             </div>
                           </div>
                         </div>
@@ -3417,7 +3422,7 @@ export default function CounterSale({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
                           {discountsEnabled && activeOrderMode === 'settle' && (
                             <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
-                              {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
+                              {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
                             </DiscountBtn>
                           )}
                           
@@ -3509,15 +3514,15 @@ export default function CounterSale({
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: '1px' }}>
                       <div style={{ color: '#64748b', fontWeight: 600, fontSize: '10.5px' }}>
-                        ₹{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
+                        {sym}{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} each
                         {discountsEnabled && ((item.discount_percent > 0) || (item.discount_amount > 0)) && (
                           <span style={{ color: '#dc2626', fontWeight: 700, marginLeft: '6px', fontSize: '9.5px', whiteSpace: 'nowrap' }}>
-                            (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `₹${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
+                            (-{item.discount_percent > 0 ? `${item.discount_percent}%` : `${sym}${Number(item.discount_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}`})
                           </span>
                         )}
                       </div>
                       <div style={{ color: THEME.main, fontWeight: 800, fontSize: '12px', textAlign: 'right' }}>
-                        ₹{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(config?.currencyDecimalPlaces ?? 2)}
+                        {sym}{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(config?.currencyDecimalPlaces ?? 2)}
                       </div>
                     </div>
                   </CartItemCard>
@@ -3527,26 +3532,26 @@ export default function CounterSale({
 
             <CartFooter>
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <SummaryRow><span>Gross Total</span><span>₹{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                <SummaryRow><span>Gross Total</span><span>{sym}{totals.line_subtotal.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 {totals.discount_amount > 0 && (
-                  <SummaryRow style={{ color: '#dc2626' }}><span>Discount</span><span>-₹{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow style={{ color: '#dc2626' }}><span>Discount</span><span>-{sym}{totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.taxEnabled && (
-                  <SummaryRow><span>Subtotal</span><span>₹{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow><span>Subtotal</span><span>{sym}{totals.taxable_amount.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0) && (
-                  <SummaryRow><span>Tax Amount</span><span>₹{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow><span>Tax Amount</span><span>{sym}{(totals.total_tax_added + totals.total_tax_included).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
-                  <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off</span><span>{(roundOffPreview > 0 ? '+' : '')}₹{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                  <SummaryRow style={{ color: '#94a3b8' }}><span>Round Off</span><span>{(roundOffPreview > 0 ? '+' : '')}{sym}{Math.abs(roundOffPreview).toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
                 )}
                 <div style={{ height: '1px', background: '#e2e8f0', margin: '8px 0' }}/>
-                <SummaryRow $bold><span>Grand Total</span><span>₹{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
+                <SummaryRow $bold><span>Grand Total</span><span>{sym}{totals.total_inc_tax.toFixed(config?.currencyDecimalPlaces ?? 2)}</span></SummaryRow>
               </div>
 
               {discountsEnabled && activeOrderMode === 'settle' && (
                 <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px' }}>
-                  {totals.discount_amount > 0 ? `Edit Discounts (₹${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
+                  {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(config?.currencyDecimalPlaces ?? 2)})` : 'Apply Discount'}
                 </DiscountBtn>
               )}
 
@@ -3571,7 +3576,7 @@ export default function CounterSale({
               $themeColor={THEME.main}
               onClick={() => setMobileCartOpen(true)}
             >
-              <FaShoppingBag /> View Cart <span>|</span> {cartCountLabel} <span>|</span> ₹{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}
+              <FaShoppingBag /> View Cart <span>|</span> {cartCountLabel} <span>|</span> {sym}{Number(totals.total_amount || 0).toFixed(config?.currencyDecimalPlaces ?? 2)}
             </MobileCartToggle>
           )}
           </>
@@ -3659,7 +3664,7 @@ export default function CounterSale({
                           <DiscountRow key={key}>
                             <DiscountRowInfo>
                               <span>{item.displayName || item.name}</span>
-                              <small>₹{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} x {item.qty}</small>
+                              <small>{sym}{Number(item.price || 0).toFixed(config?.currencyDecimalPlaces ?? 2)} x {item.qty}</small>
                             </DiscountRowInfo>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <DiscountInputWrapper $themeColor={THEME.main}>
@@ -3699,7 +3704,7 @@ export default function CounterSale({
                                     }));
                                   }}
                                 >
-                                  ₹
+                                  {sym}
                                 </DiscUnitToggle>
                                 <DiscUnitToggle 
                                   type="button"
@@ -3756,7 +3761,7 @@ export default function CounterSale({
                             $themeColor={THEME.main}
                             onClick={() => setLocalOrderDiscountType('amount')}
                           >
-                            ₹
+                            {sym}
                           </DiscUnitToggle>
                           <DiscUnitToggle 
                             type="button"

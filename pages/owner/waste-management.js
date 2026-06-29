@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { FaTrash, FaPlus, FaEdit, FaTimes, FaRecycle, FaChartPie, FaList, FaCog, FaCheck, FaLeaf, FaChevronDown } from 'react-icons/fa';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
 const REASONS = ['Spillage','Burnt / Overcooked','Expired / Spoiled','Customer Return','Over-preparation','Theft / Loss','Other'];
 const REASON_META = {
@@ -58,6 +59,7 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function WasteManagement() {
   const { timezone, orgId } = useAuth();
+  const sym = useCurrencySymbol();
   const [tab, setTab] = useState('log');
   const [logs, setLogs] = useState([]);
   const [cats, setCats] = useState([]);
@@ -265,7 +267,7 @@ export default function WasteManagement() {
         {/* KPIs */}
         <div className="wm-kpis">
           <div className="wm-kpi"><div className="wm-kpi-lbl">Total Entries</div><div className="wm-kpi-v">{logTotalElements || logs.length}</div><div className="wm-kpi-sub">All time</div></div>
-          <div className="wm-kpi"><div className="wm-kpi-lbl">Waste Cost</div><div className="wm-kpi-v red">₹{fmt(totalCost)}</div><div className="wm-kpi-sub">This page</div></div>
+          <div className="wm-kpi"><div className="wm-kpi-lbl">Waste Cost</div><div className="wm-kpi-v red">{sym}{fmt(totalCost)}</div><div className="wm-kpi-sub">This page</div></div>
           <div className="wm-kpi"><div className="wm-kpi-lbl">Top Reason</div><div className="wm-kpi-v" style={{fontSize:'14px',marginTop:'4px'}}>{topReason}</div><div className="wm-kpi-sub">Most frequent</div></div>
           <div className="wm-kpi"><div className="wm-kpi-lbl">Categories</div><div className="wm-kpi-v">{cats.length}</div><div className="wm-kpi-sub">Active</div></div>
         </div>
@@ -308,8 +310,8 @@ export default function WasteManagement() {
                         <td style={{fontWeight:700}}>{l.productName||'—'}</td>
                         <td><span className="wm-pill" style={{background:m.color+'14',color:m.color}}>{m.emoji} {l.wasteReason}</span></td>
                         <td>{l.quantity} {l.unitOfMeasure}</td>
-                        <td style={{color:'#6b7280'}}>₹{fmt(l.unitCost)}</td>
-                        <td><span className="wm-cost">₹{fmt(l.totalCost)}</span></td>
+                        <td style={{color:'#6b7280'}}>{sym}{fmt(l.unitCost)}</td>
+                        <td><span className="wm-cost">{sym}{fmt(l.totalCost)}</span></td>
                         <td style={{color:'#9ca3af',fontSize:'12px'}}>{formatTzDate(l.wasteDate, timezone, { format: 'date' })}</td>
                         <td><div className="wm-acts">
                           <button className="wm-ic-btn ed" onClick={()=>openForm(l)}><FaEdit/></button>
@@ -355,7 +357,7 @@ export default function WasteManagement() {
             <div className="wm-analytics-g">
               <div className="wm-a-card" style={{borderColor:'#fee2e2',background:'#fffafa'}}>
                 <div className="wm-a-title">💸 Total Waste Cost</div>
-                <div style={{fontSize:'32px',fontWeight:900,color:'#ef4444',letterSpacing:'-0.03em'}}>₹{fmt(analytics.totalWasteCost)}</div>
+                <div style={{fontSize:'32px',fontWeight:900,color:'#ef4444',letterSpacing:'-0.03em'}}>{sym}{fmt(analytics.totalWasteCost)}</div>
                 <div style={{fontSize:'11px',color:'#9ca3af',marginTop:'5px',fontWeight:500}}>{dateRange.start} → {dateRange.end}</div>
               </div>
               <div className="wm-a-card" style={{gridColumn:'span 2'}}>
@@ -366,7 +368,7 @@ export default function WasteManagement() {
                     <div key={i} className="wm-bar-row">
                       <div className="wm-bar-lbl">{REASON_META[b.reason]?.emoji||'📋'} {b.reason}</div>
                       <div className="wm-bar-trk"><div className="wm-bar-fill" style={{width:`${max>0?Number(b.totalCost)/max*100:0}%`,background:REASON_META[b.reason]?.color||'#6b7280'}} /></div>
-                      <div className="wm-bar-v">₹{fmt(b.totalCost)}</div>
+                      <div className="wm-bar-v">{sym}{fmt(b.totalCost)}</div>
                       <div style={{fontSize:'10px',color:'#9ca3af',minWidth:'32px',textAlign:'right',fontWeight:600}}>{b.count}x</div>
                     </div>
                   ));
@@ -437,12 +439,12 @@ export default function WasteManagement() {
 
                 <div className="wm-row2">
                   <div>
-                    <div className="wm-lbl">Unit Cost (₹)</div>
+                    <div className="wm-lbl">Unit Cost ({sym})</div>
                     <input className="wm-inp" type="number" min="0" step="0.01" value={form.unitCost} onChange={e=>setForm(p=>({...p,unitCost:e.target.value}))} />
                   </div>
                   <div>
                     <div className="wm-lbl">Estimated Loss</div>
-                    <div className="wm-loss-box">₹{estimatedLoss}</div>
+                    <div className="wm-loss-box">{sym}{estimatedLoss}</div>
                   </div>
                 </div>
 

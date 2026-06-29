@@ -228,6 +228,8 @@ function AccountingContent() {
   const [voidingJournalId, setVoidingJournalId] = useState(null);
   const [showAddEntryModal, setShowAddEntryModal] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [journalPage, setJournalPage] = useState(0);
+  const JOURNAL_PAGE_SIZE = 25;
 
   const handleDateFromChange = (value) => {
     if (!value) return;
@@ -577,6 +579,7 @@ function AccountingContent() {
   }, [accounts, searchTerm, accountsSortBy, accountsSortDir]);
 
   const sortedJournals = useMemo(() => {
+    setJournalPage(0);
     if (journalTypeFilter === 'all') return journals;
     return journals.filter(entry => {
       const source = String(entry.sourceType || '').toUpperCase();
@@ -588,6 +591,9 @@ function AccountingContent() {
       return true;
     });
   }, [journals, journalTypeFilter]);
+
+  const journalTotalPages = Math.ceil(sortedJournals.length / JOURNAL_PAGE_SIZE) || 1;
+  const pagedJournals = sortedJournals.slice(journalPage * JOURNAL_PAGE_SIZE, (journalPage + 1) * JOURNAL_PAGE_SIZE);
 
   const accountOptions = useMemo(() => {
     return accounts.map(account => ({
@@ -1356,6 +1362,9 @@ function AccountingContent() {
                   {sortedJournals.length >= 500 && (
                     <p className="section-helper">Showing the latest 500 transactions for this period. Narrow the date range for older entries.</p>
                   )}
+                  {sortedJournals.length > 0 && (
+                    <p className="section-helper">Showing {journalPage * JOURNAL_PAGE_SIZE + 1}–{Math.min((journalPage + 1) * JOURNAL_PAGE_SIZE, sortedJournals.length)} of {sortedJournals.length} entries</p>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button
@@ -1429,7 +1438,7 @@ function AccountingContent() {
                 <table className="rpt-tbl">
                   <thead><tr><th>Type</th><th>Document</th><th>Date</th><th>What For</th><th className="amount">Received</th><th className="amount">Paid</th><th className="amount">Adjustment</th><th>Status</th><th></th></tr></thead>
                   <tbody>
-                    {sortedJournals.map(entry => {
+                    {pagedJournals.map(entry => {
                       const view = journalDisplay(entry);
                       return (
                         <tr key={entry.id}>
@@ -1463,6 +1472,24 @@ function AccountingContent() {
                   </tbody>
                 </table>
               </div>
+              {sortedJournals.length > JOURNAL_PAGE_SIZE && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '14px 0', borderTop: '1px solid #f1f5f9', marginTop: '4px' }}>
+                  <button
+                    disabled={journalPage <= 0}
+                    onClick={() => setJournalPage(p => Math.max(0, p - 1))}
+                    style={{ padding: '7px 18px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: '700', fontSize: '13px', cursor: journalPage <= 0 ? 'not-allowed' : 'pointer', opacity: journalPage <= 0 ? 0.4 : 1 }}
+                  >← Prev</button>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
+                    Page {journalPage + 1} of {journalTotalPages}
+                    <span style={{ marginLeft: '8px', fontWeight: '400' }}>({sortedJournals.length} total)</span>
+                  </span>
+                  <button
+                    disabled={journalPage >= journalTotalPages - 1}
+                    onClick={() => setJournalPage(p => Math.min(journalTotalPages - 1, p + 1))}
+                    style={{ padding: '7px 18px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#1e293b', fontWeight: '700', fontSize: '13px', cursor: journalPage >= journalTotalPages - 1 ? 'not-allowed' : 'pointer', opacity: journalPage >= journalTotalPages - 1 ? 0.4 : 1 }}
+                  >Next →</button>
+                </div>
+              )}
             </div>
           )}
 

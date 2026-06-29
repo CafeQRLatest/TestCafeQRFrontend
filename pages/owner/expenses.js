@@ -11,8 +11,34 @@ import { useExpenses } from '../../hooks/useExpenses';
 import { useExpenseExport } from '../../hooks/useExpenseExport';
 import { SCOPE_ALL, SCOPE_GLOBAL } from '../../constants/expenseScopes';
 import { prettyMethod } from '../../constants/payMethods';
-import { FaPlus, FaCog, FaFileExcel, FaFileCsv, FaFileAlt } from 'react-icons/fa';
+import { FaPlus, FaCog, FaFileExcel, FaFileCsv, FaFileAlt, FaWallet, FaCreditCard, FaMoneyBillWave, FaUniversity, FaChartPie } from 'react-icons/fa';
 import styles from '../../components/expenses/Expenses.module.css';
+
+const getMethodConfig = (method) => {
+  switch (method.toUpperCase()) {
+    case 'CASH':
+      return {
+        icon: <FaMoneyBillWave />,
+        bg: '#fff7ed',
+        border: 'rgba(249, 115, 22, 0.15)',
+        iconColor: '#f97316'
+      };
+    case 'ONLINE':
+      return {
+        icon: <FaCreditCard />,
+        bg: '#eef2ff',
+        border: 'rgba(99, 102, 241, 0.15)',
+        iconColor: '#6366f1'
+      };
+    default:
+      return {
+        icon: <FaUniversity />,
+        bg: '#f8fafc',
+        border: '#e2e8f0',
+        iconColor: '#64748b'
+      };
+  }
+};
 
 export default function ExpensesPage() {
   const {
@@ -32,7 +58,9 @@ export default function ExpensesPage() {
     addCategory, toggleCatActive,
     // Misc
     isSuperAdmin, timezone, orgId, currencySymbol, loadCategoriesForScope,
-    expPage, expTotalPages, expTotalElements, fetchPage
+    expPage, expTotalPages, expTotalElements, fetchPage,
+    totalExpensesAllPages,
+    allExpensesPeriodBreakdown
   } = useExpenses();
 
   const { exportToCSV, exportToExcel } = useExpenseExport({ categories, timezone });
@@ -42,21 +70,16 @@ export default function ExpensesPage() {
     ? (filters.branch === SCOPE_ALL ? SCOPE_GLOBAL : filters.branch)
     : (orgId || SCOPE_GLOBAL);
 
-  const totalExpenses = useMemo(() => {
-    return records.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
-  }, [records]);
+  const totalExpenses = totalExpensesAllPages > 0
+    ? totalExpensesAllPages
+    : records.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
 
   const expensesByPaymentMethod = useMemo(() => {
-    const map = {};
-    records.forEach(r => {
-      const method = r.paymentMethod || 'OTHER';
-      map[method] = (map[method] || 0) + (parseFloat(r.amount) || 0);
-    });
-    return Object.entries(map).map(([method, amount]) => ({
+    return Object.entries(allExpensesPeriodBreakdown || {}).map(([method, amount]) => ({
       method,
       amount
     })).sort((a, b) => b.amount - a.amount);
-  }, [records]);
+  }, [allExpensesPeriodBreakdown]);
 
   return (
     <>
@@ -97,30 +120,41 @@ export default function ExpensesPage() {
             {/* ── SUMMARY SECTION ── */}
             {!loading && records.length > 0 && (
               <div className={styles['summary-container']}>
-                <div className={styles['summary-card']}>
-                  <div className={styles['kpi-title']}>Total Expenses</div>
-                  <div className={styles['kpi-value']}>
+                {/* 1. Total Expenses Card */}
+                <div className={styles['summary-card']} style={{ borderLeft: '4px solid #dc2626' }}>
+                  <span className={styles['summary-card-label']}>Total Expenses</span>
+                  <span className={styles['summary-card-val']}>
                     {currencySymbol}{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                  <div className={styles['kpi-subtitle']}>
-                    Calculated for the selected period
+                  </span>
+                  <div className={styles['summary-card-icon']} style={{ background: '#fef2f2', color: '#dc2626' }}>
+                    <FaWallet />
                   </div>
                 </div>
-                <div className={styles['breakdown-card']}>
-                  <div className={styles['breakdown-title']}>Expenses By Payment Method</div>
-                  <div className={styles['breakdown-grid']}>
-                    {expensesByPaymentMethod.map(({ method, amount }) => (
-                      <div key={method} className={styles['breakdown-item']}>
-                        <span className={styles['breakdown-method-label']}>
-                          {prettyMethod(method)}
-                        </span>
-                        <span className={styles['breakdown-method-value']}>
-                          {currencySymbol}{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
+
+                {/* 2. Payment Method Breakdown Cards */}
+                {expensesByPaymentMethod.map(({ method, amount }) => {
+                  const config = getMethodConfig(method);
+                  return (
+                    <div 
+                      key={method} 
+                      className={styles['summary-card']} 
+                      style={{ borderLeft: `4px solid ${config.iconColor}` }}
+                    >
+                      <span className={styles['summary-card-label']}>
+                        {prettyMethod(method)}
+                      </span>
+                      <span className={styles['summary-card-val']}>
+                        {currencySymbol}{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <div 
+                        className={styles['summary-card-icon']} 
+                        style={{ background: config.bg, color: config.iconColor }}
+                      >
+                        {config.icon}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -208,6 +242,7 @@ export default function ExpensesPage() {
                         borderRadius: '8px',
                         border: '1px solid #e2e8f0',
                         background: '#fff',
+                        color: '#1e293b',
                         fontWeight: '700',
                         fontSize: '13px',
                         cursor: expPage === 0 ? 'not-allowed' : 'pointer',
@@ -228,6 +263,7 @@ export default function ExpensesPage() {
                         borderRadius: '8px',
                         border: '1px solid #e2e8f0',
                         background: '#fff',
+                        color: '#1e293b',
                         fontWeight: '700',
                         fontSize: '13px',
                         cursor: expPage >= expTotalPages - 1 ? 'not-allowed' : 'pointer',
