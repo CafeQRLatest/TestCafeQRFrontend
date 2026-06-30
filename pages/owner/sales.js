@@ -22,7 +22,7 @@ import { toDisplayItems } from '../../utils/printUtils';
 import { isKnownOffline } from '../../utils/networkState';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
-import { isAndroidPrintStationEnabled } from '../../utils/cloudPrintStation';
+import { isAndroidPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';

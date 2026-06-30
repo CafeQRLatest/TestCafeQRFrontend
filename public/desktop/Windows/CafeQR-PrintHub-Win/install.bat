@@ -53,6 +53,7 @@ echo.
 :: Service Management
 echo [INFO] Configuring Windows Service...
 
+:: Stop existing service if running
 sc query CafeQRPrintHub >nul 2>&1
 if %errorLevel% eq 0 (
     echo [INFO] Stopping existing service...
@@ -62,6 +63,7 @@ if %errorLevel% eq 0 (
     timeout /t 2 >nul
 )
 
+:: Create the new service (Note: the space after binPath= and start= is required by sc.exe!)
 sc.exe create CafeQRPrintHub binPath= "%~dp0CafeQRPrintHub.exe" start= auto DisplayName= "CafeQR Local Print Hub"
 if %errorLevel% neq 0 (
     echo [ERROR] Failed to register service with Service Control Manager.
@@ -70,11 +72,13 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
+:: Set failure recovery actions: restart after 60 seconds (60000ms) on 1st, 2nd, and subsequent crashes
 sc.exe failure CafeQRPrintHub reset= 86400 actions= restart/60000/restart/60000/restart/60000
 if %errorLevel% neq 0 (
     echo [WARNING] Failed to set auto-restart failure recovery rules.
 )
 
+:: Start the service
 echo [INFO] Starting CafeQR Local Print Hub...
 net start CafeQRPrintHub
 
