@@ -93,6 +93,24 @@ export async function getPrintServiceHealth() {
 export async function connectNativePrintService() {
   const health = await getPrintServiceHealth();
   rememberPrintServiceLocalAccess(true);
+
+  // Auto-pair: When the local C# print service is reachable and returns
+  // a localClientToken in its health response, automatically set the
+  // pairing localStorage flags. This ensures isNativePrintServicePaired()
+  // returns true, which gates automatic KOT and bill printing.
+  if (health?.localClientToken && typeof window !== 'undefined') {
+    const existingToken = window.localStorage.getItem(TOKEN_KEY);
+    if (!existingToken) {
+      window.localStorage.setItem(TOKEN_KEY, health.localClientToken);
+    }
+    if (window.localStorage.getItem(PAIRED_KEY) !== '1') {
+      window.localStorage.setItem(PAIRED_KEY, '1');
+      window.localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+      markMainOfflineDevice();
+      window.dispatchEvent(new Event('cafeqr-print-station-config-changed'));
+    }
+  }
+
   return health;
 }
 

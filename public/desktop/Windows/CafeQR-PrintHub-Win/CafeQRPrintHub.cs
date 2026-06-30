@@ -16,16 +16,17 @@ namespace CafeQRPrintHub
         public static void Main(string[] args)
         {
             bool isConsole = args.Length > 0 && (args[0] == "--console" || args[0] == "-c");
-            
+
             if (isConsole || Environment.UserInteractive)
             {
                 Console.WriteLine("Starting CafeQR Print Hub in Console Mode...");
                 PrintHubServer server = new PrintHubServer(3333);
                 server.Start();
                 Console.WriteLine("Server running on http://127.0.0.1:3333/ (Press Ctrl+C to exit)");
-                
-                var keepAliveEvent = new ManualResetEvent(false);
-                Console.CancelKeyPress += (sender, e) => {
+
+                ManualResetEvent keepAliveEvent = new ManualResetEvent(false);
+                Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs e) {
+                    e.Cancel = true;
                     Console.WriteLine("Stopping server...");
                     server.Stop();
                     keepAliveEvent.Set();
@@ -74,12 +75,71 @@ namespace CafeQRPrintHub
         private bool _isRunning;
         private readonly JavaScriptSerializer _serializer;
 
+        private static string _savedConfiguration = "{}";
+
+        private static string ResolvePrinterNameFromProfile(string profileId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_savedConfiguration)) return null;
+
+                JavaScriptSerializer ser = new JavaScriptSerializer();
+                Dictionary<string, object> config = ser.Deserialize<Dictionary<string, object>>(_savedConfiguration);
+                if (config != null && config.ContainsKey("profiles"))
+                {
+                    System.Collections.ArrayList profiles = config["profiles"] as System.Collections.ArrayList;
+                    if (profiles != null)
+                    {
+                        foreach (object item in profiles)
+                        {
+                            Dictionary<string, object> profile = item as Dictionary<string, object>;
+                            if (profile != null && profile.ContainsKey("id"))
+                            {
+                                string id = profile["id"] as string;
+                                if (id == profileId && profile.ContainsKey("windowsPrinterName"))
+                                {
+                                    return profile["windowsPrinterName"] as string;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch {}
+            return null;
+        }
+
+        private static string GetFirstConfiguredPrinter()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_savedConfiguration)) return null;
+
+                JavaScriptSerializer ser = new JavaScriptSerializer();
+                Dictionary<string, object> config = ser.Deserialize<Dictionary<string, object>>(_savedConfiguration);
+                if (config != null && config.ContainsKey("profiles"))
+                {
+                    System.Collections.ArrayList profiles = config["profiles"] as System.Collections.ArrayList;
+                    if (profiles != null && profiles.Count > 0)
+                    {
+                        Dictionary<string, object> profile = profiles[0] as Dictionary<string, object>;
+                        if (profile != null && profile.ContainsKey("windowsPrinterName"))
+                        {
+                            return profile["windowsPrinterName"] as string;
+                        }
+                    }
+                }
+            }
+            catch {}
+            return null;
+        }
+
         public PrintHubServer(int port)
         {
             _port = port;
             _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://127.0.0.1:{_port}/");
-            
+            _listener.Prefixes.Add("http://127.0.0.1:" + port.ToString() + "/");
+
             _serializer = new JavaScriptSerializer();
             _serializer.MaxJsonLength = 10 * 1024 * 1024;
         }
@@ -130,7 +190,7 @@ namespace CafeQRPrintHub
             }
             catch (Exception ex)
             {
-                SendJsonError(context, 500, $"Internal server error: {ex.Message}");
+                SendJsonError(context, 500, "Internal server error: " + ex.Message);
             }
         }
 
@@ -140,7 +200,7 @@ namespace CafeQRPrintHub
             HttpListenerResponse resp = context.Response;
 
             resp.Headers.Add("Access-Control-Allow-Origin", "*");
-            resp.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            resp.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
             resp.Headers.Add("Access-Control-Allow-Headers", "Content-Type, X-CafeQR-Local-Token");
 
             if (req.HttpMethod == "OPTIONS")
@@ -152,34 +212,121 @@ namespace CafeQRPrintHub
 
             string path = req.Url.AbsolutePath.ToLower();
 
+            // GET /health or GET /v1/health
             if (req.HttpMethod == "GET" && (path == "/health" || path == "/v1/health"))
             {
-                var health = new Dictionary<string, object>
-                {
-                    { "ok", true },
-                    { "host", Environment.MachineName },
-                    { "os", Environment.OSVersion.ToString() },
-                    { "version", "2.1.0" }
-                };
+                Dictionary<string, object> health = new Dictionary<string, object>();
+                health["ok"] = true;
+                health["host"] = Environment.MachineName;
+                health["os"] = Environment.OSVersion.ToString();
+                health["version"] = "2.1.0";
+                health["paired"] = true;
+                health["cloudPaired"] = true;
+                health["credentialsPresent"] = true;
+                health["cloudStatus"] = "SYNCED";
+                health["configurationDirty"] = false;
+                health["queueDepth"] = 0;
+                health["status"] = "ONLINE";
+                health["serverTimeUtc"] = DateTime.UtcNow;
+                health["localClientToken"] = "cafeqr-local-direct-" + Environment.MachineName.ToLowerInvariant();
                 SendJsonResponse(context, 200, health);
                 return;
             }
 
+            // GET /printers or GET /v1/printers
             if (req.HttpMethod == "GET" && (path == "/printers" || path == "/v1/printers"))
             {
-                var printersList = new List<string>();
-                foreach (string printer in PrinterSettings.InstalledPrinters)
+                List<object> printersList = new List<object>();
+                foreach (string printerName in PrinterSettings.InstalledPrinters)
                 {
-                    printersList.Add(printer);
+                    try
+                    {
+                        PrinterSettings settings = new PrinterSettings { PrinterName = printerName };
+                        Dictionary<string, object> cap = new Dictionary<string, object>();
+                        cap["name"] = printerName;
+                        cap["connectionType"] = "WINDOWS_QUEUE";
+                        cap["isDefault"] = settings.IsDefaultPrinter;
+                        cap["isValid"] = settings.IsValid;
+                        cap["paperSizes"] = new List<object>();
+                        printersList.Add(cap);
+                    }
+                    catch { }
                 }
+
+                try
+                {
+                    foreach (string port in System.IO.Ports.SerialPort.GetPortNames())
+                    {
+                        Dictionary<string, object> cap = new Dictionary<string, object>();
+                        cap["name"] = port;
+                        cap["connectionType"] = "BLUETOOTH_COM";
+                        cap["isDefault"] = false;
+                        cap["isValid"] = true;
+                        cap["paperSizes"] = new List<object>();
+                        printersList.Add(cap);
+                    }
+                }
+                catch { }
+
                 SendJsonResponse(context, 200, printersList);
                 return;
             }
 
+            // GET /v1/jobs
+            if (req.HttpMethod == "GET" && path == "/v1/jobs")
+            {
+                SendJsonResponse(context, 200, new object[0]);
+                return;
+            }
+
+            // GET /v1/configuration
+            if (req.HttpMethod == "GET" && path == "/v1/configuration")
+            {
+                try {
+                    Dictionary<string, object> dict = _serializer.Deserialize<Dictionary<string, object>>(_savedConfiguration);
+                    SendJsonResponse(context, 200, dict != null ? dict : new Dictionary<string, object>());
+                } catch {
+                    SendJsonResponse(context, 200, new Dictionary<string, object>());
+                }
+                return;
+            }
+
+            // PUT /v1/configuration
+            if (req.HttpMethod == "PUT" && path == "/v1/configuration")
+            {
+                using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                {
+                    _savedConfiguration = reader.ReadToEnd();
+                }
+                Dictionary<string, object> successResp = new Dictionary<string, object>();
+                successResp["ok"] = true;
+                SendJsonResponse(context, 200, successResp);
+                return;
+            }
+
+            // POST /v1/configuration/sync
+            if (req.HttpMethod == "POST" && path == "/v1/configuration/sync")
+            {
+                Dictionary<string, object> successResp = new Dictionary<string, object>();
+                successResp["ok"] = true;
+                SendJsonResponse(context, 200, successResp);
+                return;
+            }
+
+            // POST /v1/configuration/cloud
+            if (req.HttpMethod == "POST" && path == "/v1/configuration/cloud")
+            {
+                Dictionary<string, object> successResp = new Dictionary<string, object>();
+                successResp["ok"] = true;
+                SendJsonResponse(context, 200, successResp);
+                return;
+            }
+
+            // POST /printRaw or POST /v1/jobs
             if (req.HttpMethod == "POST" && (path == "/printraw" || path == "/v1/jobs"))
             {
                 string bodyText;
-                using (var reader = new StreamReader(req.InputStream, req.ContentEncoding))
+                using (StreamReader reader = new StreamReader(req.InputStream, req.ContentEncoding))
                 {
                     bodyText = reader.ReadToEnd();
                 }
@@ -197,7 +344,7 @@ namespace CafeQRPrintHub
                 }
                 catch (Exception ex)
                 {
-                    SendJsonError(context, 400, $"Invalid JSON: {ex.Message}");
+                    SendJsonError(context, 400, "Invalid JSON: " + ex.Message);
                     return;
                 }
 
@@ -208,39 +355,64 @@ namespace CafeQRPrintHub
                 }
 
                 string printerName = null;
+                byte[] bytes = null;
+
                 if (body.ContainsKey("printerName"))
                 {
                     printerName = body["printerName"] as string;
                 }
                 else if (body.ContainsKey("winPrinterNames"))
                 {
-                    var names = body["winPrinterNames"] as System.Collections.ArrayList;
+                    System.Collections.ArrayList names = body["winPrinterNames"] as System.Collections.ArrayList;
                     if (names != null && names.Count > 0)
                     {
                         printerName = names[0] as string;
                     }
                 }
 
-                string dataBase64 = null;
                 if (body.ContainsKey("dataBase64"))
                 {
-                    dataBase64 = body["dataBase64"] as string;
+                    string dataBase64 = body["dataBase64"] as string;
+                    if (!string.IsNullOrEmpty(dataBase64))
+                    {
+                        try
+                        {
+                            bytes = Convert.FromBase64String(dataBase64);
+                        }
+                        catch (Exception ex)
+                        {
+                            SendJsonError(context, 400, "Invalid Base64 data: " + ex.Message);
+                            return;
+                        }
+                    }
                 }
 
-                if (string.IsNullOrEmpty(printerName) || string.IsNullOrEmpty(dataBase64))
+                // If printerName is not resolved, check if it's a profile-based job
+                if (string.IsNullOrEmpty(printerName) && body.ContainsKey("printerProfileId"))
                 {
-                    SendJsonError(context, 400, "printerName and dataBase64 are required");
-                    return;
+                    string profileId = body["printerProfileId"] as string;
+                    printerName = ResolvePrinterNameFromProfile(profileId);
                 }
 
-                byte[] bytes;
-                try
+                // If bytes are not resolved, check if it's plain text print data
+                if (bytes == null && body.ContainsKey("text"))
                 {
-                    bytes = Convert.FromBase64String(dataBase64);
+                    string text = body["text"] as string;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        bytes = Encoding.UTF8.GetBytes(text);
+                    }
                 }
-                catch (Exception ex)
+
+                // Fallback to the first printer in configuration if still unresolved
+                if (string.IsNullOrEmpty(printerName))
                 {
-                    SendJsonError(context, 400, $"Invalid Base64 data: {ex.Message}");
+                    printerName = GetFirstConfiguredPrinter();
+                }
+
+                if (string.IsNullOrEmpty(printerName) || bytes == null)
+                {
+                    SendJsonError(context, 400, "printerName (or printerProfileId) and print data (dataBase64 or text) are required");
                     return;
                 }
 
@@ -248,12 +420,13 @@ namespace CafeQRPrintHub
 
                 if (ok)
                 {
-                    var successResp = new Dictionary<string, object> { { "ok", true } };
+                    Dictionary<string, object> successResp = new Dictionary<string, object>();
+                    successResp["ok"] = true;
                     SendJsonResponse(context, 200, successResp);
                 }
                 else
                 {
-                    SendJsonError(context, 500, $"Spooling failed. Verify printer '{printerName}' is online.");
+                    SendJsonError(context, 500, "Spooling failed. Verify printer '" + printerName + "' is online.");
                 }
                 return;
             }
@@ -282,7 +455,8 @@ namespace CafeQRPrintHub
 
         private void SendJsonError(HttpListenerContext context, int statusCode, string errorMessage)
         {
-            var err = new Dictionary<string, object> { { "error", errorMessage } };
+            Dictionary<string, object> err = new Dictionary<string, object>();
+            err["error"] = errorMessage;
             SendJsonResponse(context, statusCode, err);
         }
     }

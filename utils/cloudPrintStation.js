@@ -292,3 +292,90 @@ export async function claimAndPrintCloudJobs(limit = 3) {
 
   return completed;
 }
+
+/**
+ * Automatically prints new remote orders (KOT and Bills) that have not been printed yet.
+ * Uses localStorage to track printed order IDs to prevent duplicates across tabs and sessions.
+ */
+export async function autoPrintNewRemoteOrders(orders, profile) {
+  if (!isBrowser()) return;
+  if (!isPrintStationEnabled() && !isNativePrintServicePaired()) return;
+
+  const now = Date.now();
+  const printedKey = 'cafeqr_printed_jobs';
+  let printedJobs = {};
+  try {
+    printedJobs = JSON.parse(window.localStorage.getItem(printedKey) || '{}');
+  } catch {}
+
+  // Clean up entries older than 2 days to keep local storage clean
+  let dirty = false;
+  for (const key in printedJobs) {
+    if (now - printedJobs[key] > 2 * 24 * 60 * 60 * 1000) {
+      delete printedJobs[key];
+      dirty = true;
+    }
+  }
+
+  // Pre-seed: If the printedJobs list is empty, we pre-seed it with all current active orders.
+  // This prevents printing dozens of old KOTs when the page is first loaded or refreshed.
+  const isPreseeding = Object.keys(printedJobs).length === 0;
+
+  // Import printKotByStation dynamically to ensure no bundling load issues
+  const { printKotByStation } = require('./kotRouter');
+
+  for (const order of orders) {
+    if (!order?.id) continue;
+    const orderId = String(order.id);
+    const status = String(order.orderStatus || order.order_status || '').toUpperCase();
+
+    // Check KOT printing (Kitchen Statuses)
+    const isKotStatus = ['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY'].includes(status);
+    if (isKotStatus) {
+      const jobKey = `${orderId}:kot`;
+      if (!printedJobs[jobKey]) {
+        printedJobs[jobKey] = now;
+        dirty = true;
+
+        if (!isPreseeding) {
+          console.log(`[auto-print] Triggering automatic KOT print for order ${orderId}`);
+          try {
+            await printKotByStation(order, profile);
+          } catch (err) {
+            console.error(`[auto-print] KOT print failed for order ${orderId}:`, err);
+          }
+        }
+      }
+    }
+
+    // Check Bill printing (Billed/Completed statuses)
+    const isBillStatus = ['BILLED', 'COMPLETED'].includes(status);
+    if (isBillStatus) {
+      const jobKey = `${orderId}:bill`;
+      if (!printedJobs[jobKey]) {
+        printedJobs[jobKey] = now;
+        dirty = true;
+
+        if (!isPreseeding) {
+          console.log(`[auto-print] Triggering automatic Bill print for order ${orderId}`);
+          try {
+            const text = buildReceiptText(order, null, profile);
+            await printUniversal({
+              text,
+              jobKind: 'bill',
+              orderId,
+              orderNo: order.order_no,
+              document: { order, restaurant: profile }
+            });
+          } catch (err) {
+            console.error(`[auto-print] Bill print failed for order ${orderId}:`, err);
+          }
+        }
+      }
+    }
+  }
+
+  if (dirty) {
+    window.localStorage.setItem(printedKey, JSON.stringify(printedJobs));
+  }
+}
