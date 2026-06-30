@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }) => {
   const [canDeleteOrderItem, setCanDeleteOrderItem] = useState(true);
   const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);
   const [activeModules, setActiveModules] = useState([]);
+  const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export const AuthProvider = ({ children }) => {
     const storedCanDeleteOrderItem = Cookies.get('canDeleteOrderItem');
     const storedCanDecrementOrderItem = Cookies.get('canDecrementOrderItem');
     const storedModules = Cookies.get('activeModules');
+    const storedModulesDetailed = Cookies.get('activeModulesDetailed');
     
     if (storedEmail) setEmail(storedEmail);
     if (storedFirstName) setFirstName(storedFirstName);
@@ -77,6 +79,13 @@ export const AuthProvider = ({ children }) => {
         setActiveModules(JSON.parse(storedModules));
       } catch (e) {
         setActiveModules([]);
+      }
+    }
+    if (storedModulesDetailed) {
+      try {
+        setActiveModulesDetailed(JSON.parse(storedModulesDetailed));
+      } catch (e) {
+        setActiveModulesDetailed([]);
       }
     }
     
@@ -117,7 +126,7 @@ export const AuthProvider = ({ children }) => {
       api.get('/api/v1/subscription/status', { skipAuthRedirect: true }).then(res => {
         if (res.data?.success) {
           const subData = res.data.data || {};
-          updateSubscription(subData.status, subData.expiryDate, subData.activeModules);
+          updateSubscription(subData.status, subData.expiryDate, subData.activeModules, subData.activeModulesDetailed);
         }
       }).catch(err => console.error("Subscription sync error", err));
 
@@ -216,7 +225,7 @@ export const AuthProvider = ({ children }) => {
     }).catch(() => {});
   };
 
-  const updateSubscription = useCallback((status, expiry, activeModulesList) => {
+  const updateSubscription = useCallback((status, expiry, activeModulesList, activeModulesDetailedList) => {
     const normalizedStatus = (status || '').toUpperCase();
     const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
 
@@ -225,6 +234,9 @@ export const AuthProvider = ({ children }) => {
     
     const modules = activeModulesList || [];
     setActiveModules(modules);
+
+    const detailedModules = activeModulesDetailedList || [];
+    setActiveModulesDetailed(detailedModules);
 
     if (normalizedStatus) {
       Cookies.set('subscriptionStatus', normalizedStatus, cookieOptions);
@@ -243,6 +255,12 @@ export const AuthProvider = ({ children }) => {
       Cookies.set('activeModules', JSON.stringify(modules), cookieOptions);
     } else {
       Cookies.remove('activeModules', { path: '/' });
+    }
+
+    if (detailedModules.length > 0) {
+      Cookies.set('activeModulesDetailed', JSON.stringify(detailedModules), cookieOptions);
+    } else {
+      Cookies.remove('activeModulesDetailed', { path: '/' });
     }
   }, []);
 
@@ -307,6 +325,7 @@ export const AuthProvider = ({ children }) => {
     Cookies.remove('canCancelOrder', removeOptions);
     Cookies.remove('canDeleteOrderItem', removeOptions);
     Cookies.remove('canDecrementOrderItem', removeOptions);
+    Cookies.remove('activeModulesDetailed', removeOptions);
     
     try {
       await api.post('/api/v1/auth/logout');
@@ -377,9 +396,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const hasModule = (moduleName) => {
+  const hasModule = (moduleName, targetOrgId = null) => {
     if (subscriptionStatus === 'TRIAL' && isActive) {
       return true; // All-Access Free Trial
+    }
+    if (moduleName === 'KOT' && targetOrgId) {
+      return activeModulesDetailed.includes(`KOT:${targetOrgId}`);
     }
     return activeModules.includes(moduleName);
   };
@@ -417,6 +439,7 @@ export const AuthProvider = ({ children }) => {
       canDeleteOrderItem,
       canDecrementOrderItem,
       activeModules,
+      activeModulesDetailed,
       hasModule,
       loading 
     }}>

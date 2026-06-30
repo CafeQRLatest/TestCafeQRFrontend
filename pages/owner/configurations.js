@@ -17,7 +17,8 @@ import {
   FaSearch, FaCreditCard, FaCamera, FaBook, FaChair, FaShoppingCart,
   FaQrcode, FaBoxes, FaIndustry, FaUsers,
   FaTags, FaUtensils, FaTruck, FaUserFriends,
-  FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff, FaInfoCircle
+  FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff, FaInfoCircle,
+  FaLock
 } from 'react-icons/fa';
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -50,6 +51,15 @@ const MODULES = [
   { key: 'pm_send_to_kitchen',  icon: <FaUtensils />,    title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#22c55e' },
   { key: 'pm_online_delivery',  icon: <FaTruck />,       title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#06b6d4' },
 ];
+
+const MODULE_SUBSCRIPTIONS = {
+  pm_send_to_kitchen: 'KOT',
+  pm_inventory: 'INVENTORY',
+  pm_purchase: 'INVENTORY',
+  pm_credit_ledger: 'CREDIT_LEDGER',
+  pm_customers: 'CRM',
+  pm_loyalty: 'CRM',
+};
 
 // ═════════════════════════════════════════════════════════════════════════════
 // HELPERS & SYNC UTILS
@@ -298,7 +308,7 @@ export default function ConfigurationsPage() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function ConfigurationsContent() {
-  const { orgId, orgName } = useAuth();
+  const { orgId, orgName, hasModule } = useAuth();
   const hasBranchContext = Boolean(orgId && orgId !== '0');
   const configEndpoint = useMemo(
     () => (hasBranchContext ? `/api/v1/configurations/branch/${orgId}` : '/api/v1/configurations'),
@@ -826,33 +836,54 @@ function ConfigurationsContent() {
               </div>
               
               <div className="dense-grid">
-                {MODULES.map(m => (
-                  <div key={m.key} className={`module-wrapper ${config[m.key] ? 'is-active' : ''}`}>
-                    <div className="menu-box" onClick={() => toggle(m.key)}>
-                      <div className="box-icon" style={
-                          config[m.key]
-                            ? { background: `linear-gradient(135deg, ${m.color}, ${m.color}dd)`, color: 'white' }
-                            : { background: `${m.color}18`, color: '#94a3b8' }
-                      }>
-                        {m.icon}
-                      </div>
-                      <div className="box-content">
-                        <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          {m.title}
-                          <InfoTooltip 
-                            id={`tip-${m.key}`} 
-                            text={m.desc} 
-                            activeTooltip={activeTooltip} 
-                            setActiveTooltip={setActiveTooltip} 
-                          />
-                        </h3>
-                      </div>
-                      <div className={`toggle-switch ${config[m.key] ? 'on' : ''}`}>
-                        <div className="toggle-thumb"></div>
+                {MODULES.map(m => {
+                  const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
+                  const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
+                  
+                  return (
+                    <div key={m.key} className={`module-wrapper ${config[m.key] ? 'is-active' : ''} ${!isSubscribed ? 'is-locked' : ''}`}>
+                      <div className="menu-box" onClick={() => {
+                        if (!isSubscribed) {
+                          setMsgType('error');
+                          setMessage(`Subscription required to enable '${m.title}'. Please visit the billing center.`);
+                          return;
+                        }
+                        toggle(m.key);
+                      }}>
+                        <div className="box-icon" style={
+                          !isSubscribed
+                            ? { background: '#f1f5f9', color: '#cbd5e1' }
+                            : config[m.key]
+                              ? { background: `linear-gradient(135deg, ${m.color}, ${m.color}dd)`, color: 'white' }
+                              : { background: `${m.color}18`, color: '#94a3b8' }
+                        }>
+                          {m.icon}
+                        </div>
+                        <div className="box-content">
+                          <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            {m.title}
+                            {!isSubscribed && <FaLock style={{ marginLeft: 6, color: '#94a3b8', fontSize: 12 }} />}
+                            <InfoTooltip 
+                              id={`tip-${m.key}`} 
+                              text={m.desc} 
+                              activeTooltip={activeTooltip} 
+                              setActiveTooltip={setActiveTooltip} 
+                            />
+                          </h3>
+                        </div>
+                        {isSubscribed ? (
+                          <div className={`toggle-switch ${config[m.key] ? 'on' : ''}`}>
+                            <div className="toggle-thumb"></div>
+                          </div>
+                        ) : (
+                          <div className="lock-badge">
+                            Locked
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Sub-config panels rendered BELOW the grid — cards stay uniform height */}
@@ -2716,6 +2747,31 @@ function ConfigurationsContent() {
         }
         :global(.template-configuration-section.form-card) {
             overflow: visible;
+        }
+        .module-wrapper.is-locked {
+            opacity: 0.85;
+        }
+        .module-wrapper.is-locked .menu-box {
+            cursor: not-allowed !important;
+            background: #fafbfc !important;
+            border-color: #e2e8f0 !important;
+        }
+        .module-wrapper.is-locked .menu-box:hover {
+            transform: none !important;
+            box-shadow: none !important;
+            border-color: #e2e8f0 !important;
+        }
+        .lock-badge {
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px !important;
+            color: #64748b !important;
+            border: 1px solid #cbd5e1;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
       `}</style>
     </DashboardLayout>
