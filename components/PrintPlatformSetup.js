@@ -1287,7 +1287,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
     ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
     ['routing', 'Routing', <FaRoute key="routing" />],
-    ['queue', 'Print Queue', <FaSync key="queue" />],
     ['android', 'Android', <FaAndroid key="android" />],
   ];
 
@@ -1487,71 +1486,18 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             </label>
           </div>
 
-          <div className="pairing-row">
-            <button className="secondary" onClick={createEnrollment} disabled={busy}>Create pairing code</button>
-            <input
-              className="pair-code"
-              value={pairingCode}
-              onChange={(event) => setPairingCode(event.target.value.toUpperCase())}
-              placeholder="000-000"
-            />
-            <button
-              className="primary"
-              onClick={pairThisComputer}
-              disabled={busy || !health || localAccessState !== 'CONNECTED'}
-            >
-              Pair this computer
-            </button>
-            {isNativePrintServicePaired() && (
-              <button
-                className="secondary"
-                style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' }}
-                onClick={() => {
-                  showConfirm(
-                    'Disconnect Print Service',
-                    'Disconnect this print service and switch to Direct Local Loopback Mode?',
-                    () => {
-                      forgetNativePrintService();
-                      setLocalTokenInvalid(false);
-                      syncPrintConfigToLocalStorage(printConfig);
-                      refreshService();
-                      showMessage('Disconnected print service. Browser will now print directly to localhost.');
-                    },
-                    { confirmLabel: 'Disconnect', cancelLabel: 'Keep Connected' }
-                  );
-                }}
-              >
-                Disconnect / Switch to Loopback
-              </button>
-            )}
-            <a className="download" href="/desktop/Windows/CafeQR-PrintService.msi" download>
-              <FaDownload /> Windows 7 SP1, 8.1, 10, 11
-            </a>
-            <a className="download" href="/desktop/Windows/CafeQR-PrintService-Windows8.msi" download>
-              <FaDownload /> Windows 8.0
-            </a>
-            <a className="download" href="/desktop/Windows/CafeQR-Test-CodeSigning.cer" download>
-              <FaDownload /> Test signing certificate
-            </a>
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Station</th><th>Terminal</th><th>Status</th><th>Version</th><th>Last heartbeat</th><th>Fallback</th></tr></thead>
-              <tbody>
-                {stations.map((station) => (
-                  <tr key={station.id}>
-                    <td>{station.name}</td>
-                    <td>{terminals.find((row) => row.id === station.terminalId)?.name || station.terminalId}</td>
-                    <td><span className={`state ${station.status === 'ONLINE' ? 'ok' : ''}`}>{station.status}</span></td>
-                    <td>{station.serviceVersion || '—'}</td>
-                    <td>{station.lastHeartbeatAt ? new Date(station.lastHeartbeatAt).toLocaleString() : 'Never'}</td>
-                    <td>{station.fallbackForBranch ? 'Yes' : 'No'}</td>
-                  </tr>
-                ))}
-                {!stations.length && <tr><td colSpan="6" className="empty">No print stations have been paired.</td></tr>}
-              </tbody>
-            </table>
+          <div className="pairing-row" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
+            <div style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+              Windows Helper Service Installation:
+            </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <a className="download" href="/desktop/Windows/CafeQR-PrintHub-Win.zip" download style={{ padding: '10px 16px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #cbd5e1', textDecoration: 'none', color: '#1e293b', display: 'inline-flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px' }}>
+                <FaDownload /> Download Helper Service (ZIP)
+              </a>
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', lineHeight: '1.4' }}>
+              Run the installer as Administrator to compile and register the background service. It will run silently on port 3333 and handle all local prints automatically.
+            </div>
           </div>
         </section>
       )}
@@ -1844,42 +1790,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         </section>
       )}
 
-      {tab === 'queue' && (
-        <section className="surface">
-          <header><div><h3>Local Print Queue</h3><p>Recent durable jobs stored by the Windows service.</p></div><button className="secondary" onClick={refreshService}><FaSync /> Refresh</button></header>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Job</th><th>Kind</th><th>Printer</th><th>Status</th><th>Attempts</th><th>Spool job</th><th>Error</th><th>Actions</th></tr></thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.Id || job.id}>
-                    <td>{job.Id || job.id}</td><td>{job.JobKind || job.jobKind}</td>
-                    <td>{(() => {
-                      const profile = printConfig.profiles.find((row) => row.id === (job.ProfileId || job.profileId));
-                      return profile ? profileDisplayLabel(profile) : (job.ProfileId || job.profileId);
-                    })()}</td>
-                    <td><span className={`state ${['SPOOLED', 'COMPLETED', 'PRINTED'].includes(job.Status || job.status) ? 'ok' : ''}`}>{job.Status || job.status}</span></td>
-                    <td>{job.Attempts ?? job.attempts}</td><td>{job.SpoolJobId || job.spoolJobId || '—'}</td>
-                    <td>{job.ErrorMessage || job.errorMessage || '—'}</td>
-                    <td>
-                      <div className="queue-actions">
-                        {['FAILED', 'RETRY_WAIT'].includes(job.Status || job.status) && <button onClick={() => updateLocalJob(job, 'retry')}>Retry</button>}
-                        {(job.Status || job.status) === 'HELD_AMBIGUOUS' && (
-                          <>
-                            <button onClick={() => updateLocalJob(job, 'complete')}>Printed</button>
-                            <button onClick={() => updateLocalJob(job, 'cancel')}>Cancel</button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!jobs.length && <tr><td colSpan="8" className="empty">No local print jobs are available.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+
 
       {tab === 'android' && (
         <PrinterSetupCard androidOnly restaurantId={restaurantId} config={legacyConfig} onConfigChange={onConfigChange} />
