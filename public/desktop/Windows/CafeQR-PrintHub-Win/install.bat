@@ -5,9 +5,6 @@ REM Compatible with Windows 7, 8, 8.1, 10, and 11
 REM ================================================================
 
 REM --- Self-relaunch wrapper: keeps the window open no matter what ---
-REM When right-clicked "Run as administrator", Windows opens a new
-REM cmd.exe that closes on exit. This wrapper relaunches the script
-REM inside a persistent cmd /k window so errors are always visible.
 if "%~1"=="" (
     cmd /k "%~f0" run
     exit /b
@@ -30,12 +27,15 @@ IF ERRORLEVEL 1 (
     goto done
 )
 
-REM --- Change to the folder where install.bat lives ---
-cd /d "%~dp0"
-echo [INFO] Working directory: %cd%
+REM --- Fixed installation directory (avoids special chars in paths) ---
+set "INSTALL_DIR=C:\CafeQR\PrintHub"
+set "SOURCE_DIR=%~dp0"
+
+echo [INFO] Source directory : %SOURCE_DIR%
+echo [INFO] Install directory: %INSTALL_DIR%
 echo.
 
-REM --- Stop existing service if running (unlocks the .exe file) ---
+REM --- Stop existing service if running ---
 echo [INFO] Checking for existing service...
 sc query CafeQRPrintHub >nul 2>&1
 IF NOT ERRORLEVEL 1 (
@@ -63,11 +63,18 @@ if "%CSC%"=="" (
 
 echo [INFO] Found compiler: %CSC%
 
+REM --- Create install directory ---
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+
+REM --- Copy source file to install directory ---
+echo [INFO] Copying CafeQRPrintHub.cs to %INSTALL_DIR%...
+copy /Y "%SOURCE_DIR%CafeQRPrintHub.cs" "%INSTALL_DIR%\CafeQRPrintHub.cs" >nul
+
 REM --- Compile the C# source into an executable ---
 echo [INFO] Compiling CafeQRPrintHub.cs...
 echo.
 
-"%CSC%" /target:exe /out:CafeQRPrintHub.exe /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll CafeQRPrintHub.cs
+"%CSC%" /target:exe /out:"%INSTALL_DIR%\CafeQRPrintHub.exe" /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll "%INSTALL_DIR%\CafeQRPrintHub.cs"
 
 IF ERRORLEVEL 1 (
     echo.
@@ -85,11 +92,21 @@ sc query CafeQRPrintHub >nul 2>&1
 IF NOT ERRORLEVEL 1 (
     echo [INFO] Removing old service registration...
     sc delete CafeQRPrintHub >nul 2>&1
+    
+    :wait_delete
+    sc query CafeQRPrintHub >nul 2>&1
+    IF NOT ERRORLEVEL 1 (
+        echo [WARNING] Service is waiting to be deleted.
+        echo Please CLOSE the "Services" window ^(services.msc^) or Task Manager if they are open!
+        echo Retrying in 3 seconds...
+        timeout /t 3 /nobreak >nul
+        goto wait_delete
+    )
 )
 
-REM --- Register the new service ---
+REM --- Register the new service with the clean install path ---
 echo [INFO] Registering Windows service...
-sc.exe create CafeQRPrintHub binPath= "%~dp0CafeQRPrintHub.exe" start= auto DisplayName= "CafeQR Local Print Hub"
+sc.exe create CafeQRPrintHub binPath= "%INSTALL_DIR%\CafeQRPrintHub.exe" start= auto DisplayName= "CafeQR Local Print Hub"
 
 IF ERRORLEVEL 1 (
     echo.
@@ -107,7 +124,14 @@ net start CafeQRPrintHub
 
 IF ERRORLEVEL 1 (
     echo.
-    echo [ERROR] Service failed to start. Check Windows Event Viewer for details.
+    echo [WARNING] Service failed to start.
+    echo Checking error log...
+    echo.
+    if exist "%INSTALL_DIR%\service_error.log" (
+        type "%INSTALL_DIR%\service_error.log"
+    ) else (
+        echo No error log found. Check Windows Event Viewer for details.
+    )
     echo.
     goto done
 )
@@ -118,6 +142,8 @@ echo   Installation Completed Successfully!
 echo.
 echo   Print service is running on:
 echo   http://127.0.0.1:3333
+echo.
+echo   Installed to: %INSTALL_DIR%
 echo.
 echo   The service will start automatically
 echo   whenever Windows boots up.
