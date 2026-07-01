@@ -19,7 +19,7 @@ export function textToEscPos(text, opts) {
     bytes.push(normalized.charCodeAt(i) & 0xff);
   }
 
-  const feed = Math.max(0, Math.min(10, opts?.feed ?? 4));
+  const feed = Math.max(0, Math.min(20, opts?.feed ?? 4));
   for (let i = 0; i < feed; i++) bytes.push(0x0a);
 
   bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
