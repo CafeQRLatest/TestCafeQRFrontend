@@ -8,7 +8,7 @@ echo.
 
 :: Ensure administrative privileges
 net session >nul 2>&1
-if %errorLevel% neq 0 (
+if %errorLevel% NEQ 0 (
     echo [ERROR] Please run this batch script as an Administrator.
     echo Right-click on install.bat and select "Run as administrator".
     echo.
@@ -20,10 +20,9 @@ cd /d "%~dp0"
 
 :: Stop existing service first to unlock CafeQRPrintHub.exe for compilation
 sc query CafeQRPrintHub >nul 2>&1
-if %errorLevel% eq 0 (
+if %errorLevel% == 0 (
     echo [INFO] Stopping existing print service...
-    net stop CafeQRPrintHub >nul 2>&1
-    timeout /t 2 >nul
+    net stop CafeQRPrintHub
 )
 
 :: Find the C# Compiler
@@ -31,7 +30,7 @@ set "CSC_PATH="
 for %%D in (Framework64 Framework) do (
     if exist "C:\Windows\Microsoft.NET\%%D\v4.0.30319\csc.exe" (
         set "CSC_PATH=C:\Windows\Microsoft.NET\%%D\v4.0.30319\csc.exe"
-        goto :compile
+        goto compile
     )
 )
 
@@ -49,7 +48,7 @@ echo [INFO] Compiling CafeQRPrintHub.cs...
 
 "%CSC_PATH%" /target:exe /out:CafeQRPrintHub.exe /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll CafeQRPrintHub.cs
 
-if %errorLevel% neq 0 (
+if %errorLevel% NEQ 0 (
     echo [ERROR] Compilation failed.
     echo.
     pause
@@ -64,15 +63,14 @@ echo [INFO] Configuring Windows Service...
 
 :: Delete existing service if it exists
 sc query CafeQRPrintHub >nul 2>&1
-if %errorLevel% eq 0 (
+if %errorLevel% == 0 (
     echo [INFO] Deleting existing service...
     sc delete CafeQRPrintHub >nul 2>&1
-    timeout /t 2 >nul
 )
 
 :: Create the new service (Note: the space after binPath= and start= is required by sc.exe!)
 sc.exe create CafeQRPrintHub binPath= "%~dp0CafeQRPrintHub.exe" start= auto DisplayName= "CafeQR Local Print Hub"
-if %errorLevel% neq 0 (
+if %errorLevel% NEQ 0 (
     echo [ERROR] Failed to register service with Service Control Manager.
     echo.
     pause
@@ -81,7 +79,7 @@ if %errorLevel% neq 0 (
 
 :: Set failure recovery actions: restart after 60 seconds (60000ms) on 1st, 2nd, and subsequent crashes
 sc.exe failure CafeQRPrintHub reset= 86400 actions= restart/60000/restart/60000/restart/60000
-if %errorLevel% neq 0 (
+if %errorLevel% NEQ 0 (
     echo [WARNING] Failed to set auto-restart failure recovery rules.
 )
 
