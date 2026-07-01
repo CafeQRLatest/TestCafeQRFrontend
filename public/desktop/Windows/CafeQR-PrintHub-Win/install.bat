@@ -16,6 +16,16 @@ if %errorLevel% neq 0 (
     exit /b 1
 )
 
+cd /d "%~dp0"
+
+:: Stop existing service first to unlock CafeQRPrintHub.exe for compilation
+sc query CafeQRPrintHub >nul 2>&1
+if %errorLevel% eq 0 (
+    echo [INFO] Stopping existing print service...
+    net stop CafeQRPrintHub >nul 2>&1
+    timeout /t 2 >nul
+)
+
 :: Find the C# Compiler
 set "CSC_PATH="
 for %%D in (Framework64 Framework) do (
@@ -37,11 +47,10 @@ if "%CSC_PATH%"=="" (
 echo [INFO] Found C# Compiler at: %CSC_PATH%
 echo [INFO] Compiling CafeQRPrintHub.cs...
 
-cd /d "%~dp0"
 "%CSC_PATH%" /target:exe /out:CafeQRPrintHub.exe /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll CafeQRPrintHub.cs
 
 if %errorLevel% neq 0 (
-    echo [ERROR] Compilation failed. Please inspect the code for errors.
+    echo [ERROR] Compilation failed.
     echo.
     pause
     exit /b 1
@@ -53,11 +62,9 @@ echo.
 :: Service Management
 echo [INFO] Configuring Windows Service...
 
-:: Stop existing service if running
+:: Delete existing service if it exists
 sc query CafeQRPrintHub >nul 2>&1
 if %errorLevel% eq 0 (
-    echo [INFO] Stopping existing service...
-    net stop CafeQRPrintHub >nul 2>&1
     echo [INFO] Deleting existing service...
     sc delete CafeQRPrintHub >nul 2>&1
     timeout /t 2 >nul
