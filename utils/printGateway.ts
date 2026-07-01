@@ -307,9 +307,13 @@ async function printUniversalNow(opts: Options) {
   const paperMm = Number(window.localStorage.getItem('PRINT_PAPER_MM') || 0);
   const autoScale = paperMm >= 76 ? 'large' : 'normal';
 
+  const prefix = jobKind === 'kot' ? 'PRINT_KOT_' : 'PRINT_RECEIPT_';
+  const localFeed = window.localStorage.getItem(`${prefix}FEED_LINES`);
+  const feedCount = localFeed !== null ? Math.max(0, Number(localFeed)) : 4;
+
   const payload = textToEscPos(opts.text, {
     codepage: opts.codepage,
-    feed: 1,
+    feed: feedCount,
     cut: 'full',
     scale: opts.scale || autoScale,
   });
