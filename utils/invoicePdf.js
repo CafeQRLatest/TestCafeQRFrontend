@@ -6,6 +6,7 @@
 
 import Cookies from 'js-cookie';
 import api from './api';
+import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,38 @@ function fmt(n, dp = 2) {
 
 function money(val, sym) {
   return `${sym || ''}${fmt(val)}`;
+}
+
+function getSafePdfSymbol(sym) {
+  if (!sym) return '';
+  const s = String(sym).trim();
+  if (s === '₹' || s === '\u20b9') return 'Rs.';
+  if (s === '৳') return 'Tk.';
+  if (s === '₽') return 'rub';
+  if (s === '₪') return 'ILS';
+  if (s === '₫') return 'VND';
+  if (s === '₦') return 'NGN';
+  if (s === '₱') return 'PHP';
+  if (s === '₩') return 'KRW';
+  if (s === '฿') return 'THB';
+  if (s === '₺') return 'TRY';
+  if (s === '元') return 'CNY';
+  
+  let clean = '';
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code >= 32 && code <= 126) {
+      clean += s[i];
+    } else if (code === 8364) {
+      clean += '€';
+    } else if (code === 163) {
+      clean += '£';
+    } else if (code === 165) {
+      clean += '¥';
+    }
+  }
+  const finalSym = clean.trim();
+  return finalSym || 'Cur.';
 }
 
 async function imgToBase64(url) {
@@ -104,6 +137,11 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || getCookie('orgId');
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  doc.addFileToVFS('Roboto-Regular.ttf', ROBOTO_REGULAR_BASE64);
+  doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+  doc.addFont('Roboto-Regular.ttf', 'Roboto', 'italic');
+  doc.addFileToVFS('Roboto-Bold.ttf', ROBOTO_BOLD_BASE64);
+  doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
   const W = doc.internal.pageSize.getWidth();
 
   // 2. Fetch configuration and branch/client details concurrently
@@ -145,7 +183,8 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const logoBase64 = await imgToBase64(cfg.logoUrl || null);
 
   // 5. Labels
-  const sym         = cfg.currencySymbol || '\u20b9';
+  const rawSym      = cfg.currencySymbol || '\u20b9';
+  const sym         = rawSym + ' ';
   const clientName  = clientData?.name || cfg.restaurantName || 'Business';
   const branchName  = branchData?.name || '';
 
@@ -198,19 +237,19 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   }
 
   doc.setTextColor(...DARK);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('Roboto', 'bold');
   doc.setFontSize(13);
   doc.text(clientName, textStartX, 16);
 
   let headerY = 20.5;
   if (branchName && branchName.toLowerCase().trim() !== clientName.toLowerCase().trim()) {
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9);
     doc.text(branchName, textStartX, headerY);
     headerY += 4.5;
   }
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('Roboto', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...MID);
 
@@ -238,7 +277,7 @@ export async function downloadInvoicePdf(order, configOverride = null) {
     headerY += 3.5;
   }
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('Roboto', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(...DARK);
   doc.text('INVOICE', W - 14, 18, { align: 'right' });
@@ -247,12 +286,12 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   doc.setLineWidth(0.3);
   doc.setFillColor(240, 253, 244);
   doc.roundedRect(W - 32, 22, 18, 5.5, 1, 1, 'FD');
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('Roboto', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(...GREEN);
   doc.text('PAID', W - 23, 26, { align: 'center' });
 
-  y = 44;
+  y = Math.max(48, headerY + 6);
 
   // ── Meta band card ────────────────────────────────────────────────────────────
   doc.setFillColor(248, 250, 252);
@@ -278,16 +317,16 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   const metaField = (label, value, x, baseY) => {
     if (!value) return;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
     doc.text(label, x, baseY);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
     doc.text(String(value), x, baseY + 4.5);
   };
   const metaFieldLight = (label, value, x, baseY) => {
     if (!value) return;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
     doc.text(label, x, baseY);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
     doc.text(String(value), x, baseY + 4.5);
   };
 
@@ -344,6 +383,7 @@ export async function downloadInvoicePdf(order, configOverride = null) {
     body: tableRows.length > 0 ? tableRows : [{ idx: '—', name: 'No line items', qty: '', unitPrice: '', gst: '', discount: '', total: '' }],
     theme: 'plain',
     styles: {
+      font: 'Roboto',
       fontSize: 8.5,
       cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 },
       textColor: DARK,
@@ -435,7 +475,7 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   let rowY = y + 3;
   for (const [label, val] of totalRows) {
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID);
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID);
     doc.text(label, bX + 2, rowY);
     doc.setTextColor(...DARK);
     doc.text(val, bX + bW - 2, rowY, { align: 'right' });
@@ -448,7 +488,7 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   doc.line(bX, rowY - 1, bX + bW, rowY - 1);
 
   rowY += 4;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...ORANGE);
+  doc.setFont('Roboto', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...ORANGE);
   doc.text('GRAND TOTAL', bX + 2, rowY);
   doc.text(money(grandTotal, sym), bX + bW - 2, rowY, { align: 'right' });
 
@@ -456,20 +496,20 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   // ── Payment info ──────────────────────────────────────────────────────────────
   if (isMixed && splits.length > 0) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
     doc.text('PAYMENT BREAKDOWN', 14, y);
     y += 5;
     for (const sp of splits) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+      doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
       doc.text(sp.paymentMethod || '—', 14, y);
       doc.text(money(sp.amount, sym), 75, y, { align: 'right' });
       y += 5;
     }
     y += 3;
   } else if (payMethod) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
     doc.text('PAYMENT METHOD', 14, y);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
     doc.text(payMethod, 14, y + 5);
     y += 12;
   }
@@ -484,13 +524,13 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   // ── Footer ────────────────────────────────────────────────────────────────────
   const msg = footerText || 'Thank you for your business! We hope to see you again soon.';
-  doc.setFont('helvetica', 'italic');
+  doc.setFont('Roboto', 'italic');
   doc.setFontSize(8.5);
   doc.setTextColor(...MID);
   doc.text(msg, W / 2, y, { align: 'center', maxWidth: W - 28 });
 
   y += 8;
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('Roboto', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
   doc.text(`Generated by CafeQR POS · ${new Date().toLocaleDateString('en-IN')}`, W / 2, y, { align: 'center' });
