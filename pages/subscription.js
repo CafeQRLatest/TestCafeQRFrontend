@@ -53,7 +53,7 @@ export default function SubscriptionPage() {
   const [selectedModules, setSelectedModules] = useState([])
 
   const moduleItems = [
-    { id: 'KOT', name: 'Kitchen Order Ticket (KOT) Sachet', price: 500, desc: 'Send orders instantly to kitchen screens. Required branch-wise.' },
+    { id: 'KOT', name: 'Kitchen Order Ticket (KOT) Sachet', price: 500, desc: 'Send orders instantly to kitchen screens. Client-wide access.' },
     { id: 'INVENTORY', name: 'Inventory & Purchase ERP Sachet', price: 1992, desc: 'Stock valuation, transfers, supplier orders, and waste logging.' },
     { id: 'CRM', name: 'Customer CRM & Loyalty Sachet', price: 990, desc: 'Track customer visits, loyalty points, and run sms campaigns.' },
     { id: 'CREDIT_LEDGER', name: 'Credit Ledger (Udhaar) Sachet', price: 492, desc: 'Keep track of digital tabs and credit customers.' }
