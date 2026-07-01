@@ -458,11 +458,11 @@ function ConfigurationsContent() {
 
           setConfig({
             pm_online_payment: !!d.onlinePaymentEnabled, pm_menu_images: !!d.menuImagesEnabled,
-            pm_credit_ledger: !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
-            pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: !!d.inventoryEnabled,
-            pm_purchase: d.purchaseEnabled !== false,
-            pm_customers: !!d.customersEnabled,
-            pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
+            pm_credit_ledger: hasModule('CREDIT_LEDGER', orgId) && !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
+            pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: hasModule('INVENTORY', orgId) && !!d.inventoryEnabled,
+            pm_purchase: hasModule('INVENTORY', orgId) && d.purchaseEnabled !== false,
+            pm_customers: hasModule('CRM', orgId) && !!d.customersEnabled,
+            pm_loyalty: hasModule('CRM', orgId) && !!d.loyaltyEnabled, pm_send_to_kitchen: hasModule('KOT', orgId) && d.sendToKitchenEnabled !== false,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
@@ -581,12 +581,12 @@ function ConfigurationsContent() {
     try {
       const payload = {
         onlinePaymentEnabled: config.pm_online_payment, menuImagesEnabled: config.pm_menu_images,
-        creditEnabled: config.pm_credit_ledger, tableManagementEnabled: config.pm_table_management,
+        creditEnabled: hasModule('CREDIT_LEDGER', orgId) ? config.pm_credit_ledger : false, tableManagementEnabled: config.pm_table_management,
         creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
-        qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: config.pm_inventory,
-        purchaseEnabled: config.pm_purchase,
-        productionEnabled: false, customersEnabled: config.pm_customers,
-        loyaltyEnabled: config.pm_loyalty, sendToKitchenEnabled: config.pm_send_to_kitchen,
+        qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: hasModule('INVENTORY', orgId) ? config.pm_inventory : false,
+        purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
+        productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
+        loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
         onlineDeliveryEnabled: config.pm_online_delivery, allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
 
@@ -839,9 +839,10 @@ function ConfigurationsContent() {
                 {MODULES.map(m => {
                   const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
                   const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
+                  const isToggleOn = isSubscribed && config[m.key];
                   
                   return (
-                    <div key={m.key} className={`module-wrapper ${config[m.key] ? 'is-active' : ''} ${!isSubscribed ? 'is-locked' : ''}`}>
+                    <div key={m.key} className={`module-wrapper ${isToggleOn ? 'is-active' : ''} ${!isSubscribed ? 'is-locked' : ''}`}>
                       <div className="menu-box" onClick={() => {
                         if (!isSubscribed) {
                           setMsgType('error');
@@ -888,7 +889,9 @@ function ConfigurationsContent() {
 
               {/* Sub-config panels rendered BELOW the grid — cards stay uniform height */}
               {MODULES.map(m => {
-                if (!config[m.key]) return null;
+                const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
+                const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
+                if (!isSubscribed || !config[m.key]) return null;
                 const hasChildren = m.children && m.children.length > 0;
                 const isCreditLedger = m.key === 'pm_credit_ledger';
                 if (!hasChildren && !isCreditLedger) return null;
@@ -1016,7 +1019,7 @@ function ConfigurationsContent() {
                                           onChange={(v) => set('tax_default_id', v)}
                                           options={config.tax_rates.map(r => ({
                                               value: r.id,
-                                              label: `${r.name} (${r.value}%)`
+                                              label: `${(r.name || '').replace(/GST|Tax/gi, config.tax_label_global)} (${r.value}%)`
                                           }))}
                                       />
                                   </div>
@@ -1398,7 +1401,7 @@ function ConfigurationsContent() {
                       <div className="modal-section-title">Add New Rule</div>
                       <div className="input-group">
                           <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Rule Name</label>
-                          <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder="e.g. GST 5%" />
+                          <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder={`e.g. ${config.tax_label_global} 5%`} />
                       </div>
                       <div className="input-group" style={{ marginTop: '4px' }}>
                           <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Tax Rate (%)</label>
@@ -1422,7 +1425,7 @@ function ConfigurationsContent() {
                               config.tax_rates.map(r => (
                                   <div key={r.id} className="modal-rule-row">
                                       <div className="modal-rule-info">
-                                          <span className="modal-rule-name">{r.name}</span>
+                                          <span className="modal-rule-name">{(r.name || '').replace(/GST|Tax/gi, config.tax_label_global)}</span>
                                           <span className="modal-rule-value">({r.value}%)</span>
                                           {config.tax_default_id === r.id && (
                                               <span className="default-badge" style={{ fontSize: '8px', padding: '2px 6px', borderRadius: '99px', background: '#f97316', color: 'white', fontWeight: 900 }}>DEFAULT</span>

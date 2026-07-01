@@ -1569,7 +1569,7 @@ const OrderDetailsModal = styled(ModalContent)`
 export default function OrdersPage() {
   const { notify } = useNotification();
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch, canCancelOrder } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder, hasModule } = useAuth();
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
 
@@ -1582,6 +1582,19 @@ export default function OrdersPage() {
   const [notifySettled, setNotifySettled] = useState(true);
 
   const [activeSegment, setActiveSegment] = useState('table');
+  const [hasSetDefaultSegment, setHasSetDefaultSegment] = useState(false);
+  const kitchenEnabled = hasModule('KOT', orgId);
+
+  useEffect(() => {
+    if (orgId && !hasSetDefaultSegment) {
+      if (!hasModule('KOT', orgId)) {
+        setActiveSegment('completed');
+      } else {
+        setActiveSegment('table');
+      }
+      setHasSetDefaultSegment(true);
+    }
+  }, [orgId, hasSetDefaultSegment, hasModule]);
   const [liveOrders, setLiveOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -2265,15 +2278,17 @@ export default function OrdersPage() {
             </div>
 
             <SegmentedWrapper>
-              {config?.tableManagementEnabled !== false && (
+              {kitchenEnabled && config?.tableManagementEnabled !== false && (
                 <SegmentBtn $active={activeSegment === 'table'} $accent="#16a34a" onClick={() => setActiveSegment('table')}>
                   <FaUtensils /> Table <span className="badge">{tableOrders.length}</span>
                 </SegmentBtn>
               )}
-              <SegmentBtn $active={activeSegment === 'parcel'} $accent="#ea580c" onClick={() => setActiveSegment('parcel')}>
-                <FaShoppingBag /> Takeaway <span className="badge">{parcelOrders.length}</span>
-              </SegmentBtn>
-              {config?.onlineDeliveryEnabled && (
+              {kitchenEnabled && (
+                <SegmentBtn $active={activeSegment === 'parcel'} $accent="#ea580c" onClick={() => setActiveSegment('parcel')}>
+                  <FaShoppingBag /> Takeaway <span className="badge">{parcelOrders.length}</span>
+                </SegmentBtn>
+              )}
+              {kitchenEnabled && config?.onlineDeliveryEnabled && (
                 <SegmentBtn $active={activeSegment === 'delivery'} $accent="#0284c7" onClick={() => setActiveSegment('delivery')}>
                   <FaTruck /> Delivery <span className="badge">{deliveryOrders.length}</span>
                 </SegmentBtn>

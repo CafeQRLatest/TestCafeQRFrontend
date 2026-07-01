@@ -2821,8 +2821,8 @@ export default function CounterSale({
             </TitleGroup>
           </HeaderLeft>
 
-          <HeaderModeSwitch>
-            {kitchenEnabled && (
+          {kitchenEnabled && (
+            <HeaderModeSwitch>
               <ModeToggleBtn
                 $active={activeOrderMode === 'kitchen'}
                 $themeColor="#f97316"
@@ -2830,15 +2830,15 @@ export default function CounterSale({
               >
                 Kitchen
               </ModeToggleBtn>
-            )}
-            <ModeToggleBtn 
-              $active={activeOrderMode === 'settle'}
-              $themeColor="#16a34a" 
-              onClick={() => setOrderMode('settle')}
-            >
-              Settle
-            </ModeToggleBtn>
-          </HeaderModeSwitch>
+              <ModeToggleBtn 
+                $active={activeOrderMode === 'settle'}
+                $themeColor="#16a34a" 
+                onClick={() => setOrderMode('settle')}
+              >
+                Settle
+              </ModeToggleBtn>
+            </HeaderModeSwitch>
+          )}
 
           <HeaderModeSwitch style={{ marginLeft: '4px' }}>
             <ModeToggleBtn 
