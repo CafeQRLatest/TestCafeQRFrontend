@@ -354,22 +354,27 @@ namespace CafeQRPrintHub
                     return;
                 }
 
-                string printerName = null;
-                byte[] bytes = null;
+                List<string> targets = new List<string>();
 
                 if (body.ContainsKey("printerName"))
                 {
-                    printerName = body["printerName"] as string;
+                    string p = body["printerName"] as string;
+                    if (!string.IsNullOrEmpty(p)) targets.Add(p);
                 }
                 else if (body.ContainsKey("winPrinterNames"))
                 {
                     System.Collections.ArrayList names = body["winPrinterNames"] as System.Collections.ArrayList;
-                    if (names != null && names.Count > 0)
+                    if (names != null)
                     {
-                        printerName = names[0] as string;
+                        foreach (object name in names)
+                        {
+                            string p = name as string;
+                            if (!string.IsNullOrEmpty(p) && !targets.Contains(p)) targets.Add(p);
+                        }
                     }
                 }
 
+                byte[] bytes = null;
                 if (body.ContainsKey("dataBase64"))
                 {
                     string dataBase64 = body["dataBase64"] as string;
@@ -387,11 +392,12 @@ namespace CafeQRPrintHub
                     }
                 }
 
-                // If printerName is not resolved, check if it's a profile-based job
-                if (string.IsNullOrEmpty(printerName) && body.ContainsKey("printerProfileId"))
+                // If no targets are resolved, check if it's a profile-based job
+                if (targets.Count == 0 && body.ContainsKey("printerProfileId"))
                 {
                     string profileId = body["printerProfileId"] as string;
-                    printerName = ResolvePrinterNameFromProfile(profileId);
+                    string p = ResolvePrinterNameFromProfile(profileId);
+                    if (!string.IsNullOrEmpty(p)) targets.Add(p);
                 }
 
                 // If bytes are not resolved, check if it's plain text print data
@@ -405,20 +411,31 @@ namespace CafeQRPrintHub
                 }
 
                 // Fallback to the first printer in configuration if still unresolved
-                if (string.IsNullOrEmpty(printerName))
+                if (targets.Count == 0)
                 {
-                    printerName = GetFirstConfiguredPrinter();
+                    string p = GetFirstConfiguredPrinter();
+                    if (!string.IsNullOrEmpty(p)) targets.Add(p);
                 }
 
-                if (string.IsNullOrEmpty(printerName) || bytes == null)
+                if (targets.Count == 0 || bytes == null)
                 {
-                    SendJsonError(context, 400, "printerName (or printerProfileId) and print data (dataBase64 or text) are required");
+                    SendJsonError(context, 400, "printerName (or winPrinterNames/printerProfileId) and print data (dataBase64 or text) are required");
                     return;
                 }
 
-                bool ok = RawPrinterHelper.SendBytesToPrinter(printerName, bytes);
+                bool allOk = true;
+                List<string> failedPrinters = new List<string>();
+                foreach (string target in targets)
+                {
+                    bool ok = RawPrinterHelper.SendBytesToPrinter(target, bytes);
+                    if (!ok)
+                    {
+                        allOk = false;
+                        failedPrinters.Add(target);
+                    }
+                }
 
-                if (ok)
+                if (allOk)
                 {
                     Dictionary<string, object> successResp = new Dictionary<string, object>();
                     successResp["ok"] = true;
@@ -426,7 +443,7 @@ namespace CafeQRPrintHub
                 }
                 else
                 {
-                    SendJsonError(context, 500, "Spooling failed. Verify printer '" + printerName + "' is online.");
+                    SendJsonError(context, 500, "Spooling failed for printers: " + string.Join(", ", failedPrinters.ToArray()) + ". Verify they are online.");
                 }
                 return;
             }

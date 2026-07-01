@@ -1,97 +1,130 @@
 @echo off
-setlocal enabledelayedexpansion
+REM ================================================================
+REM CafeQR Local Print Hub - Windows Service Installer
+REM Compatible with Windows 7, 8, 8.1, 10, and 11
+REM ================================================================
 
+REM --- Self-relaunch wrapper: keeps the window open no matter what ---
+REM When right-clicked "Run as administrator", Windows opens a new
+REM cmd.exe that closes on exit. This wrapper relaunches the script
+REM inside a persistent cmd /k window so errors are always visible.
+if "%~1"=="" (
+    cmd /k "%~f0" run
+    exit /b
+)
+
+echo.
 echo ==============================================
-echo Installing CafeQR Windows Print Service...
+echo   CafeQR Local Print Hub - Installer
 echo ==============================================
 echo.
 
-:: Ensure administrative privileges
+REM --- Check for Administrator privileges ---
 net session >nul 2>&1
-if %errorLevel% NEQ 0 (
-    echo [ERROR] Please run this batch script as an Administrator.
-    echo Right-click on install.bat and select "Run as administrator".
+IF ERRORLEVEL 1 (
+    echo [ERROR] This script must be run as Administrator.
     echo.
-    pause
-    exit /b 1
+    echo Please right-click install.bat and select
+    echo "Run as administrator".
+    echo.
+    goto done
 )
 
+REM --- Change to the folder where install.bat lives ---
 cd /d "%~dp0"
-
-:: Stop existing service first to unlock CafeQRPrintHub.exe for compilation
-sc query CafeQRPrintHub >nul 2>&1
-if %errorLevel% == 0 (
-    echo [INFO] Stopping existing print service...
-    net stop CafeQRPrintHub
-)
-
-:: Find the C# Compiler
-set "CSC_PATH="
-for %%D in (Framework64 Framework) do (
-    if exist "C:\Windows\Microsoft.NET\%%D\v4.0.30319\csc.exe" (
-        set "CSC_PATH=C:\Windows\Microsoft.NET\%%D\v4.0.30319\csc.exe"
-        goto compile
-    )
-)
-
-:compile
-if "%CSC_PATH%"=="" (
-    echo [ERROR] Microsoft .NET Framework 4.0 compiler (csc.exe) was not found.
-    echo Please ensure .NET Framework is installed on this PC.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [INFO] Found C# Compiler at: %CSC_PATH%
-echo [INFO] Compiling CafeQRPrintHub.cs...
-
-"%CSC_PATH%" /target:exe /out:CafeQRPrintHub.exe /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll CafeQRPrintHub.cs
-
-if %errorLevel% NEQ 0 (
-    echo [ERROR] Compilation failed.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [INFO] Compilation successful: CafeQRPrintHub.exe created.
+echo [INFO] Working directory: %cd%
 echo.
 
-:: Service Management
-echo [INFO] Configuring Windows Service...
-
-:: Delete existing service if it exists
+REM --- Stop existing service if running (unlocks the .exe file) ---
+echo [INFO] Checking for existing service...
 sc query CafeQRPrintHub >nul 2>&1
-if %errorLevel% == 0 (
-    echo [INFO] Deleting existing service...
+IF NOT ERRORLEVEL 1 (
+    echo [INFO] Stopping existing CafeQR Print Hub service...
+    net stop CafeQRPrintHub
+    echo.
+)
+
+REM --- Find the C# compiler ---
+set "CSC="
+
+if exist "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe" set "CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if "%CSC%"=="" if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe" set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+
+if "%CSC%"=="" (
+    echo [ERROR] C# compiler csc.exe was not found on this PC.
+    echo.
+    echo .NET Framework 4.0 or later is required.
+    echo It is included by default on Windows 8 and later.
+    echo For Windows 7, install it from:
+    echo https://dotnet.microsoft.com/download/dotnet-framework
+    echo.
+    goto done
+)
+
+echo [INFO] Found compiler: %CSC%
+
+REM --- Compile the C# source into an executable ---
+echo [INFO] Compiling CafeQRPrintHub.cs...
+echo.
+
+"%CSC%" /target:exe /out:CafeQRPrintHub.exe /r:System.dll,System.ServiceProcess.dll,System.Web.Extensions.dll,System.Drawing.dll CafeQRPrintHub.cs
+
+IF ERRORLEVEL 1 (
+    echo.
+    echo [ERROR] Compilation failed. See errors above.
+    echo.
+    goto done
+)
+
+echo.
+echo [OK] CafeQRPrintHub.exe compiled successfully.
+echo.
+
+REM --- Remove old service registration if it exists ---
+sc query CafeQRPrintHub >nul 2>&1
+IF NOT ERRORLEVEL 1 (
+    echo [INFO] Removing old service registration...
     sc delete CafeQRPrintHub >nul 2>&1
 )
 
-:: Create the new service (Note: the space after binPath= and start= is required by sc.exe!)
+REM --- Register the new service ---
+echo [INFO] Registering Windows service...
 sc.exe create CafeQRPrintHub binPath= "%~dp0CafeQRPrintHub.exe" start= auto DisplayName= "CafeQR Local Print Hub"
-if %errorLevel% NEQ 0 (
-    echo [ERROR] Failed to register service with Service Control Manager.
+
+IF ERRORLEVEL 1 (
     echo.
-    pause
-    exit /b 1
+    echo [ERROR] Failed to register the service.
+    echo.
+    goto done
 )
 
-:: Set failure recovery actions: restart after 60 seconds (60000ms) on 1st, 2nd, and subsequent crashes
-sc.exe failure CafeQRPrintHub reset= 86400 actions= restart/60000/restart/60000/restart/60000
-if %errorLevel% NEQ 0 (
-    echo [WARNING] Failed to set auto-restart failure recovery rules.
-)
+REM --- Set auto-restart on crash ---
+sc.exe failure CafeQRPrintHub reset= 86400 actions= restart/60000/restart/60000/restart/60000 >nul 2>&1
 
-:: Start the service
+REM --- Start the service ---
 echo [INFO] Starting CafeQR Local Print Hub...
 net start CafeQRPrintHub
 
+IF ERRORLEVEL 1 (
+    echo.
+    echo [ERROR] Service failed to start. Check Windows Event Viewer for details.
+    echo.
+    goto done
+)
+
 echo.
 echo ==============================================
-echo Installation Completed Successfully!
-echo CafeQR Windows Print Service is running on http://127.0.0.1:3333
+echo   Installation Completed Successfully!
+echo.
+echo   Print service is running on:
+echo   http://127.0.0.1:3333
+echo.
+echo   The service will start automatically
+echo   whenever Windows boots up.
 echo ==============================================
 echo.
-pause
-exit /b 0
+
+:done
+echo.
+echo Press any key to close this window...
+pause >nul

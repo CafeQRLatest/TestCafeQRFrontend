@@ -486,6 +486,10 @@ async function printUniversalNow(opts: Options) {
     // 1b) Paired CafeQR Windows Service. It persists the job before returning,
     // so browser closure or a Windows restart cannot lose an acknowledged job.
     if (isNativePrintServicePaired()) {
+      const { names } = winCfg(jobKind);
+      const forced = uniq(opts.winPrinterNames || []);
+      const targets = forced.length ? forced : names;
+
       const result = await submitNativePrintJob({
         idempotencyKey: opts.jobId || (
           opts.offlineOperationId || opts.orderId || opts.orderNo
@@ -495,6 +499,7 @@ async function printUniversalNow(opts: Options) {
         jobKind,
         outputFormat: opts.outputFormat,
         printerProfileId: opts.printerProfileId,
+        winPrinterNames: targets,
         routeId: opts.routeId,
         text: opts.text,
         dataBase64: base64,

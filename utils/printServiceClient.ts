@@ -3,12 +3,12 @@ const TOKEN_KEY = 'CAFEQR_PRINT_SERVICE_LOCAL_TOKEN';
 const PAIRED_KEY = 'CAFEQR_NATIVE_PRINT_SERVICE_PAIRED';
 const LOCAL_ACCESS_KEY = 'CAFEQR_PRINT_SERVICE_LOCAL_ACCESS';
 const MAIN_OFFLINE_KEY = 'CAFEQR_MAIN_OFFLINE_DEVICE';
-
 export type NativePrintSubmission = {
   idempotencyKey?: string;
   jobKind?: 'bill' | 'kot' | 'invoice' | 'test';
   outputFormat?: 'THERMAL' | 'REGULAR' | 'BOTH';
   printerProfileId?: string;
+  winPrinterNames?: string[];
   routeId?: string;
   text?: string;
   dataBase64?: string;
