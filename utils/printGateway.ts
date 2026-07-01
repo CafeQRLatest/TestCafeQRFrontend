@@ -1,6 +1,5 @@
 // utils/printGateway.ts
 import { Capacitor } from '@capacitor/core';
-import Cookies from 'js-cookie';
 import { textToEscPos } from './escpos';
 import { buildKotText, buildReceiptText } from './printUtils';
 import { isNativePrintServicePaired, submitNativePrintJob } from './printServiceClient';
@@ -99,46 +98,33 @@ function stripEscPosForMatch(value: string) {
   return out.replace(/\s+/g, ' ').trim();
 }
 
-function isFinalTotalLine(clean: string) {
-  return /^TOTAL\s*:\s*(?:[\u20b9$]|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$/i.test(clean);
-}
-
-function isGrandTotalLine(clean: string) {
-  return /\bGRAND\s+TOTAL\s*:/i.test(clean);
-}
-
 function removeUnexpectedFinalTotalRow(text: string) {
   const lines = String(text || '').split('\n');
   const output: string[] = [];
-  let pendingGrandTotalLine: string | null = null;
+  let afterGrandTotal = false;
 
   for (const line of lines) {
     const clean = stripEscPosForMatch(line);
+    const isSeparator = /^-+$/.test(clean);
 
-    if (pendingGrandTotalLine !== null) {
-      if (isFinalTotalLine(clean)) {
-        const lastClean = output.length ? stripEscPosForMatch(output[output.length - 1]) : '';
-        if (!isFinalTotalLine(lastClean)) output.push(line);
-        pendingGrandTotalLine = null;
+    if (afterGrandTotal) {
+      if (!clean) {
+        output.push(line);
         continue;
       }
-
-      output.push(pendingGrandTotalLine);
-      pendingGrandTotalLine = null;
+      if (/^TOTAL\s*:\s*(?:[\u20b9$]|Rs\.?|INR)?\s*[-+]?\d[\d,.]*$/i.test(clean)) {
+        afterGrandTotal = false;
+        continue;
+      }
+      if (isSeparator) afterGrandTotal = false;
+      else afterGrandTotal = false;
     }
-
-    if (isGrandTotalLine(clean)) {
-      pendingGrandTotalLine = line;
-      continue;
-    }
-
-    const lastClean = output.length ? stripEscPosForMatch(output[output.length - 1]) : '';
-    if (isFinalTotalLine(clean) && isFinalTotalLine(lastClean)) continue;
 
     output.push(line);
+    if (/\bGRAND\s+TOTAL\s*:/i.test(clean)) {
+      afterGrandTotal = true;
+    }
   }
-
-  if (pendingGrandTotalLine !== null) output.push(pendingGrandTotalLine);
 
   return output.join('\n');
 }
@@ -500,19 +486,9 @@ async function printUniversalNow(opts: Options) {
     // 1b) Paired CafeQR Windows Service. It persists the job before returning,
     // so browser closure or a Windows restart cannot lose an acknowledged job.
     if (isNativePrintServicePaired()) {
-      const tz = Cookies.get('timezone') || 'UTC';
-      const cleanDocument: any = opts.document ? { ...opts.document } : {};
-      if (cleanDocument) {
-        if (!cleanDocument.timezone) cleanDocument.timezone = tz;
-        if (cleanDocument.order && typeof cleanDocument.order === 'object') {
-          cleanDocument.order = { timezone: tz, ...cleanDocument.order };
-        }
-        if (cleanDocument.restaurant && typeof cleanDocument.restaurant === 'object') {
-          cleanDocument.restaurant = { timezone: tz, ...cleanDocument.restaurant };
-        } else {
-          cleanDocument.restaurant = { timezone: tz };
-        }
-      }
+      const { names } = winCfg(jobKind);
+      const forced = uniq(opts.winPrinterNames || []);
+      const targets = forced.length ? forced : names;
 
       const result = await submitNativePrintJob({
         idempotencyKey: opts.jobId || (
@@ -523,10 +499,11 @@ async function printUniversalNow(opts: Options) {
         jobKind,
         outputFormat: opts.outputFormat,
         printerProfileId: opts.printerProfileId,
+        winPrinterNames: targets,
         routeId: opts.routeId,
         text: opts.text,
         dataBase64: base64,
-        document: cleanDocument,
+        document: opts.document,
         metadata: {
           ...(opts.metadata || {}),
           orderId: opts.orderId,
