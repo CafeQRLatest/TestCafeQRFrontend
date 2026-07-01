@@ -400,9 +400,6 @@ export const AuthProvider = ({ children }) => {
     if (subscriptionStatus === 'TRIAL' && isActive) {
       return true; // All-Access Free Trial
     }
-    if (moduleName === 'KOT' && targetOrgId) {
-      return activeModulesDetailed.includes(`KOT:${targetOrgId}`);
-    }
     return activeModules.includes(moduleName);
   };
 
