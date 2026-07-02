@@ -396,7 +396,7 @@ function buildLogoEscPos(restaurantProfile) {
 }
 
 function getBillCols(innerW, hasDiscount) {
-  const showDiscCol = false; 
+  const showDiscCol = false;
   const gaps = showDiscCol ? 4 : 3;
   let qty = innerW >= 44 ? 6 : innerW >= 38 ? 6 : 4;
   let rate = innerW >= 44 ? 7 : innerW >= 38 ? 7 : 5;
@@ -735,7 +735,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     let header = leftAlign("ITEM", name) + " " + rightAlign("QTY", qty) + " " + rightAlign("RATE", rate);
     if (showDiscCol) header += " " + rightAlign("DISC", disc);
     header += " " + rightAlign("TOTAL", total);
-    
+
     if (itemScale === 2) {
       lines.push(MODE_BOLD + getFontSizeCmd(bFontSize) + withMargins(header, layout) + SIZE_1X + MODE_NO_BOLD);
     } else {
