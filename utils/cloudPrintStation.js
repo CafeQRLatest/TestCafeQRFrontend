@@ -89,7 +89,7 @@ function fallbackRestaurantProfile() {
 let cachedProfile = null;
 let cachedProfileAt = 0;
 
-async function getRestaurantProfile() {
+export async function getRestaurantProfile() {
   const now = Date.now();
   if (cachedProfile && now - cachedProfileAt < 300000) {
     return cachedProfile;

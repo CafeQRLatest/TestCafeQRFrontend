@@ -22,7 +22,13 @@ import { toDisplayItems } from '../../utils/printUtils';
 import { isKnownOffline } from '../../utils/networkState';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getQueuedOfflineOrders, getRecentPrintJobs } from '../../utils/offlineStore';
-import { isAndroidPrintStationEnabled, markCloudPrintJobPrinted } from '../../utils/cloudPrintStation';
+import {
+  isAndroidPrintStationEnabled,
+  markCloudPrintJobPrinted,
+  isPrintStationEnabled,
+  autoPrintNewRemoteOrders,
+  getRestaurantProfile
+} from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
@@ -1720,6 +1726,25 @@ function SalesContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchTables, fetchOrders, fetchCreditConfig, loadOfflineOrderState, orgId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event) => {
+      if (!event.data) return;
+
+      if (event.data.type === 'order-updated' || event.data.type === 'new-order-push') {
+        console.log('[push:web] Order event received in sales page:', event.data);
+        fetchOrders();
+        fetchTables();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
+  }, [fetchOrders, fetchTables]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
