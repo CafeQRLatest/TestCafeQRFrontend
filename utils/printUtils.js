@@ -200,8 +200,21 @@ function getKotReference(order) {
 }
 
 function getTableHighlightLabel(order) {
+  const type = String(pickValue(order, ["order_type", "orderType", "fulfillment_type", "fulfillmentType"], "")).toLowerCase();
+  if (type === "parcel" || type === "takeaway") {
+    return "TAKEAWAY";
+  }
+  if (type === "delivery") {
+    return "DELIVERY";
+  }
+
   const tableNumber = String(pickValue(order, ["table_number", "tableNumber"], "")).trim();
-  if (tableNumber) return `TABLE: ${tableNumber}`;
+  const isIgnoredTable = !tableNumber || ["null", "undefined", "n/a", "na", "-"].includes(tableNumber.toLowerCase());
+
+  if (!isIgnoredTable) {
+    return `TABLE: ${tableNumber}`;
+  }
+
   return getOrderTypeLabel(order).toUpperCase();
 }
 
