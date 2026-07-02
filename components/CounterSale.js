@@ -1646,7 +1646,13 @@ export default function CounterSale({
   const [productPage, setProductPage] = useState(0);
   const PRODUCT_PAGE_SIZE = 50;
   const [cart, setCart] = useState([]);
-  const [orderMode, setOrderMode] = useState('settle'); // 'kitchen' | 'settle'
+  const [orderMode, setOrderMode] = useState(() => {
+    if (propConfig && isKitchenModuleEnabled(propConfig)) {
+      return 'kitchen';
+    }
+    return 'settle';
+  });
+  const defaultModeInitialized = useRef(false);
   const [productListingOn, setProductListingOn] = useState(true);
   const [discountType, setDiscountType] = useState('amount'); // 'amount' | 'percentage'
   const [discountValue, setDiscountValue] = useState(0);
@@ -1815,6 +1821,17 @@ export default function CounterSale({
       }
     }
   }, [propConfig]);
+
+  useEffect(() => {
+    if (config && !defaultModeInitialized.current) {
+      if (isKitchenModuleEnabled(config)) {
+        setOrderMode('kitchen');
+      } else {
+        setOrderMode('settle');
+      }
+      defaultModeInitialized.current = true;
+    }
+  }, [config]);
 
   useEffect(() => {
     if (!kitchenEnabled && orderMode === 'kitchen') {
