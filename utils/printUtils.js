@@ -185,7 +185,7 @@ function getOrderTypeLabel(order) {
   const tableNumber = pickValue(order, ["table_number", "tableNumber"], null);
   if (tableNumber && tableNumber !== null)
     return `Dine in (Table ${tableNumber})`;
-  const type = String(pickValue(order, ["order_type", "orderType", "fulfillment_type", "fulfillmentType"], "")).toLowerCase();
+  const type = String(pickValue(order, ["fulfillment_type", "fulfillmentType", "order_type", "orderType"], "")).toLowerCase();
   if (type === "parcel" || type === "takeaway") return "Takeaway";
   if (type === "delivery") return "Delivery";
   if (type === "dine_in" || type === "dine-in") return "Dine in";
@@ -200,7 +200,7 @@ function getKotReference(order) {
 }
 
 function getTableHighlightLabel(order) {
-  const type = String(pickValue(order, ["order_type", "orderType", "fulfillment_type", "fulfillmentType"], "")).toLowerCase();
+  const type = String(pickValue(order, ["fulfillment_type", "fulfillmentType", "order_type", "orderType"], "")).toLowerCase();
   if (type === "parcel" || type === "takeaway") {
     return "TAKEAWAY";
   }
