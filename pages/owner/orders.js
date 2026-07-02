@@ -1572,6 +1572,282 @@ const OrderDetailsModal = styled(ModalContent)`
 
 `;
 
+const HeaderModeSwitch = styled.div`
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 9px;
+  align-items: center;
+  box-shadow: inset 0 1px 2.5px rgba(15, 23, 42, 0.08);
+  border: 1.5px solid #edf2f7;
+
+  @media (max-width: 900px) {
+    width: 100%;
+    gap: 2px;
+    button {
+      flex: 1;
+    }
+  }
+`;
+
+const ModeToggleBtn = styled.button`
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid ${props => props.$active ? '#ea580c' : 'transparent'};
+  background: ${props => props.$active ? '#f97316' : 'transparent'};
+  color: ${props => props.$active ? 'white' : '#64748b'};
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: -0.015em;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: ${props => props.$active ? '0 2px 4px rgba(15, 23, 42, 0.08)' : 'none'};
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: ${props => props.$active ? 'white' : '#0f172a'};
+    background: ${props => props.$active ? '#ea580c' : 'rgba(15, 23, 42, 0.04)'};
+  }
+`;
+
+const CardGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+  gap: 16px;
+  padding: 16px 24px;
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+`;
+
+const OrderCard = styled.div`
+  background: white;
+  border-radius: 16px;
+  border: 1.5px solid #e2e8f0;
+  border-top: 4px solid ${props => props.$statusColor || '#64748b'};
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+    border-color: #cbd5e1;
+  }
+`;
+
+const BoardCardHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+`;
+
+const CardOrderId = styled.span`
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+  
+  &:hover {
+    color: #f97316;
+    text-decoration: underline;
+  }
+`;
+
+const CardTime = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const CardFulfillmentBadge = styled.span`
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: ${props => props.$bg || '#f1f5f9'};
+  color: ${props => props.$fg || '#475569'};
+  border: 1px solid ${props => props.$border || '#cbd5e1'};
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const CardTableLabel = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  text-align: center;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2e8f0;
+  text-transform: uppercase;
+`;
+
+const CardItemsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 80px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 4px;
+
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+`;
+
+const CardItemRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+
+  .item-name {
+    flex: 1;
+    color: #475569;
+  }
+
+  .item-qty {
+    font-weight: 800;
+    color: #0f172a;
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+`;
+
+const CardDivider = styled.div`
+  height: 1px;
+  background: #f1f5f9;
+  width: 100%;
+`;
+
+const BoardCardFooter = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 4px;
+`;
+
+const CardTotal = styled.div`
+  display: flex;
+  flex-direction: column;
+  
+  .total-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: #94a3b8;
+    text-transform: uppercase;
+  }
+  .total-val {
+    font-size: 14px;
+    font-weight: 900;
+    color: #0f172a;
+  }
+`;
+
+const CardStatusBadge = styled.span`
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: ${props => props.$bg || '#f1f5f9'};
+  color: ${props => props.$fg || '#475569'};
+  border: 1px solid ${props => props.$border || '#cbd5e1'};
+`;
+
+const CardActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+
+  button {
+    flex: 1;
+    min-width: 60px;
+  }
+`;
+
+const CardActionBtn = styled.button`
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid ${props => props.$border || '#e2e8f0'};
+  background: ${props => props.$bg || 'white'};
+  color: ${props => props.$fg || '#475569'};
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+
+  &:hover {
+    background: ${props => props.$hoverBg || '#f8fafc'};
+    border-color: ${props => props.$hoverBorder || '#cbd5e1'};
+    color: ${props => props.$hoverFg || '#1e293b'};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+function getElapsedTime(createdAt) {
+  if (!createdAt) return '';
+  const diff = Date.now() - new Date(createdAt).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}m ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function getStatusBorderColor(status) {
+  const s = String(status || '').toUpperCase();
+  if (s === 'COMPLETED' || s === 'PAID') return '#10b981'; // Green
+  if (s === 'CANCELLED' || s === 'VOID') return '#ef4444'; // Red
+  if (s === 'BILLED') return '#3b82f6'; // Blue
+  return '#f97316'; // Orange (Kitchen, Confirmed, Draft, etc.)
+}
+
 export default function OrdersPage() {
   const { notify } = useNotification();
   const router = useRouter();
@@ -1635,6 +1911,146 @@ export default function OrdersPage() {
   const sym = config?.currencySymbol || '₹';
   const [creditCustomers, setCreditCustomers] = useState([]);
   const [actionBusy, setActionBusy] = useState(null);
+
+  const [ordersViewMode, setOrdersViewMode] = useState('standard'); // 'standard' | 'board'
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('cafeqr_orders_view_mode');
+      if (saved === 'board' || saved === 'standard') {
+        setOrdersViewMode(saved);
+      }
+    }
+  }, []);
+
+  const handleToggleViewMode = (mode) => {
+    setOrdersViewMode(mode);
+    localStorage.setItem('cafeqr_orders_view_mode', mode);
+  };
+
+  const renderKdsCardGrid = (ordersList) => {
+    return (
+      <CardGrid>
+        {ordersList.map(order => {
+          const date = histOrderTime(order) || new Date(order.createdAt);
+          const tone = histStatusTone(order);
+          const colors = histStatusBadgeColors(tone);
+          const items = toDisplayItems(order);
+          const orderIdText = order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`;
+          const statusText = histStatusText(order);
+          const elapsed = getElapsedTime(order.createdAt || order.created_at, currentTime);
+          
+          let labelText = '';
+          if (order.tableNumber || order.table_number) {
+            labelText = `Table ${order.tableNumber || order.table_number}`;
+          } else {
+            labelText = histFulfillmentLabel(order);
+          }
+
+          const totalVal = histOrderTotal(order);
+          const statusBorderColor = getStatusBorderColor(order.orderStatus || order.order_status);
+
+          let BadgeIcon = FaUtensils;
+          const fulfillmentUpper = String(order.fulfillmentType || '').toUpperCase();
+          if (fulfillmentUpper === 'TAKEAWAY' || fulfillmentUpper === 'PARCEL') {
+            BadgeIcon = FaShoppingBag;
+          } else if (fulfillmentUpper === 'DELIVERY') {
+            BadgeIcon = FaTruck;
+          }
+
+          return (
+            <OrderCard 
+              key={order.id} 
+              $statusColor={statusBorderColor}
+              onClick={() => handleOpenOrderDetails(order)}
+            >
+              <BoardCardHeader onClick={(e) => e.stopPropagation()}>
+                <CardOrderId onClick={() => handleOpenOrderDetails(order)}>
+                  {orderIdText}
+                </CardOrderId>
+                <CardTime>
+                  <FaClock size={10} /> {elapsed}
+                </CardTime>
+              </BoardCardHeader>
+
+              <BoardCardHeader>
+                <CardFulfillmentBadge $bg={colors.bg} $fg={colors.color} $border={colors.border}>
+                  <BadgeIcon size={10} /> {histFulfillmentLabel(order)}
+                </CardFulfillmentBadge>
+                {config?.customersEnabled && order.customerName && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                    👤 {order.customerName.slice(0, 15)}
+                  </span>
+                )}
+              </BoardCardHeader>
+
+              <CardTableLabel>
+                {labelText}
+              </CardTableLabel>
+
+              <CardItemsList>
+                {(items || []).map((item, idx) => {
+                  const qty = item.quantity || item.qty || 0;
+                  const name = item.productName || item.product_name || item.name || '';
+                  const variant = item.variantName || item.variant_name || '';
+                  return (
+                    <CardItemRow key={idx}>
+                      <span className="item-name">
+                        {name} {variant ? `(${variant})` : ''}
+                      </span>
+                      <span className="item-qty">x{qty}</span>
+                    </CardItemRow>
+                  );
+                })}
+              </CardItemsList>
+
+              <CardDivider />
+
+              <BoardCardFooter>
+                <CardTotal>
+                  <span className="total-label">Total Amount</span>
+                  <span className="total-val">{money(totalVal, sym)}</span>
+                </CardTotal>
+                <CardStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
+                  {statusText}
+                </CardStatusBadge>
+              </BoardCardFooter>
+
+              {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
+               String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
+                <CardActions onClick={(e) => e.stopPropagation()}>
+                  <CardActionBtn type="button" onClick={() => handlePrintKot(order)}>
+                    <FaFire style={{ color: '#ea580c' }} /> KOT
+                  </CardActionBtn>
+                  <CardActionBtn type="button" onClick={() => handlePrintBill(order)}>
+                    <FaPrint style={{ color: '#f97316' }} /> Bill
+                  </CardActionBtn>
+                  <CardActionBtn type="button" onClick={() => setEditingOrder(order)}>
+                    <FaEdit style={{ color: '#475569' }} /> Edit
+                  </CardActionBtn>
+                  {canCancelOrder && (
+                    <CardActionBtn 
+                      type="button" 
+                      $border="#fee2e2" 
+                      $hoverBg="#fef2f2" 
+                      $hoverBorder="#fecaca" 
+                      $hoverFg="#b91c1c"
+                      onClick={() => {
+                        setCancelReason('');
+                        setCancelOrder(order);
+                      }}
+                    >
+                      <FaTimesCircle style={{ color: '#ef4444' }} /> Cancel
+                    </CardActionBtn>
+                  )}
+                </CardActions>
+              )}
+            </OrderCard>
+          );
+        })}
+      </CardGrid>
+    );
+  };
 
   // Tables state (for change-table feature)
   const [tables, setTables] = useState([]);
@@ -2304,6 +2720,23 @@ export default function OrdersPage() {
               </SegmentBtn>
             </SegmentedWrapper>
 
+            <HeaderModeSwitch>
+              <ModeToggleBtn 
+                $active={ordersViewMode === 'standard'} 
+                onClick={() => handleToggleViewMode('standard')}
+                title="Standard View"
+              >
+                Standard
+              </ModeToggleBtn>
+              <ModeToggleBtn 
+                $active={ordersViewMode === 'board'} 
+                onClick={() => handleToggleViewMode('board')}
+                title="Board View"
+              >
+                Board
+              </ModeToggleBtn>
+            </HeaderModeSwitch>
+
             <button
               type="button"
               onClick={() => router.push('/owner/sales')}
@@ -2323,79 +2756,93 @@ export default function OrdersPage() {
 
           {/* ── Live Orders (Table / Parcel / Delivery) ── */}
           {activeSegment !== 'completed' && (
-            activeSegment === 'table' ? (
-              <SliderViewport>
-                {activeList.length > 0 && (
-                  <>
-                    <LeftArrow onClick={slideLeft} type="button"><FaArrowLeft /></LeftArrow>
-                    <RightArrow onClick={slideRight} type="button"><FaArrowRight /></RightArrow>
-                  </>
-                )}
-
-                <SliderTrack ref={sliderRef}>
-                  {activeList.length === 0 ? (
-                    <EmptyState>
-                      <FaUtensils />
-                      <strong>No active Dine-in orders</strong>
-                      <span>New orders will appear here automatically.</span>
-                    </EmptyState>
-                  ) : (
-                    <TableCubePanel>
-                      <TableCubeLegend>
-                        {TABLE_CUBE_LEGEND.map(item => (
-                          <span className="legend-item" key={item.label}><span className="swatch" style={{ background: item.bg }} />{item.label}</span>
-                        ))}
-                      </TableCubeLegend>
-                      <TableCubeGrid>
-                        {activeList.map(order => {
-                          const cube = tableCubeColor(order.orderStatus);
-                          const tableLabel = order.tableNumber || order.tableName || 'Table';
-                          return (
-                            <TableOrderCube key={order.id} role="button" tabIndex={0} $bg={cube.bg} $ring={`${cube.bg}55`} $shadow={`${cube.bg}44`} onClick={() => handleOpenOrderDetails(order)}>
-                              <span className="table-no">{tableLabel}</span>
-                            </TableOrderCube>
-                          );
-                        })}
-                      </TableCubeGrid>
-                    </TableCubePanel>
-                  )}
-                </SliderTrack>
-              </SliderViewport>
-            ) : (
+            ordersViewMode === 'board' ? (
               activeList.length === 0 ? (
                 <EmptyState>
+                  {activeSegment === 'table' && <FaUtensils />}
                   {activeSegment === 'parcel' && <FaShoppingBag />}
                   {activeSegment === 'delivery' && <FaTruck />}
-                  <strong>No active {activeSegment === 'parcel' ? 'takeaway' : 'delivery'} orders</strong>
+                  <strong>No active {activeSegment === 'table' ? 'Dine-in' : (activeSegment === 'parcel' ? 'takeaway' : 'delivery')} orders</strong>
                   <span>New orders will appear here automatically.</span>
                 </EmptyState>
               ) : (
-                <TableCubePanel style={{ padding: '16px 24px' }}>
-                  <TableCubeLegend style={{ marginBottom: 12 }}>
-                    {TABLE_CUBE_LEGEND.map(item => (
-                      <span className="legend-item" key={item.label}><span className="swatch" style={{ background: item.bg }} />{item.label}</span>
-                    ))}
-                  </TableCubeLegend>
-                  <TokenGrid>
-                    {activeList.map(order => {
-                      const cube = tableCubeColor(order.orderStatus);
-                      const tokenLabel = order.dailyBillNo ? `#${order.dailyBillNo}` : (order.orderNo ? `#${order.orderNo.slice(-4)}` : `#${order.id.slice(-4)}`);
-                      const nameLabel = order.customerName || order.customerPhone || 'Guest';
-                      return (
-                        <TokenCube 
-                          key={order.id} 
-                          $bg={cube.bg} 
-                          $ring={`${cube.bg}55`} 
-                          $shadow={`${cube.bg}44`} 
-                          onClick={() => handleOpenOrderDetails(order)}
-                        >
-                          <span className="token-no">{tokenLabel}</span>
-                          <span className="token-name">{nameLabel}</span>
-                        </TokenCube>
-                      );
-                    })}
-                  </TokenGrid>
-                </TableCubePanel>
+                renderKdsCardGrid(activeList)
+              )
+            ) : (
+              activeSegment === 'table' ? (
+                <SliderViewport>
+                  {activeList.length > 0 && (
+                    <>
+                      <LeftArrow onClick={slideLeft} type="button"><FaArrowLeft /></LeftArrow>
+                      <RightArrow onClick={slideRight} type="button"><FaArrowRight /></RightArrow>
+                    </>
+                  )}
+
+                  <SliderTrack ref={sliderRef}>
+                    {activeList.length === 0 ? (
+                      <EmptyState>
+                        <FaUtensils />
+                        <strong>No active Dine-in orders</strong>
+                        <span>New orders will appear here automatically.</span>
+                      </EmptyState>
+                    ) : (
+                      <TableCubePanel>
+                        <TableCubeLegend>
+                          {TABLE_CUBE_LEGEND.map(item => (
+                            <span className="legend-item" key={item.label}><span className="swatch" style={{ background: item.bg }} />{item.label}</span>
+                          ))}
+                        </TableCubeLegend>
+                        <TableCubeGrid>
+                          {activeList.map(order => {
+                            const cube = tableCubeColor(order.orderStatus);
+                            const tableLabel = order.tableNumber || order.tableName || 'Table';
+                            return (
+                              <TableOrderCube key={order.id} role="button" tabIndex={0} $bg={cube.bg} $ring={`${cube.bg}55`} $shadow={`${cube.bg}44`} onClick={() => handleOpenOrderDetails(order)}>
+                                <span className="table-no">{tableLabel}</span>
+                              </TableOrderCube>
+                            );
+                          })}
+                        </TableCubeGrid>
+                      </TableCubePanel>
+                    )}
+                  </SliderTrack>
+                </SliderViewport>
+              ) : (
+                activeList.length === 0 ? (
+                  <EmptyState>
+                    {activeSegment === 'parcel' && <FaShoppingBag />}
+                    {activeSegment === 'delivery' && <FaTruck />}
+                    <strong>No active {activeSegment === 'parcel' ? 'takeaway' : 'delivery'} orders</strong>
+                    <span>New orders will appear here automatically.</span>
+                  </EmptyState>
+                ) : (
+                  <TableCubePanel style={{ padding: '16px 24px' }}>
+                    <TableCubeLegend style={{ marginBottom: 12 }}>
+                      {TABLE_CUBE_LEGEND.map(item => (
+                        <span className="legend-item" key={item.label}><span className="swatch" style={{ background: item.bg }} />{item.label}</span>
+                      ))}
+                    </TableCubeLegend>
+                    <TokenGrid>
+                      {activeList.map(order => {
+                        const cube = tableCubeColor(order.orderStatus);
+                        const tokenLabel = order.dailyBillNo ? `#${order.dailyBillNo}` : (order.orderNo ? `#${order.orderNo.slice(-4)}` : `#${order.id.slice(-4)}`);
+                        const nameLabel = order.customerName || order.customerPhone || 'Guest';
+                        return (
+                          <TokenCube 
+                            key={order.id} 
+                            $bg={cube.bg} 
+                            $ring={`${cube.bg}55`} 
+                            $shadow={`${cube.bg}44`} 
+                            onClick={() => handleOpenOrderDetails(order)}
+                          >
+                            <span className="token-no">{tokenLabel}</span>
+                            <span className="token-name">{nameLabel}</span>
+                          </TokenCube>
+                        );
+                      })}
+                    </TokenGrid>
+                  </TableCubePanel>
+                )
               )
             )
           )}
@@ -2487,98 +2934,102 @@ export default function OrdersPage() {
                   <span>{historyFilters.q?.trim() ? 'Try a different search or date range.' : 'Completed and paid orders will appear here.'}</span>
                 </EmptyState>
               ) : (
-                <>
-                <HistTableWrap>
-                  <HistTable>
-                    <thead>
-                      <tr>
-                        <th>Order#</th>
-                        <th>Date</th>
-                        {config?.customersEnabled && <th>Customer</th>}
-                        <th>Type</th>
-                        <th>Items</th>
-                        <th>Total</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'center' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {historyOrders.map(order => {
-                        const date = histOrderTime(order);
-                        const items = toDisplayItems(order);
-                        const renderKey = histOrderIdentity(order) || `order:${date.getTime()}`;
-                        const tone = histStatusTone(order);
-                        const colors = histStatusBadgeColors(tone);
-                        return (
-                          <HistRow key={renderKey}>
-                            <td>
-                              <HistOrderLink onClick={async () => {
-                                try {
-                                  const full = await loadFullOrder(order.id);
-                                  setViewingDoc({ order: full || order, type: 'order' });
-                                } catch { setViewingDoc({ order, type: 'order' }); }
-                              }}>
-                                {order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`}
-                              </HistOrderLink>
-                            </td>
-                            <td>
-                              <HistRowDate>
-                                <span className="rd-d">{formatTzDate(date, timezone || 'Asia/Kolkata', { format: 'date', year: undefined })}</span>
-                                <span className="rd-t">{formatTzDate(date, timezone || 'Asia/Kolkata', { format: 'time' })}</span>
-                              </HistRowDate>
-                            </td>
-                            {config?.customersEnabled && (
-                              <td><strong>{histCustomerLabel(order)}</strong></td>
-                            )}
-                            <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
-                            <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
-                            <td><strong>{money(histOrderTotal(order), sym)}</strong></td>
-                            <td>
-                              <HistStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
-                                {histStatusText(order)}
-                              </HistStatusBadge>
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <HistActionGroup>
-                                {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
-                                 String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
-                                  <>
-                                    <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
-                                      <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
-                                    </HistActionBtn>
-                                    <HistActionBtn type="button" $tone="orange" title="Download PDF Invoice" onClick={async () => {
-                                      try {
-                                        const full = await loadFullOrder(order.id);
-                                        await downloadInvoicePdf(full || order);
-                                      } catch (err) {
-                                        notify('error', 'Failed to generate invoice: ' + (err.message || 'Unknown error'));
-                                      }
-                                    }}>
-                                      <FaFileInvoice style={{ fontSize: 10 }} /> Invoice
-                                    </HistActionBtn>
-                                    <HistActionBtn type="button" onClick={() => setEditingOrder(order)}>
-                                      <FaEdit style={{ fontSize: 10, color: '#475569' }} /> Edit
-                                    </HistActionBtn>
-                                    {canCancelOrder && (
-                                      <HistActionBtn type="button" $tone="red" onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCancelReason('');
-                                        setCancelOrder(order);
-                                      }}>
-                                        <FaTimesCircle style={{ fontSize: 10 }} /> Cancel
+                ordersViewMode === 'board' ? (
+                  renderKdsCardGrid(historyOrders)
+                ) : (
+                  <>
+                  <HistTableWrap>
+                    <HistTable>
+                      <thead>
+                        <tr>
+                          <th>Order#</th>
+                          <th>Date</th>
+                          {config?.customersEnabled && <th>Customer</th>}
+                          <th>Type</th>
+                          <th>Items</th>
+                          <th>Total</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'center' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyOrders.map(order => {
+                          const date = histOrderTime(order);
+                          const items = toDisplayItems(order);
+                          const renderKey = histOrderIdentity(order) || `order:${date.getTime()}`;
+                          const tone = histStatusTone(order);
+                          const colors = histStatusBadgeColors(tone);
+                          return (
+                            <HistRow key={renderKey}>
+                              <td>
+                                <HistOrderLink onClick={async () => {
+                                  try {
+                                    const full = await loadFullOrder(order.id);
+                                    setViewingDoc({ order: full || order, type: 'order' });
+                                  } catch { setViewingDoc({ order, type: 'order' }); }
+                                }}>
+                                  {order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`}
+                                </HistOrderLink>
+                              </td>
+                              <td>
+                                <HistRowDate>
+                                  <span className="rd-d">{formatTzDate(date, timezone || 'Asia/Kolkata', { format: 'date', year: undefined })}</span>
+                                  <span className="rd-t">{formatTzDate(date, timezone || 'Asia/Kolkata', { format: 'time' })}</span>
+                                </HistRowDate>
+                              </td>
+                              {config?.customersEnabled && (
+                                <td><strong>{histCustomerLabel(order)}</strong></td>
+                              )}
+                              <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
+                              <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
+                              <td><strong>{money(histOrderTotal(order), sym)}</strong></td>
+                              <td>
+                                <HistStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
+                                  {histStatusText(order)}
+                                </HistStatusBadge>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <HistActionGroup>
+                                  {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
+                                   String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
+                                    <>
+                                      <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
+                                        <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
                                       </HistActionBtn>
-                                    )}
-                                  </>
-                                )}
-                              </HistActionGroup>
-                            </td>
-                          </HistRow>
-                        );
-                      })}
-                    </tbody>
-                  </HistTable>
-                </HistTableWrap>
-                </>
+                                      <HistActionBtn type="button" $tone="orange" title="Download PDF Invoice" onClick={async () => {
+                                        try {
+                                          const full = await loadFullOrder(order.id);
+                                          await downloadInvoicePdf(full || order);
+                                        } catch (err) {
+                                          notify('error', 'Failed to generate invoice: ' + (err.message || 'Unknown error'));
+                                        }
+                                      }}>
+                                        <FaFileInvoice style={{ fontSize: 10 }} /> Invoice
+                                      </HistActionBtn>
+                                      <HistActionBtn type="button" onClick={() => setEditingOrder(order)}>
+                                        <FaEdit style={{ fontSize: 10, color: '#475569' }} /> Edit
+                                      </HistActionBtn>
+                                      {canCancelOrder && (
+                                        <HistActionBtn type="button" $tone="red" onClick={(e) => {
+                                          e.stopPropagation();
+                                          setCancelReason('');
+                                          setCancelOrder(order);
+                                        }}>
+                                          <FaTimesCircle style={{ fontSize: 10 }} /> Cancel
+                                        </HistActionBtn>
+                                      )}
+                                    </>
+                                  )}
+                                </HistActionGroup>
+                              </td>
+                            </HistRow>
+                          );
+                        })}
+                      </tbody>
+                    </HistTable>
+                  </HistTableWrap>
+                  </>
+                )
               )}
 
               <HistPager>
