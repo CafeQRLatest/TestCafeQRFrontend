@@ -12,6 +12,7 @@ import {
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
+import CloudPrintStation from './CloudPrintStation';
 import { isMenuVisibleForConfig } from '../utils/moduleVisibility';
 
 /**
@@ -235,6 +236,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
 
           <main className="content-area">
             {children}
+            <CloudPrintStation />
           </main>
         </div>
       </div>
