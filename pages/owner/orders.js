@@ -1828,9 +1828,24 @@ const CardActionBtn = styled.button`
   }
 `;
 
-function getElapsedTime(createdAt) {
+function getElapsedTime(createdAt, now) {
   if (!createdAt) return '';
-  const diff = Date.now() - new Date(createdAt).getTime();
+  
+  let date;
+  if (createdAt instanceof Date) {
+    date = createdAt;
+  } else {
+    let strVal = String(createdAt);
+    // Backend LocalDateTime is generated in UTC. Append Z to force UTC parsing if offset is missing.
+    if (strVal.length >= 19 && strVal.includes('T') && !strVal.includes('Z') && !strVal.match(/[+-]\d{2}:\d{2}$/)) {
+      strVal = strVal + 'Z';
+    }
+    date = new Date(strVal);
+  }
+  
+  if (isNaN(date.getTime())) return '';
+  
+  const diff = (now || Date.now()) - date.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;
@@ -1938,7 +1953,7 @@ export default function OrdersPage() {
           const items = toDisplayItems(order);
           const orderIdText = order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`;
           const statusText = histStatusText(order);
-          const elapsed = getElapsedTime(order.createdAt || order.created_at, currentTime);
+          const elapsed = getElapsedTime(order.createdAt || order.created_at || order.orderDate || order.order_date, currentTime);
           
           let labelText = '';
           if (order.tableNumber || order.table_number) {
