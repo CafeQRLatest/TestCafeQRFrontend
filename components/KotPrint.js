@@ -93,6 +93,19 @@ function mergeOrderForPrint(primary, fallback) {
   const fallbackItems = toDisplayItems(fallback);
 
   if (mergedItems.length || !fallbackItems.length) {
+    if (isEdited && fallbackItems.length) {
+      const fallbackRawItems = rawItemsFromOrder(fallback);
+      return {
+        ...merged,
+        lines: fallbackRawItems.length ? fallbackRawItems : fallbackItems,
+        items: Array.isArray(fallback?.items) && fallback.items.length ? fallback.items : fallbackItems,
+        order_items: Array.isArray(fallback?.order_items) && fallback.order_items.length ? fallback.order_items : fallbackRawItems,
+        removed_items: removedItems,
+        removedItems: removedItems,
+        is_edited: isEdited,
+        isEdited,
+      };
+    }
     return { ...merged, removed_items: removedItems, removedItems: removedItems, is_edited: isEdited, isEdited };
   }
 
