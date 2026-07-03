@@ -53,10 +53,10 @@ export default function SubscriptionPage() {
   const [selectedModules, setSelectedModules] = useState([])
 
   const moduleItems = [
-    { id: 'KOT', name: 'Kitchen Order Ticket (KOT) Sachet', price: 500, desc: 'Send orders instantly to kitchen screens. Client-wide access.' },
-    { id: 'INVENTORY', name: 'Inventory & Purchase ERP Sachet', price: 1992, desc: 'Stock valuation, transfers, supplier orders, and waste logging.' },
-    { id: 'CRM', name: 'Customer CRM & Loyalty Sachet', price: 990, desc: 'Track customer visits, loyalty points, and run sms campaigns.' },
-    { id: 'CREDIT_LEDGER', name: 'Credit Ledger (Udhaar) Sachet', price: 492, desc: 'Keep track of digital tabs and credit customers.' }
+    { id: 'KOT', name: 'Kitchen Order Ticket (KOT) Sachet', price: 500, desc: 'Send orders instantly to kitchen screens. Branch-wide access.' },
+    { id: 'INVENTORY', name: 'Inventory & Purchase ERP Sachet', price: 1992, desc: 'Stock valuation, transfers, supplier orders, and waste logging. Branch-wide access.' },
+    { id: 'CRM', name: 'Customer CRM & Loyalty Sachet', price: 999, desc: 'Track customer visits, loyalty points, and run sms campaigns. Client-wide access.' },
+    { id: 'CREDIT_LEDGER', name: 'Credit Ledger (Udhaar) Sachet', price: 499, desc: 'Keep track of digital tabs and credit customers. Client-wide access.' }
   ]
 
   const fetchStatus = useCallback(async () => {
