@@ -635,7 +635,8 @@ const CategoryScroll = styled.div`
   gap: 8px;
   overflow-x: auto;
   padding: 2px 2px 6px;
-  flex: 0 0 auto;
+  flex: 1;
+  min-width: 0;
   scroll-padding-inline: 2px;
   -webkit-overflow-scrolling: touch;
   &::-webkit-scrollbar { display: none; }
@@ -1788,15 +1789,18 @@ export default function CounterSale({
   useEffect(() => {
     const el = categoryScrollRef.current;
     if (el) {
-      const timeout = setTimeout(checkScrollLimits, 100);
+      checkScrollLimits();
+      const timeout = setTimeout(checkScrollLimits, 200);
       el.addEventListener('scroll', checkScrollLimits);
       window.addEventListener('resize', checkScrollLimits);
 
       const handleWheel = (e) => {
-        if (e.deltaY !== 0) {
-          e.preventDefault();
-          el.scrollLeft += e.deltaY;
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+          // Native horizontal scroll (trackpad)
+          return;
         }
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
       };
       el.addEventListener('wheel', handleWheel, { passive: false });
 
@@ -1807,7 +1811,7 @@ export default function CounterSale({
         el.removeEventListener('wheel', handleWheel);
       };
     }
-  }, [categories, checkScrollLimits]);
+  }, [categories, productListingOn, activeCat, zoomLevel, checkScrollLimits]);
 
   const scrollCarousel = (offset) => {
     const el = categoryScrollRef.current;
