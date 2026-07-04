@@ -38,7 +38,8 @@ export default function SubscriptionPage() {
     updateSubscription,
     timezone,
     clientId,
-    orgId
+    orgId,
+    logout
   } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -134,8 +135,8 @@ export default function SubscriptionPage() {
       await loadRazorpayScript()
       // Call create-payment specifically for the base core plan (selected or forced) + setup fee + add-on modules
       const response = await api.post('/api/v1/subscription/create-payment', {
-        includeBasePlan: includeBasePlan,
-        includeSetupService: isSubscribed ? false : includeSetupService,
+        includeBasePlan: includeBasePlan || subscriptionStatus === 'UNPAID',
+        includeSetupService: isSubscribed ? false : (includeSetupService || subscriptionStatus === 'UNPAID'),
         selectedModules: selectedModules,
         orgId
       })
@@ -222,10 +223,10 @@ export default function SubscriptionPage() {
   const currentStatus = (status?.status || subscriptionStatus || '').toUpperCase()
   const expiryDate = status?.expiryDate ? new Date(status.expiryDate) : normalizedExpiryDate
   const daysLeft = status?.daysLeft || 0
-  const statusLabel = currentStatus === 'TRIAL' ? 'Free Trial Active' : active ? 'Pro Plan Active' : 'Subscription Expired'
+  const statusLabel = currentStatus === 'TRIAL' ? 'Free Trial Active' : currentStatus === 'UNPAID' ? 'Onboarding Required' : active ? 'Pro Plan Active' : 'Subscription Expired'
 
-  const basePrice = includeBasePlan ? 999 : 0
-  const setupPrice = (isSubscribed || !includeSetupService) ? 0 : 1499
+  const basePrice = (includeBasePlan || subscriptionStatus === 'UNPAID') ? 999 : 0
+  const setupPrice = (isSubscribed || (!includeSetupService && subscriptionStatus !== 'UNPAID')) ? 0 : 1499
   
   // Calculate module proration if it is a mid-cycle upgrade
   const calculateModuleCost = (modulePrice) => {
@@ -249,7 +250,7 @@ export default function SubscriptionPage() {
   )
 
   return (
-    <DashboardLayout title="Subscription">
+    <DashboardLayout title="Subscription" noSidebar={subscriptionStatus === 'UNPAID'}>
       <div className="subscription-wrapper">
         <div className="container">
           <header className="page-header">
@@ -311,6 +312,11 @@ export default function SubscriptionPage() {
               <div className="support-card">
                 <p>Questions about billing?</p>
                 <a href="mailto:pnriyas50@gmail.com"><FaHeadset /> Reach Support</a>
+                {subscriptionStatus === 'UNPAID' && (
+                  <button onClick={logout} className="logout-btn-overlay">
+                    <FaExclamationCircle /> Sign Out
+                  </button>
+                )}
               </div>
             </section>
 
@@ -342,15 +348,23 @@ export default function SubscriptionPage() {
 
                 {/* Optional Service Charge Checkbox */}
                 {!isSubscribed && (
-                  <div className={`setup-checkbox-wrapper ${includeSetupService ? 'selected' : ''}`} onClick={() => setIncludeSetupService(!includeSetupService)}>
+                  <div 
+                    className={`setup-checkbox-wrapper ${(includeSetupService || subscriptionStatus === 'UNPAID') ? 'selected' : ''} ${subscriptionStatus === 'UNPAID' ? 'disabled' : ''}`} 
+                    onClick={() => {
+                      if (subscriptionStatus !== 'UNPAID') {
+                        setIncludeSetupService(!includeSetupService);
+                      }
+                    }}
+                  >
                     <input 
                       type="checkbox"
-                      checked={includeSetupService}
+                      checked={includeSetupService || subscriptionStatus === 'UNPAID'}
+                      disabled={subscriptionStatus === 'UNPAID'}
                       readOnly
                     />
                     <label>
                       <strong>Include Setup & Onboarding Assistance</strong>
-                      <span>One-time assistance fee (+ ₹1,499)</span>
+                      <span>One-time assistance fee (+ ₹1,499) {subscriptionStatus === 'UNPAID' && <span className="required-tag">Required</span>}</span>
                     </label>
                   </div>
                 )}
@@ -526,6 +540,22 @@ export default function SubscriptionPage() {
           .support-card { text-align: center; margin-top: 24px; }
           .support-card p { font-size: 14px; color: #64748b; margin-bottom: 8px; }
           .support-card a { color: #f97316; font-weight: 700; text-decoration: none; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+          .required-tag {
+             font-size: 9px; font-weight: 800; color: #ea580c;
+             background: #fff7ed; border: 1px solid #ffedd5;
+             padding: 1px 6px; border-radius: 99px; margin-left: 6px;
+             text-transform: uppercase; letter-spacing: 0.5px;
+             display: inline-block;
+          }
+          .logout-btn-overlay {
+             margin-top: 16px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+             padding: 10px 16px; background: #fff5f5; border: 1.5px solid #fed7d7; border-radius: 12px;
+             color: #e53e3e; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s;
+             outline: none;
+          }
+          .logout-btn-overlay:hover {
+             background: #fee2e2; color: #9b1c1c; border-color: #fca5a5;
+          }
 
           .pricing-card { padding: 48px; border: 2px solid #e2e8f0; position: relative; }
           .pricing-card.featured { border-color: #f97316; }
