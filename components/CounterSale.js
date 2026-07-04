@@ -7,7 +7,7 @@ import { useNotification } from '../context/NotificationContext';
 import { formatTzDate, businessTimeToUtc, getLocalISOString } from '../utils/timezoneUtils';
 import { 
   FaPlus, FaMinus, FaSearch, FaUtensils, 
-  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
+  FaWallet, FaFire, FaArrowLeft, FaLeaf, FaChevronLeft, FaChevronRight, FaImage, FaTimes, FaShoppingBag, FaUsers, FaBook, FaTag,
   FaHistory, FaEdit, FaTh, FaList
 } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
@@ -49,6 +49,7 @@ const ModalOverlay = styled.div`
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  zoom: ${props => props.$zoom || 1};
 `;
 
 const ModalContent = styled.div`
@@ -231,6 +232,94 @@ const HeaderModeSwitch = styled.div`
     button {
       flex: 1;
     }
+  }
+`;
+
+const ZoomControl = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 9px;
+  box-shadow: inset 0 1px 2.5px rgba(15, 23, 42, 0.08);
+  border: 1.5px solid #edf2f7;
+  flex-shrink: 0;
+`;
+
+const ZoomBtn = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  transition: all 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: ${props => props.$themeColor || '#ea580c'};
+    background: ${props => props.$softColor || '#fff7ed'};
+    color: ${props => props.$themeColor || '#ea580c'};
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+
+const ZoomLabel = styled.span`
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #475569;
+  padding: 0 4px;
+  user-select: none;
+  min-width: 34px;
+  text-align: center;
+`;
+
+const CategoryCarouselWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  gap: 6px;
+`;
+
+const ScrollArrowBtn = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+
+  &:hover:not(:disabled) {
+    border-color: ${props => props.$themeColor || '#ea580c'};
+    background: ${props => props.$softColor || '#fff7ed'};
+    color: ${props => props.$themeColor || '#ea580c'};
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    box-shadow: none;
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #94a3b8;
   }
 `;
 
@@ -1659,6 +1748,77 @@ export default function CounterSale({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1.0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedZoom = localStorage.getItem('pos_zoom_level');
+      if (savedZoom) {
+        const val = parseFloat(savedZoom);
+        if (val >= 0.8 && val <= 1.4) {
+          setZoomLevel(val);
+        }
+      }
+    }
+  }, []);
+
+  const handleZoom = (delta) => {
+    setZoomLevel(prev => {
+      const next = Number(Math.min(1.4, Math.max(0.8, prev + delta)).toFixed(1));
+      localStorage.setItem('pos_zoom_level', String(next));
+      return next;
+    });
+  };
+
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const categoryScrollRef = useRef(null);
+
+  const checkScrollLimits = useCallback(() => {
+    const el = categoryScrollRef.current;
+    if (el) {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setHasOverflow(scrollWidth > clientWidth);
+      setCanScrollLeft(scrollLeft > 2);
+      setCanScrollRight(scrollWidth - scrollLeft - clientWidth > 2);
+    }
+  }, []);
+
+  useEffect(() => {
+    const el = categoryScrollRef.current;
+    if (el) {
+      const timeout = setTimeout(checkScrollLimits, 100);
+      el.addEventListener('scroll', checkScrollLimits);
+      window.addEventListener('resize', checkScrollLimits);
+
+      const handleWheel = (e) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          el.scrollLeft += e.deltaY;
+        }
+      };
+      el.addEventListener('wheel', handleWheel, { passive: false });
+
+      return () => {
+        clearTimeout(timeout);
+        el.removeEventListener('scroll', checkScrollLimits);
+        window.removeEventListener('resize', checkScrollLimits);
+        el.removeEventListener('wheel', handleWheel);
+      };
+    }
+  }, [categories, checkScrollLimits]);
+
+  const scrollCarousel = (offset) => {
+    const el = categoryScrollRef.current;
+    if (el) {
+      el.scrollBy({
+        left: offset,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   const [showSettleDialog, setShowSettleDialog] = useState(false); // PaymentDialog shown BEFORE order creation in settle mode
   const [config, setConfig] = useState(null);
   const [variantProduct, setVariantProduct] = useState(null);
@@ -1707,6 +1867,7 @@ export default function CounterSale({
       ]);
       if (pResp.data.success) {
         const pList = pResp.data.data || [];
+        pList.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }));
         setProducts(pList);
         const activeProducts = pList.filter(p => {
           if (p.isActive === false || p.isactive === 'N') return false;
@@ -1714,7 +1875,8 @@ export default function CounterSale({
           return true;
         });
         const productCats = activeProducts.map(p => p.categoryName).filter(Boolean);
-        const cats = ['ALL', ...new Set(productCats)];
+        const uniqueCats = Array.from(new Set(productCats)).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+        const cats = ['ALL', ...uniqueCats];
         setCategories(cats);
 
         if (updatedProduct) {
@@ -2053,6 +2215,7 @@ export default function CounterSale({
         ];
         const [pRes, cRes, custRes, creditRes, pricelistRes, catRes] = await Promise.all(promises);
         const pList = pRes.data.data || [];
+        pList.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' }));
         setProducts(pList);
         const nextConfig = cRes.data.data;
         setConfig(nextConfig);
@@ -2079,7 +2242,8 @@ export default function CounterSale({
           return true;
         });
         const productCats = activeProducts.map(p => p.categoryName).filter(Boolean);
-        const cats = ['ALL', ...new Set(productCats)];
+        const uniqueCats = Array.from(new Set(productCats)).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+        const cats = ['ALL', ...uniqueCats];
         setCategories(cats);
       } catch (e) {
         if (e?.code === 'OFFLINE_CACHE_MISS') {
@@ -2822,7 +2986,7 @@ export default function CounterSale({
   if (loading) return null;
 
   return (
-    <ModalOverlay onClick={onBack}>
+    <ModalOverlay onClick={onBack} $zoom={zoomLevel}>
       <ModalContent onClick={e => e.stopPropagation()}>
         <CounterHeader>
           <HeaderLeft>
@@ -2891,6 +3055,30 @@ export default function CounterSale({
             <FaHistory size={13} />
             <HeaderShortcutLabel>Sales History</HeaderShortcutLabel>
           </HeaderShortcutBtn>
+
+          <ZoomControl onClick={e => e.stopPropagation()}>
+            <ZoomBtn
+              type="button"
+              onClick={() => handleZoom(-0.1)}
+              disabled={zoomLevel <= 0.8}
+              $themeColor={THEME.main}
+              $softColor={THEME.soft}
+              title="Zoom Out"
+            >
+              <FaMinus size={8} />
+            </ZoomBtn>
+            <ZoomLabel>{Math.round(zoomLevel * 100)}%</ZoomLabel>
+            <ZoomBtn
+              type="button"
+              onClick={() => handleZoom(0.1)}
+              disabled={zoomLevel >= 1.4}
+              $themeColor={THEME.main}
+              $softColor={THEME.soft}
+              title="Zoom In"
+            >
+              <FaPlus size={8} />
+            </ZoomBtn>
+          </ZoomControl>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: '280px', flex: '1 1 auto' }} onClick={e => e.stopPropagation()}>
             <PremiumDateTimePicker 
@@ -3203,18 +3391,46 @@ export default function CounterSale({
                         Trending
                       </FilterBtn>
                     </FilterTabs>
-                    <CategoryScroll>
-                      {categories.map(c => (
-                        <CatBtn 
-                          key={c} 
-                          $active={activeCat === c} 
+                    <CategoryCarouselWrapper>
+                      {hasOverflow && (
+                        <ScrollArrowBtn
+                          type="button"
+                          disabled={!canScrollLeft}
+                          onClick={() => scrollCarousel(-180)}
                           $themeColor={THEME.main}
-                          onClick={() => setActiveCat(c)}
+                          $softColor={THEME.soft}
+                          title="Scroll Left"
                         >
-                          {c === 'ALL' ? 'Everything' : c}
-                        </CatBtn>
-                      ))}
-                    </CategoryScroll>
+                          <FaChevronLeft size={10} />
+                        </ScrollArrowBtn>
+                      )}
+
+                      <CategoryScroll ref={categoryScrollRef}>
+                        {categories.map(c => (
+                          <CatBtn 
+                            key={c} 
+                            $active={activeCat === c} 
+                            $themeColor={THEME.main}
+                            onClick={() => setActiveCat(c)}
+                          >
+                            {c === 'ALL' ? 'Everything' : c}
+                          </CatBtn>
+                        ))}
+                      </CategoryScroll>
+
+                      {hasOverflow && (
+                        <ScrollArrowBtn
+                          type="button"
+                          disabled={!canScrollRight}
+                          onClick={() => scrollCarousel(180)}
+                          $themeColor={THEME.main}
+                          $softColor={THEME.soft}
+                          title="Scroll Right"
+                        >
+                          <FaChevronRight size={10} />
+                        </ScrollArrowBtn>
+                      )}
+                    </CategoryCarouselWrapper>
 
                     <ProductGrid>
                       {paginatedProducts.map(p => {
