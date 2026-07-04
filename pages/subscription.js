@@ -231,8 +231,9 @@ export default function SubscriptionPage() {
   // Calculate module proration if it is a mid-cycle upgrade
   const calculateModuleCost = (modulePrice) => {
     if (isSubscribed && !includeBasePlan) {
-      // Prorate cost based on remaining days left in year
-      return Math.max(1, Math.round((modulePrice / 365.0) * daysLeft))
+      // Prorate cost based on remaining days left in year, capped at standard price
+      const prorated = Math.max(1, Math.round((modulePrice / 365.0) * daysLeft))
+      return Math.min(prorated, modulePrice)
     }
     return modulePrice
   }
