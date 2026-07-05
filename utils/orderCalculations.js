@@ -134,11 +134,20 @@ export function calculateOrderTotals(
   if (discVal > 0 && totalBaseDiscountable > 0) {
     if (discType === 'percent') {
       const totalOrderDiscEx = totalBaseDiscountable * (discVal / 100);
+      let allocatedDiscountSum = 0;
 
-      discountableItems.forEach(i => {
+      discountableItems.forEach((i, idx) => {
         const isIncl = gstEnabled && (i.is_packaged_good || pricesIncludeTax);
-        const shareRatio = i._taxableBase / totalBaseDiscountable;
-        const itemDiscEx = totalOrderDiscEx * shareRatio;
+        
+        let itemDiscEx;
+        if (idx === discountableItems.length - 1) {
+          // Last active item absorbs the remainder
+          itemDiscEx = totalOrderDiscEx - allocatedDiscountSum;
+        } else {
+          const shareRatio = i._taxableBase / totalBaseDiscountable;
+          itemDiscEx = Number((totalOrderDiscEx * shareRatio).toFixed(dp));
+          allocatedDiscountSum += itemDiscEx;
+        }
 
         i.order_discount_share = itemDiscEx;
         i.order_discount_face_share = itemDiscEx * (1 + i.tax_rate / 100);
@@ -160,12 +169,21 @@ export function calculateOrderTotals(
       }, 0);
 
       const totalOrderDiscUnit = Math.min(discVal, totalPool);
+      let allocatedDiscountSum = 0;
 
-      discountableItems.forEach(i => {
+      discountableItems.forEach((i, idx) => {
         const isIncl = gstEnabled && (i.is_packaged_good || pricesIncludeTax);
         const itemVal = isIncl ? (i._taxableBase * (1 + i.tax_rate / 100)) : i._taxableBase;
-        const shareRatio = totalPool > 0 ? (itemVal / totalPool) : 0;
-        const discUnit = totalOrderDiscUnit * shareRatio;
+        
+        let discUnit;
+        if (idx === discountableItems.length - 1) {
+          // Last active item absorbs the remainder
+          discUnit = Number((totalOrderDiscUnit - allocatedDiscountSum).toFixed(dp));
+        } else {
+          const shareRatio = totalPool > 0 ? (itemVal / totalPool) : 0;
+          discUnit = Number((totalOrderDiscUnit * shareRatio).toFixed(dp));
+          allocatedDiscountSum += discUnit;
+        }
 
         if (isIncl) {
           // discUnit reduces Face (MRP)
