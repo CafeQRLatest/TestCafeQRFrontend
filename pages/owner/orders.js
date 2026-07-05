@@ -2132,38 +2132,82 @@ export default function OrdersPage() {
                    String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'PAID' && (
                     <CardActionBtn 
                       type="button" 
-                      $border="#dcfce7" 
-                      $bg="#f0fdf4" 
-                      $fg="#15803d" 
-                      $hoverBg="#dcfce7" 
-                      $hoverBorder="#bbf7d0" 
-                      $hoverFg="#166534"
+                      $border="#16a34a" 
+                      $bg="linear-gradient(135deg, #22c55e, #16a34a)" 
+                      $fg="white" 
+                      $hoverBg="linear-gradient(135deg, #16a34a, #15803d)" 
+                      $hoverBorder="#15803d" 
+                      $hoverFg="white"
+                      style={{ boxShadow: '0 2px 4px rgba(22, 163, 74, 0.2)' }}
                       onClick={() => setPaymentOrder(order)}
                     >
-                      <FaCheckCircle style={{ color: '#10b981' }} /> Complete
+                      <FaCheckCircle style={{ color: 'white' }} /> Complete
                     </CardActionBtn>
                   )}
-                  <CardActionBtn type="button" onClick={() => handlePrintKot(order)}>
+                  <CardActionBtn 
+                    type="button" 
+                    $border="#fed7aa" 
+                    $bg="#fff7ed" 
+                    $fg="#c2410c" 
+                    $hoverBg="#ffedd5" 
+                    $hoverBorder="#fba154" 
+                    $hoverFg="#9a3412"
+                    onClick={() => handlePrintKot(order)}
+                  >
                     <FaFire style={{ color: '#ea580c' }} /> KOT
                   </CardActionBtn>
-                  <CardActionBtn type="button" onClick={() => handlePrintBill(order)}>
+                  <CardActionBtn 
+                    type="button" 
+                    $border="#ffedd5" 
+                    $bg="#fffaf0" 
+                    $fg="#d97706" 
+                    $hoverBg="#ffedd5" 
+                    $hoverBorder="#fcd34d" 
+                    $hoverFg="#b45309"
+                    onClick={() => handlePrintBill(order)}
+                  >
                     <FaPrint style={{ color: '#f97316' }} /> Bill
                   </CardActionBtn>
-                  {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'COMPLETED' &&
-                   String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'PAID' && (
-                    <CardActionBtn type="button" onClick={() => setEditingOrder(order)}>
-                      <FaEdit style={{ color: '#475569' }} /> Edit
-                    </CardActionBtn>
-                  )}
-                  {canCancelOrder && 
-                   String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'COMPLETED' &&
-                   String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'PAID' && (
+                  <CardActionBtn 
+                    type="button" 
+                    $border="#bfdbfe" 
+                    $bg="#eff6ff" 
+                    $fg="#1d4ed8" 
+                    $hoverBg="#dbeafe" 
+                    $hoverBorder="#93c5fd" 
+                    $hoverFg="#1e40af"
+                    onClick={() => setEditingOrder(order)}
+                  >
+                    <FaEdit style={{ color: '#2563eb' }} /> Edit
+                  </CardActionBtn>
+                  <CardActionBtn 
+                    type="button" 
+                    $border="#e9d5ff" 
+                    $bg="#faf5ff" 
+                    $fg="#6b21a8" 
+                    $hoverBg="#f3e8ff" 
+                    $hoverBorder="#d8b4fe" 
+                    $hoverFg="#581c87"
+                    onClick={async () => {
+                      try {
+                        const full = await loadFullOrder(order.id);
+                        await downloadInvoicePdf(full || order);
+                      } catch (e) {
+                        notify('error', 'Failed to load order: ' + e.message);
+                      }
+                    }}
+                  >
+                    <FaFileInvoice style={{ color: '#7c3aed' }} /> Invoice
+                  </CardActionBtn>
+                  {canCancelOrder && (
                     <CardActionBtn 
                       type="button" 
-                      $border="#fee2e2" 
-                      $hoverBg="#fef2f2" 
-                      $hoverBorder="#fecaca" 
-                      $hoverFg="#b91c1c"
+                      $border="#fecaca" 
+                      $bg="#fef2f2" 
+                      $fg="#b91c1c" 
+                      $hoverBg="#fee2e2" 
+                      $hoverBorder="#fca5a5" 
+                      $hoverFg="#991b1b"
                       onClick={() => {
                         setCancelReason('');
                         setCancelOrder(order);
