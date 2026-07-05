@@ -124,6 +124,46 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   }));
   const WIN_HELPER_URL = '/desktop/Windows/CafeQR-PrintHub-Win.zip';
 
+  const [billPrinterMode, setBillPrinterMode] = useState(() => localStorage.getItem('ANDROID_BILL_MODE') || 'bluetooth');
+  const [kotPrinterMode, setKotPrinterMode] = useState(() => localStorage.getItem('ANDROID_KOT_MODE') || 'bluetooth');
+
+  const [billPrinterIp, setBillPrinterIp] = useState(() => localStorage.getItem('PRINTER_IP') || '');
+  const [billPrinterPort, setBillPrinterPort] = useState(() => localStorage.getItem('PRINTER_PORT') || '9100');
+
+  const [kotPrinterIp, setKotPrinterIp] = useState(() => localStorage.getItem('PRINTER_IP_KOT') || '');
+  const [kotPrinterPort, setKotPrinterPort] = useState(() => localStorage.getItem('PRINTER_PORT_KOT') || '9100');
+
+  const saveAndroidLanSettings = (kind) => {
+    if (kind === 'bill') {
+      localStorage.setItem('ANDROID_BILL_MODE', 'lan');
+      localStorage.setItem('PRINTER_IP', billPrinterIp.trim());
+      localStorage.setItem('PRINTER_PORT', billPrinterPort.trim());
+    } else {
+      localStorage.setItem('ANDROID_KOT_MODE', 'lan');
+      localStorage.setItem('PRINTER_IP_KOT', kotPrinterIp.trim());
+      localStorage.setItem('PRINTER_PORT_KOT', kotPrinterPort.trim());
+    }
+    localStorage.setItem('PRINTER_MODE', 'bt-android');
+    localStorage.setItem('PRINTER_READY', '1');
+    localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+    publishPrintStationChange();
+    setMsg(`✓ Android LAN settings saved for ${kind === 'kot' ? 'KOT' : 'Bill'}`);
+  };
+
+  const switchAndroidPrinterMode = (kind, mode) => {
+    if (kind === 'bill') {
+      setBillPrinterMode(mode);
+      localStorage.setItem('ANDROID_BILL_MODE', mode);
+    } else {
+      setKotPrinterMode(mode);
+      localStorage.setItem('ANDROID_KOT_MODE', mode);
+    }
+    localStorage.setItem('PRINTER_MODE', 'bt-android');
+    localStorage.setItem('PRINTER_READY', '1');
+    localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
+    publishPrintStationChange();
+  };
+
   const canEditRouting = routingEnabled; // simple switch; you can relax this later
 
   // ---------- helpers ----------
@@ -674,17 +714,65 @@ function saveNetworkPrinters() {
                   <FaPrint className="android-printer-icon" />
                   <div>
                     <h5>Final/Bill Printer</h5>
-                    <p>{androidBillPrinter.address ? (androidBillPrinter.name || androidBillPrinter.address) : 'No printer paired'}</p>
+                    <div className="mode-toggle-group">
+                      <button 
+                        className={`mode-btn ${billPrinterMode === 'bluetooth' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('bill', 'bluetooth')}
+                      >
+                        Bluetooth
+                      </button>
+                      <button 
+                        className={`mode-btn ${billPrinterMode === 'lan' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('bill', 'lan')}
+                      >
+                        LAN / Network
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="android-action-row">
-                  <button onClick={() => pairAndroidPrinter('bill')} className="btn-secondary">
-                    <FaBluetooth /> Pair Final/Bill Printer
-                  </button>
-                  <button onClick={testBillPrinter} className="btn-outline">
-                    <FaPrint /> Test Final/Bill Print
-                  </button>
-                </div>
+
+                {billPrinterMode === 'bluetooth' ? (
+                  <>
+                    <p className="status-text">
+                      {androidBillPrinter.address ? (androidBillPrinter.name || androidBillPrinter.address) : 'No Bluetooth printer paired'}
+                    </p>
+                    <div className="android-action-row">
+                      <button onClick={() => pairAndroidPrinter('bill')} className="btn-secondary">
+                        <FaBluetooth /> Pair Printer
+                      </button>
+                      <button onClick={testBillPrinter} className="btn-outline">
+                        <FaPrint /> Test Print
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="lan-input-section">
+                    <div className="lan-input-row">
+                      <input 
+                        type="text" 
+                        value={billPrinterIp} 
+                        onChange={(e) => setBillPrinterIp(e.target.value)} 
+                        placeholder="Printer IP (e.g. 192.168.1.100)"
+                        className="form-input"
+                      />
+                      <input 
+                        type="number" 
+                        value={billPrinterPort} 
+                        onChange={(e) => setBillPrinterPort(e.target.value)} 
+                        placeholder="Port (9100)"
+                        className="form-input port"
+                      />
+                    </div>
+                    <div className="android-action-row">
+                      <button onClick={() => saveAndroidLanSettings('bill')} className="btn-secondary">
+                        Save LAN Config
+                      </button>
+                      <button onClick={testBillPrinter} className="btn-outline">
+                        <FaPrint /> Test Print
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="android-printer-panel">
@@ -692,17 +780,65 @@ function saveNetworkPrinters() {
                   <FaBluetooth className="android-printer-icon" />
                   <div>
                     <h5>KOT Printer</h5>
-                    <p>{androidKotPrinter.address ? (androidKotPrinter.name || androidKotPrinter.address) : 'No printer paired'}</p>
+                    <div className="mode-toggle-group">
+                      <button 
+                        className={`mode-btn ${kotPrinterMode === 'bluetooth' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('kot', 'bluetooth')}
+                      >
+                        Bluetooth
+                      </button>
+                      <button 
+                        className={`mode-btn ${kotPrinterMode === 'lan' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('kot', 'lan')}
+                      >
+                        LAN / Network
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="android-action-row">
-                  <button onClick={() => pairAndroidPrinter('kot')} className="btn-secondary">
-                    <FaBluetooth /> Pair KOT Printer
-                  </button>
-                  <button onClick={testKotPrinter} className="btn-outline">
-                    <FaPlus /> Test KOT Print
-                  </button>
-                </div>
+
+                {kotPrinterMode === 'bluetooth' ? (
+                  <>
+                    <p className="status-text">
+                      {androidKotPrinter.address ? (androidKotPrinter.name || androidKotPrinter.address) : 'No Bluetooth printer paired'}
+                    </p>
+                    <div className="android-action-row">
+                      <button onClick={() => pairAndroidPrinter('kot')} className="btn-secondary">
+                        <FaBluetooth /> Pair Printer
+                      </button>
+                      <button onClick={testKotPrinter} className="btn-outline">
+                        <FaPlus /> Test Print
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="lan-input-section">
+                    <div className="lan-input-row">
+                      <input 
+                        type="text" 
+                        value={kotPrinterIp} 
+                        onChange={(e) => setKotPrinterIp(e.target.value)} 
+                        placeholder="Printer IP (e.g. 192.168.1.101)"
+                        className="form-input"
+                      />
+                      <input 
+                        type="number" 
+                        value={kotPrinterPort} 
+                        onChange={(e) => setKotPrinterPort(e.target.value)} 
+                        placeholder="Port (9100)"
+                        className="form-input port"
+                      />
+                    </div>
+                    <div className="android-action-row">
+                      <button onClick={() => saveAndroidLanSettings('kot')} className="btn-secondary">
+                        Save LAN Config
+                      </button>
+                      <button onClick={testKotPrinter} className="btn-outline">
+                        <FaPlus /> Test Print
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -915,6 +1051,12 @@ function saveNetworkPrinters() {
         .hw-toast { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 10px 20px; border-radius: 99px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; z-index: 9999; box-shadow: 0 5px 15px rgba(0,0,0,0.2); animation: slideUp 0.3s ease-out; }
         .hw-toast.error { background: #dc2626; }
         @keyframes slideUp { from { bottom: 65px; opacity: 0; } to { bottom: 85px; opacity: 1; } }
+        .mode-toggle-group { display: flex; gap: 4px; margin-top: 6px; background: #e2e8f0; padding: 3px; border-radius: 8px; }
+        .mode-btn { border: none; background: transparent; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; color: #475569; cursor: pointer; transition: 0.15s; }
+        .mode-btn.active { background: white; color: #f97316; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .status-text { font-size: 12.5px; color: #64748b; font-weight: 600; margin: 8px 0; word-break: break-word; }
+        .lan-input-section { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+        .lan-input-row { display: flex; gap: 8px; }
       `}</style>
     </div>
   );

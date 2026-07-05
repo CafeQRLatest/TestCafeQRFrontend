@@ -448,7 +448,34 @@ async function printUniversalNow(opts: Options) {
       const { DevicePrinter } = (window as any).Capacitor.Plugins;
       await DevicePrinter.ensurePermissions();
 
+      if (opts.ip) {
+        await DevicePrinter.printTcpRaw({
+          base64,
+          host: opts.ip,
+          port: opts.port ?? 9100
+        });
+        return { via: 'android-pos' as const };
+      }
+
       const job: 'bill' | 'kot' = jobKind === 'kot' ? 'kot' : 'bill';
+
+      const modeKey = job === 'kot' ? 'ANDROID_KOT_MODE' : 'ANDROID_BILL_MODE';
+      const isLan = window.localStorage.getItem(modeKey) === 'lan';
+      if (isLan) {
+        const netIpKey = job === 'kot' ? 'PRINTER_IP_KOT' : 'PRINTER_IP';
+        const netPortKey = job === 'kot' ? 'PRINTER_PORT_KOT' : 'PRINTER_PORT';
+        const savedIp = (window.localStorage.getItem(netIpKey) || '').trim();
+        const savedPort = Number(window.localStorage.getItem(netPortKey) || 9100);
+
+        if (savedIp) {
+          await DevicePrinter.printTcpRaw({
+            base64,
+            host: savedIp,
+            port: savedPort
+          });
+          return { via: 'android-pos' as const };
+        }
+      }
 
       // V2 arrays
       const addrArrKey = job === 'kot' ? 'BT_PRINTER_ADDRS_KOT' : 'BT_PRINTER_ADDRS_BILL';

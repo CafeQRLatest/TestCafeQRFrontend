@@ -75,11 +75,8 @@ public class DevicePrinterPlugin extends Plugin {
     new Handler(Looper.getMainLooper()).post(() -> {
       PluginCall saved = bridge.getSavedCall(callbackId);
       if (saved == null) return;
-      try {
-        saved.resolve(out);
-      } finally {
-        saved.release(getBridge());
-      }
+      saved.resolve(out);
+      bridge.releaseCall(saved);
     });
   }
 
@@ -87,12 +84,9 @@ public class DevicePrinterPlugin extends Plugin {
     new Handler(Looper.getMainLooper()).post(() -> {
       PluginCall saved = bridge.getSavedCall(callbackId);
       if (saved == null) return;
-      try {
-        if (error != null) saved.reject(message, error);
-        else saved.reject(message);
-      } finally {
-        saved.release(getBridge());
-      }
+      if (error != null) saved.reject(message, error);
+      else saved.reject(message);
+      bridge.releaseCall(saved);
     });
   }
 
@@ -396,36 +390,19 @@ public class DevicePrinterPlugin extends Plugin {
 
     if (base64 == null) { call.reject("base64 required"); return; }
 
-    call.setKeepAlive(true);
-
-    final byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-
     getBridge().execute(() -> {
       try {
+        final byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
         final boolean okUsb = tryUsb(getContext(), data);
         final boolean okBt = !okUsb && tryBluetooth(getContext(), data, btAddress, nameContains);
 
         final JSObject out = new JSObject();
         out.put("via", okUsb ? "usb" : (okBt ? "bt" : "none"));
 
-        Handler main = new Handler(Looper.getMainLooper());
-        main.post(() -> {
-          try {
-            if (okUsb || okBt) call.resolve(out);
-            else call.reject("No USB/Bluetooth path");
-          } finally {
-            call.release(getBridge());
-          }
-        });
+        if (okUsb || okBt) call.resolve(out);
+        else call.reject("No USB/Bluetooth path");
       } catch (Exception e) {
-        Handler main = new Handler(Looper.getMainLooper());
-        main.post(() -> {
-          try {
-            call.reject(e.getMessage() != null ? e.getMessage() : "PRINT_FAILED", e);
-          } finally {
-            call.release(getBridge());
-          }
-        });
+        call.reject(e.getMessage() != null ? e.getMessage() : "PRINT_FAILED", e);
       }
     });
   }
@@ -439,13 +416,11 @@ public class DevicePrinterPlugin extends Plugin {
     if (base64 == null) { call.reject("base64 required"); return; }
     if (host == null || host.trim().isEmpty()) { call.reject("host required"); return; }
 
-    call.setKeepAlive(true);
-    final byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-
     getBridge().execute(() -> {
       java.net.Socket socket = null;
       java.io.OutputStream os = null;
       try {
+        final byte[] data = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
         socket = new java.net.Socket();
         socket.connect(new java.net.InetSocketAddress(host, port), 5000);
         socket.setSoTimeout(5000);
@@ -476,18 +451,9 @@ public class DevicePrinterPlugin extends Plugin {
         out.put("host", host);
         out.put("port", port);
 
-        Handler main = new Handler(Looper.getMainLooper());
-        main.post(() -> {
-          try { call.resolve(out); }
-          finally { call.release(getBridge()); }
-        });
-
+        call.resolve(out);
       } catch (Exception e) {
-        Handler main = new Handler(Looper.getMainLooper());
-        main.post(() -> {
-          try { call.reject(e.getMessage() != null ? e.getMessage() : "TCP_PRINT_FAILED", e); }
-          finally { call.release(getBridge()); }
-        });
+        call.reject(e.getMessage() != null ? e.getMessage() : "TCP_PRINT_FAILED", e);
       } finally {
         try { if (os != null) os.close(); } catch (Exception ignored) {}
         try { if (socket != null) socket.close(); } catch (Exception ignored) {}
