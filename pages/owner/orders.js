@@ -2345,6 +2345,9 @@ export default function OrdersPage() {
         params: { status: nextStatus },
       });
       await loadOrders();
+      if (activeSegment === 'completed') {
+        fetchHistoryOrders(historyPage.number || 0);
+      }
     } catch (e) {
       notify('error', 'Failed to update status: ' + (e.response?.data?.message || e.message));
     } finally {
@@ -2493,6 +2496,9 @@ export default function OrdersPage() {
       setPaymentOrder(null);
       setEditingOrder(null); // Only hide the edit panel after payment success!
       await loadOrders();
+      if (activeSegment === 'completed') {
+        fetchHistoryOrders(historyPage.number || 0);
+      }
     } catch (e) {
       notify('error', 'Payment settlement failed: ' + (e.response?.data?.message || e.message));
     }
