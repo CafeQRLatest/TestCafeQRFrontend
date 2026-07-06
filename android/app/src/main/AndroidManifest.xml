@@ -3,6 +3,8 @@
     <!-- Network (for cloud API + IP/Ethernet/Wi-Fi printers via sockets) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 13+ Runtime Push Notification Permission -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- USB Host printing (optional capability) -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

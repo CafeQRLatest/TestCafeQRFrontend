@@ -2307,6 +2307,18 @@ export default function OrdersPage() {
   }, [loadOrders, fetchTables]);
 
   useEffect(() => {
+    if (liveOrders.length) {
+      getRestaurantProfile().then(profile => {
+        if (profile) {
+          autoPrintNewRemoteOrders(liveOrders, profile);
+        }
+      }).catch(err => {
+        console.error('Failed to get profile for auto-print:', err);
+      });
+    }
+  }, [liveOrders]);
+
+  useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const handleMessage = (event) => {
