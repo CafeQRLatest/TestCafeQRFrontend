@@ -747,9 +747,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     items.forEach((it) => {
       const qtyNum = Number(it.quantity || 1);
       const rateNum = Number(it.price || 0);
-      const lineTotalNum = isInclusiveMode
-        ? (Number.isFinite(Number(it.line_total)) ? Number(it.line_total) : rateNum * qtyNum)
-        : (Number.isFinite(Number(it.line_total)) ? Number(it.line_total) - Number(it.tax_amount || 0) : rateNum * qtyNum);
+      const lineTotalNum = rateNum * qtyNum;
       const nameLines = wrapText(it.variant_name ? `${it.name} (${it.variant_name})` : it.name, name);
       const qtyStr = Number.isInteger(qtyNum) ? qtyNum.toString() : qtyNum.toFixed(2);
       const totalStr = lineTotalNum.toFixed(2);
