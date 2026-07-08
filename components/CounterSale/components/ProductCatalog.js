@@ -12,6 +12,7 @@ export default function ProductCatalog({
   ui,
   order
 }) {
+  const searchInputRef = React.useRef(null);
   const { config, startNewProductForPopup, categories } = bootstrap;
   const { 
     search, setSearch, productListingOn, standardMatches, addFromStandardSearch,
@@ -28,6 +29,7 @@ export default function ProductCatalog({
         <S.CsSearchBar>
           <S.CsSearchIcon><FaSearch/></S.CsSearchIcon>
           <S.CsSearchInput 
+            ref={searchInputRef}
             placeholder="Search menu items..." 
             value={search} 
             onChange={e => setSearch(e.target.value)}
@@ -43,13 +45,13 @@ export default function ProductCatalog({
                     return (
                       <S.CsSuggestItem
                         key={p.id}
-                        onClick={() => addFromStandardSearch(p)}
+                        onClick={() => addFromStandardSearch(p, searchInputRef)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            addFromStandardSearch(p);
+                            addFromStandardSearch(p, searchInputRef);
                           }
                         }}
                       >

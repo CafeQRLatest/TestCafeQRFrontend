@@ -534,7 +534,7 @@ export default function useCounterSaleController({
       visibleProducts,
       paginatedProducts,
       standardMatches,
-      addFromStandardSearch: (p, ref) => addFromStandardSearch(p, ref),
+      addFromStandardSearch: (p, ref) => addFromStandardSearch(p, addToCart, ref),
       PRODUCT_PAGE_SIZE
     },
     cart: {
