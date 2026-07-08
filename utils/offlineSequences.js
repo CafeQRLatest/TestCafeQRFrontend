@@ -1,6 +1,7 @@
 import Cookies from 'js-cookie';
 import api from './api';
 import { isPrintStationEnabled } from './cloudPrintStation';
+import { Capacitor } from '@capacitor/core';
 
 const STORAGE_KEY = 'CAFEQR_OFFLINE_SEQUENCE_LEASES_V1';
 
@@ -23,6 +24,7 @@ function writeLeases(leases) {
 
 export function isMainOfflineBillingDevice() {
   if (!isBrowser()) return false;
+  if (Capacitor.isNativePlatform()) return true;
   return window.localStorage.getItem('CAFEQR_MAIN_OFFLINE_DEVICE') === '1' || isPrintStationEnabled();
 }
 
@@ -69,7 +71,11 @@ export function allocateOfflineSequence(documentType) {
   });
 
   if (index < 0) {
-    throw new Error(`No offline ${documentType} numbers reserved. Reconnect the main billing device to refresh offline billing ranges.`);
+    const terminalId = Cookies.get('terminalId') || '0';
+    const localCounterKey = `CAFEQR_LOCAL_COUNTER_${documentType}_${terminalId}`;
+    const nextLocalNum = Number(window.localStorage.getItem(localCounterKey) || 1);
+    window.localStorage.setItem(localCounterKey, String(nextLocalNum + 1));
+    return `OFFLINE-${documentType}-T${terminalId}-${nextLocalNum}`;
   }
 
   const lease = leases[index];
