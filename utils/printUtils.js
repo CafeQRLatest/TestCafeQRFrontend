@@ -710,7 +710,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     wrapText(address, W).forEach((l) => lines.push(withMargins(center(l, W), layout)));
     if (phone) lines.push(withMargins(center(`Contact No.: ${phone}`, W), layout));
     if (showFssai && restaurantProfile?.fssai_license) lines.push(withMargins(center(`FSSAI: ${restaurantProfile.fssai_license}`, W), layout));
-    if (showGstBreakdown && (restaurantProfile?.gst_enabled || restaurantProfile?.gst_enabled === 'true') && restaurantProfile?.gstin) {
+    if (showGstBreakdown && (restaurantProfile?.tax_enabled || restaurantProfile?.tax_enabled === 'true' || restaurantProfile?.gst_enabled || restaurantProfile?.gst_enabled === 'true') && restaurantProfile?.gstin) {
       lines.push(withMargins(center(`GSTIN: ${restaurantProfile.gstin}`, W), layout));
     }
     lines.push(withMargins(dashes(), layout));
