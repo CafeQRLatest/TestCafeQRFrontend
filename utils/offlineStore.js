@@ -11,6 +11,31 @@ const isBrowser = () => typeof window !== 'undefined' && typeof indexedDB !== 'u
 
 let dbPromise;
 
+function closeOfflineDb() {
+  if (dbPromise) {
+    dbPromise.then((db) => {
+      if (db) {
+        try {
+          db.close();
+          console.info('[Offline DB] Gracefully closed database connection due to app backgrounding.');
+        } catch (e) {
+          console.error('[Offline DB] Error closing database connection:', e);
+        }
+      }
+    }).catch(() => {});
+    dbPromise = null;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => closeOfflineDb());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      closeOfflineDb();
+    }
+  });
+}
+
 function openOfflineDb() {
   if (!isBrowser()) {
     return Promise.resolve(null);
@@ -20,47 +45,98 @@ function openOfflineDb() {
     return dbPromise;
   }
 
-  dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+  dbPromise = new Promise((resolve) => {
+    let resolved = false;
 
-    request.onupgradeneeded = () => {
-      const db = request.result;
-
-      if (!db.objectStoreNames.contains(RESPONSE_STORE)) {
-        db.createObjectStore(RESPONSE_STORE, { keyPath: 'key' });
+    // Safety timeout: If opening IndexedDB hangs for more than 3 seconds,
+    // resolve with null so the app boots successfully in online mode.
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.warn('[Offline DB] indexedDB.open timed out after 3000ms. Falling back to online mode.');
+        resolve(null);
       }
+    }, 3000);
 
-      if (!db.objectStoreNames.contains(QUEUE_STORE)) {
-        const queue = db.createObjectStore(QUEUE_STORE, { keyPath: 'id' });
-        queue.createIndex('status', 'status', { unique: false });
-        queue.createIndex('createdAt', 'createdAt', { unique: false });
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = () => {
+        try {
+          const db = request.result;
+
+          if (!db.objectStoreNames.contains(RESPONSE_STORE)) {
+            db.createObjectStore(RESPONSE_STORE, { keyPath: 'key' });
+          }
+
+          if (!db.objectStoreNames.contains(QUEUE_STORE)) {
+            const queue = db.createObjectStore(QUEUE_STORE, { keyPath: 'id' });
+            queue.createIndex('status', 'status', { unique: false });
+            queue.createIndex('createdAt', 'createdAt', { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains(META_STORE)) {
+            db.createObjectStore(META_STORE, { keyPath: 'key' });
+          }
+
+          if (!db.objectStoreNames.contains(ENTITY_STORE)) {
+            const entities = db.createObjectStore(ENTITY_STORE, { keyPath: 'storeKey' });
+            entities.createIndex('collection', 'collection', { unique: false });
+            entities.createIndex('updatedAt', 'updatedAt', { unique: false });
+          }
+
+          if (!db.objectStoreNames.contains(PRINT_JOB_STORE)) {
+            const printJobs = db.createObjectStore(PRINT_JOB_STORE, { keyPath: 'id' });
+            printJobs.createIndex('status', 'status', { unique: false });
+            printJobs.createIndex('orderId', 'orderId', { unique: false });
+            printJobs.createIndex('offlineOperationId', 'offlineOperationId', { unique: false });
+            printJobs.createIndex('updatedAt', 'updatedAt', { unique: false });
+          }
+        } catch (upgradeErr) {
+          console.error('[Offline DB] onupgradeneeded failed:', upgradeErr);
+        }
+      };
+
+      request.onsuccess = () => {
+        clearTimeout(timeoutId);
+        if (!resolved) {
+          resolved = true;
+          const db = request.result;
+          db.onversionchange = () => {
+            db.close();
+            if (dbPromise && dbPromise.then) {
+              dbPromise = null;
+            }
+          };
+          resolve(db);
+        }
+      };
+
+      request.onerror = (err) => {
+        clearTimeout(timeoutId);
+        console.error('[Offline DB] indexedDB.open error:', err || request.error);
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      };
+
+      request.onblocked = (err) => {
+        clearTimeout(timeoutId);
+        console.warn('[Offline DB] indexedDB.open was blocked by another connection:', err);
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      };
+    } catch (e) {
+      clearTimeout(timeoutId);
+      console.error('[Offline DB] Synchronous exception during indexedDB.open:', e);
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
       }
-
-      if (!db.objectStoreNames.contains(META_STORE)) {
-        db.createObjectStore(META_STORE, { keyPath: 'key' });
-      }
-
-      if (!db.objectStoreNames.contains(ENTITY_STORE)) {
-        const entities = db.createObjectStore(ENTITY_STORE, { keyPath: 'storeKey' });
-        entities.createIndex('collection', 'collection', { unique: false });
-        entities.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains(PRINT_JOB_STORE)) {
-        const printJobs = db.createObjectStore(PRINT_JOB_STORE, { keyPath: 'id' });
-        printJobs.createIndex('status', 'status', { unique: false });
-        printJobs.createIndex('orderId', 'orderId', { unique: false });
-        printJobs.createIndex('offlineOperationId', 'offlineOperationId', { unique: false });
-        printJobs.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-
-    request.onsuccess = () => {
-      const db = request.result;
-      db.onversionchange = () => db.close();
-      resolve(db);
-    };
-    request.onerror = () => reject(request.error);
+    }
   });
 
   return dbPromise;
@@ -205,7 +281,8 @@ export function isOfflineQueueableMutation(config = {}) {
     && !path.startsWith('/api/v1/sync/')
     && !path.startsWith('/api/v1/public/')
     && !isAccountingMaintenanceMutation(path)
-    && !path.includes('/payment');
+    && !path.includes('payment')
+    && !path.startsWith('/api/v1/subscription/');
 }
 
 export async function cacheApiResponse(config, data) {

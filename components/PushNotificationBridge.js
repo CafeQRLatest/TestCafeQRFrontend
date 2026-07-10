@@ -4,6 +4,7 @@ import { getFCMToken } from '../lib/firebase/messaging';
 import { detectPushPlatform, getStoredPreference } from '../lib/push/tokenStore';
 import api from '../utils/api';
 import { playSoundAlert, startDeliveryAlarm, stopDeliveryAlarm } from '../utils/audio';
+import { Capacitor } from '@capacitor/core';
 
 export default function PushNotificationBridge() {
   const { isAuthenticated } = useAuth();
@@ -97,6 +98,155 @@ export default function PushNotificationBridge() {
     navigator.serviceWorker.addEventListener('message', handleSWMessage);
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    };
+  }, []);
+
+  // Listen to native push notification events for custom sound and Accept/Decline action buttons
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let receivedListener = null;
+    let actionListener = null;
+
+    const setupNativePush = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+
+        // 1. Create channels for Android custom sounds.
+        // Once created, these channels register sound files located in res/raw (without file extension)
+        const channels = [
+          {
+            id: 'channel_kitchen',
+            name: 'Kitchen Orders',
+            description: 'Notifications for new kitchen/dine-in orders',
+            sound: 'kitchen',
+            importance: 5, // High
+            visibility: 1, // Public
+            vibration: true,
+          },
+          {
+            id: 'channel_takeaway',
+            name: 'Takeaway Orders',
+            description: 'Notifications for new takeaway/parcel orders',
+            sound: 'takeaway',
+            importance: 5, // High
+            visibility: 1, // Public
+            vibration: true,
+          },
+          {
+            id: 'channel_delivery',
+            name: 'Delivery Orders',
+            description: 'Notifications for new delivery orders',
+            sound: 'delivery',
+            importance: 5, // High
+            visibility: 1, // Public
+            vibration: true,
+          },
+          {
+            id: 'channel_settle',
+            name: 'Settled Orders',
+            description: 'Notifications for settled orders',
+            sound: 'settle',
+            importance: 5, // High
+            visibility: 1, // Public
+            vibration: true,
+          },
+        ];
+
+        for (const channel of channels) {
+          await PushNotifications.createChannel(channel);
+        }
+        console.log('[PushBridge] Native notification channels verified/created.');
+
+        // 2. Register native action category for Delivery orders (adds Accept/Decline buttons)
+        await PushNotifications.registerActionTypes({
+          types: [
+            {
+              id: 'DELIVERY_ACTIONS',
+              actions: [
+                {
+                  id: 'accept',
+                  title: 'Accept',
+                  foreground: true,
+                },
+                {
+                  id: 'decline',
+                  title: 'Decline',
+                  foreground: true,
+                },
+              ],
+            },
+          ],
+        });
+        console.log('[PushBridge] Native delivery action categories registered.');
+
+        // 3. Play sounds for push notifications received while the app is in the foreground
+        receivedListener = await PushNotifications.addListener(
+          'pushNotificationReceived',
+          (notification) => {
+            console.log('[PushBridge] Native foreground notification received:', notification);
+            const data = notification.data || {};
+            const category = String(data.category || '').toUpperCase();
+            const orderId = String(data.orderId || data.order_id || 'generic');
+            const type = String(data.type || 'new_order').toLowerCase();
+
+            // Play sound (loop for Delivery, play once for others)
+            if (category === 'DELIVERY') {
+              startDeliveryAlarm(orderId);
+            } else {
+              playSoundAlert(type, category);
+            }
+          }
+        );
+
+        // 4. Handle user interactions with native push notifications (button clicks & taps)
+        actionListener = await PushNotifications.addListener(
+          'pushNotificationActionPerformed',
+          async (action) => {
+            console.log('[PushBridge] Native push action performed:', action);
+            const data = action.notification?.data || {};
+            const orderId = String(data.orderId || data.order_id || '');
+
+            // Silence the delivery alarm if ringing
+            if (orderId) {
+              stopDeliveryAlarm(orderId);
+            }
+
+            if (action.actionId === 'accept' && orderId) {
+              try {
+                await api.patch(`/api/v1/orders/${orderId}/status?status=CONFIRMED`);
+                console.log('[PushBridge] Successfully accepted order natively:', orderId);
+              } catch (err) {
+                console.error('[PushBridge] Failed to accept order natively:', err);
+              }
+            } else if (action.actionId === 'decline' && orderId) {
+              try {
+                await api.post(`/api/v1/orders/${orderId}/cancel`, {
+                  reason: 'Declined via push notification',
+                });
+                console.log('[PushBridge] Successfully declined order natively:', orderId);
+              } catch (err) {
+                console.error('[PushBridge] Failed to decline order natively:', err);
+              }
+            }
+
+            // Always navigate to the orders page upon notification interaction
+            if (typeof window !== 'undefined') {
+              window.location.href = '/owner/orders';
+            }
+          }
+        );
+
+      } catch (err) {
+        console.error('[PushBridge] Failed to initialize native push config:', err);
+      }
+    };
+
+    setupNativePush();
+
+    return () => {
+      if (receivedListener) receivedListener.remove();
+      if (actionListener) actionListener.remove();
     };
   }, []);
 
