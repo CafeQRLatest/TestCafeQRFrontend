@@ -23,6 +23,11 @@ const getAiParseEndpoint = () => {
     && window.Capacitor?.isNativePlatform?.();
 
   if (isNativeShell) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    // If WebView is loading a remote hosted domain (Vercel, Hostinger etc.), we can safely use its API route
+    if (origin && !origin.includes('localhost') && !origin.startsWith('file:')) {
+      return `${origin}/api/ai/parse-menu`;
+    }
     throw new Error('NEXT_PUBLIC_AI_PARSE_URL must point to the hosted Vercel AI parse route for native builds.');
   }
 

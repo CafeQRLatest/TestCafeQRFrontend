@@ -23,6 +23,63 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620603470804:android:676e5c8df3ff8fced1dc41",
+        "android_client_info": {
+          "package_name": "com.cafeqr.app.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA91-Yp-QQrKEHilYAelbGTMcqAC4fEQKY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620603470804:android:03236f1e43119ea8d1dc41",
+        "android_client_info": {
+          "package_name": "com.cafeqr.delivery"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA91-Yp-QQrKEHilYAelbGTMcqAC4fEQKY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620603470804:android:f55983188d2c4001d1dc41",
+        "android_client_info": {
+          "package_name": "com.cafeqr.delivery.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA91-Yp-QQrKEHilYAelbGTMcqAC4fEQKY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Cafe QR POS</string>
-    <string name="title_activity_main">Cafe QR POS</string>
-    <string name="package_name">com.cafeqr.app</string>
-    <string name="custom_url_scheme">com.cafeqr.app</string>
+    <string name="app_name">Test Cafe QR POS</string>
+    <string name="title_activity_main">Test Cafe QR POS</string>
+    <string name="package_name">com.cafeqr.app.test</string>
+    <string name="custom_url_scheme">com.cafeqr.app.test</string>
 </resources>
 
