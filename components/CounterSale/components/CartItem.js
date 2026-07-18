@@ -1,17 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FaMinus, FaPlus, FaEdit, FaStickyNote, FaTimes } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
-
-const NOTE_PRESETS = [
-  'No Spicy',
-  'Medium Spicy',
-  'Spicy',
-  'No Onion',
-  'No Garlic',
-  'Sugar Free',
-  'No Ice',
-  'Parcel'
-];
 
 export default function CartItem({
   item,
@@ -26,70 +15,38 @@ export default function CartItem({
 }) {
   const key = cartKeyFor(item);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [customNote, setCustomNote] = useState('');
+  const [localNote, setLocalNote] = useState(item.description || '');
   const inputRef = useRef(null);
 
-  const currentNotesStr = item.description || '';
-  const hasNote = Boolean(currentNotesStr.trim());
+  const hasNote = Boolean(item.description && item.description.trim());
 
-  // Clean split of current notes
-  const getNoteParts = () => {
-    return currentNotesStr.split(',').map(p => p.trim()).filter(Boolean);
-  };
+  // Sync local note state if item.description changes from outside
+  useEffect(() => {
+    setLocalNote(item.description || '');
+  }, [item.description]);
 
   const handleNoteToggle = (e) => {
     e.stopPropagation();
     if (!noteOpen) {
-      // Open option tool
-      // Extract custom note (anything not in presets)
-      const parts = getNoteParts();
-      const presetsLower = NOTE_PRESETS.map(p => p.toLowerCase());
-      const customParts = parts.filter(p => !presetsLower.includes(p.toLowerCase()));
-      setCustomNote(customParts.join(', '));
+      setLocalNote(item.description || '');
       setNoteOpen(true);
       setTimeout(() => inputRef.current?.focus(), 50);
     } else {
+      const trimmed = localNote.trim();
+      setItemDescription?.(key, trimmed || null);
       setNoteOpen(false);
     }
   };
 
-  const togglePreset = (preset) => {
-    const parts = getNoteParts();
-    const index = parts.findIndex(p => p.toLowerCase() === preset.toLowerCase());
-    
-    let newParts;
-    if (index > -1) {
-      newParts = parts.filter((_, i) => i !== index);
-    } else {
-      newParts = [...parts, preset];
-    }
-    
-    const newNote = newParts.join(', ');
-    setItemDescription?.(key, newNote || null);
-  };
-
-  const handleCustomNoteChange = (e) => {
-    const val = e.target.value;
-    setCustomNote(val);
-    
-    // Merge current preset active items with the new custom value
-    const parts = getNoteParts();
-    const presetsLower = NOTE_PRESETS.map(p => p.toLowerCase());
-    // Keep only preset parts in the active list
-    const activePresets = parts.filter(p => presetsLower.includes(p.toLowerCase()));
-    
-    // Add custom note if present
-    const newParts = [...activePresets];
-    if (val.trim()) {
-      newParts.push(val.trim());
-    }
-    
-    setItemDescription?.(key, newParts.join(', ') || null);
+  const handleNoteSave = () => {
+    const trimmed = localNote.trim();
+    setItemDescription?.(key, trimmed || null);
+    setNoteOpen(false);
   };
 
   const handleNoteClear = (e) => {
     e.stopPropagation();
-    setCustomNote('');
+    setLocalNote('');
     setItemDescription?.(key, null);
     setNoteOpen(false);
   };
@@ -97,16 +54,12 @@ export default function CartItem({
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      setNoteOpen(false);
+      handleNoteSave();
     }
     if (e.key === 'Escape') {
       setNoteOpen(false);
     }
     e.stopPropagation();
-  };
-
-  const isPresetActive = (preset) => {
-    return getNoteParts().some(p => p.toLowerCase() === preset.toLowerCase());
   };
 
   return (
@@ -162,7 +115,7 @@ export default function CartItem({
             type="button"
             $hasNote={hasNote}
             onClick={handleNoteToggle}
-            title={hasNote ? `Note: ${currentNotesStr}` : 'Add kitchen note'}
+            title={hasNote ? `Note: ${item.description}` : 'Add kitchen note'}
           >
             <FaStickyNote size={8} />
             {noteOpen ? 'Done' : 'Note'}
@@ -197,87 +150,55 @@ export default function CartItem({
         </div>
       </div>
 
-      {/* Row 3: Note preview (closed) */}
+      {/* Row 3: Note preview (closed) - font color is black */}
       {hasNote && !noteOpen && (
         <div style={{
           marginTop: '4px',
           padding: '4px 8px',
-          background: '#fff7ed',
-          border: '1px solid #fed7aa',
+          background: '#f8fafc',
+          border: '1px solid #cbd5e1',
           borderRadius: '6px',
           fontSize: '10px',
-          color: '#c2410c',
+          color: '#0f172a',
           fontWeight: 700,
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '5px',
           lineHeight: '1.3'
         }}>
-          <FaStickyNote size={8} style={{ color: '#ea580c', flexShrink: 0 }} />
-          <span style={{ wordBreak: 'break-word' }}>{currentNotesStr}</span>
+          <FaStickyNote size={8} style={{ color: '#64748b', flexShrink: 0 }} />
+          <span style={{ wordBreak: 'break-word' }}>{item.description}</span>
         </div>
       )}
 
-      {/* Row 4: Note Option Tool (open) */}
+      {/* Row 4: Simple Note input (open) - font color is black */}
       {noteOpen && (
         <div 
           onClick={e => e.stopPropagation()}
           style={{
             marginTop: '6px',
-            padding: '8px',
-            background: '#fffaf5',
-            border: '1px solid #fed7aa',
-            borderRadius: '8px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
+            gap: '4px'
           }}
         >
-          {/* Note Option Pills */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-            {NOTE_PRESETS.map((preset) => {
-              const active = isPresetActive(preset);
-              return (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => togglePreset(preset)}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '999px',
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    border: '1px solid',
-                    borderColor: active ? theme.main : '#cbd5e1',
-                    background: active ? theme.main : 'white',
-                    color: active ? 'white' : '#475569'
-                  }}
-                >
-                  {preset}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Custom Note input */}
           <input
             ref={inputRef}
             type="text"
-            value={customNote}
-            onChange={handleCustomNoteChange}
+            value={localNote}
+            onChange={e => setLocalNote(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Other custom note..."
+            onBlur={handleNoteSave}
+            placeholder="Add kitchen note..."
             maxLength={100}
             style={{
               width: '100%',
               boxSizing: 'border-box',
-              padding: '5px 8px',
-              border: '1px solid #cbd5e1',
-              borderRadius: '5px',
-              fontSize: '10px',
-              fontWeight: 600,
+              padding: '6px 10px',
+              border: `1.5px solid ${theme.main}`,
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: '600',
+              color: '#000000',
               outline: 'none',
               fontFamily: 'inherit'
             }}
