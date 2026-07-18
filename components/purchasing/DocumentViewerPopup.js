@@ -412,9 +412,9 @@ export default function DocumentViewerPopup({
               {isSale && primaryCustomer?.phone && <span className="dv-sub">{primaryCustomer.phone}</span>}
             </div>
           )}
-          {(!isSale || posType === 'RESTAURANT') && (
+          {(!isSale || !posType || String(posType).trim().toUpperCase() !== 'OTHERS') && (
             <div className="dv-cell">
-              <span className="dv-lbl">{isSale ? 'Table / Type' : 'Warehouse'}</span>
+              <span className="dv-lbl">{isSale ? 'Order Type' : 'Warehouse'}</span>
               <span className="dv-val">
                 {isSale
                   ? (currentOrder.tableNumber || currentOrder.table_number

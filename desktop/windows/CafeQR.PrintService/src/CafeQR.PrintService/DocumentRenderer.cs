@@ -1906,8 +1906,8 @@ namespace CafeQR.PrintService
             {
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
-            bool isRestaurant = string.IsNullOrEmpty(posType) || posType.Equals("RESTAURANT", StringComparison.OrdinalIgnoreCase);
-            if (showTableLabel && isRestaurant && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
+            bool hideOrderType = !string.IsNullOrEmpty(posType) && posType.Equals("Others", StringComparison.OrdinalIgnoreCase);
+            if (showTableLabel && !hideOrderType && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
 
             var customerText = CustomerDisplay(order);
             if (showCustomerDetails && !string.IsNullOrEmpty(customerText))
