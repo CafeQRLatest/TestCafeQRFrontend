@@ -20,7 +20,7 @@ export default function OfflineSyncPage() {
   const [detailTab, setDetailTab] = useState('structured');
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
-  const [config, setConfig] = useState({ autoSyncEnabled: true, syncInterval: 60, leaseBlockSize: 100, failOpenPayments: false, localEncryption: false, creditEnabled: false });
+  const [config, setConfig] = useState({ autoSyncEnabled: false, syncInterval: 60, leaseBlockSize: 100, failOpenPayments: false, localEncryption: false, creditEnabled: false });
   const [modal, setModal] = useState(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -65,7 +65,7 @@ export default function OfflineSyncPage() {
           const r = await api.get('/api/v1/configurations');
           if (r.data.success && r.data.data) {
             const d = r.data.data;
-            const m = { autoSyncEnabled: d.offlineSyncEnabled ?? true, syncInterval: d.offlineSyncInterval ?? 60, leaseBlockSize: d.offlineLeaseBlockSize ?? 100, failOpenPayments: d.offlineFailOpenPayments ?? false, localEncryption: d.offlineLocalEncryption ?? false, creditEnabled: d.creditEnabled ?? false };
+            const m = { autoSyncEnabled: d.offlineSyncEnabled ?? false, syncInterval: d.offlineSyncInterval ?? 60, leaseBlockSize: d.offlineLeaseBlockSize ?? 100, failOpenPayments: d.offlineFailOpenPayments ?? false, localEncryption: d.offlineLocalEncryption ?? false, creditEnabled: d.creditEnabled ?? false };
             setConfig(m); localStorage.setItem('cafeqr_offline_config', JSON.stringify(m));
           }
         } catch (e) {}

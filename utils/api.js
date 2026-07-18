@@ -238,7 +238,7 @@ api.interceptors.response.use(
         if (typeof window !== 'undefined') {
           try {
             const m = {
-              autoSyncEnabled: d.offlineSyncEnabled ?? true,
+              autoSyncEnabled: d.offlineSyncEnabled ?? false,
               syncInterval: d.offlineSyncInterval ?? 60,
               leaseBlockSize: d.offlineLeaseBlockSize ?? 100,
               failOpenPayments: d.offlineFailOpenPayments ?? false,
