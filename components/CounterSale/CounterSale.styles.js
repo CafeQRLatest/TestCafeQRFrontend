@@ -695,7 +695,7 @@ export const CsProductCard = styled.div`
   text-align: left;
   overflow: hidden;
   font: inherit;
-  min-height: ${props => props.$noImage ? '112px' : '196px'};
+  min-height: ${props => props.$noImage ? '112px' : '210px'};
   position: relative;
   
   &:hover {
@@ -711,7 +711,7 @@ export const CsProductCard = styled.div`
   @media (max-width: 640px) {
     border-radius: 8px;
     grid-template-rows: ${props => props.$noImage ? '1fr' : '68px 1fr'};
-    min-height: ${props => props.$noImage ? '104px' : '178px'};
+    min-height: ${props => props.$noImage ? '104px' : '190px'};
 
     &:hover {
       transform: none;
