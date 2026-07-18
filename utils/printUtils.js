@@ -723,7 +723,8 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     if (showDailyBillNo && dailyBillNo) {
       lines.push(withMargins(`Daily Bill No: ${dailyBillNo}`, layout));
     }
-    if (showTableLabel && orderType) lines.push(withMargins(`Order Type: ${orderType}`, layout));
+    const isRestaurant = restaurantProfile?.posType === 'RESTAURANT';
+    if (showTableLabel && orderType && isRestaurant) lines.push(withMargins(`Order Type: ${orderType}`, layout));
 
     const customerText = customerDisplay(order);
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));

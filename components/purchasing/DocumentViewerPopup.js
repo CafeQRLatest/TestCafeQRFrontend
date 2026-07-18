@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { calculateOrderTotals } from '../../utils/orderCalculations';
 import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, FaDownload } from 'react-icons/fa';
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
+import { useAuth } from '../../context/AuthContext';
 
 function parseDeliveryDetails(description) {
   if (!description) return null;
@@ -98,6 +99,7 @@ export default function DocumentViewerPopup({
   config = null,
   onOrderUpdated = null,
 }) {
+  const { posType } = useAuth();
   const taxEnabled = config ? !!config.taxEnabled : true;
   const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
   const isInclusiveTax = !!config?.pricesIncludeTax;
@@ -410,19 +412,21 @@ export default function DocumentViewerPopup({
               {isSale && primaryCustomer?.phone && <span className="dv-sub">{primaryCustomer.phone}</span>}
             </div>
           )}
-          <div className="dv-cell">
-            <span className="dv-lbl">{isSale ? 'Table / Type' : 'Warehouse'}</span>
-            <span className="dv-val">
-              {isSale
-                ? (currentOrder.tableNumber || currentOrder.table_number
-                    ? `Dine in (Table ${currentOrder.tableNumber || currentOrder.table_number})`
-                    : (String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY'
-                        ? 'Takeaway'
-                        : String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'DELIVERY'
-                          ? 'Delivery' : 'Dine in'))
-                : (warehouse?.name || '—')}
-            </span>
-          </div>
+          {(!isSale || posType === 'RESTAURANT') && (
+            <div className="dv-cell">
+              <span className="dv-lbl">{isSale ? 'Table / Type' : 'Warehouse'}</span>
+              <span className="dv-val">
+                {isSale
+                  ? (currentOrder.tableNumber || currentOrder.table_number
+                      ? `Dine in (Table ${currentOrder.tableNumber || currentOrder.table_number})`
+                      : (String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY'
+                          ? 'Takeaway'
+                          : String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'DELIVERY'
+                            ? 'Delivery' : 'Dine in'))
+                  : (warehouse?.name || '—')}
+              </span>
+            </div>
+          )}
           <div className="dv-cell">
             <span className="dv-lbl">Date</span>
             <span className="dv-val">

@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
   const [currency, setCurrency] = useState(null);
   const [country, setCountry] = useState(null);
   const [timezone, setTimezone] = useState(null);
+  const [posType, setPosType] = useState(null);
   const [loading, setLoading] = useState(true);
   const [assignedMenus, setAssignedMenus] = useState([]);
   const [menusLoading, setMenusLoading] = useState(true);
@@ -50,6 +51,7 @@ export const AuthProvider = ({ children }) => {
     const storedCurrency = Cookies.get('currency');
     const storedCountry = Cookies.get('country');
     const storedTimezone = Cookies.get('timezone');
+    const storedPosType = Cookies.get('posType');
     const storedCanCancelOrder = Cookies.get('canCancelOrder');
     const storedCanDeleteOrderItem = Cookies.get('canDeleteOrderItem');
     const storedCanDecrementOrderItem = Cookies.get('canDecrementOrderItem');
@@ -71,6 +73,7 @@ export const AuthProvider = ({ children }) => {
     if (storedCurrency) setCurrency(storedCurrency);
     if (storedCountry) setCountry(storedCountry);
     if (storedTimezone) setTimezone(storedTimezone);
+    if (storedPosType) setPosType(storedPosType);
     if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');
     if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
     if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
@@ -120,6 +123,10 @@ export const AuthProvider = ({ children }) => {
         if (clientData.country) {
           setCountry(clientData.country);
           Cookies.set('country', clientData.country, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+        }
+        if (clientData.posType) {
+          setPosType(clientData.posType);
+          Cookies.set('posType', clientData.posType, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
         }
       }).catch(err => console.error("Profile sync error", err));
 
@@ -222,6 +229,10 @@ export const AuthProvider = ({ children }) => {
         setTimezone(resolvedTimezone);
         Cookies.set('timezone', resolvedTimezone, cookieOptions);
       }
+      if (clientData.posType) {
+        setPosType(clientData.posType);
+        Cookies.set('posType', clientData.posType, cookieOptions);
+      }
     }).catch(() => {});
   };
 
@@ -301,6 +312,7 @@ export const AuthProvider = ({ children }) => {
     setCurrency(null);
     setCountry(null);
     setTimezone(null);
+    setPosType(null);
     setAssignedMenus([]);
     
     const removeOptions = { path: '/' };
@@ -322,6 +334,7 @@ export const AuthProvider = ({ children }) => {
     Cookies.remove('currency', removeOptions);
     Cookies.remove('country', removeOptions);
     Cookies.remove('timezone', removeOptions);
+    Cookies.remove('posType', removeOptions);
     Cookies.remove('canCancelOrder', removeOptions);
     Cookies.remove('canDeleteOrderItem', removeOptions);
     Cookies.remove('canDecrementOrderItem', removeOptions);
@@ -429,6 +442,7 @@ export const AuthProvider = ({ children }) => {
       currency,
       country,
       timezone,
+      posType,
       assignedMenus,
       menusLoading,
       fetchAssignedMenus,

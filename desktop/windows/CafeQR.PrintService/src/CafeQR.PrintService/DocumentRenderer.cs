@@ -1811,6 +1811,7 @@ namespace CafeQR.PrintService
             taxLabel = taxLabel.ToUpperInvariant();
             string taxIdLabel = taxLabel == "GST" ? "GSTIN" : taxLabel == "VAT" ? "VAT No." : taxLabel + " ID";
 
+            string posType = PickValue(restaurantProfile, new[] { "posType", "pos_type" });
             string orderType = GetOrderTypeLabel(order);
             string invoiceNo = PickValue(bill, new[] { "invoice_no", "invoiceNo" });
             if (string.IsNullOrEmpty(invoiceNo)) invoiceNo = PickValue(order, new[] { "invoice_no", "invoiceNo" });
@@ -1905,7 +1906,8 @@ namespace CafeQR.PrintService
             {
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
-            if (showTableLabel && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
+            bool isRestaurant = string.IsNullOrEmpty(posType) || posType.Equals("RESTAURANT", StringComparison.OrdinalIgnoreCase);
+            if (showTableLabel && isRestaurant && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));
 
             var customerText = CustomerDisplay(order);
             if (showCustomerDetails && !string.IsNullOrEmpty(customerText))

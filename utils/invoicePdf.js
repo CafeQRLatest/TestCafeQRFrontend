@@ -365,7 +365,8 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const metaY2 = metaY + 11.5;
   const displayCustomer = (!customer || ['walk-in guest', 'walk-in', 'guest', 'walk in'].includes(customer.toLowerCase().trim())) ? '—' : customer;
   metaFieldLight('CUSTOMER', displayCustomer, col1x, metaY2);
-  metaFieldLight('TYPE', fulfillment, col2x, metaY2);
+  const isRestaurant = clientData?.posType === 'RESTAURANT';
+  metaFieldLight('TYPE', isRestaurant ? fulfillment : null, col2x, metaY2);
   if (paymentRef && !isMixed) {
     metaFieldLight('REF NO', paymentRef, col3x, metaY2);
   } else {
