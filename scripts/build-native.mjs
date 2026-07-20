@@ -7,6 +7,7 @@ const result = spawnSync(command, ['next', 'build'], {
   env: {
     ...process.env,
     NEXT_PUBLIC_NATIVE_BUILD: 'true',
+    NEXT_PUBLIC_API_URL: 'https://cafe-qr-backend.onrender.com/api',
   },
 });
 

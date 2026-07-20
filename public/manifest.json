@@ -1,6 +1,6 @@
 {
-  "name": "CafeQR Owner Dashboard",
-  "short_name": "CafeQR",
+  "name": "CafeQR POS",
+  "short_name": "CafeQR POS",
   "description": "Restaurant order management dashboard",
   "start_url": "/owner/orders?utm_source=app",
   "display": "standalone",
