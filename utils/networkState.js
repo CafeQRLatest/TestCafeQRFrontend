@@ -67,7 +67,20 @@ export const markConnectionOnline = () => {
   emitNetworkState();
 };
 
+export const isOfflineSyncConfigEnabled = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const saved = window.localStorage.getItem('cafeqr_offline_config');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed?.autoSyncEnabled !== false;
+    }
+  } catch (e) {}
+  return true;
+};
+
 export const isKnownOffline = () => {
+  if (!isOfflineSyncConfigEnabled()) return false;
   if (browserReportsOffline()) return true;
   if (!isBrowser()) return false;
 
@@ -79,6 +92,14 @@ export const canAttemptNetworkProbe = () => {
 };
 
 export const getNetworkStatus = () => {
+  if (!isOfflineSyncConfigEnabled()) {
+    return {
+      offline: false,
+      browserOffline: false,
+      reason: null,
+      retryAfter: 0,
+    };
+  }
   const browserOffline = browserReportsOffline();
 
   return {
@@ -90,6 +111,10 @@ export const getNetworkStatus = () => {
 };
 
 if (isBrowser()) {
-  window.addEventListener('offline', () => markConnectionLost('browser-offline'));
+  window.addEventListener('offline', () => {
+    if (isOfflineSyncConfigEnabled()) {
+      markConnectionLost('browser-offline');
+    }
+  });
   window.addEventListener('online', emitNetworkState);
 }

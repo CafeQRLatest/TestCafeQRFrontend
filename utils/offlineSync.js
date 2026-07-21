@@ -331,13 +331,16 @@ export async function reconnectAndSync() {
 
   reconnectInFlight = (async () => {
     try {
-      // Step 1: Try to pull changes, but don't let failures block queue push
+      // Step 1: Always attempt to push queued operations first
+      const syncResult = await syncQueuedOperations();
+
+      // Step 2: Try to pull changes after pushing enqueued changes
       let changes = null;
       try {
         changes = await refreshOfflineChanges({ forceProbe: true });
         markConnectionOnline();
       } catch (changesError) {
-        console.warn('[Offline Sync] Failed to pull changes, proceeding with queue push:', changesError?.message);
+        console.warn('[Offline Sync] Failed to pull changes after push:', changesError?.message);
         if (changesError?.response) {
           // Got a response — server is reachable, we're online
           markConnectionOnline();
@@ -345,15 +348,10 @@ export async function reconnectAndSync() {
           const offlineReason = getOfflineReasonFromError(changesError);
           if (offlineReason) {
             markConnectionLost(offlineReason);
-            return { skipped: true, offline: true, changesError: changesError.message };
           }
-          // Non-network error (e.g. bad data) — still try to push
-          markConnectionOnline();
         }
       }
 
-      // Step 2: Always attempt to push queued operations
-      const syncResult = await syncQueuedOperations();
       return { changed: Boolean(changes), sync: syncResult };
     } catch (error) {
       if (error?.response) {

@@ -42,18 +42,23 @@ export async function ensureOfflineSequenceLeases(blockSize = 50) {
 
   if (!needsTopUp) return current;
 
-  const { data } = await api.post('/api/v1/offline-sequence-leases/reserve-defaults', {
-    terminalId,
-    blockSize,
-  }, {
-    backgroundSync: true,
-    skipAuthRedirect: true,
-    skipOfflineQueue: true,
-  });
+  try {
+    const { data } = await api.post('/api/v1/offline-sequence-leases/reserve-defaults', {
+      terminalId,
+      blockSize,
+    }, {
+      backgroundSync: true,
+      skipAuthRedirect: true,
+      skipOfflineQueue: true,
+    });
 
-  const next = [...current, ...(data?.data || [])];
-  writeLeases(next);
-  return next;
+    const next = [...current, ...(data?.data || [])];
+    writeLeases(next);
+    return next;
+  } catch (error) {
+    console.warn('[Offline Lease Topup] Failed to reserve defaults from server:', error?.message || error);
+    return current;
+  }
 }
 
 function formatLeaseNumber(lease, number) {

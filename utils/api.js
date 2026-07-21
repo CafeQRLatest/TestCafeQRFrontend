@@ -75,18 +75,48 @@ const createOfflineSkippedError = (config) => {
   return error;
 };
 
+function generateUUID() {
+  let d = new Date().getTime();
+  let d2 = (typeof performance !== 'undefined' && performance.now && (performance.now() * 1000)) || 0;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    let r = Math.random() * 16;
+    if (d > 0) {
+      r = (d + r) % 16 | 0;
+      d = Math.floor(d / 16);
+    } else {
+      r = (d2 + r) % 16 | 0;
+      d2 = Math.floor(d2 / 16);
+    }
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 const createOfflineId = (prefix = 'offline') => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return generateUUID();
 };
 
 const createOfflineOrderNo = (id) => `OFFLINE-${String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(-8).toUpperCase() || Date.now()}`;
 
 const buildOfflineMutationResponse = (config, queued) => {
   const payload = queued.payload && typeof queued.payload === 'object' ? queued.payload : {};
-  const offlineId = payload.id || queued.offlineId || queued.id || createOfflineId();
+  
+  let extractedId = null;
+  const parts = String(queued.path || '').split('/');
+  const ordersIndex = parts.indexOf('orders');
+  const productsIndex = parts.indexOf('products');
+  const tablesIndex = parts.indexOf('tables');
+  const entityIndex = Math.max(ordersIndex, productsIndex, tablesIndex);
+  if (entityIndex >= 0 && parts.length > entityIndex + 1) {
+    const nextSegment = parts[entityIndex + 1];
+    if (nextSegment && !['categories', 'uoms', 'variants', 'groups', 'options'].includes(nextSegment)) {
+      extractedId = nextSegment;
+    }
+  }
+
+  const offlineId = extractedId || payload.id || queued.offlineId || queued.id || createOfflineId();
   const createdAt = queued.createdAt || new Date().toISOString();
   const isOrderMutation = queued.entity === 'orders' || String(queued.path || '').includes('/orders');
 
