@@ -129,10 +129,16 @@ export default function useCounterSaleBootstrap({ orgId, propConfig, initialCred
             .catch(() => null);
         } else {
           // No cache available, fetch synchronously
-          configPromise = api.fetchConfigurations(signalOption).then(freshConfig => {
-            sessionConfigCache.set(orgKey, freshConfig);
-            return freshConfig;
-          });
+          configPromise = api.fetchConfigurations(signalOption)
+            .then(freshConfig => {
+              sessionConfigCache.set(orgKey, freshConfig);
+              return freshConfig;
+            })
+            .catch(err => {
+              if (isAbortError(err)) return null;
+              console.warn('Bootstrap warnings: Failed to load configurations', err);
+              return null;
+            });
         }
 
         // Pricelist handling with Stale-While-Revalidate (SWR) cache
@@ -158,10 +164,16 @@ export default function useCounterSaleBootstrap({ orgId, propConfig, initialCred
             .catch(() => null);
         } else {
           // Fetch synchronously if cache is empty
-          pricelistPromise = api.fetchPricelists(signalOption).then(freshPricelists => {
-            sessionPricelistCache.set(orgKey, freshPricelists);
-            return freshPricelists;
-          });
+          pricelistPromise = api.fetchPricelists(signalOption)
+            .then(freshPricelists => {
+              sessionPricelistCache.set(orgKey, freshPricelists);
+              return freshPricelists;
+            })
+            .catch(err => {
+              if (isAbortError(err)) return [];
+              console.warn('Bootstrap warnings: Failed to load pricelists', err);
+              return [];
+            });
         }
 
         // Start loading optional metadata immediately with rejection handlers attached
