@@ -229,6 +229,8 @@ function matchesSelectedBranch(order, selectedOrgId) {
 function orderIdentity(order) {
   if (!order) return '';
   if (order.offlineOperationId) return `op:${order.offlineOperationId}`;
+  if (order.sourceOperationId) return `op:${order.sourceOperationId}`;
+  if (order.source_operation_id) return `op:${order.source_operation_id}`;
   if (order.id) return `id:${order.id}`;
   const orderNo = order.orderNo || order.order_no;
   if (orderNo) return `no:${orderNo}`;
@@ -238,6 +240,8 @@ function orderIdentity(order) {
 function orderPrintKeys(order) {
   const keys = [];
   if (order?.offlineOperationId) keys.push(`op:${order.offlineOperationId}`);
+  if (order?.sourceOperationId) keys.push(`op:${order.sourceOperationId}`);
+  if (order?.source_operation_id) keys.push(`op:${order.source_operation_id}`);
   if (order?.id) keys.push(`id:${order.id}`);
   const orderNo = order?.orderNo || order?.order_no;
   if (orderNo) keys.push(`no:${orderNo}`);
@@ -582,7 +586,36 @@ function SalesContent() {
         getQueuedOfflineOrders(),
         getRecentPrintJobs(300),
       ]);
-      setQueuedOrders(queued);
+
+      // Deduplicate: if a table already has a final (completed/paid/billed) offline
+      // order in the queue, suppress any earlier open order (e.g. a KOT) for the
+      // same table so it does not keep the table marked as occupied on the Table tab.
+      const deduped = (() => {
+        // Build a set of tableIds/tableNumbers that have a final offline order.
+        const finalTableIds = new Set();
+        const finalTableNos = new Set();
+        (queued || []).forEach((o) => {
+          const status = String(o?.orderStatus || o?.order_status || '').toUpperCase();
+          if (['COMPLETED', 'PAID', 'BILLED'].includes(status)) {
+            const tId = String(o?.tableId || o?.table_id || '');
+            const tNo = String(o?.tableNumber || o?.table_number || '');
+            if (tId) finalTableIds.add(tId);
+            if (tNo) finalTableNos.add(tNo);
+          }
+        });
+        if (finalTableIds.size === 0 && finalTableNos.size === 0) return queued;
+        return (queued || []).filter((o) => {
+          if (!isOpenOrder(o)) return true; // keep completed/cancelled orders as-is
+          const tId = String(o?.tableId || o?.table_id || '');
+          const tNo = String(o?.tableNumber || o?.table_number || '');
+          // Drop open orders whose table already has a final entry
+          if (tId && finalTableIds.has(tId)) return false;
+          if (tNo && finalTableNos.has(tNo)) return false;
+          return true;
+        });
+      })();
+
+      setQueuedOrders(deduped);
       setPrintJobsByOrder(buildPrintJobMap(jobs || []));
     } catch (error) {
       console.warn('Failed to load offline order state', error?.message || error);
@@ -959,6 +992,7 @@ function SalesContent() {
 
     const runRefresh = () => {
       requestLiveRefresh({ forceTableAndConfigFetch: true });
+      fetchHistoryOrders(historyPage.number || 0);
     };
 
     const refreshWhenReachable = () => {
@@ -987,6 +1021,7 @@ function SalesContent() {
 
     const handleQueueChanged = () => {
       loadOfflineOrderState();
+      fetchHistoryOrders(historyPage.number || 0);
     };
 
     const handleVisibilityChange = () => {
@@ -1013,7 +1048,7 @@ function SalesContent() {
       window.removeEventListener('cafeqr-sync-complete', runRefresh);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [requestLiveRefresh, loadOfflineOrderState, orgId]);
+  }, [requestLiveRefresh, loadOfflineOrderState, fetchHistoryOrders, historyPage.number, orgId]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
@@ -1082,9 +1117,36 @@ function SalesContent() {
 
 
 
-  const historyQueuedOrders = useMemo(() => (
-    queuedOrders.filter((order) => matchesSelectedBranch(order, orgId))
-  ), [orgId, queuedOrders]);
+  const historyQueuedOrders = useMemo(() => {
+    const branchFiltered = queuedOrders.filter((order) => matchesSelectedBranch(order, orgId));
+
+    // When a dine-in kitchen order (KOT) is created offline and then settled, both
+    // entries end up in queuedOrders with different offlineOperationIds. This would
+    // show them as two separate rows in the Completed tab. Suppress any open/pending
+    // order for a table that already has a final (completed/paid/billed) offline entry.
+    const finalTableIds = new Set();
+    const finalTableNos = new Set();
+    branchFiltered.forEach((o) => {
+      const status = String(o?.orderStatus || o?.order_status || '').toUpperCase();
+      if (['COMPLETED', 'PAID', 'BILLED'].includes(status)) {
+        const tId = String(o?.tableId || o?.table_id || '');
+        const tNo = String(o?.tableNumber || o?.table_number || '');
+        if (tId) finalTableIds.add(tId);
+        if (tNo) finalTableNos.add(tNo);
+      }
+    });
+
+    if (finalTableIds.size === 0 && finalTableNos.size === 0) return branchFiltered;
+
+    return branchFiltered.filter((o) => {
+      if (!isOpenOrder(o)) return true; // always keep completed/cancelled entries
+      const tId = String(o?.tableId || o?.table_id || '');
+      const tNo = String(o?.tableNumber || o?.table_number || '');
+      if (tId && finalTableIds.has(tId)) return false; // superseded KOT/open order
+      if (tNo && finalTableNos.has(tNo)) return false;
+      return true;
+    });
+  }, [orgId, queuedOrders]);
 
   const filteredQueuedOrders = useMemo(() => {
     return historyQueuedOrders.filter(order => {
@@ -1132,11 +1194,42 @@ function SalesContent() {
   const handleOrderCreated = useCallback(async (rawOrder, kind) => {
     const order = normalizeOrder(rawOrder);
     const printKind = resolveCreatedPrintKind(order, kind);
+
+    // When an offline final (completed/settled) dine-in order is created, we must
+    // also evict any lingering open orders for the same table (e.g. a prior KOT that
+    // has a different offlineOperationId). Without this, the kitchen-order entry stays
+    // in floorOrders/queuedOrders with orderStatus='KITCHEN', keeping the table marked
+    // as occupied even after the guest has paid.
+    const isOfflineFinalOrder =
+      order?.offline &&
+      ['COMPLETED', 'PAID', 'BILLED'].includes(
+        String(order?.orderStatus || order?.order_status || '').toUpperCase()
+      );
+    const completedTableId = isOfflineFinalOrder
+      ? String(order?.tableId || order?.table_id || '')
+      : '';
+    const completedTableNo = isOfflineFinalOrder
+      ? String(order?.tableNumber || order?.table_number || '')
+      : '';
+
+    const isSameTable = (item) => {
+      if (!isOfflineFinalOrder) return false;
+      if (!completedTableId && !completedTableNo) return false;
+      const tId = String(item?.tableId || item?.table_id || '');
+      const tNo = String(item?.tableNumber || item?.table_number || '');
+      return (completedTableId && tId === completedTableId) ||
+             (completedTableNo && tNo === completedTableNo);
+    };
+
     setFloorOrders((current) => {
       const orderId = order?.id || order?.offlineOperationId || order?.orderNo;
       const filtered = current.filter((item) => {
         const itemId = item?.id || item?.offlineOperationId || item?.orderNo;
-        return itemId !== orderId;
+        // Remove exact match by ID, and also remove any open order for the same
+        // table when the incoming order is the final settlement for that table.
+        if (itemId === orderId) return false;
+        if (isSameTable(item) && isOpenOrder(item)) return false;
+        return true;
       });
       return [order, ...filtered];
     });
@@ -1147,8 +1240,17 @@ function SalesContent() {
         // If it's a final offline sale, treat as bill so it prints locally.
         setPrintKind(printKind === 'settle' ? 'bill' : printKind);
       }
-      setQueuedOrders((current) => mergeOrdersWithQueued(current, [order]));
-      loadOfflineOrderState();
+      // Merge the completed order into queuedOrders, and simultaneously evict any
+      // prior open orders for the same table so activeOrderByTable sees the table as free.
+      setQueuedOrders((current) => {
+        const withoutStaleTableOrders = isOfflineFinalOrder
+          ? current.filter((item) => !(isSameTable(item) && isOpenOrder(item)))
+          : current;
+        return mergeOrdersWithQueued(withoutStaleTableOrders, [order]);
+      });
+      setTimeout(() => {
+        loadOfflineOrderState();
+      }, 150);
       showToast(
         isMainOfflineBillingDevice()
           ? 'Offline final sale saved on this main device and sent to printer.'
