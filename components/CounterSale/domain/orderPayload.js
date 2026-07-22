@@ -92,7 +92,8 @@ export function buildProcessedLines({ cart, totals, config }) {
     const gstEnabled = Boolean(config?.taxEnabled);
     const taxRatePct  = Number(pi.tax_rate || 0);
     const isInclusive = gstEnabled && (pi.is_packaged_good || Boolean(config?.pricesIncludeTax));
-    const discType    = cartItem?.discount?.type;
+    const rawDiscType = String(cartItem?.discount?.type || pi.line_discount_input_type || '').toLowerCase();
+    const isPercentDisc = rawDiscType === 'percent' || rawDiscType === 'percentage';
 
     const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
     const taxCode     = gstEnabled && taxRatePct > 0 ? (matchedRate?.code  || `GST_${taxRatePct}`) : null;
@@ -134,8 +135,10 @@ export function buildProcessedLines({ cart, totals, config }) {
       taxSnapshotRate:          taxRatePct,
       taxCode,
       taxName,
-      manualDiscountAmount:     (discType !== 'percent' && cartItem?.discount?.value > 0) ? Number(cartItem.discount.value.toFixed(dp)) : null,
-      manualDiscountPercent:    (discType === 'percent' && cartItem?.discount?.value > 0) ? Number(cartItem.discount.value.toFixed(dp + 2)) : null,
+      manualDiscountAmount:     (!isPercentDisc && cartItem?.discount?.value > 0) ? Number(cartItem.discount.value.toFixed(dp)) : null,
+      manualDiscountPercent:    (isPercentDisc && cartItem?.discount?.value > 0) ? Number(cartItem.discount.value.toFixed(dp + 2)) : null,
+      lineDiscountType:         isPercentDisc ? 'PERCENT' : 'AMOUNT',
+      lineDiscountValue:        (cartItem?.discount?.value > 0) ? Number(cartItem.discount.value.toFixed(dp)) : null,
       allocatedOrderDiscount:   Number((pi.order_discount_share || 0).toFixed(dp)),
       description:              cartItem?.description || null,
     };
@@ -223,7 +226,7 @@ export function buildOrderPayload({
     totalAmount: Number(totals.total_inc_tax.toFixed(dp)),
 
     grossAmount: Number((totals.gross_face_total || 0).toFixed(dp)),
-    orderDiscountType: discountType === 'percentage' ? 'PERCENT' : 'AMOUNT',
+    orderDiscountType: (String(discountType || '').toLowerCase() === 'percentage' || String(discountType || '').toLowerCase() === 'percent') ? 'PERCENT' : 'AMOUNT',
     orderDiscountValue: Number(discountValue || 0),
     discountSource: 'MANUAL',
     ...(skipAutoPrintKinds?.length ? { skipAutoPrintKinds } : {}),

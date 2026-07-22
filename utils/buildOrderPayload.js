@@ -90,7 +90,7 @@ export function buildOrderPayload({
     totalAmount:         roundMoney(totals.total_inc_tax, dp),
     
     grossAmount:         roundMoney(totals.gross_face_total || 0, dp),
-    orderDiscountType: discountType === 'percentage' ? 'PERCENT' : 'AMOUNT',
+    orderDiscountType: (String(discountType || '').toLowerCase() === 'percentage' || String(discountType || '').toLowerCase() === 'percent') ? 'PERCENT' : 'AMOUNT',
     orderDiscountValue: roundMoney(discountValue || 0, dp),
     discountSource: 'MANUAL',
     

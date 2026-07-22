@@ -39,7 +39,7 @@ export default function useDiscounts() {
         const key = typeof cartKeyFor === 'function' ? cartKeyFor(item) : item.cartKey;
         const disc = localDiscounts[key];
         if (disc) {
-          if (disc.type === 'percentage') {
+          if (disc.type === 'percentage' || disc.type === 'percent') {
             return {
               ...item,
               discount_percent: disc.value,
