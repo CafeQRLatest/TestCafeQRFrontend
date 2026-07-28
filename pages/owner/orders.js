@@ -956,7 +956,7 @@ export default function OrdersPage() {
         from: fromUtc,
         to: toUtc,
         q: queryToSend || undefined,
-        status: filters.status || 'COMPLETED_CANCELLED',
+        status: filters.status ? filters.status : (queryToSend ? undefined : 'COMPLETED_CANCELLED'),
         orgId: filters.branchId || undefined,
         terminalId: filters.terminalId || undefined,
         page,
@@ -1088,9 +1088,38 @@ export default function OrdersPage() {
     });
   }, [historyQueuedOrders, historyFilters.status, historyFilters.terminalId, historyFilters.q]);
 
+  const filteredHistoryOrders = useMemo(() => {
+    if (!historyFilters.q || !historyFilters.q.trim()) {
+      return historyOrders;
+    }
+    const query = historyFilters.q.trim().toLowerCase().replace(/^[#\s]+/, '');
+    if (!query) return historyOrders;
+
+    return historyOrders.filter((order) => {
+      const orderNo = String(order?.orderNo || order?.order_no || '').toLowerCase();
+      const dailyBillNo = String(order?.dailyBillNo || order?.daily_bill_no || '').toLowerCase();
+      const customerName = String(order?.customerName || order?.customer_name || '').toLowerCase();
+      const customerPhone = String(order?.customerPhone || order?.customer_phone || '').toLowerCase();
+      const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
+      const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
+
+      const itemNames = (order?.lines || order?.items || []).map(i => String(i.name || i.productName || i.product_name || '').toLowerCase()).join(' ');
+
+      return (
+        orderNo.includes(query) ||
+        dailyBillNo.includes(query) ||
+        customerName.includes(query) ||
+        customerPhone.includes(query) ||
+        invoiceNo.includes(query) ||
+        tableNum.includes(query) ||
+        itemNames.includes(query)
+      );
+    });
+  }, [historyOrders, historyFilters.q]);
+
   const historyDisplayOrders = useMemo(() => {
-    return mergeOrdersWithQueued(historyOrders, filteredQueuedOrders);
-  }, [historyOrders, filteredQueuedOrders]);
+    return mergeOrdersWithQueued(filteredHistoryOrders, filteredQueuedOrders);
+  }, [filteredHistoryOrders, filteredQueuedOrders]);
 
   // Refresh coordinator: handles all live-order and active table data fetches.
   // Coalesces overlapping refresh requests using pending refs to prevent timer duplication.
