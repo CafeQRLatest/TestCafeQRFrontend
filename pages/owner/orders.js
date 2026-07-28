@@ -1020,7 +1020,12 @@ export default function OrdersPage() {
   // Debounced search for history
   useEffect(() => {
     if (!historyFiltersTouchedRef.current) return;
-    const t = setTimeout(() => fetchHistoryOrders(0, historyFilters), 400);
+    const t = setTimeout(() => {
+      setHistoryFilters(latest => {
+        fetchHistoryOrders(0, latest);
+        return latest;
+      });
+    }, 400);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyFilters.q]);
