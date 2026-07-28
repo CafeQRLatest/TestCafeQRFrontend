@@ -124,48 +124,6 @@ export default function DocumentViewerPopup({
     }
   };
 
-  const [splits, setSplits] = React.useState([]);
-  const [loadingSplits, setLoadingSplits] = React.useState(false);
-  const [showSplitsToggle, setShowSplitsToggle] = React.useState(false);
-  const isMixed = currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED';
-
-  React.useEffect(() => {
-    if (currentOrder?.id && isMixed) {
-      setLoadingSplits(true);
-      api.get(`/api/v1/orders/${currentOrder.id}/payment-splits`)
-        .then(res => {
-          const list = res.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
-            setSplits(list);
-          } else {
-            // Backend returned empty splits list, generate 50/50 fallback splits
-            const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
-            const half = Number((total / 2).toFixed(2));
-            const remaining = Number((total - half).toFixed(2));
-            setSplits([
-              { paymentMethod: 'CASH', amount: half },
-              { paymentMethod: 'ONLINE', amount: remaining }
-            ]);
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to load splits, using frontend fallback', err);
-          // Backend call failed (e.g. 404/not updated), generate 50/50 fallback splits
-          const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
-          const half = Number((total / 2).toFixed(2));
-          const remaining = Number((total - half).toFixed(2));
-          setSplits([
-            { paymentMethod: 'CASH', amount: half },
-            { paymentMethod: 'ONLINE', amount: remaining }
-          ]);
-        })
-        .finally(() => setLoadingSplits(false));
-    } else {
-      setSplits([]);
-      setShowSplitsToggle(false);
-    }
-  }, [currentOrder?.id, isMixed, currentOrder?.grandTotal, currentOrder?.amount]);
-
   const [payments, setPayments] = React.useState([]);
   const [loadingPayments, setLoadingPayments] = React.useState(false);
 
@@ -186,6 +144,68 @@ export default function DocumentViewerPopup({
       setPayments([]);
     }
   }, [currentOrder?.id, currentOrder?.orderId, docType]);
+
+  const [splits, setSplits] = React.useState([]);
+  const [loadingSplits, setLoadingSplits] = React.useState(false);
+  const [showSplitsToggle, setShowSplitsToggle] = React.useState(false);
+  const isMixed = currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1);
+
+  React.useEffect(() => {
+    if (currentOrder?.id && isMixed) {
+      if (payments && payments.length > 1) {
+        setSplits(payments.map(p => ({
+          paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+          amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
+          referenceNo: p.referenceNo || p.reference_no
+        })));
+        return;
+      }
+      setLoadingSplits(true);
+      api.get(`/api/v1/orders/${currentOrder.id}/payment-splits`)
+        .then(res => {
+          const list = res.data?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            setSplits(list);
+          } else if (payments && payments.length > 0) {
+            setSplits(payments.map(p => ({
+              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+              amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
+              referenceNo: p.referenceNo || p.reference_no
+            })));
+          } else {
+            const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
+            const half = Number((total / 2).toFixed(2));
+            const remaining = Number((total - half).toFixed(2));
+            setSplits([
+              { paymentMethod: 'CASH', amount: half },
+              { paymentMethod: 'ONLINE', amount: remaining }
+            ]);
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to load splits, using fallback', err);
+          if (payments && payments.length > 0) {
+            setSplits(payments.map(p => ({
+              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+              amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
+              referenceNo: p.referenceNo || p.reference_no
+            })));
+          } else {
+            const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
+            const half = Number((total / 2).toFixed(2));
+            const remaining = Number((total - half).toFixed(2));
+            setSplits([
+              { paymentMethod: 'CASH', amount: half },
+              { paymentMethod: 'ONLINE', amount: remaining }
+            ]);
+          }
+        })
+        .finally(() => setLoadingSplits(false));
+    } else {
+      setSplits([]);
+      setShowSplitsToggle(false);
+    }
+  }, [currentOrder?.id, isMixed, payments]);
 
   const [invoiceData, setInvoiceData] = React.useState(null);
   React.useEffect(() => {
@@ -338,8 +358,26 @@ export default function DocumentViewerPopup({
   const isSale = currentOrder.orderType === 'SALE' || docType === 'payment';
   const vendor = !isSale && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId)) : null;
   const warehouse = !isSale && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId)) : null;
-  const cfg = (currentOrder.orderStatus && STATUS_CFG[currentOrder.orderStatus]) || STATUS_CFG.PAID || STATUS_CFG.DRAFT;
-  const isPaid = currentOrder.paymentStatus === 'PAID' || docType === 'payment';
+  const cfg = (() => {
+    if (docType === 'payment') {
+      return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
+    }
+
+    const pStatusRaw = currentOrder.paymentStatus || currentOrder.payment_status || invoiceData?.paymentStatus || invoiceData?.payment_status;
+    if (pStatusRaw) {
+      const pStatus = String(pStatusRaw).toUpperCase();
+      if (pStatus === 'PAID') {
+        return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
+      } else if (pStatus === 'PARTIAL') {
+        return { label: 'Partial', bg: '#fef3c7', color: '#b45309' };
+      } else if (pStatus === 'PENDING' || pStatus === 'UNPAID') {
+        return { label: 'Pending', bg: '#ffedd5', color: '#c2410c' };
+      }
+    }
+
+    return (currentOrder.orderStatus && STATUS_CFG[currentOrder.orderStatus]) || STATUS_CFG[currentOrder?.order_status] || STATUS_CFG?.DRAFT || { label: currentOrder?.orderStatus || 'Draft', bg: '#f1f5f9', color: '#475569' };
+  })();
+  const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || docType === 'payment';
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const HEADER = {

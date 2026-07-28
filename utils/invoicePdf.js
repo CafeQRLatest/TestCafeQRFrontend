@@ -180,15 +180,39 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const W = doc.internal.pageSize.getWidth();
   const margin = Number(regTpl.marginMm ?? 10);
 
-  // 4. Payment splits (mixed)
-  let splits = [];
-  const isMixed = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED';
-  if (isMixed) {
+  // 4. Payment splits & history
+  let splits = Array.isArray(order?.paymentSplits || order?.payment_splits) ? (order.paymentSplits || order.payment_splits) : [];
+  let paymentsList = Array.isArray(order?.payments) ? order.payments : [];
+  try {
+    const orderIdToFetch = order?.id || order?.orderId;
+    if (orderIdToFetch) {
+      const { data } = await api.get(`/api/v1/orders/${orderIdToFetch}/payments`);
+      const rawPayments = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+      const fetched = rawPayments.filter(p => String(p.docStatus || p.doc_status || '').toUpperCase() !== 'VOID' && String(p.isactive || 'Y').toUpperCase() !== 'N');
+      if (fetched.length > 0) {
+        paymentsList = fetched;
+      }
+    }
+  } catch { /* ignore */ }
+
+  const isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
+  if (isMixedFlag && order?.id && splits.length === 0) {
     try {
       const { data } = await api.get(`/api/v1/orders/${order.id}/payment-splits`);
-      splits = data?.data || [];
+      if (Array.isArray(data?.data) && data.data.length > 0) {
+        splits = data.data;
+      }
     } catch { /* ignore */ }
   }
+
+  if ((!splits || splits.length === 0) && paymentsList.length > 0) {
+    splits = paymentsList.map(p => ({
+      paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+      amount: Number(p.amount || p.amountPaid || p.amount_paid || 0)
+    }));
+  }
+
+  const isMixed = isMixedFlag || splits.length > 1;
 
   // 5. Logo
   const logoBase64 = (regTpl.showLogo !== false) ? await imgToBase64(cfg.logoUrl || null) : null;
@@ -228,7 +252,10 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const orderDate  = order.createdAt || order.created_at || order.orderDate || order.order_date || '';
   const customer   = customerLabel(order);
   const fulfillment = fulfillmentLabel(order);
-  const payMethod  = order?.paymentMethod || invoiceData?.paymentMethod || '';
+  const rawPayMethod = order?.paymentMethod || invoiceData?.paymentMethod || '';
+  const payMethod  = (paymentsList.length > 0)
+    ? Array.from(new Set(paymentsList.map(p => p.paymentMethod || p.payment_method).filter(Boolean))).join(', ')
+    : rawPayMethod;
 
   const lines    = order.lines || invoiceData?.lines || [];
   const gross    = Number(invoiceData?.grossAmount    || invoiceData?.gross_amount    || order?.grossAmount    || order?.gross_amount    || 0);
