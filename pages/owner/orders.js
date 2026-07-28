@@ -940,13 +940,22 @@ export default function OrdersPage() {
     setHistoryLoading(true);
     try {
       const activeTz = timezone || Cookies.get('timezone') || 'Asia/Kolkata';
-      const fromUtc = filters.from ? businessTimeToUtc(filters.from, activeTz) : undefined;
-      const toUtc = filters.to ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      
+      const rawQ = filters.q?.trim() || '';
+      const cleanQ = rawQ.replace(/^[#\s]+/, '');
+      const queryToSend = cleanQ || rawQ;
+
+      // When a search query is active, omit default single-day date range so historical orders are returned
+      const defaultRange = defaultHistoryRange(activeTz);
+      const isDefaultDate = filters.from === defaultRange.from && filters.to === defaultRange.to;
+
+      const fromUtc = (filters.from && (!queryToSend || !isDefaultDate)) ? businessTimeToUtc(filters.from, activeTz) : undefined;
+      const toUtc = (filters.to && (!queryToSend || !isDefaultDate)) ? businessTimeToUtc(filters.to, activeTz) : undefined;
 
       const response = await api.post('/api/v2/sales/dashboard', {
         from: fromUtc,
         to: toUtc,
-        q: filters.q?.trim() || undefined,
+        q: queryToSend || undefined,
         status: filters.status || 'COMPLETED_CANCELLED',
         orgId: filters.branchId || undefined,
         terminalId: filters.terminalId || undefined,
@@ -1062,9 +1071,22 @@ export default function OrdersPage() {
         const termId = String(order?.terminalId || order?.terminal_id || '');
         if (termId !== historyFilters.terminalId) return false;
       }
+      if (historyFilters.q && historyFilters.q.trim()) {
+        const query = historyFilters.q.trim().toLowerCase().replace(/^[#\s]+/, '');
+        if (query) {
+          const orderNo = String(order?.orderNo || order?.order_no || '').toLowerCase();
+          const dailyBillNo = String(order?.dailyBillNo || order?.daily_bill_no || '').toLowerCase();
+          const customerName = String(order?.customerName || order?.customer_name || '').toLowerCase();
+          const customerPhone = String(order?.customerPhone || order?.customer_phone || '').toLowerCase();
+          const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
+          const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
+          const matches = orderNo.includes(query) || dailyBillNo.includes(query) || customerName.includes(query) || customerPhone.includes(query) || invoiceNo.includes(query) || tableNum.includes(query);
+          if (!matches) return false;
+        }
+      }
       return true;
     });
-  }, [historyQueuedOrders, historyFilters.status, historyFilters.terminalId]);
+  }, [historyQueuedOrders, historyFilters.status, historyFilters.terminalId, historyFilters.q]);
 
   const historyDisplayOrders = useMemo(() => {
     return mergeOrdersWithQueued(historyOrders, filteredQueuedOrders);
