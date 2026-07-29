@@ -6,8 +6,9 @@ import api from '../../utils/api';
 import { 
   FaCheckCircle, FaExclamationCircle, FaWarehouse, FaChevronRight,
   FaSearch, FaSave, FaPowerOff, FaMapMarkerAlt, FaUserEdit, FaPhone,
-  FaPlus, FaBuilding
+  FaPlus, FaBuilding, FaStar
 } from 'react-icons/fa';
+
 
 export default function WarehouseManagementPage() {
   return (
@@ -103,7 +104,8 @@ function WarehouseContent() {
       managerName: '',
       managerPhone: '',
       orgId: orgs.length > 0 ? orgs[0].id : '',
-      isActive: 'Y'
+      isActive: 'Y',
+      isDefault: false
     });
   };
 
@@ -143,7 +145,10 @@ function WarehouseContent() {
                 >
                   <div className="card-status-pip" data-status={w.isActive}></div>
                   <div className="card-info">
-                    <span className="card-title">{w.name}</span>
+                    <span className="card-title">
+                      {w.name}
+                      {w.isDefault && <span className="default-badge"><FaStar /> DEFAULT</span>}
+                    </span>
                     <span className="card-code">{w.code || 'NO-CODE'}</span>
                   </div>
                   <FaChevronRight className="card-chevron" />
@@ -207,6 +212,20 @@ function WarehouseContent() {
                            <option key={o.id} value={o.id}>{o.name}</option>
                          ))}
                       </select>
+                    </div>
+
+                    {/* Default Warehouse Checkbox */}
+                    <div className="v2-checkbox-group">
+                      <label className="v2-checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          disabled={!isAdmin}
+                          checked={Boolean(selectedWarehouse.isDefault)} 
+                          onChange={(e) => setSelectedWarehouse({...selectedWarehouse, isDefault: e.target.checked})} 
+                        />
+                        <span className="checkbox-text">Default Warehouse for Branch</span>
+                      </label>
+                      <span className="checkbox-hint">Stock for completed sales in this branch will be automatically deducted from this warehouse.</span>
                     </div>
                   </div>
                 </section>
@@ -305,6 +324,13 @@ function WarehouseContent() {
         .v2-empty-state h2 { margin: 0; font-size: 18px; font-weight: 900; color: #1e293b; }
         .v2-empty-state p { margin: 8px 0 0; color: #94a3b8; font-size: 13px; max-width: 280px; }
         .loading-state-premium { height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #64748b; }
+        /* Default warehouse checkbox styling */
+        .default-badge { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 9px; font-weight: 800; color: #d97706; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 2px 6px; vertical-align: middle; text-transform: uppercase; }
+        .v2-checkbox-group { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; margin-top: 4px; }
+        .v2-checkbox-label { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+        .v2-checkbox-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: #f97316; cursor: pointer; border-radius: 4px; }
+        .checkbox-text { font-size: 13px; font-weight: 700; color: #1e293b; }
+        .checkbox-hint { font-size: 11px; color: #64748b; font-weight: 500; margin-left: 28px; }
       `}</style>
     </DashboardLayout>
   );

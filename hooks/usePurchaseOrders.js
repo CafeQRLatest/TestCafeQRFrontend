@@ -304,13 +304,21 @@ export function usePurchaseOrders() {
     setSaving(true);
     try {
       const payload = {
-        ...po,
+        orderType: 'PURCHASE',
         orderStatus: targetStatus,
-        paymentStatus: po.paymentStatus,
-        orderDate: new Date(po.orderDate).toISOString(),
+        paymentStatus: po.paymentStatus || 'PENDING',
+        paymentMethod: po.paymentMethod || 'CREDIT',
+        vendorId: po.vendorId || null,
+        warehouseId: po.warehouseId || null,
+        orderDate: po.orderDate ? new Date(po.orderDate).toISOString() : new Date().toISOString(),
+        reference: po.reference || null,
+        description: po.description || null,
+        totalAmount: parseFloat(po.totalAmount) || 0,
+        totalTaxAmount: parseFloat(po.totalTaxAmount) || 0,
+        grandTotal: parseFloat(po.grandTotal) || 0,
         lines: po.lines.map(({ productId, variantId, productName, quantity, unitPrice, unitOfMeasure, taxRate, taxAmount, discountAmount, lineTotal }) => ({
-          productId,
-          variantId,
+          productId: productId || null,
+          variantId: variantId || null,
           productName,
           quantity: parseFloat(quantity) || 0,
           unitPrice: parseFloat(unitPrice) || 0,
@@ -321,6 +329,9 @@ export function usePurchaseOrders() {
           lineTotal: parseFloat(lineTotal) || 0,
         })),
       };
+      if (po.id) {
+        payload.id = po.id;
+      }
       const resp = po.id
         ? await api.patch(`/api/v1/orders/${po.id}`, payload)
         : await api.post('/api/v1/orders', payload);

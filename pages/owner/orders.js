@@ -945,12 +945,8 @@ export default function OrdersPage() {
       const cleanQ = rawQ.replace(/^[#\s]+/, '');
       const queryToSend = cleanQ || rawQ;
 
-      // When a search query is active, omit default single-day date range so historical orders are returned
-      const defaultRange = defaultHistoryRange(activeTz);
-      const isDefaultDate = filters.from === defaultRange.from && filters.to === defaultRange.to;
-
-      const fromUtc = (filters.from && (!queryToSend || !isDefaultDate)) ? businessTimeToUtc(filters.from, activeTz) : undefined;
-      const toUtc = (filters.to && (!queryToSend || !isDefaultDate)) ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      const fromUtc = (filters.from && !queryToSend) ? businessTimeToUtc(filters.from, activeTz) : undefined;
+      const toUtc = (filters.to && !queryToSend) ? businessTimeToUtc(filters.to, activeTz) : undefined;
 
       const response = await api.post('/api/v2/sales/dashboard', {
         from: fromUtc,
@@ -1018,17 +1014,18 @@ export default function OrdersPage() {
   }, [activeSegment]);
 
   // Debounced search for history
-  useEffect(() => {
-    if (!historyFiltersTouchedRef.current) return;
-    const t = setTimeout(() => {
-      setHistoryFilters(latest => {
-        fetchHistoryOrders(0, latest);
-        return latest;
-      });
-    }, 400);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyFilters.q]);
+  const debouncedSearchRef = useRef(null);
+  const handleSearchChange = useCallback((newQ) => {
+    historyFiltersTouchedRef.current = true;
+    setHistoryFilters(f => {
+      const updated = { ...f, q: newQ };
+      if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+      debouncedSearchRef.current = setTimeout(() => {
+        fetchHistoryOrders(0, updated);
+      }, 400);
+      return updated;
+    });
+  }, [fetchHistoryOrders]);
 
   useEffect(() => {
     api.get('/api/v1/configurations')
@@ -2025,8 +2022,14 @@ export default function OrdersPage() {
                       type="search"
                       value={historyFilters.q || ''}
                       placeholder="Search order, customer, invoice..."
-                      onChange={(e) => { historyFiltersTouchedRef.current = true; setHistoryFilters(f => ({ ...f, q: e.target.value })); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); fetchHistoryOrders(0); } }}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+                          fetchHistoryOrders(0, historyFilters);
+                        }
+                      }}
                     />
                   </HistSearchBox>
                 </HistFilterWrap>
