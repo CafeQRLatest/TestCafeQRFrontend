@@ -117,16 +117,26 @@ function PurchaseContent() {
 
   const handleInvoiceOrder = useCallback(async (order) => {
     try {
-      // Import api utility dynamically or use it directly (it's already imported at the top!)
-      const r = await api.post(`/api/v1/orders/${order.id}/bill`);
+      const r = await api.patch(`/api/v1/purchase/orders/${order.id}`, { orderStatus: 'COMPLETED' });
       if (r.data.success) {
-        toast('✅ Invoice generated successfully!', 'success');
+        toast('✅ Purchase Order received — Vendor Bill Invoice generated!', 'success');
         fetchHistory(); // refresh the table list
-        // Transition popup view to 'invoice' mode to display the newly generated invoice details!
         setViewingDoc(prev => prev && prev.order.id === order.id ? { order: r.data.data, type: 'invoice' } : prev);
       }
     } catch (err) {
       toast(err.response?.data?.message || 'Failed to generate invoice', 'error');
+    }
+  }, [fetchHistory, toast]);
+
+  const handleReceiveOrder = useCallback(async (order) => {
+    try {
+      const r = await api.patch(`/api/v1/purchase/orders/${order.id}`, { orderStatus: 'COMPLETED' });
+      if (r.data.success) {
+        toast('✅ Order received — Stock updated & Vendor Bill generated!', 'success');
+        fetchHistory();
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to receive order', 'error');
     }
   }, [fetchHistory, toast]);
 
@@ -204,6 +214,7 @@ function PurchaseContent() {
                   styles={styles}
                   onViewDocument={handleViewDocument}
                   onInvoiceOrder={handleInvoiceOrder}
+                  onReceiveOrder={handleReceiveOrder}
                 />
                 <PurchaseCards
                   history={history}
@@ -217,6 +228,7 @@ function PurchaseContent() {
                   styles={styles}
                   onViewDocument={handleViewDocument}
                   onInvoiceOrder={handleInvoiceOrder}
+                  onReceiveOrder={handleReceiveOrder}
                 />
                 {historyPage.totalPages > 1 && (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', padding: '20px 0 8px' }}>

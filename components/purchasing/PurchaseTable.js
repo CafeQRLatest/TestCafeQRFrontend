@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaChevronRight } from 'react-icons/fa';
+import { FaChevronRight, FaCheckCircle } from 'react-icons/fa';
 
 export default function PurchaseTable({
   history,
@@ -13,7 +13,8 @@ export default function PurchaseTable({
   STATUS_CFG,
   styles,
   onViewDocument,
-  onInvoiceOrder
+  onInvoiceOrder,
+  onReceiveOrder
 }) {
   return (
     <div className={styles['hist-table-wrap']}>
@@ -90,14 +91,26 @@ export default function PurchaseTable({
                   </span>
                 </td>
                 <td>
-                  {o.orderStatus === 'DRAFT' && (
-                    <button 
-                      className={styles['btn-edit']} 
-                      onClick={() => { loadDraft(o); setView('form'); }}
-                    >
-                      Edit <FaChevronRight />
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {o.orderStatus === 'DRAFT' && (
+                      <button 
+                        className={styles['btn-edit']} 
+                        onClick={() => { loadDraft(o); setView('form'); }}
+                      >
+                        Edit <FaChevronRight />
+                      </button>
+                    )}
+                    {o.orderStatus !== 'COMPLETED' && o.orderStatus !== 'CANCELLED' && (
+                      <button 
+                        className={styles['btn-edit']} 
+                        style={{ background: '#ecfdf5', color: '#059669', borderColor: '#6ee7b7' }}
+                        onClick={() => onReceiveOrder && onReceiveOrder(o)}
+                        title="Receive order, update stock & generate vendor bill"
+                      >
+                        Receive <FaCheckCircle style={{ marginLeft: '4px' }} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             );

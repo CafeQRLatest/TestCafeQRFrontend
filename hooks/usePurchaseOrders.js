@@ -179,8 +179,8 @@ export function usePurchaseOrders() {
   /* ── draft fetching ── */
   const fetchDrafts = useCallback(async () => {
     try {
-      const r = await api.get('/api/v1/orders/type/PURCHASE');
-      if (r.data.success) setDrafts((r.data.data || []).filter(o => o.orderStatus === 'DRAFT'));
+      const r = await api.get('/api/v1/purchase/orders/drafts');
+      if (r.data.success) setDrafts(r.data.data || []);
     } catch { /* silent */ }
   }, []);
 
@@ -188,7 +188,6 @@ export function usePurchaseOrders() {
     setHistoryLoading(true);
     try {
       const params = {
-        type: 'PURCHASE',
         status: filterStatus === 'ALL' ? null : filterStatus,
         vendorId: filterVendor || null,
         warehouseId: filterWarehouse || null,
@@ -198,7 +197,7 @@ export function usePurchaseOrders() {
         page: pageNum,
         size: historyPage.size || 20
       };
-      const r = await api.get('/api/v1/orders/search', { params });
+      const r = await api.get('/api/v1/purchase/orders', { params });
       if (r.data.success) {
         const payload = r.data.data || {};
         setHistory(payload.content || []);
@@ -303,38 +302,43 @@ export function usePurchaseOrders() {
     }
     setSaving(true);
     try {
+      const activeOrg = typeof window !== 'undefined' ? localStorage.getItem('pos_org_id') : null;
       const payload = {
         orderType: 'PURCHASE',
+        orgId: activeOrg || null,
         orderStatus: targetStatus,
         paymentStatus: po.paymentStatus || 'PENDING',
         paymentMethod: po.paymentMethod || 'CREDIT',
         vendorId: po.vendorId || null,
         warehouseId: po.warehouseId || null,
         orderDate: po.orderDate ? new Date(po.orderDate).toISOString() : new Date().toISOString(),
+        expectedDate: po.expectedDate && !isNaN(new Date(po.expectedDate).getTime()) ? new Date(po.expectedDate).toISOString() : null,
         reference: po.reference || null,
         description: po.description || null,
         totalAmount: parseFloat(po.totalAmount) || 0,
         totalTaxAmount: parseFloat(po.totalTaxAmount) || 0,
         grandTotal: parseFloat(po.grandTotal) || 0,
-        lines: po.lines.map(({ productId, variantId, productName, quantity, unitPrice, unitOfMeasure, taxRate, taxAmount, discountAmount, lineTotal }) => ({
-          productId: productId || null,
-          variantId: variantId || null,
-          productName,
-          quantity: parseFloat(quantity) || 0,
-          unitPrice: parseFloat(unitPrice) || 0,
-          unitOfMeasure,
-          taxRate: parseFloat(taxRate) || 0,
-          taxAmount: parseFloat(taxAmount) || 0,
-          discountAmount: parseFloat(discountAmount) || 0,
-          lineTotal: parseFloat(lineTotal) || 0,
+        lines: po.lines.map((l) => ({
+          productId: l.productId || l.id || null,
+          variantId: l.variantId || null,
+          productName: l.productName || l.name || '',
+          quantity: parseFloat(l.quantity) || 1,
+          unitPrice: parseFloat(l.unitPrice) || 0,
+          unitOfMeasure: l.unitOfMeasure || 'units',
+          taxRate: parseFloat(l.taxRate) || 0,
+          taxAmount: parseFloat(l.taxAmount) || 0,
+          discountAmount: parseFloat(l.discountAmount) || 0,
+          lineTotal: parseFloat(l.lineTotal) || 0,
         })),
       };
-      if (po.id) {
-        payload.id = po.id;
-      }
+      const idempotencyKey = po.sourceLocalRef || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `po_${Date.now()}`);
+      payload.sourceLocalRef = idempotencyKey;
+
       const resp = po.id
-        ? await api.patch(`/api/v1/orders/${po.id}`, payload)
-        : await api.post('/api/v1/orders', payload);
+        ? await api.patch(`/api/v1/purchase/orders/${po.id}`, payload)
+        : await api.post('/api/v1/purchase/orders', payload, {
+            headers: { 'Idempotency-Key': idempotencyKey }
+          });
 
       if (resp.data.success) {
         const saved = resp.data.data;

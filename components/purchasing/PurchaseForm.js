@@ -41,6 +41,7 @@ export default function PurchaseForm({
   const searchInp = useRef(null);
   const linesEndRef = useRef(null);
   const [paymentTypes, setPaymentTypes] = useState([]);
+  const [markAsReceived, setMarkAsReceived] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -718,17 +719,51 @@ export default function PurchaseForm({
             {/* Actions */}
             {!isLocked ? (
               <div className={styles['action-col']}>
+                <div
+                  onClick={() => setMarkAsReceived(!markAsReceived)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '6px 2px',
+                    cursor: 'pointer',
+                    userSelect: 'none'
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '5px',
+                      border: markAsReceived ? 'none' : '2px solid #cbd5e1',
+                      background: markAsReceived ? '#FF7A00' : 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {markAsReceived && '✓'}
+                  </div>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>
+                    Mark as Received
+                  </span>
+                </div>
+
                 <button
                   className={`${styles['btn-primary']} ${styles.full}`}
                   disabled={saving}
-                  onClick={() => handleSave(po.orderStatus === 'CONFIRMED' ? 'COMPLETED' : 'CONFIRMED')}
+                  onClick={() => handleSave(markAsReceived ? 'COMPLETED' : 'CONFIRMED')}
                 >
                   {saving ? (
                     <><span className={styles['btn-spin']} /> Saving...</>
-                  ) : po.orderStatus === 'CONFIRMED' ? (
-                    <><FaCheckCircle /> Mark as Received</>
+                  ) : markAsReceived ? (
+                    <><FaCheckCircle /> Complete Order</>
                   ) : (
-                    <><FaTruck /> Confirm & Send Order</>
+                    <><FaTruck /> Save Order</>
                   )}
                 </button>
                 <button
@@ -790,10 +825,10 @@ export default function PurchaseForm({
             </button>
             <button 
               className={styles['mb-confirm']} 
-              onClick={() => handleSave(po.orderStatus === 'CONFIRMED' ? 'COMPLETED' : 'CONFIRMED')} 
+              onClick={() => handleSave(markAsReceived ? 'COMPLETED' : 'CONFIRMED')} 
               disabled={saving}
             >
-              {saving ? '...' : po.orderStatus === 'CONFIRMED' ? 'Receive' : 'Confirm'}
+              {saving ? '...' : markAsReceived ? 'Complete Order' : 'Save Order'}
             </button>
           </div>
         </div>

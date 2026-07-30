@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaChevronRight } from 'react-icons/fa';
+import { FaChevronRight, FaCheckCircle } from 'react-icons/fa';
 
 export default function PurchaseCards({
   history,
@@ -12,7 +12,8 @@ export default function PurchaseCards({
   STATUS_CFG,
   styles,
   onViewDocument,
-  onInvoiceOrder
+  onInvoiceOrder,
+  onReceiveOrder
 }) {
   return (
     <div className={styles['hist-mobile-list']}>
@@ -58,14 +59,25 @@ export default function PurchaseCards({
                 {currencySymbol}
                 {parseFloat(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </strong>
-              {o.orderStatus === 'DRAFT' && (
-                <button 
-                  className={`${styles['btn-edit']} ${styles.sm}`} 
-                  onClick={() => { loadDraft(o); setView('form'); }}
-                >
-                  Edit <FaChevronRight />
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {o.orderStatus === 'DRAFT' && (
+                  <button 
+                    className={`${styles['btn-edit']} ${styles.sm}`} 
+                    onClick={() => { loadDraft(o); setView('form'); }}
+                  >
+                    Edit <FaChevronRight />
+                  </button>
+                )}
+                {o.orderStatus !== 'COMPLETED' && o.orderStatus !== 'CANCELLED' && (
+                  <button 
+                    className={`${styles['btn-edit']} ${styles.sm}`} 
+                    style={{ background: '#ecfdf5', color: '#059669', borderColor: '#6ee7b7' }}
+                    onClick={() => onReceiveOrder && onReceiveOrder(o)}
+                  >
+                    Receive <FaCheckCircle style={{ marginLeft: '4px' }} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );

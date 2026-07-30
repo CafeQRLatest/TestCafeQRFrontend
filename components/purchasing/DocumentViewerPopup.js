@@ -599,7 +599,9 @@ export default function DocumentViewerPopup({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                     <span className="dv-nil">Not generated</span>
                     {currentOrder.orderStatus !== 'DRAFT' && currentOrder.orderStatus !== 'CANCELLED' && (
-                      <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>Invoke Order</button>
+                      <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>
+                        {isSale ? 'Invoke Order' : 'Receive & Generate Bill'}
+                      </button>
                     )}
                   </div>
                 )}
