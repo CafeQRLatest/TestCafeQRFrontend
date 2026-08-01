@@ -13,6 +13,7 @@ const MENU_FEATURES = {
   'Table Management': 'tableManagementEnabled',
   Stock: 'inventoryEnabled',
   'Purchase Orders': 'purchaseEnabled',
+  'Credit Settlements': 'creditEnabled',
   'Credit Customers': 'creditEnabled',
   'Credit Sales': 'creditEnabled',
   'Offline Sync Center': 'offlineSyncEnabled',
@@ -20,6 +21,7 @@ const MENU_FEATURES = {
 
 const ROUTE_FEATURES = [
   { pattern: /^\/owner\/table-management(?:\/)?$/, flag: 'tableManagementEnabled', label: 'Table Management' },
+  { pattern: /^\/owner\/credit-settlements(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Settlements' },
   { pattern: /^\/owner\/credit-customers(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Ledger' },
   { pattern: /^\/owner\/stock(?:-|\/|$)/, flag: 'inventoryEnabled', label: 'Stock and Inventory' },
   { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },

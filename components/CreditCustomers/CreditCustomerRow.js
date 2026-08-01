@@ -20,7 +20,7 @@ const CreditCustomerRow = React.memo(function CreditCustomerRow({
 }) {
   const isSuspended = String(customer.status || '').toUpperCase() === 'SUSPENDED';
   const isDebt = Number(customer.balance || 0) > 0;
-  const isExpanded = expandedCustomer === customer.id;
+  const isExpanded = expandedCustomer?.id === customer.id || expandedCustomer === customer.id;
 
   return (
     <>

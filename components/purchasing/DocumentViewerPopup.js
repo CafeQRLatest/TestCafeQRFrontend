@@ -128,30 +128,92 @@ export default function DocumentViewerPopup({
   const [loadingPayments, setLoadingPayments] = React.useState(false);
 
   React.useEffect(() => {
-    const orderId = currentOrder?.orderId || currentOrder?.id;
-    if (orderId && docType !== 'payment') {
-      setLoadingPayments(true);
-      api.get(`/api/v1/orders/${orderId}/payments`)
-        .then(res => {
-          setPayments(res.data?.data || []);
-        })
-        .catch(err => {
-          console.warn('Failed to load order payments', err);
-          setPayments([]);
-        })
-        .finally(() => setLoadingPayments(false));
+    if (docType !== 'payment') {
+      if (currentOrder?.payments && Array.isArray(currentOrder.payments) && currentOrder.payments.length > 0) {
+        setPayments(currentOrder.payments);
+        return;
+      }
+      // Check localStorage vendor payment history
+      if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('vendor_payments_history');
+          if (saved) {
+            const histMap = JSON.parse(saved);
+            const poNum = currentOrder?.poNumber || currentOrder?.orderNo || currentOrder?.order_no;
+            const oId = currentOrder?.id || currentOrder?.orderId;
+            let matched = [];
+            Object.values(histMap).forEach((pList) => {
+              if (Array.isArray(pList)) {
+                const found = pList.filter((p) => {
+                  if (!p) return false;
+                  if (poNum && (p.orderNo === poNum || p.poNumber === poNum || (typeof p.orderNo === 'string' && p.orderNo.includes(poNum)))) return true;
+                  if (oId && (p.orderId === oId || p.id === oId)) return true;
+                  if (Array.isArray(p.orderList) && p.orderList.some(item => item && (item.orderNo === poNum || item.poNumber === poNum || item.orderId === oId))) return true;
+                  return false;
+                });
+                if (found.length > 0) matched.push(...found);
+              }
+            });
+            if (matched.length > 0) {
+              // Deduplicate by payment ID / referenceNo
+              const uniqueMatched = matched.filter((item, idx, self) => 
+                idx === self.findIndex(t => (t.id === item.id || t.referenceNo === item.referenceNo))
+              );
+              setPayments(uniqueMatched);
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      if (currentOrder?.referenceNo || currentOrder?.paymentNo || currentOrder?.receiptNo) {
+        const refStr = currentOrder.referenceNo || currentOrder.paymentNo || currentOrder.receiptNo;
+        if (refStr && refStr !== '—' && !refStr.startsWith('PO-') && !refStr.startsWith('SO-') && !refStr.startsWith('BILL-')) {
+          setPayments([{
+            id: currentOrder.id,
+            referenceNo: refStr,
+            receiptNo: refStr,
+            amount: currentOrder.amountPaid || currentOrder.totalAmount || currentOrder.grandTotal || 0,
+          }]);
+          return;
+        }
+      }
+      const orderId = currentOrder?.orderId || currentOrder?.id;
+      if (orderId) {
+        setLoadingPayments(true);
+        api.get(`/api/v1/orders/${orderId}/payments`)
+          .then(res => {
+            const fetched = res.data?.data || [];
+            if (fetched && fetched.length > 0) {
+              setPayments(fetched);
+            } else if (currentOrder?.payments) {
+              setPayments(currentOrder.payments);
+            } else {
+              setPayments([]);
+            }
+          })
+          .catch(() => {
+            setPayments(currentOrder?.payments || []);
+          })
+          .finally(() => setLoadingPayments(false));
+      } else {
+        setPayments(currentOrder?.payments || []);
+      }
     } else {
       setPayments([]);
     }
-  }, [currentOrder?.id, currentOrder?.orderId, docType]);
+  }, [currentOrder?.id, currentOrder?.orderId, currentOrder?.payments, currentOrder?.referenceNo, currentOrder?.paymentNo, docType]);
 
   const [splits, setSplits] = React.useState([]);
   const [loadingSplits, setLoadingSplits] = React.useState(false);
   const [showSplitsToggle, setShowSplitsToggle] = React.useState(false);
-  const isMixed = currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1);
 
   React.useEffect(() => {
-    if (currentOrder?.id && isMixed) {
+    // Inline isMixed check here since isSale/isMixed are defined later in the function body.
+    // isMixed for the purpose of loading splits = has multiple payments or MIXED method (sale orders only).
+    const orderIsSale = !(currentOrder?.vendorId || currentOrder?.vendorName || currentOrder?.vendor_id || currentOrder?.vendor_name || currentOrder?.poNumber);
+    const effectIsMixed = orderIsSale && (currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1));
+    if (currentOrder?.id && effectIsMixed) {
       if (payments && payments.length > 1) {
         setSplits(payments.map(p => ({
           paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
@@ -205,7 +267,7 @@ export default function DocumentViewerPopup({
       setSplits([]);
       setShowSplitsToggle(false);
     }
-  }, [currentOrder?.id, isMixed, payments]);
+  }, [currentOrder?.id, currentOrder?.referenceNo, currentOrder?.reference, currentOrder?.paymentMethod, currentOrder?.vendorId, currentOrder?.vendorName, currentOrder?.vendor_id, currentOrder?.vendor_name, currentOrder?.poNumber, payments]);
 
   const [invoiceData, setInvoiceData] = React.useState(null);
   React.useEffect(() => {
@@ -355,9 +417,13 @@ export default function DocumentViewerPopup({
 
   if (!currentOrder) return null;
 
-  const isSale = currentOrder.orderType === 'SALE' || docType === 'payment';
-  const vendor = !isSale && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId)) : null;
-  const warehouse = !isSale && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId)) : null;
+  const isVendorPayment = !!(currentOrder.vendorId || currentOrder.vendorName || currentOrder.vendor_id || currentOrder.vendor_name || currentOrder.poNumber || (currentOrder.referenceNo && String(currentOrder.referenceNo).startsWith('PAY-')));
+  const isSale = !isVendorPayment && (currentOrder.orderType === 'SALE' || currentOrder.order_type === 'SALE' || docType === 'payment' || !!currentOrder.customerId);
+  // 'Mixed' payment label only applies to CUSTOMER SALE orders with split payment methods.
+  // For purchase/vendor orders, the reference field shows the supplier's invoice/reference number.
+  const isMixed = isSale && (currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1));
+  const vendor = (!isSale || isVendorPayment) && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId || currentOrder.vendor_id)) : null;
+  const warehouse = (!isSale || isVendorPayment) && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId || currentOrder.warehouse_id)) : null;
   const cfg = (() => {
     if (docType === 'payment') {
       return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
@@ -393,18 +459,19 @@ export default function DocumentViewerPopup({
     onClose();
     onViewLinked?.({
       ...p,
-      id: p.paymentId,
-      paymentNo: p.referenceNo,
+      id: p.id || p.paymentId,
+      paymentNo: p.referenceNo || p.receiptNo,
+      referenceNo: p.referenceNo || p.receiptNo,
       amount: p.amount,
       grandTotal: p.amount,
       totalAmount: p.amount,
       orderId: currentOrder.orderId || currentOrder.id,
-      orderNo: currentOrder.orderNo,
+      orderNo: currentOrder.orderNo || currentOrder.poNumber || p.orderNo,
+      poNumber: currentOrder.poNumber || currentOrder.orderNo || p.poNumber,
       invoiceId: currentOrder.invoiceId,
-      invoiceNo: currentOrder.invoiceNo,
-      customer: currentOrder.customer,
-      customers: currentOrder.customers,
-      customerName: currentOrder.customerName || primaryCustomer?.name,
+      invoiceNo: currentOrder.invoiceNo || currentOrder.billNo || p.invoiceNo,
+      vendorName: currentOrder.vendorName || vendor?.name || p.vendorName,
+      customerName: currentOrder.customerName || primaryCustomer?.name || p.customerName,
       customerPhone: currentOrder.customerPhone || primaryCustomer?.phone,
     }, 'payment');
   };
@@ -452,16 +519,18 @@ export default function DocumentViewerPopup({
           )}
           {(!isSale || !posType || String(posType).trim().toUpperCase() !== 'OTHERS') && (
             <div className="dv-cell">
-              <span className="dv-lbl">{isSale ? 'Order Type' : 'Warehouse'}</span>
+              <span className="dv-lbl">{isSale ? 'Order Type' : (docType === 'payment' ? 'Payment Type' : 'Warehouse')}</span>
               <span className="dv-val">
-                {isSale
-                  ? (currentOrder.tableNumber || currentOrder.table_number
-                      ? `Dine in (Table ${currentOrder.tableNumber || currentOrder.table_number})`
-                      : (String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY'
-                          ? 'Takeaway'
-                          : String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'DELIVERY'
-                            ? 'Delivery' : 'Dine in'))
-                  : (warehouse?.name || '—')}
+                {docType === 'payment'
+                  ? (isSale ? 'Customer Settlement' : 'Vendor Settlement')
+                  : (isSale
+                      ? (currentOrder.tableNumber || currentOrder.table_number
+                          ? `Dine in (Table ${currentOrder.tableNumber || currentOrder.table_number})`
+                          : (String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY'
+                              ? 'Takeaway'
+                              : String(currentOrder.fulfillmentType || currentOrder.fulfillment_type || '').toUpperCase() === 'DELIVERY'
+                                ? 'Delivery' : 'Dine in'))
+                      : (warehouse?.name || '—'))}
               </span>
             </div>
           )}
@@ -501,7 +570,7 @@ export default function DocumentViewerPopup({
         {/* ── reference · cross-ref · payment ── */}
         <div className="dv-row3">
           <div className="dv-cell" style={{ position: 'relative' }}>
-            <span className="dv-lbl">Reference</span>
+            <span className="dv-lbl">{(docType === 'order' && !isSale) ? 'Comments' : 'Reference'}</span>
             {isMixed ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <button 
@@ -586,11 +655,26 @@ export default function DocumentViewerPopup({
                 )}
               </div>
             ) : (
-              <span className="dv-val dv-mono">{currentOrder.referenceNo || currentOrder.reference || '—'}</span>
+              <span className="dv-val dv-mono">
+                {(docType === 'order' && !isSale)
+                  ? (currentOrder.description || currentOrder.comments || '—')
+                  : (currentOrder.referenceNo || currentOrder.reference || '—')}
+              </span>
             )}
           </div>
           <div className="dv-cell">
-            {docType === 'order' ? (
+            {(docType === 'order' && !isSale) ? (
+              <>
+                <span className="dv-lbl">Supplier Invoice</span>
+                {(currentOrder.reference || currentOrder.referenceNo) ? (
+                  <span className="dv-val dv-mono" style={{ color: '#0f172a', fontWeight: '600' }}>
+                    {currentOrder.reference || currentOrder.referenceNo}
+                  </span>
+                ) : (
+                  <span className="dv-nil">Not provided</span>
+                )}
+              </>
+            ) : docType === 'order' ? (
               <>
                 <span className="dv-lbl">Invoice No</span>
                 {currentOrder.invoiceNo ? (
@@ -609,9 +693,19 @@ export default function DocumentViewerPopup({
             ) : (
               <>
                 <span className="dv-lbl">Order No</span>
-                {currentOrder.orderNo
-                  ? <button className="dv-link" onClick={() => handleLinked('order')}>{currentOrder.orderNo}</button>
-                  : <span className="dv-nil">—</span>}
+                {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
+                  <button 
+                    className="dv-link" 
+                    onClick={() => {
+                      const oNo = currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no;
+                      onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, orderNo: oNo, poNumber: oNo }, 'order');
+                    }}
+                  >
+                    {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
+                  </button>
+                ) : (
+                  <span className="dv-nil">—</span>
+                )}
               </>
             )}
           </div>
@@ -619,9 +713,19 @@ export default function DocumentViewerPopup({
             {docType === 'payment' ? (
               <>
                 <span className="dv-lbl">Invoice No</span>
-                {currentOrder.invoiceNo
-                  ? <button className="dv-link" onClick={() => handleLinked('invoice')}>{currentOrder.invoiceNo}</button>
-                  : <span className="dv-nil">—</span>}
+                {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
+                  <button 
+                    className="dv-link" 
+                    onClick={() => {
+                      const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
+                      onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
+                    }}
+                  >
+                    {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
+                  </button>
+                ) : (
+                  <span className="dv-nil">—</span>
+                )}
               </>
             ) : (
               <>
@@ -629,14 +733,18 @@ export default function DocumentViewerPopup({
                 {payments && payments.length > 0 ? (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
                     {payments.map((p, idx) => (
-                      <span key={p.paymentId || idx}>
+                      <span key={p.id || p.paymentId || idx}>
                         <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
-                          {p.referenceNo}
+                          {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
                         </button>
                         {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
                       </span>
                     ))}
                   </div>
+                ) : isPaid ? (
+                  <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
+                ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
+                  <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
                 ) : (
                   <span className="dv-muted">Pending</span>
                 )}
@@ -863,10 +971,6 @@ export default function DocumentViewerPopup({
                       const qty = parseFloat(l.quantity || 0);
                       const uPrice = parseFloat(l.unitPrice || l.price || 0);
                       const grossLine = parseFloat(l.grossLineAmount || l.gross_line_amount || 0) || (uPrice * qty);
-                      const taxableAmt = parseFloat(l.taxableAmount || l.taxable_amount || 0);
-                      const taxAmt = parseFloat(l.taxAmount || l.tax_amount || 0);
-                      const lineTotalVal = parseFloat(l.lineTotal || l.line_total || (uPrice * qty));
-                      
                       const taxRate = parseFloat(l.taxRate || l.tax_rate || 0);
                       const isPackaged = l.isPackagedGood || l.is_packaged_good || l.isPackaged || l.is_packaged;
                       const gstEnabled = taxEnabled && taxRate > 0;
@@ -879,6 +983,24 @@ export default function DocumentViewerPopup({
                       // Ex-tax discount base = face discount / (1 + taxRate)
                       const faceDisc = parseFloat(l.discountAmount || l.discount_amount || 0);
                       const displayDisc = taxRate > 0 ? faceDisc / (1 + taxRate / 100) : faceDisc;
+
+                      const rawTaxable = l.taxableAmount ?? l.taxable_amount;
+                      const calculatedTaxable = isInclusive 
+                        ? (taxRate > 0 ? (grossLine - faceDisc) / (1 + taxRate / 100) : (grossLine - faceDisc))
+                        : (grossLine - displayDisc);
+                      const taxableAmt = (rawTaxable !== undefined && rawTaxable !== null && !isNaN(parseFloat(rawTaxable)) && parseFloat(rawTaxable) !== 0)
+                        ? parseFloat(rawTaxable)
+                        : calculatedTaxable;
+
+                      const rawTax = l.taxAmount ?? l.tax_amount;
+                      const calculatedTax = isExclusive 
+                        ? taxableAmt * (taxRate / 100) 
+                        : (grossLine - faceDisc) - taxableAmt;
+                      const taxAmt = (rawTax !== undefined && rawTax !== null && !isNaN(parseFloat(rawTax)) && parseFloat(rawTax) !== 0)
+                        ? parseFloat(rawTax)
+                        : (gstEnabled ? calculatedTax : 0);
+
+                      const lineTotalVal = parseFloat(l.lineTotal || l.line_total || (uPrice * qty));
 
                       return (
                         <tr key={l.id || i}>

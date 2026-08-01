@@ -11,6 +11,38 @@ const creditCustomersStyles = `
     gap: 16px;
     align-items: center;
     margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .credit-mode-slider {
+    display: inline-flex;
+    align-items: center;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    gap: 4px;
+  }
+  .slider-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #64748b;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .slider-btn:hover {
+    color: #0f172a;
+  }
+  .slider-btn.active {
+    background: #ffffff;
+    color: #f97316;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
   h1, h2, h3, .modal-title {
     font-family: 'Outfit', sans-serif;
@@ -257,6 +289,48 @@ const creditCustomersStyles = `
   }
   .font-bold {
     font-weight: 700;
+  }
+
+  /* Standard Pagination Bar */
+  .pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 0;
+    border-top: 1px solid #f1f5f9;
+    background: #ffffff;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+  }
+  .pg-btn {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f97316;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pg-btn:hover:not(:disabled) {
+    background: #fff7ed;
+    border-color: #f97316;
+    transform: translateY(-1px);
+  }
+  .pg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .pg-info {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
   }
 
   /* Reports status pills */

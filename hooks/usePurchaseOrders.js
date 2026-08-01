@@ -28,7 +28,7 @@ const blankPO = () => ({
   grandTotal:     0,
 });
 export function usePurchaseOrders() {
-  const { timezone, userRole } = useAuth();
+  const { timezone, userRole, orgId } = useAuth();
   const currencySymbol = useCurrencySymbol();
 
   /* ── master data ── */
@@ -216,13 +216,33 @@ export function usePurchaseOrders() {
   useEffect(() => {
     const load = async () => {
       try {
+        const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
+        const isSuperAdmin = userRole === 'SUPER_ADMIN';
+        const params = currentOrgId ? { orgId: currentOrgId } : {};
+
         const [vR, wR, pR] = await Promise.all([
-          api.get('/api/v1/purchasing/vendors'),
-          api.get('/api/v1/warehouses'),
-          api.get('/api/v1/products'),
+          api.get('/api/v1/purchasing/vendors', { params }),
+          api.get('/api/v1/warehouses', { params }),
+          api.get('/api/v1/products', { params }),
         ]);
-        setVendors(   vR.data.success ? vR.data.data || [] : []);
-        setWarehouses(wR.data.success ? wR.data.data || [] : []);
+
+        const rawVendors = vR.data.success ? vR.data.data || [] : [];
+        const rawWarehouses = wR.data.success ? wR.data.data || [] : [];
+
+        const filteredVendors = rawVendors.filter((v) => {
+          if (!currentOrgId || isSuperAdmin) return true;
+          const vOrg = String(v.organizationId || v.organization_id || v.orgId || v.org_id || '');
+          return !vOrg || String(vOrg) === String(currentOrgId);
+        });
+
+        const filteredWarehouses = rawWarehouses.filter((w) => {
+          if (!currentOrgId || isSuperAdmin) return true;
+          const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
+          return !wOrg || String(wOrg) === String(currentOrgId);
+        });
+
+        setVendors(filteredVendors);
+        setWarehouses(filteredWarehouses);
         setProducts(  pR.data.success
           ? (pR.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false && !p.hasIngredients)
           : []);
@@ -234,7 +254,7 @@ export function usePurchaseOrders() {
     };
     load();
     fetchDrafts();
-  }, [fetchDrafts, toast]);
+  }, [fetchDrafts, toast, orgId, userRole]);
 
   useEffect(() => {
     if (view === 'history' && fromDate) fetchHistory();

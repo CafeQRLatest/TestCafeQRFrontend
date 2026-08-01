@@ -37,7 +37,10 @@ export default function RoleGate({ children, allowedRoles, requiredMenu }) {
       // Match by menu name (case-insensitive for robustness)
       const menuName = (m.name || '').toLowerCase();
       const required = requiredMenu.toLowerCase();
-      return menuName === required;
+      if (menuName === required) return true;
+      if (required === 'credit settlements' && (menuName === 'credit customers' || menuName === 'credit sales')) return true;
+      if (required === 'credit customers' && menuName === 'credit settlements') return true;
+      return false;
     });
   })();
 

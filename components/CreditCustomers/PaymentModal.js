@@ -18,6 +18,14 @@ export default function PaymentModal({
 }) {
   if (!customer) return null;
 
+  // For bulk settlement, use balance OR totalCreditExtended as fallback
+  const customerBalance = Number(customer.balance || customer.totalCreditExtended || 0);
+
+  // For direct invoice payment, break out total vs amount due
+  const invoiceTotal = invoice ? Number(invoice.total || invoice.grandTotal || invoice.amountDue || 0) : 0;
+  const invoiceDue = invoice ? Number(invoice.amountDue || 0) : 0;
+  const invoiceAlreadyPaid = Math.max(0, invoiceTotal - invoiceDue);
+
   return (
     <div className="rpt-modal-overlay" onMouseDown={onClose}>
       <div className="rpt-modal" onMouseDown={(event) => event.stopPropagation()} style={{ maxWidth: '540px' }}>
@@ -33,17 +41,31 @@ export default function PaymentModal({
             <span className="value">{customer.name}</span>
           </div>
           {invoice ? (
-            <div className="summary-item">
-              <span className="label">Order Due</span>
-              <span className="value balance rpt-amt text-danger">
-                {money(invoice.amountDue)}
-              </span>
-            </div>
+            <>
+              {invoiceTotal > 0 && (
+                <div className="summary-item">
+                  <span className="label">Order Total</span>
+                  <span className="value rpt-amt">{money(invoiceTotal)}</span>
+                </div>
+              )}
+              {invoiceAlreadyPaid > 0 && (
+                <div className="summary-item">
+                  <span className="label">Already Paid</span>
+                  <span className="value rpt-amt text-success">{money(invoiceAlreadyPaid)}</span>
+                </div>
+              )}
+              <div className="summary-item">
+                <span className="label">Order Due</span>
+                <span className="value balance rpt-amt text-danger">
+                  {money(invoiceDue || invoiceTotal)}
+                </span>
+              </div>
+            </>
           ) : (
             <div className="summary-item">
               <span className="label">Current Balance</span>
-              <span className={`value balance rpt-amt ${Number(customer.balance || 0) > 0 ? 'debt text-danger' : 'text-success'}`}>
-                {money(customer.balance)}
+              <span className={`value balance rpt-amt ${customerBalance > 0 ? 'debt text-danger' : 'text-success'}`}>
+                {money(customerBalance)}
               </span>
             </div>
           )}
@@ -63,14 +85,14 @@ export default function PaymentModal({
               autoFocus
             />
             {invoice ? (
-              <span className="form-hint">Direct payment for this order/invoice.</span>
-            ) : (() => {
-              const customerBalance = Number(customer.balance || 0);
-              const maxPayable = customerBalance > 0 ? customerBalance : 0;
-              return maxPayable > 0
-                ? <span className="form-hint">Max payable: <strong>{money(maxPayable)}</strong></span>
-                : <span className="form-hint text-success">No outstanding balance for this customer.</span>;
-            })()}
+              <span className="form-hint">
+                Direct payment for this order. Max: <strong>{money(invoiceDue || invoiceTotal)}</strong>
+              </span>
+            ) : (
+              customerBalance > 0
+                ? <span className="form-hint">Max payable: <strong>{money(customerBalance)}</strong></span>
+                : <span className="form-hint text-success">No outstanding balance for this customer.</span>
+            )}
           </div>
           <div className="form-group">
             <label>Payment Method</label>

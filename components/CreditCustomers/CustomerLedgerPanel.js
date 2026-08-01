@@ -40,40 +40,26 @@ export default function CustomerLedgerPanel({
   const renderPagination = (currentPage, totalPages, totalItems, onPageChange) => {
     if (totalPages <= 1) return null;
     return (
-      <div className="ledger-pagination" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '12px 16px',
-        borderTop: '1px solid #f1f5f9',
-        fontSize: '12px',
-        color: '#64748b',
-        background: '#fff',
-        borderBottomLeftRadius: '8px',
-        borderBottomRightRadius: '8px'
-      }}>
-        <div>
-          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems}
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="btn-page"
-          >
-            Previous
-          </button>
-          <span style={{ fontWeight: '600', color: '#0f172a', padding: '0 4px' }}>
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="btn-page"
-          >
-            Next
-          </button>
-        </div>
+      <div className="pagination-bar" style={{ marginTop: '8px', padding: '12px 0' }}>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="pg-btn"
+        >
+          ← Prev
+        </button>
+        <span className="pg-info">
+          Page {currentPage} of {totalPages} &nbsp;·&nbsp; {totalItems} records
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="pg-btn"
+        >
+          Next →
+        </button>
       </div>
     );
   };
@@ -82,12 +68,14 @@ export default function CustomerLedgerPanel({
     <div className="expanded-row-wrapper">
       <div className="expanded-tabs">
         <button
+          type="button"
           className={`expanded-tab ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
         >
           Credit Orders ({orders.length})
         </button>
         <button
+          type="button"
           className={`expanded-tab ${activeTab === 'payments' ? 'active' : ''}`}
           onClick={() => setActiveTab('payments')}
         >
@@ -134,6 +122,7 @@ export default function CustomerLedgerPanel({
                     <td>
                       {Number(order.amountDue || 0) > 0 && (
                         <button
+                          type="button"
                           className="btn-action btn-action-pay"
                           onClick={() => openPayment(customer, order)}
                           title="Pay Order"
@@ -188,31 +177,6 @@ export default function CustomerLedgerPanel({
           </div>
         )
       )}
-
-      <style jsx>{`
-        .btn-page {
-          background: #fff;
-          border: 1px solid #cbd5e1;
-          color: #475569;
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-        .btn-page:hover:not(:disabled) {
-          border-color: #FF7A00;
-          color: #FF7A00;
-          background: #fffbf5;
-        }
-        .btn-page:disabled {
-          background: #f8fafc;
-          border-color: #e2e8f0;
-          color: #cbd5e1;
-          cursor: not-allowed;
-        }
-      `}</style>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import CreditCustomerRow from './CreditCustomerRow';
 
 export default function CreditCustomerTable({
@@ -17,6 +17,16 @@ export default function CreditCustomerTable({
   handleViewOrder,
   handleViewPayment,
 }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const totalPages = Math.ceil(customers.length / pageSize);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return customers.slice(start, start + pageSize);
+  }, [customers, page]);
+
   return (
     <div className="rpt-tbl-wrap">
       <table className="rpt-tbl">
@@ -31,7 +41,7 @@ export default function CreditCustomerTable({
           </tr>
         </thead>
         <tbody>
-          {customers.map((customer) => (
+          {paginatedCustomers.map((customer) => (
             <CreditCustomerRow
               key={customer.id}
               customer={customer}
@@ -59,6 +69,30 @@ export default function CreditCustomerTable({
           )}
         </tbody>
       </table>
+
+      {totalPages > 1 && (
+        <div className="pagination-bar">
+          <button
+            type="button"
+            className="pg-btn"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+          >
+            ← Prev
+          </button>
+          <span className="pg-info">
+            Page {page} of {totalPages} &nbsp;·&nbsp; {customers.length} records
+          </span>
+          <button
+            type="button"
+            className="pg-btn"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

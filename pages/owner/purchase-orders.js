@@ -184,6 +184,13 @@ function PurchaseContent() {
                   styles={styles}
                 />
               </div>
+              <button 
+                className={styles['btn-primary']} 
+                style={{ height: '36px', padding: '0 16px', fontSize: '13px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                onClick={() => { startFresh && startFresh(); setView('form'); }}
+              >
+                <FaPlus /> Create Order
+              </button>
             </div>
 
             {historyLoading ? (
