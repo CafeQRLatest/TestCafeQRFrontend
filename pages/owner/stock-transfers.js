@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -10,7 +11,7 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaExchangeAlt, FaTrash, FaSearch, FaSave,
   FaWarehouse, FaMapMarkerAlt, FaPlus, FaMinus,
-  FaFolderOpen, FaBoxOpen
+  FaFolderOpen, FaBoxOpen, FaHistory
 } from 'react-icons/fa';
 
 export default function StockTransfersPage() {
@@ -26,13 +27,15 @@ export default function StockTransfersPage() {
 }
 
 function TransferContent() {
-  const { timezone } = useAuth();
+  const { timezone, userRole, clientId, orgId } = useAuth();
+  const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [sourceStock, setSourceStock] = useState({});
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoTransfer, setAutoTransfer] = useState(false);
   const [fetchingStock, setFetchingStock] = useState(false);
   
   const [productSearch, setProductSearch] = useState("");
@@ -40,7 +43,7 @@ function TransferContent() {
   const searchWrapRef = useRef(null);
 
   const [transfer, setTransfer] = useState({
-    transferNumber: `TRF-${Date.now().toString().slice(-6)}`,
+    transferNumber: 'Auto Generated',
     transferDate: new Date().toISOString(),
     sourceWarehouseId: '',
     destWarehouseId: '',
@@ -50,6 +53,12 @@ function TransferContent() {
 
   const [message, setMessage] = useState(null);
   const [msgType, setMsgType] = useState('success');
+
+  const showToast = (msg, type = 'success') => {
+    setMessage(msg);
+    setMsgType(type);
+    setTimeout(() => setMessage(null), 4000);
+  };
 
   const [drafts, setDrafts] = useState([]);
   const [showDraftModal, setShowDraftModal] = useState(false);
@@ -72,13 +81,52 @@ function TransferContent() {
     }
   }, [transfer.sourceWarehouseId]);
 
+  // Restrict Source Warehouse ONLY to the active/logged-in organization's warehouses
+  const sourceWarehouses = useMemo(() => {
+    return warehouses.filter(w => {
+      if (!currentOrgId) return true;
+      const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
+      return !wOrg || String(wOrg) === String(currentOrgId);
+    });
+  }, [warehouses, currentOrgId]);
+
+  const sourceWarehouseOptions = useMemo(() => {
+    return sourceWarehouses.map(w => ({ value: w.id, label: w.name }));
+  }, [sourceWarehouses]);
+
+  useEffect(() => {
+    if (sourceWarehouses.length > 0) {
+      const defaultWh = sourceWarehouses.find(w => w.isDefault) || sourceWarehouses[0];
+      setTransfer(prev => {
+        const isCurrentValid = sourceWarehouses.some(w => w.id === prev.sourceWarehouseId);
+        if (!isCurrentValid && defaultWh) {
+          return { ...prev, sourceWarehouseId: defaultWh.id };
+        }
+        return prev;
+      });
+    }
+  }, [sourceWarehouses]);
+
   const fetchInitialData = async () => {
     try {
       const [wResp, pResp] = await Promise.all([
         api.get('/api/v1/warehouses'),
         api.get('/api/v1/products')
       ]);
-      if (wResp.data.success) setWarehouses(wResp.data.data || []);
+      if (wResp.data.success) {
+        const allWh = wResp.data.data || [];
+        setWarehouses(allWh);
+
+        // For non-SUPER_ADMIN: auto-select the branch's warehouse as source
+        if (userRole !== 'SUPER_ADMIN' && clientId) {
+          const branchWh = allWh.find(w =>
+            String(w.clientId || w.client_id || '') === String(clientId)
+          );
+          if (branchWh) {
+            setTransfer(prev => ({ ...prev, sourceWarehouseId: branchWh.id }));
+          }
+        }
+      }
       if (pResp.data.success) {
         setProducts((pResp.data.data || []).filter(p => p.isActive !== false && p.isactive !== 'N'));
       }
@@ -133,25 +181,45 @@ function TransferContent() {
   };
 
   const handleSave = async (targetStatus = 'DRAFT') => {
-    const finalStatus = targetStatus;
+    const finalStatus = targetStatus === 'SUBMIT'
+      ? (autoTransfer ? 'COMPLETED' : 'IN_TRANSIT')
+      : targetStatus;
 
     if (!transfer.sourceWarehouseId) return showToast("Select Source Warehouse", "error");
     if (!transfer.destWarehouseId) return showToast("Select Target Warehouse", "error");
     if (transfer.sourceWarehouseId === transfer.destWarehouseId) return showToast("Warehouses must be different", "error");
     if (!transfer.lines || transfer.lines.length === 0) return showToast("Add items to your cart", "error");
     
+    const zeroStockItem = transfer.lines.find(l => {
+      const current = sourceStock[l.productId]?.currentStock || 0;
+      return current <= 0;
+    });
+
+    if (zeroStockItem && finalStatus !== 'DRAFT') {
+      return showToast(`Cannot transfer non-stock item "${zeroStockItem.productName || 'product'}". Source stock is 0.`, "error");
+    }
+
     const hasOverdraft = transfer.lines.some(l => {
       const current = sourceStock[l.productId]?.currentStock || 0;
-      return l.transferQuantity > current;
+      return (Number(l.transferQuantity) || 0) > current;
     });
 
     if (hasOverdraft && finalStatus !== 'DRAFT') {
-      return showToast("Insufficient stock for one or more items.", "error");
+      return showToast("Cannot transfer quantity exceeding available stock.", "error");
     }
 
     setSaving(true);
     try {
-      const payload = { ...transfer, status: finalStatus };
+      const payload = {
+        ...transfer,
+        transferNumber: (transfer.transferNumber === 'Auto Generated' || !transfer.transferNumber) ? null : transfer.transferNumber,
+        orgId: transfer.orgId || currentOrgId,
+        status: finalStatus,
+        lines: transfer.lines.map(l => ({
+          ...l,
+          transferQuantity: Number(l.transferQuantity) || 1
+        }))
+      };
       const method = transfer.id ? 'put' : 'post';
       const url = transfer.id 
         ? `/api/v1/inventory/transfers/${transfer.id}` 
@@ -160,11 +228,16 @@ function TransferContent() {
       const resp = await api[method](url, payload);
       
       if (resp.data.success) {
-        showToast(`Transfer ${finalStatus === 'COMPLETED' ? 'Executed' : 'Saved'}!`, "success");
+        const toastMsg = finalStatus === 'COMPLETED'
+          ? 'Stock Transfer Executed Successfully!'
+          : finalStatus === 'IN_TRANSIT'
+          ? 'Transfer Sent for Destination Confirmation.'
+          : 'Draft Saved.';
+        showToast(toastMsg, "success");
         setTransfer({
-          transferNumber: `TRF-${Date.now().toString().slice(-6)}`,
+          transferNumber: 'Auto Generated',
           transferDate: new Date().toISOString(),
-          sourceWarehouseId: '',
+          sourceWarehouseId: sourceWarehouseOptions[0]?.value || '',
           destWarehouseId: '',
           status: 'DRAFT',
           lines: []
@@ -172,36 +245,63 @@ function TransferContent() {
         setSourceStock({});
         setProductSearch("");
         fetchDrafts();
+      } else {
+        showToast(resp.data.message || "Failed to execute transfer", "error");
       }
     } catch (err) {
-      showToast(err.response?.data?.message || err.message, "error");
+      showToast(err.response?.data?.message || err.message || "Failed to execute transfer", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const showToast = (msg, type) => {
-    setMessage(msg);
-    setMsgType(type);
-    setTimeout(() => setMessage(null), 3000);
-  };
-
   const handleAddProduct = (product) => {
+    const stockObj = sourceStock[product.id];
+    const available = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
+    
     const existingIdx = transfer.lines.findIndex(l => l.productId === product.id);
     if (existingIdx >= 0) {
+      const currentQty = Number(transfer.lines[existingIdx].transferQuantity) || 0;
+      if (transfer.sourceWarehouseId && available > 0 && currentQty >= available) {
+        showToast(`Warning: quantity exceeds available stock (${available} units) for ${product.name}`, "error");
+      }
       const newLines = [...transfer.lines];
-      newLines[existingIdx].transferQuantity += 1;
+      newLines[existingIdx].transferQuantity = currentQty + 1;
       setTransfer({ ...transfer, lines: newLines });
     } else {
       setTransfer({ ...transfer, lines: [...transfer.lines, { productId: product.id, transferQuantity: 1 }] });
+      if (transfer.sourceWarehouseId && available <= 0) {
+        showToast(`"${product.name}" added (0 available stock in source warehouse)`, "error");
+      }
     }
     setProductSearch("");
     setShowSuggestions(false);
   };
 
-  const updateLineQty = (index, value) => {
+  const updateLineQty = (index, value, maxStock = Infinity) => {
+    if (value === '' || value === null || value === undefined) {
+      const newLines = [...transfer.lines];
+      newLines[index].transferQuantity = '';
+      setTransfer({ ...transfer, lines: newLines });
+      return;
+    }
+
+    const rawNum = parseInt(value, 10);
+    if (isNaN(rawNum) || rawNum < 1) {
+      const newLines = [...transfer.lines];
+      newLines[index].transferQuantity = 1;
+      setTransfer({ ...transfer, lines: newLines });
+      return;
+    }
+
+    let qty = rawNum;
+    if (transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
+      qty = Math.max(1, maxStock);
+      showToast(`Quantity capped at available stock (${maxStock} units)`, "error");
+    }
+
     const newLines = [...transfer.lines];
-    newLines[index].transferQuantity = value;
+    newLines[index].transferQuantity = qty;
     setTransfer({ ...transfer, lines: newLines });
   };
 
@@ -251,9 +351,10 @@ function TransferContent() {
                   </div>
                   <NiceSelect 
                     placeholder="Select Source..."
-                    options={warehouseOptions}
+                    options={sourceWarehouseOptions}
                     value={transfer.sourceWarehouseId}
                     onChange={(val) => setTransfer({...transfer, sourceWarehouseId: val})}
+                    disabled={sourceWarehouseOptions.length <= 1}
                   />
                 </div>
 
@@ -309,7 +410,14 @@ function TransferContent() {
                         const currentStock = stockObj ? stockObj.currentStock : 0;
                         const hasSource = !!transfer.sourceWarehouseId;
                         return (
-                          <div key={p.id} className="sug-item" onClick={() => handleAddProduct(p)}>
+                          <div 
+                            key={p.id} 
+                            className="sug-item" 
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleAddProduct(p);
+                            }}
+                          >
                              <div className="sug-left">
                                <div className="sug-name">{p.name} {p.productCode ? `(#${p.productCode})` : ''}</div>
                                <div className="sug-cat">{p.categoryName || 'General'}</div>
@@ -368,9 +476,35 @@ function TransferContent() {
                               </td>
                               <td className="col-qty">
                                 <div className="classic-qty-group">
-                                   <button className="qty-btn" onClick={() => updateLineQty(idx, Math.max(1, line.transferQuantity - 1))}><FaMinus /></button>
-                                   <div className="qty-num">{line.transferQuantity}</div>
-                                   <button className="qty-btn" onClick={() => updateLineQty(idx, line.transferQuantity + 1)}><FaPlus /></button>
+                                   <button 
+                                     type="button"
+                                     className="qty-btn" 
+                                     onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) - 1, currentStock)}
+                                     disabled={(Number(line.transferQuantity) || 1) <= 1}
+                                   >
+                                     <FaMinus />
+                                   </button>
+                                   <input 
+                                     type="number"
+                                     className="qty-input"
+                                     value={line.transferQuantity}
+                                     min="1"
+                                     max={transfer.sourceWarehouseId ? currentStock : undefined}
+                                     onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
+                                     onBlur={() => {
+                                       if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
+                                         updateLineQty(idx, 1, currentStock);
+                                       }
+                                     }}
+                                   />
+                                   <button 
+                                     type="button"
+                                     className="qty-btn" 
+                                     onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) + 1, currentStock)}
+                                     disabled={transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
+                                   >
+                                     <FaPlus />
+                                   </button>
                                 </div>
                               </td>
                                <td className="col-status">
@@ -417,9 +551,35 @@ function TransferContent() {
                                  ) : <span className="stock-pill">No Source</span>}
                                </div>
                                <div className="classic-qty-group small">
-                                 <button className="qty-btn" onClick={() => updateLineQty(idx, Math.max(1, line.transferQuantity - 1))}><FaMinus /></button>
-                                 <div className="qty-num">{line.transferQuantity}</div>
-                                 <button className="qty-btn" onClick={() => updateLineQty(idx, line.transferQuantity + 1)}><FaPlus /></button>
+                                 <button 
+                                   type="button"
+                                   className="qty-btn" 
+                                   onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) - 1, currentStock)}
+                                   disabled={(Number(line.transferQuantity) || 1) <= 1}
+                                 >
+                                   <FaMinus />
+                                 </button>
+                                 <input 
+                                   type="number"
+                                   className="qty-input"
+                                   value={line.transferQuantity}
+                                   min="1"
+                                   max={transfer.sourceWarehouseId ? currentStock : undefined}
+                                   onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
+                                   onBlur={() => {
+                                     if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
+                                       updateLineQty(idx, 1, currentStock);
+                                     }
+                                   }}
+                                 />
+                                 <button 
+                                   type="button"
+                                   className="qty-btn" 
+                                   onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) + 1, currentStock)}
+                                   disabled={transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
+                                 >
+                                   <FaPlus />
+                                 </button>
                                </div>
                             </div>
                           </div>
@@ -434,7 +594,12 @@ function TransferContent() {
 
           <div className="fluid-sidebar">
              <div className="premium-card summary-card">
-                <h3 className="comp-summary-title">Process Summary</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 className="comp-summary-title" style={{ margin: 0 }}>Process Summary</h3>
+                  <Link href="/owner/stock-transfer-reports" className="history-header-btn" title="View Transfer History">
+                    <FaHistory /> History
+                  </Link>
+                </div>
                 
                 <div className="summary-list">
                   <div className="sm-item">
@@ -467,13 +632,34 @@ function TransferContent() {
                   </div>
                 </div>
 
+                {/* Auto Transfer Toggle */}
+                <div className="auto-transfer-toggle">
+                  <button
+                    className={`att-btn ${autoTransfer ? 'att-on' : 'att-off'}`}
+                    onClick={() => setAutoTransfer(!autoTransfer)}
+                    type="button"
+                  >
+                    <div className="att-track">
+                      <div className="att-thumb" />
+                    </div>
+                    <div className="att-text">
+                      <span className="att-label">Auto Transfer</span>
+                      <span className="att-desc">
+                        {autoTransfer
+                          ? 'Stock moves immediately on submit'
+                          : 'Requires confirmation from target warehouse'}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
                 <div className="comp-action-stack">
                    <button 
-                     className="action-prime"
-                     onClick={() => handleSave('COMPLETED')}
+                     className={`action-prime ${autoTransfer ? 'prime-green' : ''}`}
+                     onClick={() => handleSave('SUBMIT')}
                      disabled={saving || transfer.lines.length === 0}
                    >
-                     {saving ? "..." : "Complete Transfer"}
+                     {saving ? '...' : autoTransfer ? 'Transfer Now' : 'Send for Confirmation'}
                    </button>
                    
                    <button 
@@ -483,7 +669,20 @@ function TransferContent() {
                    >
                      <FaSave /> Save as Draft
                    </button>
+
+                   <Link href="/owner/stock-transfer-reports" className="action-history">
+                     <FaHistory /> Transfer History
+                   </Link>
                 </div>
+             </div>
+
+             <div className="premium-card notes-card" style={{marginTop: '0'}}>
+               <textarea 
+                 className="premium-textarea" 
+                 placeholder="Transfer Notes / Remarks..."
+                 value={transfer.notes || ''}
+                 onChange={(e) => setTransfer({...transfer, notes: e.target.value})}
+               />
              </div>
           </div>
         </div>
@@ -495,8 +694,8 @@ function TransferContent() {
               <span className="ma-qty">{totalUnits} Units</span>
               <span className="ma-count">{totalItems} Products</span>
             </div>
-            <button className="ma-btn" onClick={() => handleSave('COMPLETED')}>
-              Complete
+            <button className={`ma-btn ${autoTransfer ? 'ma-btn-green' : ''}`} onClick={() => handleSave('SUBMIT')}>
+              {autoTransfer ? 'Transfer Now' : 'Send for Confirm'}
             </button>
           </div>
         )}
@@ -547,6 +746,7 @@ function TransferContent() {
 
         .premium-card { background: white; border-radius: 8px; padding: 16px; border: 1px solid #e2e8f0; }
         .premium-alert.error { background: #fef2f2; border: 1px solid #fee2e2; color: #b91c1c; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .mobile-action-bar { display: none; }
         
         /* Routing Hub Ultra-Compact */
         .routing-hub-card { border-top: 3px solid #f97316; }
@@ -591,11 +791,14 @@ function TransferContent() {
         .p-sku { color: #94a3b8; }
         .p-category { color: #f97316; text-transform: uppercase; }
 
-        /* Tactical Tactical Qty Control */
-        .classic-qty-group { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px; width: fit-content; }
+        /* Tactical Qty Control */
+        .classic-qty-group { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px; width: fit-content; gap: 2px; }
         .qty-btn { width: 28px; height: 28px; border-radius: 7px; border: none; background: white; cursor: pointer; color: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; }
-        .qty-btn:hover { background: #0f172a; color: white; transform: translateY(-1px); }
-        .qty-num { min-width: 36px; text-align: center; font-size: 14px; font-weight: 800; color: #0f172a !important; }
+        .qty-btn:hover:not(:disabled) { background: #f97316; color: white; transform: translateY(-1px); }
+        .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .qty-input { width: 50px; height: 28px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; font-size: 14px; font-weight: 800; color: #0f172a; outline: none; background: white; transition: 0.2s; -moz-appearance: textfield; }
+        .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .qty-input:focus { border-color: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
 
         .classic-pill { font-size: 10px; font-weight: 800; }
         .classic-pill.success { color: #166534; }
@@ -603,8 +806,17 @@ function TransferContent() {
 
         .classic-trash { background: none; border: none; color: #ef4444; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; opacity: 0.7; }
 
+        .premium-textarea { width: 100%; min-height: 80px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 14px; font-weight: 600; color: #0f172a !important; background: #ffffff !important; resize: vertical; margin-top: 8px; outline: none; }
+        .premium-textarea:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
+
         /* Compact Summary Sidebar Re-Polished */
         .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 16px; }
+
+        .history-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; border-radius: 8px; font-size: 11px; font-weight: 700; text-decoration: none; transition: all 0.2s; }
+        .history-header-btn:hover { background: #f97316; color: white; border-color: #f97316; }
+
+        .action-history { display: flex; align-items: center; justify-content: center; gap: 8px; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; margin-top: 4px; }
+        .action-history:hover { background: #0f172a; color: white; border-color: #0f172a; }
         .summary-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
         .sm-item { display: flex; justify-content: space-between; font-size: 12px; color: #1e293b; }
         .sm-label { font-weight: 600; color: #64748b; }
@@ -615,8 +827,28 @@ function TransferContent() {
         .cs-row.accent { padding-top: 8px; border-top: 1px dashed #cbd5e1; margin-top: 8px; color: #0f172a; }
         .cs-val { font-size: 14px; font-weight: 800; color: #0f172a; }
         .comp-action-stack { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-        .action-prime { background: #f97316; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; width: 100%; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2); }
+        .action-prime { background: #f97316; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 14px; font-weight: 800; cursor: pointer; width: 100%; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2); transition: all 0.2s; }
+        .action-prime.prime-green { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .action-prime:hover:not(:disabled) { transform: translateY(-1px); opacity: 0.92; }
+        .action-prime:disabled { opacity: 0.5; cursor: not-allowed; }
         .action-sec { background: #fff; color: #0f172a; border: 2px solid #e2e8f0; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; cursor: pointer; }
+
+        /* Auto Transfer Toggle */
+        .auto-transfer-toggle { margin-bottom: 16px; }
+        .att-btn { width: 100%; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .att-btn.att-on { background: #ecfdf5; border-color: #6ee7b7; }
+        .att-btn.att-off { background: #f8fafc; border-color: #e2e8f0; }
+        .att-btn:hover { border-color: #f97316; }
+        .att-track { width: 40px; height: 22px; border-radius: 11px; background: #cbd5e1; flex-shrink: 0; position: relative; transition: background 0.2s; }
+        .att-on .att-track { background: #10b981; }
+        .att-thumb { width: 18px; height: 18px; border-radius: 50%; background: white; position: absolute; top: 2px; left: 2px; transition: left 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+        .att-on .att-thumb { left: 20px; }
+        .att-text { flex: 1; min-width: 0; }
+        .att-label { display: block; font-size: 13px; font-weight: 800; color: #0f172a; margin-bottom: 2px; }
+        .att-on .att-label { color: #065f46; }
+        .att-desc { display: block; font-size: 11px; font-weight: 500; color: #64748b; line-height: 1.4; }
+        .att-on .att-desc { color: #047857; }
+        .ma-btn-green { background: #10b981 !important; }
 
         /* Draft Modal */
         .draft-modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }

@@ -11,7 +11,9 @@ export default function ReportTable({
   emptyTitle = 'No records found', 
   emptyText = 'Adjust your filters or try a different search.',
   footer = null,
-  accentColor = '#f97316'
+  accentColor = '#f97316',
+  expandedRowId = null,
+  expandedRowContent = null
 }) {
   return (
     <div className="table-container">
@@ -32,16 +34,25 @@ export default function ReportTable({
         <tbody>
           {data.length > 0 ? (
             data.map((row, rowIdx) => (
-              <tr key={row.id || rowIdx}>
-                {columns.map((col, colIdx) => (
-                  <td 
-                    key={col.key || colIdx}
-                    className={col.align === 'right' ? 'rt-right' : col.align === 'center' ? 'rt-center' : ''}
-                  >
-                    {col.render ? col.render(row, rowIdx) : row[col.key]}
-                  </td>
-                ))}
-              </tr>
+              <React.Fragment key={row.id || rowIdx}>
+                <tr>
+                  {columns.map((col, colIdx) => (
+                    <td 
+                      key={col.key || colIdx}
+                      className={col.align === 'right' ? 'rt-right' : col.align === 'center' ? 'rt-center' : ''}
+                    >
+                      {col.render ? col.render(row, rowIdx) : row[col.key]}
+                    </td>
+                  ))}
+                </tr>
+                {expandedRowId && expandedRowContent && expandedRowId === (row.id || rowIdx) && (
+                  <tr className="expanded-row">
+                    <td colSpan={columns.length} style={{ padding: 0, border: 'none' }}>
+                      {expandedRowContent(row)}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))
           ) : (
             <tr>

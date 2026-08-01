@@ -1,5 +1,5 @@
 // pages/owner/sequences.js — Document Sequence Configuration
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -46,6 +46,8 @@ function SequencesContent() {
       case 'EXPENSE_RECEIPT': return 'ER-{YYYY}-';
       case 'INBOUND_PAYMENT': return 'REC-{YYYY}-';
       case 'OUTBOUND_PAYMENT': return 'PAY-{YYYY}-';
+      case 'STOCK_TRANSFER': return 'ST-{YYYY}-';
+      case 'STOCK_ADJUSTMENT': return 'SA-{YYYY}-';
       default: return '{YYYY}-';
     }
   };
@@ -120,8 +122,42 @@ function SequencesContent() {
     return `${pfx}${pad}${sfx}`;
   };
 
-  const filtered = sequences.filter(s => 
+  const ALL_DOC_TYPES = useMemo(() => [
+    'SALE_ORDER',
+    'CUSTOMER_INVOICE',
+    'PURCHASE_ORDER',
+    'VENDOR_BILL',
+    'EXPENSE',
+    'EXPENSE_RECEIPT',
+    'INBOUND_PAYMENT',
+    'OUTBOUND_PAYMENT',
+    'STOCK_TRANSFER',
+    'STOCK_ADJUSTMENT'
+  ], []);
+
+  const displaySequences = useMemo(() => {
+    const map = new Map();
+    (sequences || []).forEach(s => {
+      if (s.documentType) map.set(s.documentType, s);
+    });
+
+    return ALL_DOC_TYPES.map(type => {
+      if (map.has(type)) return map.get(type);
+      return {
+        id: null,
+        documentType: type,
+        prefix: getDefaultPrefix(type),
+        suffix: getDefaultSuffix(type),
+        paddingLength: 7,
+        nextNumber: 1,
+        isActive: true
+      };
+    });
+  }, [sequences, ALL_DOC_TYPES]);
+
+  const filtered = displaySequences.filter(s => 
     s.documentType.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    getDocTypeName(s.documentType).toLowerCase().includes(searchTerm.toLowerCase()) ||
     (s.prefix || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -240,7 +276,9 @@ function SequencesContent() {
                       { label: 'Vendor Bill', value: 'VENDOR_BILL' },
                       { label: 'Expense Receipt', value: 'EXPENSE_RECEIPT' },
                       { label: 'Inbound Payment', value: 'INBOUND_PAYMENT' },
-                      { label: 'Outbound Payment', value: 'OUTBOUND_PAYMENT' }
+                      { label: 'Outbound Payment', value: 'OUTBOUND_PAYMENT' },
+                      { label: 'Stock Transfer', value: 'STOCK_TRANSFER' },
+                      { label: 'Stock Adjustment', value: 'STOCK_ADJUSTMENT' }
                     ]}
                   />
                 </div>

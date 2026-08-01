@@ -19,7 +19,9 @@ export default function WarehouseManagementPage() {
 }
 
 function WarehouseContent() {
-  const { userRole } = useAuth();
+  const { userRole, orgId } = useAuth();
+  const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
+
   const [warehouses, setWarehouses] = useState([]);
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,27 +35,51 @@ function WarehouseContent() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentOrgId]);
 
   const fetchData = async (currentSelection = null) => {
     try {
+      const params = currentOrgId ? { orgId: currentOrgId } : {};
       const [wResp, oResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
+        api.get('/api/v1/warehouses', { params }),
         api.get('/api/v1/organizations')
       ]);
       
-      if (wResp.data.success) {
-        setWarehouses(wResp.data.data || []);
+      let raw = wResp.data.success ? (wResp.data.data || []) : [];
+      if (currentOrgId) {
+        raw = raw.filter(w => {
+          const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
+          return !wOrg || String(wOrg) === String(currentOrgId);
+        });
       }
+
+      if (raw.length === 1) {
+        raw[0].isDefault = true;
+      }
+
+      setWarehouses(raw);
+
       if (oResp.data.success) {
         setOrgs(oResp.data.data || []);
       }
 
-      const rawWarehouses = wResp.data.data || [];
-      if (rawWarehouses.length > 0 && !selectedWarehouse && !currentSelection) {
-        setSelectedWarehouse(rawWarehouses[0]);
-      } else if (currentSelection) {
-        setSelectedWarehouse(currentSelection);
+      if (raw.length > 0) {
+        if (currentSelection && raw.some(w => w.id === currentSelection.id)) {
+          setSelectedWarehouse(currentSelection);
+        } else {
+          setSelectedWarehouse(raw[0]);
+        }
+      } else {
+        setSelectedWarehouse({
+          name: '',
+          code: '',
+          address: '',
+          managerName: '',
+          managerPhone: '',
+          orgId: currentOrgId,
+          isActive: 'Y',
+          isDefault: true
+        });
       }
     } catch (err) {
       console.error("Failed to load warehouse data:", err);
@@ -72,14 +98,17 @@ function WarehouseContent() {
       return;
     }
 
+    const effectiveOrgId = selectedWarehouse.orgId || currentOrgId;
+    const warehouseToSave = { ...selectedWarehouse, orgId: effectiveOrgId };
+
     setSaving(true);
     setMessage(null);
     
-    const isNew = !selectedWarehouse.id;
-    const url = isNew ? '/api/v1/warehouses' : `/api/v1/warehouses/${selectedWarehouse.id}`;
+    const isNew = !warehouseToSave.id;
+    const url = isNew ? '/api/v1/warehouses' : `/api/v1/warehouses/${warehouseToSave.id}`;
     
     try {
-      const resp = await (isNew ? api.post(url, selectedWarehouse) : api.put(url, selectedWarehouse));
+      const resp = await (isNew ? api.post(url, warehouseToSave) : api.put(url, warehouseToSave));
       if (resp.data.success) {
         setMsgType('success');
         setMessage(isNew ? "Warehouse created!" : "Warehouse updated!");
@@ -103,16 +132,16 @@ function WarehouseContent() {
       address: '',
       managerName: '',
       managerPhone: '',
-      orgId: orgs.length > 0 ? orgs[0].id : '',
+      orgId: currentOrgId,
       isActive: 'Y',
-      isDefault: false
+      isDefault: true
     });
   };
 
   if (loading) return <div className="loading-state-premium"><span>Allocating Storage Nodes...</span></div>;
 
   return (
-    <DashboardLayout title="Warehouse Master" showBack={true} backUrl="/admin/organization">
+    <DashboardLayout title="Warehouse Master" showBack={true} backUrl="/owner/stock-menu">
       <div className="v2-layout-container">
         <aside className="v2-sidebar">
           <div className="sidebar-action-header">
@@ -199,33 +228,20 @@ function WarehouseContent() {
                       <label>System Code</label>
                       <input type="text" readOnly={!isAdmin} value={selectedWarehouse.code || ''} onChange={(e) => setSelectedWarehouse({...selectedWarehouse, code: e.target.value})} placeholder="WH-001" />
                     </div>
-                    <div className="v2-input-group">
-                      <label>Assign to Branch (Org)</label>
-                      <select 
-                        disabled={!isAdmin}
-                        value={selectedWarehouse.orgId || ''}
-                        onChange={(e) => setSelectedWarehouse({...selectedWarehouse, orgId: e.target.value})}
-                        className="erp-input-modern"
-                      >
-                         <option value="">Select Branch...</option>
-                         {orgs.map(o => (
-                           <option key={o.id} value={o.id}>{o.name}</option>
-                         ))}
-                      </select>
-                    </div>
+
 
                     {/* Default Warehouse Checkbox */}
                     <div className="v2-checkbox-group">
                       <label className="v2-checkbox-label">
                         <input 
                           type="checkbox" 
-                          disabled={!isAdmin}
-                          checked={Boolean(selectedWarehouse.isDefault)} 
+                          disabled={!isAdmin || warehouses.length <= 1}
+                          checked={warehouses.length <= 1 ? true : Boolean(selectedWarehouse.isDefault)} 
                           onChange={(e) => setSelectedWarehouse({...selectedWarehouse, isDefault: e.target.checked})} 
                         />
-                        <span className="checkbox-text">Default Warehouse for Branch</span>
+                        <span className="checkbox-text">Default Warehouse for Organization</span>
                       </label>
-                      <span className="checkbox-hint">Stock for completed sales in this branch will be automatically deducted from this warehouse.</span>
+                      <span className="checkbox-hint">Stock for completed sales and purchases in this organization will automatically use this warehouse.</span>
                     </div>
                   </div>
                 </section>

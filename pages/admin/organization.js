@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import DashboardLayout from '../../components/DashboardLayout';
-import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaWarehouse, FaCreditCard } from 'react-icons/fa';
+import { FaBalanceScale, FaBuilding, FaMicrochip, FaUsers, FaArrowRight, FaTools, FaMoneyBillWave, FaTags, FaCreditCard } from 'react-icons/fa';
 
 export default function OrganizationPage() {
   return <OrganizationContent />;
@@ -14,7 +14,6 @@ function OrganizationContent() {
     { name: 'Terminal Management',  url: '/admin/terminals',              desc: 'POS counter & ordering points',                 icon: <FaMicrochip />,     color: '#f59e0b', bg: '#fffbeb' },
     { name: 'Device Management',    url: '/admin/devices',                desc: 'Hardware inventory & device linking',           icon: <FaTools />,         color: '#ec4899', bg: '#fdf2f8' },
     { name: 'Staff & Permissions',  url: '/admin/users',                  desc: 'User access control & role management',         icon: <FaUsers />,         color: '#10b981', bg: '#f0fdf4' },
-    { name: 'Warehouse Management', url: '/admin/warehouses',             desc: 'Manage storage locations & distribution',       icon: <FaWarehouse />,     color: '#06b6d4', bg: '#f0f9ff' },
     { name: 'Currency Masters',     url: '/owner/currencies',             desc: 'Multi-currency setup & exchange rates',         icon: <FaMoneyBillWave />, color: '#14b8a6', bg: '#f0fdfa' },
     { name: 'Price List Masters',   url: '/owner/pricelists',             desc: 'Sales & purchase pricing with versioning',      icon: <FaTags />,          color: '#f97316', bg: '#fff7ed' },
     { name: 'Payment Types',        url: '/owner/payment-types',          desc: 'Payment methods for sales, purchases & expenses', icon: <FaCreditCard />,   color: '#6366f1', bg: '#eef2ff' },

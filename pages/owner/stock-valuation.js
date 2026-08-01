@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
@@ -31,8 +32,10 @@ function ValuationContent() {
   const currentOrgId = orgId || (typeof window !== 'undefined' ? (Cookies.get('orgId') || '') : '');
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState(currentOrgId || '');
   const [warehouses, setWarehouses] = useState([]);
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('ALL');
   const [stock, setStock] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,78 +45,81 @@ function ValuationContent() {
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
-    fetchInitialData();
-  }, [currentOrgId]);
+    api.get('/api/v1/organizations')
+      .then(res => {
+        if (res.data?.success) {
+          setOrganizations(res.data.data || []);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-  const fetchInitialData = async () => {
+  const loadValuationData = async (orgIdVal, whIdVal) => {
     setLoading(true);
     try {
-      const params = currentOrgId ? { orgId: currentOrgId } : {};
+      const effectiveOrg = orgIdVal !== undefined ? orgIdVal : selectedOrgId;
+      const effectiveWh = whIdVal !== undefined ? whIdVal : selectedWarehouseId;
+
+      const params = {};
+      if (effectiveOrg) params.orgId = effectiveOrg;
 
       const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses', { params })
-          .catch(err => {
-            console.error("Failed to fetch warehouses:", err);
-            return { data: { success: true, data: [] } };
-          }),
-        api.get('/api/v1/products', { params })
-          .catch(err => {
-            console.error("Failed to fetch products:", err);
-            return { data: { success: true, data: [] } };
-          })
+        api.get('/api/v1/warehouses', { params }).catch(err => {
+          console.error("Failed to fetch warehouses:", err);
+          return { data: { success: true, data: [] } };
+        }),
+        api.get('/api/v1/products', { params }).catch(err => {
+          console.error("Failed to fetch products:", err);
+          return { data: { success: true, data: [] } };
+        })
       ]);
 
       const rawWarehouses = wResp.data?.data || [];
-      // Filter warehouses for current organization (or global warehouses)
-      const filteredWarehouses = rawWarehouses.filter((w) => {
-        if (!currentOrgId || isSuperAdmin) return true;
-        const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
-        return !wOrg || String(wOrg) === String(currentOrgId);
-      });
+      setWarehouses(rawWarehouses);
 
-      setWarehouses(filteredWarehouses);
       if (pResp.data && pResp.data.success) {
         setProducts(pResp.data.data || []);
       }
 
-      if (filteredWarehouses.length > 0) {
-        // Default to 'ALL' to show consolidated view across all warehouses
-        setSelectedWarehouseId('ALL');
-        await fetchStock('ALL', currentOrgId);
+      // Correct endpoint: /api/v1/inventory/stock-overview
+      let stockUrl = '/api/v1/inventory/stock-overview';
+      let stockParams = {};
+      if (effectiveWh && effectiveWh !== 'ALL') {
+        stockUrl = `/api/v1/inventory/stock-overview/${effectiveWh}`;
       } else {
-        setSelectedWarehouseId('ALL');
-        await fetchStock('ALL', currentOrgId);
+        if (effectiveOrg) stockParams.orgId = effectiveOrg;
+      }
+
+      const stockResp = await api.get(stockUrl, { params: stockParams }).catch(err => {
+        console.error("Failed to fetch stock:", err);
+        return { data: { success: true, data: [] } };
+      });
+
+      if (stockResp.data && stockResp.data.success) {
+        setStock(stockResp.data.data || []);
+      } else {
+        setStock([]);
       }
     } catch (err) {
       console.error("Failed to load stock valuation data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStock = async (whId, orgIdParam) => {
-    setLoading(true);
-    try {
-      let resp;
-      if (!whId || whId === 'ALL') {
-        // Consolidated view across all warehouses for current org
-        const params = {};
-        const effectiveOrg = orgIdParam || currentOrgId;
-        if (effectiveOrg) params.orgId = effectiveOrg;
-        resp = await api.get('/api/v1/inventory/consolidated-stock-overview', { params });
-      } else {
-        resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
-      }
-      if (resp.data && resp.data.success) {
-        setStock(resp.data.data || []);
-      }
-    } catch (err) {
-      console.error("Failed to fetch stock:", err);
       setStock([]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadValuationData(selectedOrgId, selectedWarehouseId || 'ALL');
+  }, [selectedOrgId]);
+
+  const filteredWarehouses = useMemo(() => {
+    if (!selectedOrgId) return warehouses;
+    return warehouses.filter(w => {
+      const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || w.organization?.id || '');
+      return !wOrg || String(wOrg) === String(selectedOrgId);
+    });
+  }, [warehouses, selectedOrgId]);
+
 
   // Build Map of Stock by Product ID
   const stockMap = new Map();
@@ -211,6 +217,18 @@ function ValuationContent() {
 
   const totalUnits = valuationData.reduce((a, b) => a + b.currentQuantity, 0);
   const totalValue = valuationData.reduce((a, b) => a + b.totalValue, 0);
+  const [page, setPage] = useState(0);
+
+  const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, itemTypeFilter, selectedOrgId, selectedWarehouseId]);
+
+  const totalPages = Math.ceil(sortedData.length / PAGE_SIZE);
+  const paginatedData = useMemo(() => {
+    return sortedData.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  }, [sortedData, page]);
 
   if (loading && warehouses.length === 0) return <div className="loading-state-premium"><span>Loading Stock Valuation...</span></div>;
 
@@ -221,21 +239,45 @@ function ValuationContent() {
         {/* Toolbar Filters */}
         <div className="toolbar">
           <div className="toolbar-left">
+            {/* Organization Filter */}
+            {(isSuperAdmin || organizations.length > 0) && (
+              <div className="wh-select-wrap">
+                <NiceSelect
+                  value={selectedOrgId}
+                  onChange={(orgVal) => {
+                    setSelectedOrgId(orgVal);
+                    setSelectedWarehouseId('ALL');
+                    loadValuationData(orgVal, 'ALL');
+                  }}
+                  options={[
+                    { value: '', label: 'All Organizations' },
+                    ...organizations.map(o => ({
+                      value: o.id,
+                      label: o.name || `Org #${o.id}`
+                    }))
+                  ]}
+                  placeholder="Select Organization..."
+                  style={{ minWidth: '200px' }}
+                />
+              </div>
+            )}
+
+            {/* Warehouse Filter */}
             <div className="wh-select-wrap">
               <NiceSelect
                 value={selectedWarehouseId}
-                onChange={(id) => {
-                  setSelectedWarehouseId(id);
-                  fetchStock(id);
+                onChange={(whId) => {
+                  setSelectedWarehouseId(whId);
+                  loadValuationData(selectedOrgId, whId);
                 }}
                 options={[
                   { value: 'ALL', label: 'All Warehouses' },
-                  ...warehouses.map(w => ({
+                  ...filteredWarehouses.map(w => ({
                     value: w.id,
                     label: `${w.name}${w.code ? ` (${w.code})` : ''}${w.isDefault ? ' ⭐ Default' : ''}`
                   }))
                 ]}
-                placeholder={warehouses.length === 0 ? "No warehouses found" : "Select Warehouse..."}
+                placeholder={filteredWarehouses.length === 0 ? "No warehouses found" : "Select Warehouse..."}
                 style={{ minWidth: '220px' }}
               />
             </div>
@@ -329,25 +371,36 @@ function ValuationContent() {
               )
             }
           ]}
-          data={sortedData}
+          data={paginatedData}
           emptyTitle="No stock valuation data"
           emptyText="No ingredients or products match the current filters and selected warehouse."
-          footer={
-            <tr>
-              <td colSpan="2"><strong>GRAND TOTAL ({sortedData.length} items)</strong></td>
-              <td className="text-right"><strong>{totalUnits.toLocaleString('en-IN')}</strong></td>
-              <td className="text-right">—</td>
-              <td className="text-right"><strong className="grand-total">{sym}{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></td>
-              <td className="text-right"><strong>100%</strong></td>
-            </tr>
-          }
         />
 
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="pagination-bar">
+            <button className="pg-btn" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>← Prev</button>
+            <span className="pg-info">Page {page + 1} of {totalPages} &nbsp;·&nbsp; {sortedData.length} items</span>
+            <button className="pg-btn" disabled={page >= totalPages - 1} onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}>Next →</button>
+          </div>
+        )}
+
+        <div className="report-footer">
+          <span>Showing {paginatedData.length} of {sortedData.length} items</span>
+        </div>
       </div>
 
       <style jsx>{`
         .val-container { padding: 0 40px 40px; }
         @media (max-width: 768px) { .val-container { padding: 0 16px 24px; } }
+
+        .pagination-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 20px 0 10px; }
+        .pg-btn { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 700; color: #f97316; cursor: pointer; transition: all 0.2s; }
+        .pg-btn:hover:not(:disabled) { background: #fff7ed; border-color: #f97316; }
+        .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .pg-info { font-size: 13px; font-weight: 700; color: #64748b; }
+        .report-footer { padding: 12px 0; text-align: center; }
+        .report-footer span { font-size: 12px; font-weight: 700; color: #94a3b8; }
 
         .summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
         .summary-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #edf2f7; display: flex; align-items: center; gap: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
@@ -402,3 +455,4 @@ function ValuationContent() {
     </DashboardLayout>
   );
 }
+

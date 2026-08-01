@@ -1,16 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import BranchRequiredGate from '../../components/BranchRequiredGate';
 import NiceSelect from '../../components/NiceSelect';
+import StockDocumentViewerPopup from '../../components/purchasing/StockDocumentViewerPopup';
 import api from '../../utils/api';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaSearch, FaWarehouse, FaTag, FaExchangeAlt, 
   FaTrash, FaPlus, FaMinus, FaFolderOpen, FaBoxOpen,
-  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine
+  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye
 } from 'react-icons/fa';
 import VariantSelector from '../../components/VariantSelector';
 
@@ -27,11 +29,15 @@ export default function StockAdjustmentsPage() {
 }
 
 function AdjustmentContent() {
-  const { timezone } = useAuth();
+  const { timezone, orgId, userRole } = useAuth();
+  const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default?.get('orgId') || '') : '');
+
   const [warehouses, setWarehouses] = useState([]);
+
   const [products, setProducts] = useState([]);
   const [drafts, setDrafts] = useState([]);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(null);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,8 +72,9 @@ function AdjustmentContent() {
 
   const fetchInitialData = async () => {
     try {
+      const whUrl = currentOrgId ? `/api/v1/warehouses?orgId=${currentOrgId}` : '/api/v1/warehouses';
       const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses')
+        api.get(whUrl)
           .catch(err => {
             console.error("Failed to fetch warehouses:", err);
             return { data: { success: true, data: [] } };
@@ -78,7 +85,11 @@ function AdjustmentContent() {
             return { data: { success: true, data: [] } };
           })
       ]);
-      if (wResp.data && wResp.data.success) setWarehouses(wResp.data.data || []);
+      if (wResp.data && wResp.data.success) {
+        const allWh = wResp.data.data || [];
+        setWarehouses(allWh);
+      }
+
       if (pResp.data && pResp.data.success) {
         setProducts((pResp.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false));
       }
@@ -249,7 +260,32 @@ function AdjustmentContent() {
 
   const totalItems = adjustment.lines.length;
   const totalQtyChange = adjustment.lines.reduce((acc, l) => acc + (l.quantityChange || 0), 0);
-  const warehouseOptions = warehouses.map(w => ({ value: w.id, label: w.name }));
+
+  const filteredWarehouses = useMemo(() => {
+    return warehouses.filter(w => {
+      if (!currentOrgId) return true;
+      const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || w.organization?.id || '');
+      return !wOrg || String(wOrg) === String(currentOrgId);
+    });
+  }, [warehouses, currentOrgId]);
+
+  const warehouseOptions = useMemo(() => {
+    return filteredWarehouses.map(w => ({ value: w.id, label: w.name }));
+  }, [filteredWarehouses]);
+
+  useEffect(() => {
+    if (filteredWarehouses.length > 0) {
+      const defaultWh = filteredWarehouses.find(w => w.isDefault) || filteredWarehouses[0];
+      setAdjustment(prev => {
+        const isValid = filteredWarehouses.some(w => w.id === prev.warehouseId);
+        if (!isValid && defaultWh) {
+          return { ...prev, warehouseId: defaultWh.id };
+        }
+        return prev;
+      });
+    }
+  }, [filteredWarehouses]);
+
   const reasonOptions = [
     { value: 'AUDIT', label: 'AUDIT CORRECTION' },
     { value: 'WASTAGE', label: 'WASTAGE / SPOILAGE' },
@@ -491,7 +527,7 @@ function AdjustmentContent() {
                      onClick={() => handleSave('COMPLETED')}
                      disabled={saving || adjustment.lines.length === 0}
                    >
-                     {saving ? "..." : "Commit Adjustment"}
+                     {saving ? "..." : "Adjust"}
                    </button>
                    
                    <button 
@@ -516,7 +552,7 @@ function AdjustmentContent() {
               <span className="ma-count">{totalItems} Products</span>
             </div>
             <button className="ma-btn" onClick={() => handleSave('COMPLETED')}>
-              Commit
+              Adjust
             </button>
           </div>
         )}
@@ -624,8 +660,9 @@ function AdjustmentContent() {
         .classic-trash { background: none; border: none; color: #ef4444; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; opacity: 0.7; }
         .classic-trash:hover { opacity: 1; transform: scale(1.1); }
 
-        .premium-textarea { width: 100%; min-height: 80px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 13px; font-weight: 600; resize: vertical; margin-top: 8px; outline: none; }
-        .premium-textarea:focus { border-color: #f97316; }
+        .premium-textarea { width: 100%; min-height: 80px; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; font-family: inherit; font-size: 14px; font-weight: 600; color: #0f172a !important; background: #ffffff !important; resize: vertical; margin-top: 8px; outline: none; }
+        .premium-textarea:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
+
 
         /* Summary Sidebar */
         .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 16px; }

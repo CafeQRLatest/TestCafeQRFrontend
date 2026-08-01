@@ -243,6 +243,12 @@ export function usePurchaseOrders() {
 
         setVendors(filteredVendors);
         setWarehouses(filteredWarehouses);
+        if (filteredWarehouses.length > 0) {
+          const defaultWh = filteredWarehouses.find(w => w.isDefault) || filteredWarehouses[0];
+          if (defaultWh) {
+            setPo(p => ({ ...p, warehouseId: p.warehouseId || defaultWh.id }));
+          }
+        }
         setProducts(  pR.data.success
           ? (pR.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false && !p.hasIngredients)
           : []);

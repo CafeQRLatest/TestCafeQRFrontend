@@ -5,10 +5,18 @@ import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import {
   FaExchangeAlt, FaBalanceScale,
-  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight
+  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight, FaCheckCircle, FaWarehouse
 } from 'react-icons/fa';
 
-const stockModules = [
+const transactionModules = [
+  {
+    title: 'Warehouse Management',
+    desc:  'Manage storage locations & distribution hubs',
+    href:  '/admin/warehouses',
+    icon:  <FaWarehouse />,
+    color: '#06b6d4',
+    bg:    '#f0f9ff',
+  },
   {
     title: 'Stock Transfer',
     desc:  'Move inventory between warehouse locations',
@@ -18,6 +26,14 @@ const stockModules = [
     bg:    '#eff6ff',
   },
   {
+    title: 'Transfer Confirmation',
+    desc:  'Confirm incoming transfers and update warehouse stock',
+    href:  '/owner/stock-transfer-confirm',
+    icon:  <FaCheckCircle />,
+    color: '#10b981',
+    bg:    '#f0fdf4',
+  },
+  {
     title: 'Stock Adjustment',
     desc:  'Audit corrections, wastage & damage logging',
     href:  '/owner/stock-adjustments',
@@ -25,6 +41,9 @@ const stockModules = [
     color: '#8b5cf6',
     bg:    '#faf5ff',
   },
+];
+
+const reportModules = [
   {
     title: 'Stock Valuation',
     desc:  'Total inventory worth by warehouse & product',
@@ -58,15 +77,38 @@ export default function StockMenuPage() {
         <DashboardLayout title="Stock Management">
           <div className="menu-wrap">
 
-          {/* Section divider */}
+          {/* Section 1: Transactions & Operations */}
           <div className="section-rule">
-            <span className="section-label">Modules</span>
+            <span className="section-label">Transactions & Operations</span>
             <div className="rule-line" />
           </div>
 
-          {/* Card grid */}
           <div className="card-grid">
-            {stockModules.map((mod, i) => (
+            {transactionModules.map((mod, i) => (
+              <Link href={mod.href} key={i} legacyBehavior>
+                <a
+                  className="m-card"
+                  style={{ '--c': mod.color, '--cbg': mod.bg }}
+                >
+                  <div className="m-icon">{mod.icon}</div>
+                  <div className="m-text">
+                    <span className="m-title">{mod.title}</span>
+                    <span className="m-desc">{mod.desc}</span>
+                  </div>
+                  <FaArrowRight className="m-arrow" />
+                </a>
+              </Link>
+            ))}
+          </div>
+
+          {/* Section 2: Reports & Analytics */}
+          <div className="section-rule" style={{ marginTop: '16px' }}>
+            <span className="section-label">Reports & Analytics</span>
+            <div className="rule-line" />
+          </div>
+
+          <div className="card-grid">
+            {reportModules.map((mod, i) => (
               <Link href={mod.href} key={i} legacyBehavior>
                 <a
                   className="m-card"
