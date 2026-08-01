@@ -275,6 +275,8 @@ export default function ProductManagementPopup({
   const handleSaveProduct = async (e) => {
     if (e) e.preventDefault();
 
+    const isIngredient = Boolean(selectedProduct.isIngredient);
+
     // 1. Mandatory Field Validation
     if (!selectedProduct.name || !selectedProduct.name.trim()) {
       notify('error', 'Product name is required');
@@ -286,14 +288,15 @@ export default function ProductManagementPopup({
       return;
     }
 
-    if (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '') {
-      notify('error', 'Sale Price is required');
-      return;
-    }
-
-    if (Number(selectedProduct.price) <= 0) {
-      notify('error', 'Sale Price must be greater than zero');
-      return;
+    if (!isIngredient) {
+      if (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '') {
+        notify('error', 'Sale Price is required');
+        return;
+      }
+      if (Number(selectedProduct.price) < 0) {
+        notify('error', 'Sale Price cannot be negative');
+        return;
+      }
     }
 
     // 2. Duplicate Validation (Name and Code)
@@ -321,15 +324,26 @@ export default function ProductManagementPopup({
       const url = isNew ? '/api/v1/products' : `/api/v1/products/${selectedProduct.id}`;
       const payload = {
         ...selectedProduct,
-        variantMappings: selectedProduct.variantMappings || [],
-        variantPricings: selectedProduct.variantPricings || [],
-        upsells: selectedProduct.upsells || [],
-        recipeLines: (selectedProduct.recipeLines || []).map(({ id, ingredient, quantity, isActive }) => ({
-          id,
-          ingredient: { id: ingredient.id },
-          quantity: parseFloat(quantity) || 1,
-          isActive: isActive !== false
-        }))
+        price: isIngredient ? 0 : Number(selectedProduct.price || 0),
+        category: selectedProduct.category?.id ? { id: selectedProduct.category.id } : null,
+        uom: selectedProduct.uom?.id ? { id: selectedProduct.uom.id } : null,
+        variantMappings: (selectedProduct.variantMappings || [])
+          .filter(vm => vm.variantGroup?.id)
+          .map(vm => ({ ...vm, variantGroup: { id: vm.variantGroup.id } })),
+        variantPricings: (selectedProduct.variantPricings || [])
+          .filter(vp => vp.variantOption?.id)
+          .map(vp => ({ ...vp, variantOption: { id: vp.variantOption.id } })),
+        upsells: (selectedProduct.upsells || [])
+          .filter(u => u.upsellProduct?.id || u.upsellProductId)
+          .map(u => ({ ...u, upsellProduct: { id: u.upsellProduct?.id || u.upsellProductId } })),
+        recipeLines: (selectedProduct.recipeLines || [])
+          .filter(r => r && (r.ingredient?.id || r.ingredientId))
+          .map(({ id, ingredient, ingredientId, quantity, isActive }) => ({
+            id: id || null,
+            ingredient: { id: ingredient?.id || ingredientId },
+            quantity: parseFloat(quantity) || 1,
+            isActive: isActive !== false
+          }))
       };
       const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
@@ -343,6 +357,7 @@ export default function ProductManagementPopup({
       setSaving(false);
     }
   };
+
 
   const categoryOptions = useMemo(() => {
     const list = categories.filter(c => c.isActive !== false);
