@@ -69,8 +69,8 @@ export default function ReportTable({
           background: white;
           border: 1px solid #e2e8f0;
           border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-          padding: 8px 0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          padding: 0;
         }
         .premium-table {
           width: 100%;
@@ -80,25 +80,25 @@ export default function ReportTable({
           min-width: 700px;
         }
         .premium-table th {
-          padding: 12px 20px;
-          background: #f8fafc;
+          padding: 14px 20px;
+          background: #ffffff;
           color: #64748b;
           font-weight: 700;
-          font-size: 10px;
+          font-size: 11px;
           text-transform: uppercase;
-          letter-spacing: 0.08em;
-          border-bottom: 1px solid #f1f5f9;
+          letter-spacing: 0.05em;
+          border-bottom: 2px solid ${accentColor || '#FF7A00'};
           white-space: nowrap;
         }
         .premium-table td {
           padding: 14px 20px;
-          border-bottom: 1px solid #f8fafc;
+          border-bottom: 1px solid #f1f5f9;
           color: #1e293b;
           vertical-align: middle;
           font-weight: 500;
         }
-        .premium-table tbody tr:hover {
-          background-color: #f8fafc;
+        .premium-table tbody tr:hover td {
+          background-color: #fffbf5;
         }
         .premium-table tbody tr:last-child td {
           border-bottom: none;

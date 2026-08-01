@@ -185,7 +185,7 @@ function PurchaseContent() {
                 />
               </div>
               <button 
-                className={styles['btn-primary']} 
+                className={`${styles['btn-primary']} ${styles['mobile-hidden']}`} 
                 style={{ height: '36px', padding: '0 16px', fontSize: '13px', whiteSpace: 'nowrap', flexShrink: 0 }}
                 onClick={() => { startFresh && startFresh(); setView('form'); }}
               >
@@ -226,6 +226,7 @@ function PurchaseContent() {
                 <PurchaseCards
                   history={history}
                   vendors={vendors}
+                  warehouses={warehouses}
                   timezone={timezone}
                   currencySymbol={currencySymbol}
                   formatTzDate={formatTzDate}

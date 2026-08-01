@@ -4,6 +4,7 @@ import { FaChevronRight, FaCheckCircle } from 'react-icons/fa';
 export default function PurchaseCards({
   history,
   vendors,
+  warehouses = [],
   timezone,
   currencySymbol,
   formatTzDate,
@@ -20,12 +21,13 @@ export default function PurchaseCards({
       {history.map(o => {
         const cfg = STATUS_CFG[o.orderStatus] || STATUS_CFG.DRAFT;
         const v   = vendors.find(x => String(x.id) === String(o.vendorId));
+        const w   = warehouses.find(x => String(x.id) === String(o.warehouseId));
         return (
           <div key={o.id} className={styles['hist-card']}>
             <div className={styles['hc-top']}>
               <code 
                 className={styles['po-code']}
-                style={{ cursor: 'pointer', color: '#FF7A00', fontWeight: '800', textDecoration: 'underline' }}
+                style={{ cursor: 'pointer', color: '#f97316', fontWeight: '800', textDecoration: 'underline' }}
                 onClick={() => onViewDocument ? onViewDocument(o) : null}
               >
                 {o.orderNo}
@@ -38,6 +40,11 @@ export default function PurchaseCards({
               </span>
             </div>
             <div className={styles['hc-vendor']}>{v?.name || 'Unknown Vendor'}</div>
+            {w?.name && (
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600', marginBottom: '6px' }}>
+                🏬 {w.name}
+              </div>
+            )}
             {o.reference && (
               <div className={styles['hc-ref']}>
                 Ref: <span>{o.reference}</span>

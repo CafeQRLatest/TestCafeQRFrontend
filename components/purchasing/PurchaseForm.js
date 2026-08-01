@@ -125,12 +125,19 @@ export default function PurchaseForm({
                 </span>
                 <span className={styles['step-label']}>{s.label}</span>
               </button>
-              {i < STEPS.length - 1 && (
-                <div className={`${styles['step-line']} ${stepOk[s.id] ? styles.done : ''}`} />
-              )}
+              <div className={`${styles['step-line']} ${stepOk[s.id] ? styles.done : ''}`} />
             </React.Fragment>
           );
         })}
+        <button
+          className={styles['step-btn']}
+          onClick={() => { fetchHistory(); setView('history'); }}
+        >
+          <span className={styles['step-circle']} style={{ background: '#fff7ed', color: '#ea580c', borderColor: '#fdba74' }}>
+            <FaClipboardList />
+          </span>
+          <span className={styles['step-label']} style={{ color: '#ea580c', fontWeight: '800' }}>PO History</span>
+        </button>
       </div>
 
       {/* ── Main Form Grid ────────────────────────── */}
@@ -595,7 +602,7 @@ export default function PurchaseForm({
         </div>
 
         {/* ── RIGHT: Summary Sidebar ─────────────── */}
-        <div className={styles['po-sidebar']}>
+        <div className={`${styles['po-sidebar']} ${step !== 2 ? styles['mobile-hidden'] : ''}`}>
           <div className={`${styles['po-card']} ${styles['summary-card']}`}>
             <div className={styles['card-header']} style={{ marginBottom: '16px', alignItems: 'center', justifyContent: 'space-between', display: 'flex', width: '100%' }}>
               <div className={styles['summary-title']} style={{ margin: 0 }}>Order Summary</div>

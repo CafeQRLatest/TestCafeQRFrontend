@@ -52,37 +52,41 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   gap: 12px;
   flex-wrap: wrap;
   background: white;
-  padding: 8px 12px;
-  border-radius: 12px;
+  padding: 12px 16px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
   border-top: 3px solid #f97316;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
 }
 .hist-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   flex: 1;
+  min-width: 0;
 }
 .hist-filters {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
 }
 .hist-dates {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 .hist-dates > :global(.premium-dt-picker) {
-  width: 220px !important;
+  min-width: 150px !important;
+  max-width: 220px !important;
+  flex: 1;
 }
 .h-filter-sep {
   font-size: 11px;
@@ -92,9 +96,9 @@
 }
 .hist-filters > :global(.nice-select),
 .hist-filters > :global(.nice-select-wrapper) {
-  flex-shrink: 0;
-  min-width: 115px !important;
-  max-width: 135px !important;
+  flex: 1 1 auto;
+  min-width: 120px !important;
+  max-width: 180px !important;
 }
 
 .po-wrap :global(.nice-select) {
@@ -1708,6 +1712,12 @@
   .po-wrap {
     padding-bottom: 140px;
   }
+  .po-card {
+    border-radius: 16px !important;
+    padding: 18px 16px !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03) !important;
+    border: 1px solid #e2e8f0 !important;
+  }
   .po-topbar {
     padding: 12px 14px;
     gap: 10px;
@@ -1721,7 +1731,7 @@
     align-items: center;
     justify-content: center;
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
     border: 1px solid #e2e8f0;
     padding: 14px 16px;
     margin-bottom: 16px;
