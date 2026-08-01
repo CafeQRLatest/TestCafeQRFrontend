@@ -4,19 +4,11 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import {
-  FaBoxes, FaExchangeAlt, FaBalanceScale, FaHistory,
+  FaExchangeAlt, FaBalanceScale,
   FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight
 } from 'react-icons/fa';
 
 const stockModules = [
-  {
-    title: 'Stock Overview',
-    desc:  'Real-time inventory balances across warehouses',
-    href:  '/owner/stock-overview',
-    icon:  <FaBoxes />,
-    color: '#f97316',
-    bg:    '#fff7ed',
-  },
   {
     title: 'Stock Transfer',
     desc:  'Move inventory between warehouse locations',
@@ -56,14 +48,6 @@ const stockModules = [
     icon:  <FaClipboardList />,
     color: '#ec4899',
     bg:    '#fdf2f8',
-  },
-  {
-    title: 'Stock Ledger',
-    desc:  'Immutable transaction history & event log',
-    href:  '/owner/stock-history',
-    icon:  <FaHistory />,
-    color: '#6366f1',
-    bg:    '#eef2ff',
   },
 ];
 
