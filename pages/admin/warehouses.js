@@ -45,17 +45,8 @@ function WarehouseContent() {
         api.get('/api/v1/organizations')
       ]);
       
-      let raw = wResp.data.success ? (wResp.data.data || []) : [];
-      if (currentOrgId) {
-        raw = raw.filter(w => {
-          const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
-          return !wOrg || String(wOrg) === String(currentOrgId);
-        });
-      }
-
-      if (raw.length === 1) {
-        raw[0].isDefault = true;
-      }
+      // Trust the backend to return the right warehouses for this org — no client-side filter needed
+      const raw = wResp.data.success ? (wResp.data.data || []) : [];
 
       setWarehouses(raw);
 
@@ -87,6 +78,7 @@ function WarehouseContent() {
       setLoading(false);
     }
   };
+
 
   const handleSave = async (e) => {
     if (e) e.preventDefault();
