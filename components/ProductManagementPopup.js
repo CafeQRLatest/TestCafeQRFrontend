@@ -545,9 +545,8 @@ export default function ProductManagementPopup({
                           </div>
                           {recipeSearch.trim().length > 0 && (() => {
                             const suggestions = products.filter(p =>
-                              p.isIngredient &&
                               p.id !== selectedProduct.id &&
-                              !(selectedProduct.recipeLines || []).some(r => r.ingredient?.id === p.id) &&
+                              !(selectedProduct.recipeLines || []).some(r => (r.ingredient?.id || r.ingredientId) === p.id) &&
                               p.name.toLowerCase().includes(recipeSearch.toLowerCase())
                             );
                             return (
@@ -558,12 +557,14 @@ export default function ProductManagementPopup({
                                   <div key={p.id}
                                     onMouseDown={e => {
                                       e.preventDefault();
+                                      const ing = { ...p, isIngredient: true };
                                       setSelectedProduct({
                                         ...selectedProduct,
-                                        recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: p, quantity: 1, isActive: true }]
+                                        recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
                                       });
                                       setRecipeSearch('');
                                     }}
+
                                     style={{ padding: '7px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
                                     onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'white'}
