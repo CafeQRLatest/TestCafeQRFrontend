@@ -214,13 +214,18 @@ export function buildOrderPayload({
         paymentSplits: paymentPayload.paymentSplits,
       } : {}),
     } : {}),
+    // For credit orders: include round-off so backend applies it (same as paid orders)
+    ...(isCreditFinal ? {
+      roundOffAmount: Number((totals.round_off_amount || 0).toFixed(dp)),
+      roundOffMode: totals.round_off_amount != null && Math.abs(totals.round_off_amount) > 0 ? 'MANUAL' : undefined,
+    } : {}),
     ...(customersEnabled ? {
       customerId: primaryCustomer?.id || null,
       customerIds: customerSelections.length > 0 ? customerSelections : null,
     } : {}),
     grandTotal: isSettleDirect
       ? Number((paymentPayload.amountPaid || totals.total_inc_tax).toFixed(dp))
-      : Number(totals.total_inc_tax.toFixed(dp)),
+      : Number((totals.grand_total || totals.total_inc_tax).toFixed(dp)),
     totalTaxAmount: Number(totals.total_tax.toFixed(dp)),
     totalDiscountAmount: Number(Number(totals.discount_amount || 0).toFixed(dp)),
     totalAmount: Number(totals.total_inc_tax.toFixed(dp)),

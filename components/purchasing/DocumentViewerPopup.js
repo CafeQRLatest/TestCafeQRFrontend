@@ -371,11 +371,11 @@ export default function DocumentViewerPopup({
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
       }
     } else {
-      subtotal = parseFloat(activeDoc.totalAmount || activeDoc.total_amount || activeDoc.amount || 0);
-      taxTotal = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.totalAmount || activeDoc.amount || 0);
+      subtotal = parseFloat(activeDoc.subtotal || activeDoc.taxableAmount || activeDoc.taxable_amount || activeDoc.totalAmount || activeDoc.total_amount || activeDoc.amount || 0);
+      taxTotal = parseFloat(activeDoc.taxAmount || activeDoc.tax_amount || activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
+      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.amountPaid || activeDoc.amount_paid || activeDoc.totalAmount || activeDoc.amount || 0);
       // For orders without lines loaded yet, check if database columns indicate new GST engine
-      const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0;
+      const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0 || (taxTotal > 0 && Math.abs(grandTotal - (subtotal + taxTotal + roundOff)) < 0.05);
       if (hasGstFlag) {
         hasTaxableAmount = true;
         subtotal = grandTotal - taxTotal - roundOff;
@@ -383,18 +383,36 @@ export default function DocumentViewerPopup({
         grandTotal = subtotal + taxTotal - discountTotal + roundOff;
       }
     }
-
-    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || activeDoc.amount || 0);
-    const dbTotalTax    = parseFloat(activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-    const dbSubtotal    = parseFloat(activeDoc.totalAmount  || activeDoc.total_amount  || activeDoc.amount || 0);
+    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || activeDoc.amountPaid || activeDoc.amount_paid || activeDoc.amount || 0);
+    const dbTotalTax    = parseFloat(activeDoc.taxAmount || activeDoc.tax_amount || activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
+    const dbRawSubtotal = (hasTaxableAmount && subtotal > 0) ? subtotal : parseFloat(activeDoc.subtotal || activeDoc.taxableAmount || activeDoc.taxable_amount || activeDoc.totalAmount  || activeDoc.total_amount  || activeDoc.amount || 0);
     const dbGrossAmount = parseFloat(activeDoc.grossAmount  || activeDoc.gross_amount  || 0);
     const dbRoundOff    = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
-    const dbGrandTotalIsMissingTax = !hasTaxableAmount && Math.abs(dbGrandTotal - dbSubtotal) < 0.05 && dbTotalTax > 0.05;
-    if (dbGrandTotal > 0 && !dbGrandTotalIsMissingTax) {
-      const displaySubtotal = hasTaxableAmount 
-        ? (dbGrandTotal - dbTotalTax - dbRoundOff)
-        : dbSubtotal;
-      return { subtotal: displaySubtotal, tax: dbTotalTax, discount: discountTotal, grandTotal: dbGrandTotal, gross: dbGrossAmount, roundOff: dbRoundOff };
+
+    if (docType === 'payment' || dbGrandTotal > 0) {
+      let displaySubtotal = dbRawSubtotal;
+      let displayGrandTotal = dbGrandTotal > 0 ? dbGrandTotal : (dbRawSubtotal + dbTotalTax + dbRoundOff);
+
+      if (dbTotalTax > 0 || dbRoundOff !== 0) {
+        if (Math.abs((dbRawSubtotal + dbTotalTax + dbRoundOff) - displayGrandTotal) < 0.05) {
+          // Exactly matches: subtotal (34.94) + tax (1.75) + roundoff (0.31) = grandTotal (37.00)
+          displaySubtotal = dbRawSubtotal;
+        } else if (dbRawSubtotal > 0 && Math.abs((dbRawSubtotal + dbTotalTax + dbRoundOff) - displayGrandTotal) > 0.01 && docType === 'payment') {
+          // For payments: derive displayGrandTotal if dbGrandTotal was pre-roundoff
+          displaySubtotal = dbRawSubtotal;
+          displayGrandTotal = dbRawSubtotal + dbTotalTax + dbRoundOff;
+        } else if (displayGrandTotal > 0) {
+          displaySubtotal = displayGrandTotal - dbTotalTax - dbRoundOff;
+        }
+      }
+      return { 
+        subtotal: displaySubtotal, 
+        tax: dbTotalTax, 
+        discount: discountTotal, 
+        grandTotal: displayGrandTotal, 
+        gross: dbGrossAmount, 
+        roundOff: dbRoundOff 
+      };
     }
 
     return { subtotal, tax: taxTotal, discount: discountTotal, grandTotal: Math.max(0, grandTotal), gross: dbGrossAmount, roundOff: roundOff };
@@ -417,10 +435,17 @@ export default function DocumentViewerPopup({
 
   if (!currentOrder) return null;
 
-  const isVendorPayment = !!(currentOrder.vendorId || currentOrder.vendorName || currentOrder.vendor_id || currentOrder.vendor_name || currentOrder.poNumber || (currentOrder.referenceNo && String(currentOrder.referenceNo).startsWith('PAY-')));
-  const isSale = !isVendorPayment && (currentOrder.orderType === 'SALE' || currentOrder.order_type === 'SALE' || docType === 'payment' || !!currentOrder.customerId);
-  // 'Mixed' payment label only applies to CUSTOMER SALE orders with split payment methods.
-  // For purchase/vendor orders, the reference field shows the supplier's invoice/reference number.
+  const rawOrderType = String(currentOrder.orderType || currentOrder.order_type || '').toUpperCase();
+  const rawOrderNo = String(currentOrder.orderNo || currentOrder.order_no || '').toUpperCase();
+  const rawPaymentType = String(currentOrder.paymentType || currentOrder.payment_type || currentOrder.type || '').toUpperCase();
+
+  const isSale = rawOrderType === 'SALE' 
+    || rawOrderNo.startsWith('SO-') 
+    || rawPaymentType === 'INBOUND' 
+    || (docType === 'payment' && !currentOrder.vendorId && !currentOrder.vendor_id && !currentOrder.vendorName)
+    || (!rawOrderType.includes('PURCHASE') && !rawOrderNo.startsWith('PO-') && !rawPaymentType.includes('OUTBOUND') && !currentOrder.vendorId && !currentOrder.vendor_id && !currentOrder.vendorName);
+
+  const isVendorPayment = !isSale;
   const isMixed = isSale && (currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1));
   const vendor = (!isSale || isVendorPayment) && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId || currentOrder.vendor_id)) : null;
   const warehouse = (!isSale || isVendorPayment) && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId || currentOrder.warehouse_id)) : null;
@@ -428,20 +453,14 @@ export default function DocumentViewerPopup({
     if (docType === 'payment') {
       return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
     }
-
-    const pStatusRaw = currentOrder.paymentStatus || currentOrder.payment_status || invoiceData?.paymentStatus || invoiceData?.payment_status;
-    if (pStatusRaw) {
-      const pStatus = String(pStatusRaw).toUpperCase();
-      if (pStatus === 'PAID') {
-        return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
-      } else if (pStatus === 'PARTIAL') {
-        return { label: 'Partial', bg: '#fef3c7', color: '#b45309' };
-      } else if (pStatus === 'PENDING' || pStatus === 'UNPAID') {
-        return { label: 'Pending', bg: '#ffedd5', color: '#c2410c' };
-      }
+    if (docType === 'invoice') {
+      const isPaidInv = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || currentOrder.isPaid || currentOrder.is_paid || (currentOrder.status === 'PAID');
+      return isPaidInv 
+        ? { label: 'Paid', bg: '#dcfce7', color: '#15803d' }
+        : { label: 'Unpaid', bg: '#fef3c7', color: '#b45309' };
     }
-
-    return (currentOrder.orderStatus && STATUS_CFG[currentOrder.orderStatus]) || STATUS_CFG[currentOrder?.order_status] || STATUS_CFG?.DRAFT || { label: currentOrder?.orderStatus || 'Draft', bg: '#f1f5f9', color: '#475569' };
+    const st = String(currentOrder.orderStatus || currentOrder.status || 'DRAFT').toUpperCase();
+    return STATUS_CFG[st] || STATUS_CFG.DRAFT;
   })();
   const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || docType === 'payment';
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -457,22 +476,34 @@ export default function DocumentViewerPopup({
 
   const handleLinkedPayment = (p) => {
     onClose();
+    const isSalePayment = !p.vendorId && !p.vendor_id && !p.vendorName && (p.paymentType === 'INBOUND' || p.type === 'INBOUND' || isSale);
+    const parentGrandTotal = parseFloat(currentOrder.grandTotal || currentOrder.grand_total || currentOrder.totalAmount || currentOrder.total_amount || 0);
+    const parentTax = parseFloat(currentOrder.totalTaxAmount || currentOrder.total_tax_amount || currentOrder.taxAmount || currentOrder.tax_amount || 0);
+    const parentRoundOff = parseFloat((currentOrder.roundOffAmount !== undefined && currentOrder.roundOffAmount !== null) ? currentOrder.roundOffAmount : (currentOrder.round_off_amount || 0));
+    const derivedSubtotal = (parentGrandTotal > 0 && parentTax > 0) ? (parentGrandTotal - parentTax - parentRoundOff) : (currentOrder.taxableAmount || currentOrder.taxable_amount || currentOrder.totalAmount || currentOrder.total_amount);
+
     onViewLinked?.({
       ...p,
       id: p.id || p.paymentId,
       paymentNo: p.referenceNo || p.receiptNo,
       referenceNo: p.referenceNo || p.receiptNo,
-      amount: p.amount,
-      grandTotal: p.amount,
-      totalAmount: p.amount,
+      paymentType: p.paymentType || (isSalePayment ? 'INBOUND' : 'OUTBOUND'),
+      paymentTypeLabel: p.paymentTypeLabel || p.payment_type_label || (isSalePayment ? 'Customer Settlement' : 'Vendor Settlement'),
+      paymentMethod: p.paymentMethod || p.payment_method || currentOrder.paymentMethod || currentOrder.payment_method || currentOrder.reference || 'Cash',
+      amount: p.amount || p.amountPaid || p.amount_paid || parentGrandTotal,
+      amountPaid: p.amountPaid || p.amount_paid || p.amount || parentGrandTotal,
+      grandTotal: p.amount || p.amountPaid || p.amount_paid || parentGrandTotal,
+      subtotal: p.subtotal || derivedSubtotal,
+      taxAmount: p.taxAmount || p.tax_amount || parentTax,
+      roundOffAmount: (p.roundOffAmount !== undefined && p.roundOffAmount !== null) ? p.roundOffAmount : parentRoundOff,
       orderId: currentOrder.orderId || currentOrder.id,
-      orderNo: currentOrder.orderNo || currentOrder.poNumber || p.orderNo,
-      poNumber: currentOrder.poNumber || currentOrder.orderNo || p.poNumber,
+      orderNo: currentOrder.orderNo || p.orderNo,
+      poNumber: (!isSalePayment) ? (currentOrder.poNumber || p.poNumber) : null,
       invoiceId: currentOrder.invoiceId,
       invoiceNo: currentOrder.invoiceNo || currentOrder.billNo || p.invoiceNo,
-      vendorName: currentOrder.vendorName || vendor?.name || p.vendorName,
-      customerName: currentOrder.customerName || primaryCustomer?.name || p.customerName,
-      customerPhone: currentOrder.customerPhone || primaryCustomer?.phone,
+      vendorName: isSalePayment ? null : (currentOrder.vendorName || vendor?.name || p.vendorName),
+      customerName: isSalePayment ? (currentOrder.customerName || primaryCustomer?.name || p.customerName) : null,
+      customerPhone: isSalePayment ? (currentOrder.customerPhone || primaryCustomer?.phone) : null,
     }, 'payment');
   };
 
@@ -519,10 +550,10 @@ export default function DocumentViewerPopup({
           )}
           {(!isSale || !posType || String(posType).trim().toUpperCase() !== 'OTHERS') && (
             <div className="dv-cell">
-              <span className="dv-lbl">{isSale ? 'Order Type' : (docType === 'payment' ? 'Payment Type' : 'Warehouse')}</span>
+              <span className="dv-lbl">{docType === 'payment' ? 'Payment Type' : (isSale ? 'Order Type' : 'Warehouse')}</span>
               <span className="dv-val">
                 {docType === 'payment'
-                  ? (isSale ? 'Customer Settlement' : 'Vendor Settlement')
+                  ? (currentOrder.paymentTypeLabel || currentOrder.payment_type_label || (isSale ? 'Customer Settlement' : 'Vendor Settlement'))
                   : (isSale
                       ? (currentOrder.tableNumber || currentOrder.table_number
                           ? `Dine in (Table ${currentOrder.tableNumber || currentOrder.table_number})`
@@ -559,7 +590,7 @@ export default function DocumentViewerPopup({
             <span className="dv-lbl">{(docType === 'payment' || !isSale) ? 'Payment Method' : 'Terminal'}</span>
             <span className="dv-val">
               {(docType === 'payment' || !isSale)
-                ? (currentOrder.paymentMethod || 'Credit')
+                ? (currentOrder.paymentMethod || currentOrder.payment_method || currentOrder.reference || 'Cash')
                 : (currentOrder.terminalCode || currentOrder.terminalName || currentOrder.terminal_code || '-')}
             </span>
           </div>
@@ -697,8 +728,15 @@ export default function DocumentViewerPopup({
                   <button 
                     className="dv-link" 
                     onClick={() => {
-                      const oNo = currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no;
-                      onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, orderNo: oNo, poNumber: oNo }, 'order');
+                      const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
+                      const isPo = String(oNo || '').startsWith('PO-') || currentOrder.orderType === 'PURCHASE' || currentOrder.order_type === 'PURCHASE';
+                      onViewLinked?.({ 
+                        ...currentOrder, 
+                        id: currentOrder.orderId || currentOrder.id, 
+                        orderNo: oNo, 
+                        poNumber: isPo ? oNo : null,
+                        orderType: isPo ? 'PURCHASE' : 'SALE'
+                      }, 'order');
                     }}
                   >
                     {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}

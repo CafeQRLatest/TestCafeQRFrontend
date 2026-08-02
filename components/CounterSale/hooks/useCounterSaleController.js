@@ -271,6 +271,11 @@ export default function useCounterSaleController({
         })(),
         prices_include_tax: config.pricesIncludeTax,
         currencyDecimalPlaces: config.currencyDecimalPlaces,
+        round_off_config: {
+          round_off_enabled: Boolean(config.roundOffEnabled),
+          round_off_mode: String(config.roundOffMode || 'AUTOMATIC').toUpperCase(),
+          round_off_auto_factor: Number(config.roundOffAutoFactor ?? 1)
+        }
       }
     );
   }, [cart, config, discountType, discountValue, discountsEnabled]);

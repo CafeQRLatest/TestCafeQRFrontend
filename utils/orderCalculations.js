@@ -450,18 +450,22 @@ export function calculateOrderTotals(
   const roundCfg = profile?.round_off_config || {};
   let roundOffAmount = 0;
 
-  const roundOffMode = String(roundCfg.round_off_mode || '')
+  const isRoundOffEnabled = roundCfg.round_off_enabled !== undefined 
+    ? Boolean(roundCfg.round_off_enabled) 
+    : Boolean(profile?.roundOffEnabled);
+
+  const roundOffMode = String(roundCfg.round_off_mode || profile?.roundOffMode || 'AUTOMATIC')
     .trim()
     .toUpperCase();
 
-  if (roundCfg.round_off_enabled) {
+  if (isRoundOffEnabled) {
     if (roundOffMode === 'MANUAL' && roundCfg.round_off_manual_value !== undefined) {
       roundOffAmount = Number(roundCfg.round_off_manual_value || 0);
       if (!Number.isFinite(roundOffAmount)) {
         throw new Error('Manual round-off value must be a finite number.');
       }
-    } else if (roundOffMode === 'AUTOMATIC') {
-      const factor  = Number(roundCfg.round_off_auto_factor || 1);
+    } else if (roundOffMode === 'AUTOMATIC' || roundOffMode === 'AUTO') {
+      const factor = Number(roundCfg.round_off_auto_factor ?? profile?.roundOffAutoFactor ?? 1);
       if (!Number.isFinite(factor) || factor <= 0) {
         throw new Error('Round-off factor must be greater than zero.');
       }
