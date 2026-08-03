@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
@@ -28,6 +29,7 @@ export default function StockTransfersPage() {
 
 function TransferContent() {
   const { timezone, userRole, clientId, orgId } = useAuth();
+  const { notify } = useNotification();
   const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
@@ -55,9 +57,7 @@ function TransferContent() {
   const [msgType, setMsgType] = useState('success');
 
   const showToast = (msg, type = 'success') => {
-    setMessage(msg);
-    setMsgType(type);
-    setTimeout(() => setMessage(null), 4000);
+    notify(type === 'error' ? 'error' : 'success', msg);
   };
 
   const [drafts, setDrafts] = useState([]);
@@ -185,11 +185,14 @@ function TransferContent() {
       ? (autoTransfer ? 'COMPLETED' : 'IN_TRANSIT')
       : targetStatus;
 
-    if (!transfer.sourceWarehouseId) return showToast("Select Source Warehouse", "error");
-    if (!transfer.destWarehouseId) return showToast("Select Target Warehouse", "error");
-    if (transfer.sourceWarehouseId === transfer.destWarehouseId) return showToast("Warehouses must be different", "error");
-    if (!transfer.lines || transfer.lines.length === 0) return showToast("Add items to your cart", "error");
+    if (!transfer.sourceWarehouseId) return showToast("Please select a Source Warehouse", "error");
+    if (!transfer.destWarehouseId) return showToast("Please select a Target Warehouse", "error");
+    if (transfer.sourceWarehouseId === transfer.destWarehouseId) return showToast("Source and Target Warehouses must be different", "error");
+    if (!transfer.lines || transfer.lines.length === 0) return showToast("Please add at least one product item to your transfer cart", "error");
     
+    const invalidQtyLine = transfer.lines.find(l => !l.transferQuantity || Number(l.transferQuantity) <= 0);
+    if (invalidQtyLine) return showToast("Transfer quantity for all items must be at least 1", "error");
+
     const zeroStockItem = transfer.lines.find(l => {
       const current = sourceStock[l.productId]?.currentStock || 0;
       return current <= 0;
@@ -199,13 +202,13 @@ function TransferContent() {
       return showToast(`Cannot transfer non-stock item "${zeroStockItem.productName || 'product'}". Source stock is 0.`, "error");
     }
 
-    const hasOverdraft = transfer.lines.some(l => {
+    const overdraftItem = transfer.lines.find(l => {
       const current = sourceStock[l.productId]?.currentStock || 0;
       return (Number(l.transferQuantity) || 0) > current;
     });
 
-    if (hasOverdraft && finalStatus !== 'DRAFT') {
-      return showToast("Cannot transfer quantity exceeding available stock.", "error");
+    if (overdraftItem && finalStatus !== 'DRAFT') {
+      return showToast(`Transfer quantity for "${overdraftItem.productName || 'product'}" exceeds available stock.`, "error");
     }
 
     setSaving(true);
@@ -347,7 +350,7 @@ function TransferContent() {
                 <div className="wh-field">
                   <div className="wh-label-row">
                     <FaWarehouse className="wh-icon src" />
-                    <span className="wh-label">Source Warehouse</span>
+                    <span className="wh-label">Source Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
                   </div>
                   <NiceSelect 
                     placeholder="Select Source..."
@@ -365,7 +368,7 @@ function TransferContent() {
                 <div className="wh-field">
                   <div className="wh-label-row">
                     <FaMapMarkerAlt className="wh-icon dst" />
-                    <span className="wh-label">Target Warehouse</span>
+                    <span className="wh-label">Target Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
                   </div>
                   <NiceSelect 
                     placeholder="Select Target..."
@@ -632,6 +635,21 @@ function TransferContent() {
                   </div>
                 </div>
 
+                {/* Transfer Notes / Remarks */}
+                <div className="notes-box-wrap" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Transfer Notes / Remarks
+                  </label>
+                  <textarea 
+                    className="premium-textarea" 
+                    placeholder="Add transfer notes or remarks here..."
+                    rows={2}
+                    value={transfer.notes || ''}
+                    onChange={(e) => setTransfer({...transfer, notes: e.target.value})}
+                    style={{ width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '8px 10px', fontSize: '12px', resize: 'vertical' }}
+                  />
+                </div>
+
                 {/* Auto Transfer Toggle */}
                 <div className="auto-transfer-toggle">
                   <button
@@ -657,7 +675,7 @@ function TransferContent() {
                    <button 
                      className={`action-prime ${autoTransfer ? 'prime-green' : ''}`}
                      onClick={() => handleSave('SUBMIT')}
-                     disabled={saving || transfer.lines.length === 0}
+                     disabled={saving}
                    >
                      {saving ? '...' : autoTransfer ? 'Transfer Now' : 'Send for Confirmation'}
                    </button>
@@ -665,7 +683,7 @@ function TransferContent() {
                    <button 
                      className="action-sec"
                      onClick={() => handleSave('DRAFT')}
-                     disabled={saving || transfer.lines.length === 0}
+                     disabled={saving}
                    >
                      <FaSave /> Save as Draft
                    </button>
@@ -674,15 +692,6 @@ function TransferContent() {
                      <FaHistory /> Transfer History
                    </Link>
                 </div>
-             </div>
-
-             <div className="premium-card notes-card" style={{marginTop: '0'}}>
-               <textarea 
-                 className="premium-textarea" 
-                 placeholder="Transfer Notes / Remarks..."
-                 value={transfer.notes || ''}
-                 onChange={(e) => setTransfer({...transfer, notes: e.target.value})}
-               />
              </div>
           </div>
         </div>
@@ -731,11 +740,7 @@ function TransferContent() {
         )}
       </div>
 
-      {message && (
-        <div className={`premium-toast ${msgType}`} onClick={() => setMessage(null)}>
-          {message}
-        </div>
-      )}
+
 
       <style jsx>{`
         /* Re-Stabilized Professional Layout */

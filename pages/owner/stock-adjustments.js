@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 import { useAuth } from '../../context/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
@@ -30,6 +31,7 @@ export default function StockAdjustmentsPage() {
 
 function AdjustmentContent() {
   const { timezone, orgId, userRole } = useAuth();
+  const { notify } = useNotification();
   const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default?.get('orgId') || '') : '');
 
   const [warehouses, setWarehouses] = useState([]);
@@ -218,9 +220,13 @@ function AdjustmentContent() {
   const handleSave = async (targetStatus) => {
     const finalStatus = targetStatus;
 
-    if (!adjustment.warehouseId) return showToast("Select Warehouse", "error");
-    if (!adjustment.lines || adjustment.lines.length === 0) return showToast("Add items for adjustment", "error");
+    if (!adjustment.warehouseId) return showToast("Please select an Adjustment Warehouse", "error");
+    if (!adjustment.reason) return showToast("Please select an Adjustment Reason", "error");
+    if (!adjustment.lines || adjustment.lines.length === 0) return showToast("Please add at least one product item to the adjustment manifest", "error");
     
+    const invalidLine = adjustment.lines.find(l => l.quantityChange === undefined || l.quantityChange === null || l.quantityChange === 0 || isNaN(Number(l.quantityChange)));
+    if (invalidLine) return showToast(`Please specify a non-zero adjustment quantity for item "${invalidLine.productName || 'product'}".`, "error");
+
     setSaving(true);
     try {
       const payload = { ...adjustment, status: finalStatus };
@@ -252,10 +258,8 @@ function AdjustmentContent() {
     }
   };
 
-  const showToast = (msg, type) => {
-    setMessage(msg);
-    setMsgType(type);
-    setTimeout(() => setMessage(null), 3000);
+  const showToast = (msg, type = 'success') => {
+    notify(type === 'error' ? 'error' : 'success', msg);
   };
 
   const totalItems = adjustment.lines.length;
@@ -313,7 +317,7 @@ function AdjustmentContent() {
                 <div className="wh-field">
                   <div className="wh-label-row">
                     <FaWarehouse className="wh-icon" />
-                    <span className="wh-label">Adjustment Warehouse</span>
+                    <span className="wh-label">Adjustment Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
                   </div>
                   <NiceSelect 
                     placeholder="Select Warehouse..."
@@ -326,7 +330,7 @@ function AdjustmentContent() {
                 <div className="wh-field">
                   <div className="wh-label-row">
                     <FaTag className="wh-icon" />
-                    <span className="wh-label">Adjustment Reason</span>
+                    <span className="wh-label">Adjustment Reason <span style={{ color: '#ef4444' }}>*</span></span>
                   </div>
                   <NiceSelect 
                     placeholder="Select Reason..."
@@ -521,11 +525,26 @@ function AdjustmentContent() {
                   </div>
                 </div>
 
+                {/* Adjustment Notes / Remarks */}
+                <div className="notes-box-wrap" style={{ marginTop: '16px', marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>
+                    Adjustment Notes / Remarks
+                  </label>
+                  <textarea 
+                    className="premium-textarea" 
+                    placeholder="Add adjustment notes or remarks here..."
+                    rows={2}
+                    value={adjustment.notes || ''}
+                    onChange={(e) => setAdjustment({...adjustment, notes: e.target.value})}
+                    style={{ width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', padding: '8px 10px', fontSize: '12px', resize: 'vertical' }}
+                  />
+                </div>
+
                 <div className="comp-action-stack">
                    <button 
                      className="action-prime"
                      onClick={() => handleSave('COMPLETED')}
-                     disabled={saving || adjustment.lines.length === 0}
+                     disabled={saving}
                    >
                      {saving ? "..." : "Adjust"}
                    </button>
@@ -533,7 +552,7 @@ function AdjustmentContent() {
                    <button 
                      className="action-sec"
                      onClick={() => handleSave('DRAFT')}
-                     disabled={saving || adjustment.lines.length === 0}
+                     disabled={saving}
                    >
                      <FaSave /> Save Draft
                    </button>
@@ -588,12 +607,7 @@ function AdjustmentContent() {
         )}
       </div>
 
-      {message && (
-        <div className={`classic-toast ${msgType}`} onClick={() => setMessage(null)}>
-          {msgType === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
-          <span>{message}</span>
-        </div>
-      )}
+
 
       {activeVariantProduct && (
         <VariantSelector
