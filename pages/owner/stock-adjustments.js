@@ -122,8 +122,19 @@ function AdjustmentContent() {
       if (resp.data.success) {
         const stockMap = {};
         (resp.data.data || []).forEach(s => {
-          s.currentStock = s.currentQuantity;
-          stockMap[s.productId] = s;
+          const entry = { ...s, currentStock: Number(s.currentQuantity) || 0 };
+
+          if (s.variantId) {
+            // Variant-specific key: productId_variantId (used by VariantSelector & table)
+            const variantKey = `${String(s.productId).toLowerCase()}_${String(s.variantId).toLowerCase()}`;
+            stockMap[variantKey] = entry;
+            // Also store without lowercase for safety
+            stockMap[`${s.productId}_${s.variantId}`] = entry;
+          } else {
+            // Non-variant product key: productId only
+            stockMap[String(s.productId).toLowerCase()] = entry;
+            stockMap[s.productId] = entry;
+          }
         });
         setSourceStock(stockMap);
       }
@@ -153,11 +164,29 @@ function AdjustmentContent() {
     showToast(`Loaded ${d.adjustmentNumber}`, "success");
   };
 
-  const addProductToManifest = (product) => {
-    const hasVariants = (product.variantMappings && product.variantMappings.length > 0) || (product.variantPricings && product.variantPricings.length > 0);
-    if (hasVariants) {
-      setActiveVariantProduct(product);
+  const addProductToManifest = async (product) => {
+    const hasVars = Boolean(
+      product.hasVariants ||
+      product.has_variants ||
+      product.isVariant ||
+      product.is_variant ||
+      Number(product.variantCount || product.variant_count || 0) > 0 ||
+      (Array.isArray(product.variantMappings) && product.variantMappings.length > 0) ||
+      (Array.isArray(product.variantPricings) && product.variantPricings.length > 0)
+    );
+
+    if (hasVars) {
       setShowSuggestions(false);
+      let fullProduct = product;
+      try {
+        const res = await api.get(`/api/v1/products/${product.id}`);
+        if (res.data?.success && res.data?.data) {
+          fullProduct = res.data.data;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch full product details for variant selector:', e);
+      }
+      setActiveVariantProduct(fullProduct);
       return;
     }
 
@@ -190,6 +219,10 @@ function AdjustmentContent() {
       return;
     }
 
+    const cost = selectedVariant.costPrice !== undefined && selectedVariant.costPrice !== null && Number(selectedVariant.costPrice) > 0
+      ? Number(selectedVariant.costPrice)
+      : (selectedVariant.price || activeVariantProduct.costPrice || 0);
+
     const newLine = {
       productId: activeVariantProduct.id,
       variantId: selectedVariant.id,
@@ -198,7 +231,7 @@ function AdjustmentContent() {
       categoryName: activeVariantProduct.categoryName,
       unitName: activeVariantProduct.unitName,
       quantityChange: 1,
-      unitCost: selectedVariant.price || activeVariantProduct.costPrice || 0
+      unitCost: cost
     };
 
     setAdjustment({ ...adjustment, lines: [newLine, ...adjustment.lines] });
@@ -405,7 +438,8 @@ function AdjustmentContent() {
                       <tbody>
                         {adjustment.lines.map((line, idx) => {
                           const p = products.find(prod => prod.id === line.productId) || line;
-                          const currentStockVal = sourceStock[line.productId]?.currentStock !== undefined ? sourceStock[line.productId].currentStock : 0;
+                          const stockKey = line.variantId ? `${line.productId}_${line.variantId}` : line.productId;
+                          const currentStockVal = sourceStock[stockKey]?.currentStock !== undefined ? sourceStock[stockKey].currentStock : 0;
                           return (
                             <tr key={idx}>
                               <td className="col-idx">{idx + 1}</td>
@@ -447,6 +481,8 @@ function AdjustmentContent() {
                     <div className="mobile-cart-list">
                       {adjustment.lines.map((line, idx) => {
                         const p = products.find(prod => prod.id === line.productId) || line;
+                        const stockKey = line.variantId ? `${line.productId}_${line.variantId}` : line.productId;
+                        const currentStockVal = sourceStock[stockKey]?.currentStock !== undefined ? sourceStock[stockKey].currentStock : 0;
                         return (
                           <div key={idx} className="mobile-cart-item">
                             <div className="m-item-head">
@@ -457,7 +493,7 @@ function AdjustmentContent() {
                               <button className="m-item-remove" onClick={() => removeLine(idx)}><FaTrash /></button>
                             </div>
                             <div className="m-item-controls">
-                               <span className="stock-pill">Current: {sourceStock[p.id]?.currentStock || 0}</span>
+                               <span className="stock-pill">Current: {currentStockVal}</span>
                                <div className="classic-qty-group small">
                                  <button className="qty-btn" onClick={() => updateLineQty(idx, (line.quantityChange || 0) - 1)}><FaMinus /></button>
                                  <div className="qty-num">

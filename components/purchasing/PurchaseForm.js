@@ -9,6 +9,7 @@ import {
   FaShoppingCart, FaChevronRight
 } from 'react-icons/fa';
 import api from '../../utils/api';
+import VariantSelector from '../VariantSelector';
 
 const STEPS = [
   { id: 1, label: 'Supplier',  icon: <FaUserTie /> },
@@ -42,6 +43,35 @@ export default function PurchaseForm({
   const linesEndRef = useRef(null);
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [markAsReceived, setMarkAsReceived] = useState(true);
+  const [activeVariantProduct, setActiveVariantProduct] = useState(null);
+
+  const handleProductClick = async (product) => {
+    const hasVars = Boolean(
+      product.hasVariants ||
+      product.has_variants ||
+      product.isVariant ||
+      product.is_variant ||
+      Number(product.variantCount || product.variant_count || 0) > 0 ||
+      (Array.isArray(product.variantMappings) && product.variantMappings.length > 0) ||
+      (Array.isArray(product.variantPricings) && product.variantPricings.length > 0)
+    );
+
+    if (hasVars) {
+      setShowSuggestions(false);
+      let fullProduct = product;
+      try {
+        const res = await api.get(`/api/v1/products/${product.id}`);
+        if (res.data?.success && res.data?.data) {
+          fullProduct = res.data.data;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch full product details for variant selector:', e);
+      }
+      setActiveVariantProduct(fullProduct);
+    } else {
+      addProduct(product);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -333,7 +363,7 @@ export default function PurchaseForm({
                       <>
                         {!productSearch && <div className={styles['ps-section-label']}>Recent Products</div>}
                         {filteredProducts.map(p => (
-                          <button key={p.id} className={styles['ps-item']} onClick={() => addProduct(p)}>
+                          <button key={p.id} className={styles['ps-item']} onClick={() => handleProductClick(p)}>
                             <div className={styles['ps-item-left']}>
                               <div className={styles['ps-item-avatar']}>{p.name?.charAt(0)?.toUpperCase()}</div>
                               <div>
@@ -907,6 +937,22 @@ export default function PurchaseForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Variant Selector Modal ──────────────────── */}
+      {activeVariantProduct && (
+        <VariantSelector
+          product={activeVariantProduct}
+          isPurchaseMode={true}
+          onClose={() => setActiveVariantProduct(null)}
+          onSelect={(selectedVariant) => {
+            addProduct(activeVariantProduct, selectedVariant);
+            setActiveVariantProduct(null);
+          }}
+          themeColor="#ea580c"
+          themeSoftColor="#fff7ed"
+          themeDarkColor="#c2410c"
+        />
       )}
     </div>
   );

@@ -290,21 +290,39 @@ const UpsellButton = styled(OptionButton)`
   }
 `;
 
-function buildVariantOptions(product) {
+function buildVariantOptions(product, isPurchaseMode = false) {
+  const baseCost = Number(product?.costPrice !== undefined && product?.costPrice !== null && Number(product?.costPrice) > 0 ? product.costPrice : (product?.price || 0));
   const basePrice = Number(product?.price || 0);
+
   const pricings = Array.isArray(product?.variantPricings) ? product.variantPricings : [];
   if (pricings.length) {
     return pricings
       .filter((pricing) => pricing?.isAvailable !== false && pricing?.variantOption)
       .map((pricing) => {
         const option = pricing.variantOption;
-        const price = pricing.overridePrice != null
-          ? Number(pricing.overridePrice)
-          : basePrice + Number(option.additionalPrice || 0);
+        let price = 0;
+        if (isPurchaseMode) {
+          if (pricing.costPrice != null && Number(pricing.costPrice) > 0) {
+            price = Number(pricing.costPrice);
+          } else if (pricing.overridePrice != null && Number(pricing.overridePrice) > 0) {
+            price = Number(pricing.overridePrice);
+          } else if (product?.costPrice != null && Number(product.costPrice) > 0) {
+            price = Number(product.costPrice) + Number(option.additionalPrice || 0);
+          } else {
+            price = basePrice + Number(option.additionalPrice || 0);
+          }
+        } else {
+          price = pricing.overridePrice != null
+            ? Number(pricing.overridePrice)
+            : basePrice + Number(option.additionalPrice || 0);
+        }
+
         return {
           id: option.id,
           label: option.name,
           price,
+          overridePrice: pricing.overridePrice,
+          costPrice: pricing.costPrice || price,
           groupId: option.groupId,
         };
       });
@@ -316,10 +334,27 @@ function buildVariantOptions(product) {
     return options.map((option) => ({
       id: option.id,
       label: option.name,
-      price: basePrice + Number(option.additionalPrice || 0),
+      price: isPurchaseMode ? baseCost : (basePrice + Number(option.additionalPrice || 0)),
+      costPrice: baseCost,
       groupId: option.groupId,
     }));
   });
+}
+
+function getOptionStock(stockMap, product, option) {
+  if (!stockMap) return null;
+
+  const pId = String(product?.id || '').toLowerCase();
+  const oId = String(option?.id || '').toLowerCase();
+  const key = `${pId}_${oId}`;
+
+  let val = stockMap[key] ?? stockMap[`${product?.id}_${option?.id}`] ?? stockMap[option?.id] ?? stockMap[oId];
+
+  if (val !== undefined && val !== null) {
+    return typeof val === 'object' ? Number(val.currentStock ?? val.currentQuantity ?? 0) : Number(val);
+  }
+
+  return 0;
 }
 
 function normalizeQuantities(source, options) {
@@ -346,13 +381,14 @@ export default function VariantSelector({
   themeColor = '#f97316',
   themeSoftColor = '#fff7ed',
   themeDarkColor = '#ea580c',
-  stockMap = null
+  stockMap = null,
+  isPurchaseMode = false
 }) {
   const [selectedId, setSelectedId] = useState('');
   const [quantities, setQuantities] = useState({});
   const [upsellQuantities, setUpsellQuantities] = useState({});
 
-  const options = useMemo(() => buildVariantOptions(product), [product]);
+  const options = useMemo(() => buildVariantOptions(product, isPurchaseMode), [product, isPurchaseMode]);
   const upsells = useMemo(() => (product?.upsells || []).filter(u => u.isActive !== false), [product]);
 
   const selected = options.find((option) => String(option.id) === String(selectedId));
@@ -472,7 +508,7 @@ export default function VariantSelector({
         <OptionList>
           {options.length > 0 && (
             <>
-              <SectionHeader>Variants / Options</SectionHeader>
+              <SectionHeader>{isPurchaseMode ? 'Variants (Purchase Prices)' : 'Variants / Options'}</SectionHeader>
               <div style={{ display: 'grid', gap: '8px' }}>
                 {options.map((option) => {
                   const optionKey = String(option.id);
@@ -499,7 +535,7 @@ export default function VariantSelector({
                         <span>₹{Number(option.price || 0).toFixed(2)}</span>
                         {stockMap && (
                           <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold', marginTop: '2px' }}>
-                            Stock: {stockMap[option.id] !== undefined ? (stockMap[option.id]?.currentStock !== undefined ? stockMap[option.id].currentStock : stockMap[option.id]) : (stockMap[`${product.id}_${option.id}`]?.currentStock || 0)}
+                            Stock: {getOptionStock(stockMap, product, option)}
                           </div>
                         )}
                       </OptionMeta>

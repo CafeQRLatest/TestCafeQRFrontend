@@ -121,72 +121,97 @@ function ValuationContent() {
   }, [warehouses, selectedOrgId]);
 
 
-  // Build Map of Stock by Product ID
-  const stockMap = new Map();
-  stock.forEach(item => {
-    if (item.productId) {
-      stockMap.set(String(item.productId).toLowerCase(), item);
+  // Build Valuation Items from granular Stock Snapshots & Products
+  const allValuationItems = [];
+  const processedKeys = new Set();
+
+  // Pre-build set of productIds that have at least one variant snapshot
+  const productsWithVariantSnapshots = new Set(
+    (stock || [])
+      .filter(s => s.variantId != null)
+      .map(s => String(s.productId).toLowerCase())
+  );
+
+  (stock || []).forEach(s => {
+    if (s.productId) {
+      const pId = String(s.productId).toLowerCase();
+      const vId = s.variantId ? String(s.variantId).toLowerCase() : null;
+
+      // Skip base product snapshot if this product has variant-level snapshots
+      if (!vId && productsWithVariantSnapshots.has(pId)) return;
+
+      const key = vId ? `${pId}_${vId}` : pId;
+      if (processedKeys.has(key)) return;
+      processedKeys.add(key);
+
+      const p = products.find(prod => String(prod.id).toLowerCase() === pId);
+      const qty = Number(s.currentQuantity || 0);
+
+      const unitCost = Number(
+        s.variantCostPrice ?? s.unitCost ?? s.costPrice ?? p?.costPrice ?? p?.purchasePrice ?? p?.price ?? 0
+      );
+      const totalVal = qty * unitCost;
+
+      const variantLabel = s.variantOptionName || s.variantName || s.variantLabel;
+      const displayName = variantLabel ? `${p?.name || s.productName || 'Product'} (${variantLabel})` : (p?.name || s.productName || 'Unknown Product');
+
+      const isIng = p ? (
+        p.isIngredient === true ||
+        p.is_ingredient === true ||
+        String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
+        String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
+        String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
+        String(p.categoryName || '').toLowerCase().includes('ingredient')
+      ) : false;
+
+      allValuationItems.push({
+        id: key,
+        productId: s.productId,
+        variantId: s.variantId || null,
+        sku: p?.productCode || p?.sku || s.productCode || '—',
+        productName: displayName,
+        categoryName: p?.categoryName || s.categoryName || (isIng ? 'Ingredients' : 'General'),
+        isIngredient: isIng,
+        currentQuantity: qty,
+        unitCost: unitCost,
+        totalValue: totalVal,
+        unitOfMeasure: p?.uomName || p?.unitOfMeasure || p?.uom || 'units'
+      });
     }
   });
 
-  // Combine ALL Products (both ingredients & non-ingredients) with current Warehouse Stock
-  const productIdsSeen = new Set();
-  const allValuationItems = products.map(p => {
+  // Fallback: add products with no stock snapshot at all (show 0 qty)
+  // Skip products that have variant-level snapshots (they already appear as variants above)
+  products.forEach(p => {
     const pId = String(p.id).toLowerCase();
-    productIdsSeen.add(pId);
-    const snap = stockMap.get(pId);
-    
-    const qty = snap ? Number(snap.currentQuantity || 0) : 0;
-    const unitCost = Number(p.costPrice ?? p.purchasePrice ?? p.price ?? 0);
-    const totalVal = qty * unitCost;
+    const isVariantProduct = p.hasVariants || Number(p.variantCount || 0) > 0;
+    const isAlreadyPresent = Array.from(processedKeys).some(k => k === pId || k.startsWith(`${pId}_`));
+
+    // Skip variant products entirely (they appear as their variant rows),
+    // and skip non-variant products already in the list
+    if (isVariantProduct || isAlreadyPresent) return;
 
     const isIng = (
       p.isIngredient === true ||
       p.is_ingredient === true ||
       String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
       String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
-      String(p.isIngredient || p.is_ingredient || '').trim() === '1' ||
-      String(p.type || p.productType || p.product_type || '').toUpperCase() === 'INGREDIENT' ||
-      String(p.type || p.productType || p.product_type || '').toUpperCase() === 'RAW_MATERIAL' ||
-      String(p.categoryName || p.category_name || p.category || '').toLowerCase().includes('ingredient') ||
-      String(p.categoryName || p.category_name || p.category || '').toLowerCase().includes('raw') ||
-      String(p.categoryName || p.category_name || p.category || '').toLowerCase().includes('material') ||
-      String(p.categoryName || p.category_name || p.category || '').toLowerCase().includes('supplies')
+      String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
+      String(p.categoryName || '').toLowerCase().includes('ingredient')
     );
 
-    return {
+    allValuationItems.push({
       id: p.id,
       productId: p.id,
       sku: p.productCode || p.sku || '—',
       productName: p.name || 'Unknown Product',
       categoryName: p.categoryName || (isIng ? 'Ingredients' : 'General'),
       isIngredient: isIng,
-      currentQuantity: qty,
-      unitCost: unitCost,
-      totalValue: totalVal,
-      unitOfMeasure: p.unitOfMeasure || p.uom || 'units'
-    };
-  });
-
-  // Include stock items that weren't in the product master list
-  stock.forEach(s => {
-    if (s.productId && !productIdsSeen.has(String(s.productId).toLowerCase())) {
-      const p = products.find(prod => String(prod.id).toLowerCase() === String(s.productId).toLowerCase());
-      const qty = Number(s.currentQuantity || 0);
-      const unitCost = p ? Number(p.costPrice ?? p.purchasePrice ?? p.price ?? 0) : 0;
-      allValuationItems.push({
-        id: s.id || s.productId,
-        productId: s.productId,
-        sku: p?.productCode || p?.sku || '—',
-        productName: p?.name || 'Unknown Product',
-        categoryName: 'General',
-        isIngredient: false,
-        currentQuantity: qty,
-        unitCost: unitCost,
-        totalValue: qty * unitCost,
-        unitOfMeasure: 'units'
-      });
-    }
+      currentQuantity: 0,
+      unitCost: Number(p.costPrice ?? p.purchasePrice ?? p.price ?? 0),
+      totalValue: 0,
+      unitOfMeasure: p.uomName || p.unitOfMeasure || p.uom || 'units'
+    });
   });
 
   // Filter Data based on Search and Type Filter Tabs

@@ -7,6 +7,7 @@ import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import BranchRequiredGate from '../../components/BranchRequiredGate';
 import NiceSelect from '../../components/NiceSelect';
+import VariantSelector from '../../components/VariantSelector';
 import api from '../../utils/api';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
@@ -42,6 +43,7 @@ function TransferContent() {
   
   const [productSearch, setProductSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeVariantProduct, setActiveVariantProduct] = useState(null);
   const searchWrapRef = useRef(null);
 
   const [transfer, setTransfer] = useState({
@@ -168,8 +170,18 @@ function TransferContent() {
       if (resp.data.success) {
         const stockMap = {};
         (resp.data.data || []).forEach(item => {
+          const pId = item.productId;
+          const vId = item.variantId;
+          const key = vId ? `${pId}_${vId}` : pId;
           item.currentStock = item.currentQuantity;
-          stockMap[item.productId] = item;
+          stockMap[key] = item;
+          if (vId) {
+            const baseStock = stockMap[pId] ? (Number(stockMap[pId].currentStock) || 0) : 0;
+            stockMap[pId] = {
+              ...item,
+              currentStock: baseStock + (Number(item.currentQuantity) || 0)
+            };
+          }
         });
         setSourceStock(stockMap);
       }
@@ -194,7 +206,8 @@ function TransferContent() {
     if (invalidQtyLine) return showToast("Transfer quantity for all items must be at least 1", "error");
 
     const zeroStockItem = transfer.lines.find(l => {
-      const current = sourceStock[l.productId]?.currentStock || 0;
+      const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
+      const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
       return current <= 0;
     });
 
@@ -203,7 +216,8 @@ function TransferContent() {
     }
 
     const overdraftItem = transfer.lines.find(l => {
-      const current = sourceStock[l.productId]?.currentStock || 0;
+      const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
+      const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
       return (Number(l.transferQuantity) || 0) > current;
     });
 
@@ -258,23 +272,72 @@ function TransferContent() {
     }
   };
 
-  const handleAddProduct = (product) => {
-    const stockObj = sourceStock[product.id];
+  const handleAddProduct = async (product) => {
+    const hasVars = Boolean(
+      product.hasVariants ||
+      product.has_variants ||
+      product.isVariant ||
+      product.is_variant ||
+      Number(product.variantCount || product.variant_count || 0) > 0 ||
+      (Array.isArray(product.variantMappings) && product.variantMappings.length > 0) ||
+      (Array.isArray(product.variantPricings) && product.variantPricings.length > 0)
+    );
+
+    if (hasVars) {
+      setShowSuggestions(false);
+      let fullProduct = product;
+      try {
+        const res = await api.get(`/api/v1/products/${product.id}`);
+        if (res.data?.success && res.data?.data) {
+          fullProduct = res.data.data;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch full product details for variant selector:', e);
+      }
+      setActiveVariantProduct(fullProduct);
+    } else {
+      addProductToTransferLine(product, null);
+    }
+  };
+
+  const addProductToTransferLine = (product, selectedVariant = null) => {
+    const variantId = selectedVariant ? selectedVariant.id : null;
+    const variantLabel = selectedVariant ? selectedVariant.label : null;
+
+    const stockKey = variantId ? `${product.id}_${variantId}` : product.id;
+    const stockObj = sourceStock[stockKey] || sourceStock[product.id];
     const available = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
-    
-    const existingIdx = transfer.lines.findIndex(l => l.productId === product.id);
+
+    const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name;
+
+    const existingIdx = transfer.lines.findIndex(l => 
+      String(l.productId) === String(product.id) &&
+      (variantId ? String(l.variantId) === String(variantId) : !l.variantId)
+    );
+
     if (existingIdx >= 0) {
       const currentQty = Number(transfer.lines[existingIdx].transferQuantity) || 0;
       if (transfer.sourceWarehouseId && available > 0 && currentQty >= available) {
-        showToast(`Warning: quantity exceeds available stock (${available} units) for ${product.name}`, "error");
+        showToast(`Warning: quantity exceeds available stock (${available} units) for ${displayName}`, "error");
       }
       const newLines = [...transfer.lines];
       newLines[existingIdx].transferQuantity = currentQty + 1;
       setTransfer({ ...transfer, lines: newLines });
     } else {
-      setTransfer({ ...transfer, lines: [...transfer.lines, { productId: product.id, transferQuantity: 1 }] });
+      setTransfer({ 
+        ...transfer, 
+        lines: [
+          ...transfer.lines, 
+          { 
+            productId: product.id, 
+            variantId: variantId, 
+            productName: displayName, 
+            transferQuantity: 1 
+          }
+        ] 
+      });
       if (transfer.sourceWarehouseId && available <= 0) {
-        showToast(`"${product.name}" added (0 available stock in source warehouse)`, "error");
+        showToast(`"${displayName}" added (0 available stock in source warehouse)`, "error");
       }
     }
     setProductSearch("");
@@ -463,15 +526,16 @@ function TransferContent() {
                           const p = products.find(prod => prod.id === line.productId);
                           if (!p) return null;
 
-                          const stockObj = sourceStock[line.productId];
-                          const currentStock = stockObj ? stockObj.currentStock : 0;
+                          const stockKey = line.variantId ? `${line.productId}_${line.variantId}` : line.productId;
+                          const stockObj = sourceStock[stockKey];
+                          const currentStock = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
                           const overdraft = !!transfer.sourceWarehouseId && line.transferQuantity > currentStock;
 
                           return (
                             <tr key={idx} className={overdraft ? 'row-overstocked' : ''}>
                               <td className="col-idx">{idx + 1}</td>
                               <td className="col-product">
-                                <div className="p-name">{p.name}</div>
+                                <div className="p-name">{line.productName || p.name}</div>
                                 <div className="p-meta">
                                    {p.productCode && <span className="p-sku">#{p.productCode}</span>}
                                    <span className="p-category">{p.categoryName}</span>
@@ -532,15 +596,16 @@ function TransferContent() {
                       {transfer.lines.map((line, idx) => {
                         const p = products.find(prod => prod.id === line.productId);
                         if (!p) return null;
-                        const stockObj = sourceStock[line.productId];
-                        const currentStock = stockObj ? stockObj.currentStock : 0;
+                        const stockKey = line.variantId ? `${line.productId}_${line.variantId}` : line.productId;
+                        const stockObj = sourceStock[stockKey];
+                        const currentStock = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
                         const overdraft = !!transfer.sourceWarehouseId && line.transferQuantity > currentStock;
 
                         return (
                           <div key={idx} className={`mobile-cart-item ${overdraft ? 'overstocked' : ''}`}>
                             <div className="m-item-head">
                               <div className="m-item-info">
-                                <span className="m-item-name">{p.name}</span>
+                                <span className="m-item-name">{line.productName || p.name}</span>
                                 <span className="m-item-meta">{p.productCode && `#${p.productCode} • `}{p.categoryName}</span>
                               </div>
                               <button className="m-item-remove" onClick={() => removeLine(idx)}><FaTrash /></button>
@@ -738,9 +803,24 @@ function TransferContent() {
             </div>
           </div>
         )}
+
+        {/* Variant Selector Modal */}
+        {activeVariantProduct && (
+          <VariantSelector
+            product={activeVariantProduct}
+            isPurchaseMode={true}
+            stockMap={sourceStock}
+            onClose={() => setActiveVariantProduct(null)}
+            onSelect={(selectedVariant) => {
+              addProductToTransferLine(activeVariantProduct, selectedVariant);
+              setActiveVariantProduct(null);
+            }}
+            themeColor="#ea580c"
+            themeSoftColor="#fff7ed"
+            themeDarkColor="#c2410c"
+          />
+        )}
       </div>
-
-
 
       <style jsx>{`
         /* Re-Stabilized Professional Layout */

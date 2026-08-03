@@ -29,6 +29,7 @@ export default function ProductManagementPopup({
   const [pricingView, setPricingView] = useState('sales'); // 'sales', 'purchase'
   const [recipeSearch, setRecipeSearch] = useState('');
   const [inventoryEnabled, setInventoryEnabled] = useState(true);
+  const [purchasingEnabled, setPurchasingEnabled] = useState(true);
   const [taxEnabled, setTaxEnabled] = useState(true);
 
   // Dropdown options data state
@@ -89,7 +90,11 @@ export default function ProductManagementPopup({
         const resp = await api.get('/api/v1/configurations');
         if (active && resp.data?.success) {
           setInventoryEnabled(resp.data.data.inventoryEnabled !== false);
+          setPurchasingEnabled(resp.data.data.purchaseEnabled !== false && resp.data.data.purchasingEnabled !== false);
           setTaxEnabled(resp.data.data.taxEnabled !== false);
+          if (resp.data.data.purchaseEnabled === false || resp.data.data.purchasingEnabled === false) {
+            setPricingView('sales');
+          }
         }
       } catch (err) {
         console.warn("Failed to load configuration in ProductManagementPopup:", err);
@@ -184,7 +189,10 @@ export default function ProductManagementPopup({
             || pricing.option
             || (pricing.variantOptionId ? { id: pricing.variantOptionId, name: 'Variant Option' } : null),
           additionalPrice: toNumber(pricing.additionalPrice, 0),
-          price: toNumber(pricing.price, toNumber(pricing.additionalPrice, 0)),
+          price: pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price, 0) : null,
+          overridePrice: pricing.overridePrice !== undefined && pricing.overridePrice !== null ? toNumber(pricing.overridePrice) : (pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price) : null),
+          costPrice: pricing.costPrice !== undefined && pricing.costPrice !== null ? toNumber(pricing.costPrice) : null,
+          isAvailable: pricing.isAvailable !== false,
           isActive: pricing.isActive ?? pricing.isactive ?? 'Y'
         }))
       : [];
@@ -323,10 +331,40 @@ export default function ProductManagementPopup({
     try {
       const isNew = !selectedProduct.id;
       const url = isNew ? '/api/v1/products' : `/api/v1/products/${selectedProduct.id}`;
+      const allMappedGroupOptions = (selectedProduct.variantMappings || [])
+        .filter(vm => vm.variantGroup?.id)
+        .flatMap(vm => vm.variantGroup?.options || []);
+
+      const baseSalePrice = isIngredient ? 0 : Number(selectedProduct.price || 0);
+      const baseCostPrice = selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? 0 : Number(selectedProduct.costPrice);
+
+      const finalVariantPricings = allMappedGroupOptions.map(opt => {
+        const existingVP = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
+        const addPrice = Number(opt.additionalPrice || 0);
+
+        const overridePrice = (existingVP && existingVP.overridePrice !== null && existingVP.overridePrice !== undefined && existingVP.overridePrice !== '' && !isNaN(existingVP.overridePrice))
+          ? Number(existingVP.overridePrice)
+          : (baseSalePrice + addPrice);
+
+        const costPrice = (existingVP && existingVP.costPrice !== null && existingVP.costPrice !== undefined && existingVP.costPrice !== '' && !isNaN(existingVP.costPrice))
+          ? Number(existingVP.costPrice)
+          : (baseCostPrice + addPrice);
+
+        const isAvailable = existingVP ? existingVP.isAvailable !== false : true;
+
+        return {
+          id: existingVP?.id || null,
+          overridePrice: overridePrice,
+          costPrice: costPrice,
+          isAvailable: isAvailable,
+          variantOption: { id: opt.id }
+        };
+      });
+
       const payload = {
         ...selectedProduct,
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
-        costPrice: selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? 0 : Number(selectedProduct.costPrice),
+        costPrice: baseCostPrice,
         mrp: selectedProduct.mrp === '' || selectedProduct.mrp === null || selectedProduct.mrp === undefined || isNaN(selectedProduct.mrp) ? 0 : Number(selectedProduct.mrp),
         taxRate: selectedProduct.taxRate === '' || selectedProduct.taxRate === null || selectedProduct.taxRate === undefined || isNaN(selectedProduct.taxRate) ? 0 : Number(selectedProduct.taxRate),
         minStockLevel: selectedProduct.minStockLevel === '' || selectedProduct.minStockLevel === null || selectedProduct.minStockLevel === undefined || isNaN(selectedProduct.minStockLevel) ? 0 : Number(selectedProduct.minStockLevel),
@@ -336,9 +374,7 @@ export default function ProductManagementPopup({
         variantMappings: (selectedProduct.variantMappings || [])
           .filter(vm => vm.variantGroup?.id)
           .map(vm => ({ ...vm, variantGroup: { id: vm.variantGroup.id } })),
-        variantPricings: (selectedProduct.variantPricings || [])
-          .filter(vp => vp.variantOption?.id)
-          .map(vp => ({ ...vp, variantOption: { id: vp.variantOption.id } })),
+        variantPricings: finalVariantPricings,
         upsells: (selectedProduct.upsells || [])
           .filter(u => u.upsellProduct?.id || u.upsellProductId)
           .map(u => ({ ...u, upsellProduct: { id: u.upsellProduct?.id || u.upsellProductId } })),
@@ -689,13 +725,15 @@ export default function ProductManagementPopup({
                    >
                       <FaMoneyBillWave style={{ marginRight: '8px' }} /> Sales Pricing
                    </button>
-                   <button 
-                      className={`pricing-view-btn ${pricingView === 'purchase' ? 'active' : ''}`} 
-                      onClick={() => setPricingView('purchase')}
-                      style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: pricingView === 'purchase' ? '#fff1f2' : 'white', color: pricingView === 'purchase' ? '#991b1b' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', borderColor: pricingView === 'purchase' ? '#ef4444' : '#e2e8f0' }}
-                   >
-                      <FaBoxOpen style={{ marginRight: '8px' }} /> Purchase Pricing
-                   </button>
+                   {purchasingEnabled && (
+                      <button 
+                         className={`pricing-view-btn ${pricingView === 'purchase' ? 'active' : ''}`} 
+                         onClick={() => setPricingView('purchase')}
+                         style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: pricingView === 'purchase' ? '#fff1f2' : 'white', color: pricingView === 'purchase' ? '#991b1b' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', borderColor: pricingView === 'purchase' ? '#ef4444' : '#e2e8f0' }}
+                      >
+                         <FaBoxOpen style={{ marginRight: '8px' }} /> Purchase Pricing
+                      </button>
+                   )}
                 </div>
                 
                 <div className="input-group">
@@ -855,62 +893,114 @@ export default function ProductManagementPopup({
                               <div className="variant-options-empty">
                                 No options found for this variant group.
                               </div>
-                            ) : (
-                            <div className="variant-options-list">
-                               {groupOptions.map(opt => {
-                                  const pricing = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
-                                  const currentVal = pricing ? pricing.overridePrice : opt.additionalPrice;
-                                  return (
-                                     <div key={opt.id} className="variant-option-row">
-                                        <div className="variant-option-copy">
-                                          <span className="variant-option-name">{opt.name}</span>
-                                          <span className="variant-option-base">Base: ₹{opt.additionalPrice || 0}</span>
-                                        </div>
-                                        <div className="variant-option-controls">
-                                           <label className="variant-enabled-label">
-                                              <input
-                                                type="checkbox"
-                                                checked={pricing?.isAvailable !== false}
-                                               onChange={e => {
-                                                 const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
-                                                 setSelectedProduct({
-                                                   ...selectedProduct,
-                                                   variantPricings: [...otherPricings, {
-                                                     ...pricing,
-                                                     variantOption: opt,
-                                                     overridePrice: pricing ? pricing.overridePrice : currentVal,
-                                                     isAvailable: e.target.checked
-                                                   }]
-                                                 });
-                                               }}
-                                              />
-                                              Enabled
-                                           </label>
-                                           <span className="variant-currency">₹</span>
-                                           <input 
-                                              type="number" 
-                                             className="variant-price-input"
-                                             value={currentVal}
-                                             onChange={e => {
-                                                const newVal = parseFloat(e.target.value) || 0;
-                                               const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
-                                                setSelectedProduct({
-                                                   ...selectedProduct,
-                                                   variantPricings: [...otherPricings, {
-                                                     ...pricing,
-                                                     variantOption: opt,
-                                                     overridePrice: newVal,
-                                                     isAvailable: pricing?.isAvailable !== false
-                                                   }]
-                                                });
-                                            }}
-                                          />
-                                        </div>
-                                     </div>
-                                  );
-                               })}
-                            </div>
-                            )}
+                            ) : <div className="variant-options-list" style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
+                                {groupOptions.map(opt => {
+                                   const pricing = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
+                                   const currentVal = pricing && pricing.overridePrice !== undefined && pricing.overridePrice !== null ? pricing.overridePrice : '';
+                                   const currentCost = pricing && pricing.costPrice !== undefined && pricing.costPrice !== null ? pricing.costPrice : '';
+                                   const isEnabled = pricing?.isAvailable !== false;
+
+                                   return (
+                                      <div key={opt.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', padding: '12px 14px', background: isEnabled ? '#f8fafc' : '#f1f5f9', borderRadius: '10px', border: '1px solid #e2e8f0', opacity: isEnabled ? 1 : 0.65, transition: 'all 0.2s' }}>
+                                         {/* Left: Name, Base Price & Enabled Switch */}
+                                         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '160px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+                                               <input
+                                                 type="checkbox"
+                                                 checked={isEnabled}
+                                                 style={{ width: '16px', height: '16px', accentColor: '#ea580c', cursor: 'pointer' }}
+                                                 onChange={e => {
+                                                   const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                   setSelectedProduct({
+                                                     ...selectedProduct,
+                                                     variantPricings: [...otherPricings, {
+                                                       ...pricing,
+                                                       variantOption: opt,
+                                                       overridePrice: pricing?.overridePrice ?? null,
+                                                       costPrice: pricing?.costPrice ?? null,
+                                                       isAvailable: e.target.checked
+                                                     }]
+                                                   });
+                                                 }}
+                                               />
+                                               <span style={{ fontSize: '11px', fontWeight: 700, color: isEnabled ? '#059669' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                                                  {isEnabled ? 'Enabled' : 'Disabled'}
+                                               </span>
+                                            </label>
+                                            <div>
+                                              <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{opt.name}</div>
+                                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Base: ₹{opt.additionalPrice || 0}</div>
+                                            </div>
+                                         </div>
+
+                                         {/* Right: Pricing Inputs (Sale & Purchase) */}
+                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                                            {/* Sale Price Input */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '4px 8px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                               <span style={{ fontSize: '10px', fontWeight: 800, color: '#166534', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                  Sale
+                                               </span>
+                                               <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>₹</span>
+                                               <input 
+                                                  type="number" 
+                                                  placeholder="0.00"
+                                                  disabled={!isEnabled}
+                                                  style={{ width: '80px', border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}
+                                                  value={currentVal === 0 || currentVal === '' || currentVal === null || currentVal === undefined || isNaN(currentVal) ? '' : currentVal}
+                                                  onChange={e => {
+                                                     const newVal = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                                     const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                     const existingCost = pricing?.costPrice !== undefined && pricing?.costPrice !== null ? pricing.costPrice : null;
+                                                     setSelectedProduct({
+                                                        ...selectedProduct,
+                                                        variantPricings: [...otherPricings, {
+                                                          ...pricing,
+                                                          variantOption: opt,
+                                                          overridePrice: newVal === '' ? null : (isNaN(newVal) ? null : newVal),
+                                                          costPrice: existingCost,
+                                                          isAvailable: isEnabled
+                                                        }]
+                                                     });
+                                                  }}
+                                               />
+                                            </div>
+
+                                            {/* Purchase Cost Input (When Purchasing Module is Enabled) */}
+                                            {purchasingEnabled && (
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '4px 8px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                                 <span style={{ fontSize: '10px', fontWeight: 800, color: '#991b1b', background: '#ffe4e6', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                    Purchase
+                                                 </span>
+                                                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>₹</span>
+                                                 <input 
+                                                    type="number" 
+                                                    placeholder="0.00"
+                                                    disabled={!isEnabled}
+                                                    style={{ width: '80px', border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}
+                                                    value={currentCost === 0 || currentCost === '' || currentCost === null || currentCost === undefined || isNaN(currentCost) ? '' : currentCost}
+                                                    onChange={e => {
+                                                       const newCost = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                                       const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                       const existingSale = pricing?.overridePrice !== undefined && pricing?.overridePrice !== null ? pricing.overridePrice : null;
+                                                       setSelectedProduct({
+                                                          ...selectedProduct,
+                                                          variantPricings: [...otherPricings, {
+                                                            ...pricing,
+                                                            variantOption: opt,
+                                                            overridePrice: existingSale,
+                                                            costPrice: newCost === '' ? null : (isNaN(newCost) ? null : newCost),
+                                                            isAvailable: isEnabled
+                                                          }]
+                                                       });
+                                                    }}
+                                                 />
+                                              </div>
+                                            )}
+                                         </div>
+                                      </div>
+                                   );
+                                })}
+                             </div>}
                       </div>
                     </div>
                      );

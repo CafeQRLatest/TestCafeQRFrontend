@@ -118,7 +118,8 @@ export function usePurchaseOrders() {
       if (resp.data.success) {
         const stockMap = {};
         (resp.data.data || []).forEach(item => {
-          stockMap[item.productId] = item.currentQuantity !== undefined ? item.currentQuantity : (item.currentStock || 0);
+          const qty = item.currentQuantity !== undefined ? Number(item.currentQuantity) : (Number(item.currentStock) || 0);
+          stockMap[item.productId] = (stockMap[item.productId] || 0) + qty;
         });
         setWarehouseStock(stockMap);
       }
@@ -267,24 +268,45 @@ export function usePurchaseOrders() {
   }, [view, fromDate, toDate, filterStatus, filterVendor, filterWarehouse, filterPayMethod, fetchHistory]);
 
   /* ── product actions ── */
-  const addProduct = useCallback((product) => {
-    if (po.lines.find(l => String(l.productId) === String(product.id))) {
-      toast(`${product.name} is already in the list`, 'error');
+  const addProduct = useCallback((product, selectedVariant = null) => {
+    const variantId = selectedVariant ? selectedVariant.id : null;
+    const variantLabel = selectedVariant ? selectedVariant.label : null;
+
+    const existingLine = po.lines.find(l => 
+      String(l.productId) === String(product.id) && 
+      (variantId ? String(l.variantId) === String(variantId) : !l.variantId)
+    );
+
+    if (existingLine) {
+      toast(`${product.name}${variantLabel ? ` (${variantLabel})` : ''} is already in the list`, 'error');
       return;
     }
-    const initialUnitPrice = (product.costPrice !== undefined && product.costPrice !== null && Number(product.costPrice) > 0)
-      ? Number(product.costPrice)
-      : Number(product.price || 0);
+
+    let initialUnitPrice = 0;
+    if (selectedVariant && selectedVariant.costPrice !== undefined && selectedVariant.costPrice !== null && Number(selectedVariant.costPrice) > 0) {
+      initialUnitPrice = Number(selectedVariant.costPrice);
+    } else if (selectedVariant && selectedVariant.overridePrice !== undefined && selectedVariant.overridePrice !== null && Number(selectedVariant.overridePrice) > 0) {
+      initialUnitPrice = Number(selectedVariant.overridePrice);
+    } else if (selectedVariant && selectedVariant.price !== undefined && selectedVariant.price !== null && Number(selectedVariant.price) > 0) {
+      initialUnitPrice = Number(selectedVariant.price);
+    } else if (product.costPrice !== undefined && product.costPrice !== null && Number(product.costPrice) > 0) {
+      initialUnitPrice = Number(product.costPrice);
+    } else {
+      initialUnitPrice = Number(product.price || 0);
+    }
+
+    const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name;
 
     const line = recalcLine({
       productId:      product.id,
-      productName:    product.name,
+      variantId:      variantId,
+      productName:    displayName,
       productCode:    product.productCode || '',
       categoryName:   product.categoryName || '',
       unitOfMeasure:  product.uomName || 'units',
       quantity:       1,
       unitPrice:      initialUnitPrice,
-      taxRate:        product.taxRate   || 0,
+      taxRate:        product.taxRate || 0,
       discountAmount: 0,
       taxAmount:      0,
       lineTotal:      initialUnitPrice,
