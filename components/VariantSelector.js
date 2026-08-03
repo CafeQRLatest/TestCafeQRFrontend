@@ -302,15 +302,13 @@ function buildVariantOptions(product, isPurchaseMode = false) {
         const option = pricing.variantOption;
         let price = 0;
         if (isPurchaseMode) {
+          // Purchase mode: ONLY use costPrice — never fall back to sale prices
           if (pricing.costPrice != null && Number(pricing.costPrice) > 0) {
             price = Number(pricing.costPrice);
-          } else if (pricing.overridePrice != null && Number(pricing.overridePrice) > 0) {
-            price = Number(pricing.overridePrice);
           } else if (product?.costPrice != null && Number(product.costPrice) > 0) {
-            price = Number(product.costPrice) + Number(option.additionalPrice || 0);
-          } else {
-            price = basePrice + Number(option.additionalPrice || 0);
+            price = Number(product.costPrice);
           }
+          // If no purchase cost configured, leave as 0 so user must fill it in
         } else {
           price = pricing.overridePrice != null
             ? Number(pricing.overridePrice)
@@ -322,7 +320,10 @@ function buildVariantOptions(product, isPurchaseMode = false) {
           label: option.name,
           price,
           overridePrice: pricing.overridePrice,
-          costPrice: pricing.costPrice || price,
+          // costPrice is always the purchase cost — never the sale price
+          costPrice: (pricing.costPrice != null && Number(pricing.costPrice) > 0)
+            ? Number(pricing.costPrice)
+            : null,
           groupId: option.groupId,
         };
       });

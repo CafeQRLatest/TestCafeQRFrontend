@@ -284,16 +284,13 @@ export function usePurchaseOrders() {
 
     let initialUnitPrice = 0;
     if (selectedVariant && selectedVariant.costPrice !== undefined && selectedVariant.costPrice !== null && Number(selectedVariant.costPrice) > 0) {
+      // Use variant-specific purchase cost price
       initialUnitPrice = Number(selectedVariant.costPrice);
-    } else if (selectedVariant && selectedVariant.overridePrice !== undefined && selectedVariant.overridePrice !== null && Number(selectedVariant.overridePrice) > 0) {
-      initialUnitPrice = Number(selectedVariant.overridePrice);
-    } else if (selectedVariant && selectedVariant.price !== undefined && selectedVariant.price !== null && Number(selectedVariant.price) > 0) {
-      initialUnitPrice = Number(selectedVariant.price);
     } else if (product.costPrice !== undefined && product.costPrice !== null && Number(product.costPrice) > 0) {
+      // Use base product purchase cost price
       initialUnitPrice = Number(product.costPrice);
-    } else {
-      initialUnitPrice = Number(product.price || 0);
     }
+    // Do NOT fall back to sale price (product.price / overridePrice) — leave 0 so user fills it in
 
     const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name;
 
