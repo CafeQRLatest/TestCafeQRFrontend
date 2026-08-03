@@ -350,11 +350,15 @@ export default function PurchaseForm({
                                   Stock: {warehouseStock[p.id]}
                                 </div>
                               )}
-                              {p.price > 0 && (
+                              {p.costPrice !== undefined && p.costPrice !== null && Number(p.costPrice) > 0 ? (
+                                <div className={styles['ps-item-price']}>
+                                  {currencySymbol}{parseFloat(p.costPrice).toFixed(2)}
+                                </div>
+                              ) : p.price > 0 ? (
                                 <div className={styles['ps-item-price']}>
                                   {currencySymbol}{parseFloat(p.price).toFixed(2)}
                                 </div>
-                              )}
+                              ) : null}
                               <div className={styles['ps-item-unit']}>{p.uomName || 'units'}</div>
                             </div>
                           </button>

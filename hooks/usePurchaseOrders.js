@@ -272,6 +272,10 @@ export function usePurchaseOrders() {
       toast(`${product.name} is already in the list`, 'error');
       return;
     }
+    const initialUnitPrice = (product.costPrice !== undefined && product.costPrice !== null && Number(product.costPrice) > 0)
+      ? Number(product.costPrice)
+      : Number(product.price || 0);
+
     const line = recalcLine({
       productId:      product.id,
       productName:    product.name,
@@ -279,11 +283,11 @@ export function usePurchaseOrders() {
       categoryName:   product.categoryName || '',
       unitOfMeasure:  product.uomName || 'units',
       quantity:       1,
-      unitPrice:      product.price || 0,
+      unitPrice:      initialUnitPrice,
       taxRate:        product.taxRate   || 0,
       discountAmount: 0,
       taxAmount:      0,
-      lineTotal:      product.price || 0,
+      lineTotal:      initialUnitPrice,
     });
     const lines = [line, ...po.lines];
     setPo(p => ({ ...p, lines, ...calcTotals(lines) }));

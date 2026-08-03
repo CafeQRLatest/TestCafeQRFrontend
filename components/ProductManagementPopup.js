@@ -52,7 +52,7 @@ export default function ProductManagementPopup({
           if (active && resp.data.success) setUoms(resp.data.data || []);
         }
         if (!propPricelists || propPricelists.length === 0) {
-          const resp = await api.get('/api/v1/purchasing/pricelists/type/SALE').catch(() => ({ data: { data: [] } }));
+          const resp = await api.get('/api/v1/purchasing/pricelists').catch(() => ({ data: { data: [] } }));
           if (active && resp.data.success) setPricelists(resp.data.data || []);
         }
         if (!propProducts || propProducts.length === 0) {
@@ -246,6 +246,7 @@ export default function ProductManagementPopup({
       taxCode: p.taxCode || '',
       mrp: toNumber(p.mrp, 0),
       costPrice: toNumber(p.costPrice, 0),
+      defaultPricelistId: p.defaultPricelistId || p.defaultPricelist?.id || '',
       barcode: p.barcode || '',
       minStockLevel: toNumber(p.minStockLevel, 0),
       kdsStation: p.kdsStation || '',
@@ -327,6 +328,7 @@ export default function ProductManagementPopup({
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
         category: selectedProduct.category?.id ? { id: selectedProduct.category.id } : null,
         uom: selectedProduct.uom?.id ? { id: selectedProduct.uom.id } : null,
+        defaultPricelist: selectedProduct.defaultPricelistId ? { id: selectedProduct.defaultPricelistId } : null,
         variantMappings: (selectedProduct.variantMappings || [])
           .filter(vm => vm.variantGroup?.id)
           .map(vm => ({ ...vm, variantGroup: { id: vm.variantGroup.id } })),
@@ -693,14 +695,17 @@ export default function ProductManagementPopup({
                 </div>
                 
                 <div className="input-group">
-                   <label>Default {pricingView === 'sales' ? 'Sale' : 'Purchase'} Pricelist</label>
+                   <label>Default {pricingView === 'sales' ? 'Sale' : 'Purchase'} Pricelist (Optional)</label>
                    <NiceSelect 
-                      placeholder="Select primary pricelist..."
-                      options={pricelists
-                         .filter(pl => pl.pricelistType === (pricingView === 'sales' ? 'SALE' : 'PURCHASE'))
-                         .map(pl => ({ value: pl.id, label: pl.name }))}
+                      placeholder="None (Optional)"
+                      options={[
+                         { value: '', label: 'None (Optional)' },
+                         ...pricelists
+                            .filter(pl => pl.pricelistType === (pricingView === 'sales' ? 'SALE' : 'PURCHASE'))
+                            .map(pl => ({ value: pl.id, label: pl.name }))
+                      ]}
                       value={selectedProduct.defaultPricelistId || ''}
-                      onChange={plid => setSelectedProduct({...selectedProduct, defaultPricelistId: plid})}
+                      onChange={plid => setSelectedProduct({...selectedProduct, defaultPricelistId: plid || null})}
                    />
                 </div>
              </div>
