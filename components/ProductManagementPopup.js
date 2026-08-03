@@ -326,6 +326,10 @@ export default function ProductManagementPopup({
       const payload = {
         ...selectedProduct,
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
+        costPrice: selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? 0 : Number(selectedProduct.costPrice),
+        mrp: selectedProduct.mrp === '' || selectedProduct.mrp === null || selectedProduct.mrp === undefined || isNaN(selectedProduct.mrp) ? 0 : Number(selectedProduct.mrp),
+        taxRate: selectedProduct.taxRate === '' || selectedProduct.taxRate === null || selectedProduct.taxRate === undefined || isNaN(selectedProduct.taxRate) ? 0 : Number(selectedProduct.taxRate),
+        minStockLevel: selectedProduct.minStockLevel === '' || selectedProduct.minStockLevel === null || selectedProduct.minStockLevel === undefined || isNaN(selectedProduct.minStockLevel) ? 0 : Number(selectedProduct.minStockLevel),
         category: selectedProduct.category?.id ? { id: selectedProduct.category.id } : null,
         uom: selectedProduct.uom?.id ? { id: selectedProduct.uom.id } : null,
         defaultPricelist: selectedProduct.defaultPricelistId ? { id: selectedProduct.defaultPricelistId } : null,
@@ -508,7 +512,7 @@ export default function ProductManagementPopup({
              <div className="erp-section">
                 <div className="section-title"><FaWeightHanging /> Inventory Details</div>
                 <div className="input-row">
-                   <div className="input-group"><label>Min Stock Level</label><input type="number" value={selectedProduct.minStockLevel || 0} onChange={e => setSelectedProduct({...selectedProduct, minStockLevel: parseInt(e.target.value)})} /></div>
+                   <div className="input-group"><label>Min Stock Level</label><input type="number" placeholder="0" value={selectedProduct.minStockLevel === 0 || selectedProduct.minStockLevel === '' || selectedProduct.minStockLevel === null || selectedProduct.minStockLevel === undefined || isNaN(selectedProduct.minStockLevel) ? '' : selectedProduct.minStockLevel} onChange={e => setSelectedProduct({...selectedProduct, minStockLevel: e.target.value === '' ? '' : parseInt(e.target.value)})} /></div>
                    <div style={{ flex: 1 }}></div>
                 </div>
              </div>
@@ -714,8 +718,8 @@ export default function ProductManagementPopup({
                <div className="erp-section" style={{ marginTop: '16px' }}>
                   <div className="section-title"><FaMoneyBillWave /> Global Sales Metrics</div>
                   <div className="input-row">
-                      <div className="input-group"><label>Base Sale Price <span style={{ color: '#ef4444' }}>*</span></label><input type="number" value={selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: parseFloat(e.target.value)})} /></div>
-                      <div className="input-group"><label>Global MRP</label><input type="number" value={selectedProduct.mrp || 0} onChange={e => setSelectedProduct({...selectedProduct, mrp: parseFloat(e.target.value)})} /></div>
+                      <div className="input-group"><label>Base Sale Price <span style={{ color: '#ef4444' }}>*</span></label><input type="number" placeholder="0.00" value={selectedProduct.price === 0 || selectedProduct.price === '' || selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) ? '' : selectedProduct.price} onChange={e => setSelectedProduct({...selectedProduct, price: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
+                      <div className="input-group"><label>Global MRP</label><input type="number" placeholder="0.00" value={selectedProduct.mrp === 0 || selectedProduct.mrp === '' || selectedProduct.mrp === null || selectedProduct.mrp === undefined || isNaN(selectedProduct.mrp) ? '' : selectedProduct.mrp} onChange={e => setSelectedProduct({...selectedProduct, mrp: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
                    </div>
                    {taxEnabled && (
                      <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: 16 }}>
@@ -729,7 +733,7 @@ export default function ProductManagementPopup({
              ) : (
                <div className="erp-section" style={{ marginTop: '16px' }}>
                   <div className="section-title"><FaBoxOpen /> Procurement Standards</div>
-                  <div className="input-group"><label>Standard Purchase Cost</label><input type="number" value={selectedProduct.costPrice || 0} onChange={e => setSelectedProduct({...selectedProduct, costPrice: parseFloat(e.target.value)})} /></div>
+                  <div className="input-group"><label>Standard Purchase Cost</label><input type="number" placeholder="0.00" value={selectedProduct.costPrice === 0 || selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? '' : selectedProduct.costPrice} onChange={e => setSelectedProduct({...selectedProduct, costPrice: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
                </div>
              )}
 
@@ -737,7 +741,7 @@ export default function ProductManagementPopup({
                 <div className="erp-section" style={{ marginTop: '16px' }}>
                    <div className="section-title"><FaClock /> Shared Tax Config</div>
                    <div className="input-row">
-                      <div className="input-group"><label>Tax Rate (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
+                      <div className="input-group"><label>Tax Rate (%)</label><input type="number" placeholder="0" value={selectedProduct.taxRate === 0 || selectedProduct.taxRate === '' || selectedProduct.taxRate === null || selectedProduct.taxRate === undefined || isNaN(selectedProduct.taxRate) ? '' : selectedProduct.taxRate} onChange={e => setSelectedProduct({...selectedProduct, taxRate: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
                       <div className="input-group"><label>HSN / Tax Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
                    </div>
                 </div>
