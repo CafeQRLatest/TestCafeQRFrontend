@@ -126,6 +126,7 @@ export default function ProductManagementPopup({
 
     return categories.find(c => c.id === productCategoryId)
       || categories.find(c => productCategoryName && c.name?.toLowerCase() === productCategoryName.toLowerCase())
+      || categories[0]
       || p.category
       || (productCategoryId || productCategoryName ? { id: productCategoryId || null, name: productCategoryName || 'Selected Category' } : null);
   };
@@ -137,6 +138,7 @@ export default function ProductManagementPopup({
 
     return uoms.find(u => u.id === productUomId)
       || uoms.find(u => productUomName && (u.name?.toLowerCase() === productUomName.toLowerCase() || u.shortName?.toLowerCase() === productUomName.toLowerCase()))
+      || uoms[0]
       || p.uom
       || (productUomId || productUomName ? { id: productUomId || null, name: productUomName || 'Selected Unit', shortName: productUomShortName } : null);
   };

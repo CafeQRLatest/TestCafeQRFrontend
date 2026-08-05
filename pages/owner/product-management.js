@@ -543,11 +543,16 @@ function ProductManagementContent() {
   if (loading) return <div className="loading-state"><span>Syncing ERP Catalog...</span></div>;
 
   const selectedCategoryFilter = categories.find(c => c.id === tableCategoryFilter);
-  const filteredProducts = products.filter(p => 
-    (!tableCategoryFilter || p.category?.id === tableCategoryFilter) && 
-    (!tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? p.isActive !== false : p.isActive === false)) &&
-    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  const filteredProducts = products.filter(p => {
+    const pCatId = p.category?.id || p.categoryId;
+    const pCatName = p.category?.name || p.categoryName;
+    const matchesCategory = !tableCategoryFilter || 
+      pCatId === tableCategoryFilter || 
+      (selectedCategoryFilter && pCatName && pCatName.toLowerCase() === selectedCategoryFilter.name.toLowerCase());
+    const matchesStatus = !tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? p.isActive !== false : p.isActive === false);
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase()));
+    return matchesCategory && matchesStatus && matchesSearch;
+  });
   const categoryOptions = selectedProduct?.category?.id
     ? normalizeById(categories.filter(c => c.isActive !== false), selectedProduct.category)
     : categories.filter(c => c.isActive !== false);
@@ -645,8 +650,8 @@ function ProductManagementContent() {
                            )}
                           <td className="code-cell">{p.productCode || '-'}</td>
                           <td><span className="name-text">{p.name}</span></td>
-                          <td>{p.category?.name || 'N/A'}</td>
-                          <td>{sym}{p.price} <small>/ {p.uom?.shortName || 'Unit'}</small></td>
+                          <td>{p.category?.name || p.categoryName || 'N/A'}</td>
+                          <td>{sym}{p.price} <small>/ {p.uom?.shortName || p.uomName || 'Unit'}</small></td>
                           <td><span className={`type-badge ${p.productType?.toLowerCase().replace('_', '-')}`}>{p.productType || 'N/A'}</span></td>
                           <td title={p.description}>
                               {p.description || '-'}
