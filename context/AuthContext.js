@@ -2,8 +2,40 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
+import { getFrontendCookieOptions } from '../utils/cookieOptions';
 
 const AuthContext = createContext();
+
+const getStorageItem = (key) => {
+  let val = Cookies.get(key);
+  if ((val === undefined || val === null || val === '') && typeof window !== 'undefined') {
+    try {
+      val = window.localStorage.getItem(key) || undefined;
+    } catch (e) {}
+  }
+  return val;
+};
+
+const setStorageItem = (key, val, options) => {
+  if (val !== undefined && val !== null) {
+    const valStr = typeof val === 'string' ? val : JSON.stringify(val);
+    Cookies.set(key, valStr, options);
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(key, valStr);
+      } catch (e) {}
+    }
+  }
+};
+
+const removeStorageItem = (key, options) => {
+  Cookies.remove(key, options);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (e) {}
+  }
+};
 
 export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null);
@@ -34,29 +66,29 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter();
 
   useEffect(() => {
-    // Check for session metadata in cookies 
-    const storedRole = Cookies.get('userRole');
-    const storedEmail = Cookies.get('userEmail');
-    const storedFirstName = Cookies.get('firstName');
-    const storedLastName = Cookies.get('lastName');
-    const storedStatus = (Cookies.get('subscriptionStatus') || '').toUpperCase();
-    const storedExpiry = Cookies.get('subscriptionExpiryDate');
-    const storedOrgId = Cookies.get('orgId');
-    const storedOrgName = Cookies.get('orgName');
-    const storedClientId = Cookies.get('clientId');
-    const storedClientName = Cookies.get('clientName');
-    const storedTerminalId = Cookies.get('terminalId');
-    const storedTerminalName = Cookies.get('terminalName');
-    const storedUserId = Cookies.get('userId');
-    const storedCurrency = Cookies.get('currency');
-    const storedCountry = Cookies.get('country');
-    const storedTimezone = Cookies.get('timezone');
-    const storedPosType = Cookies.get('posType');
-    const storedCanCancelOrder = Cookies.get('canCancelOrder');
-    const storedCanDeleteOrderItem = Cookies.get('canDeleteOrderItem');
-    const storedCanDecrementOrderItem = Cookies.get('canDecrementOrderItem');
-    const storedModules = Cookies.get('activeModules');
-    const storedModulesDetailed = Cookies.get('activeModulesDetailed');
+    // Check for session metadata in cookies or localStorage fallback
+    const storedRole = getStorageItem('userRole');
+    const storedEmail = getStorageItem('userEmail');
+    const storedFirstName = getStorageItem('firstName');
+    const storedLastName = getStorageItem('lastName');
+    const storedStatus = (getStorageItem('subscriptionStatus') || '').toUpperCase();
+    const storedExpiry = getStorageItem('subscriptionExpiryDate');
+    const storedOrgId = getStorageItem('orgId');
+    const storedOrgName = getStorageItem('orgName');
+    const storedClientId = getStorageItem('clientId');
+    const storedClientName = getStorageItem('clientName');
+    const storedTerminalId = getStorageItem('terminalId');
+    const storedTerminalName = getStorageItem('terminalName');
+    const storedUserId = getStorageItem('userId');
+    const storedCurrency = getStorageItem('currency');
+    const storedCountry = getStorageItem('country');
+    const storedTimezone = getStorageItem('timezone');
+    const storedPosType = getStorageItem('posType');
+    const storedCanCancelOrder = getStorageItem('canCancelOrder');
+    const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');
+    const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
+    const storedModules = getStorageItem('activeModules');
+    const storedModulesDetailed = getStorageItem('activeModulesDetailed');
     
     if (storedEmail) setEmail(storedEmail);
     if (storedFirstName) setFirstName(storedFirstName);
@@ -103,6 +135,7 @@ export const AuthProvider = ({ children }) => {
 
     // Auto-fetch and sync latest client profile (timezone, currency, country) in the background if authenticated
     if (storedEmail) {
+      const cookieOptions = getFrontendCookieOptions();
       Promise.all([
         api.get('/api/v1/clients/me', { skipAuthRedirect: true }).catch(() => null),
         storedOrgId ? api.get(`/api/v1/organizations/${storedOrgId}`, { skipAuthRedirect: true }).catch(() => null) : Promise.resolve(null)
@@ -114,19 +147,19 @@ export const AuthProvider = ({ children }) => {
 
         if (resolvedTimezone) {
           setTimezone(resolvedTimezone);
-          Cookies.set('timezone', resolvedTimezone, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          setStorageItem('timezone', resolvedTimezone, cookieOptions);
         }
         if (clientData.currency) {
           setCurrency(clientData.currency);
-          Cookies.set('currency', clientData.currency, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          setStorageItem('currency', clientData.currency, cookieOptions);
         }
         if (clientData.country) {
           setCountry(clientData.country);
-          Cookies.set('country', clientData.country, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          setStorageItem('country', clientData.country, cookieOptions);
         }
         if (clientData.posType) {
           setPosType(clientData.posType);
-          Cookies.set('posType', clientData.posType, { expires: 7, secure: true, sameSite: 'strict', path: '/' });
+          setStorageItem('posType', clientData.posType, cookieOptions);
         }
       }).catch(err => console.error("Profile sync error", err));
 
@@ -137,7 +170,7 @@ export const AuthProvider = ({ children }) => {
         }
       }).catch(err => console.error("Subscription sync error", err));
 
-      // Fetch assigned menus for the logged-in user (for dynamic route protection)
+      // Fetch assigned menus for the logged-in user
       fetchAssignedMenus();
     } else {
       setMenusLoading(false);
@@ -174,7 +207,7 @@ export const AuthProvider = ({ children }) => {
     setCountry(data.country || null);
     setTimezone(tz);
     
-    // Explicit boolean casting for permissions (default true if undefined)
+    // Explicit boolean casting for permissions
     const pCanCancelOrder = data.canCancelOrder !== undefined ? data.canCancelOrder : true;
     const pCanDeleteOrderItem = data.canDeleteOrderItem !== undefined ? data.canDeleteOrderItem : true;
     const pCanDecrementOrderItem = data.canDecrementOrderItem !== undefined ? data.canDecrementOrderItem : true;
@@ -183,36 +216,35 @@ export const AuthProvider = ({ children }) => {
     setCanDeleteOrderItem(pCanDeleteOrderItem);
     setCanDecrementOrderItem(pCanDecrementOrderItem);
     
-    // Metadata cookies (Non-HttpOnly) for frontend logic
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
     
-    // Store access token for cross-domain Authorization header
-    if (data.accessToken) Cookies.set('access_token', data.accessToken, cookieOptions);
-    if (data.refreshToken) Cookies.set('refresh_token', data.refreshToken, cookieOptions);
+    // Store access token and refresh token with storage fallback
+    if (data.accessToken) setStorageItem('access_token', data.accessToken, cookieOptions);
+    if (data.refreshToken) setStorageItem('refresh_token', data.refreshToken, cookieOptions);
     
-    if (role) Cookies.set('userRole', role, cookieOptions);
-    if (userEmail) Cookies.set('userEmail', userEmail, cookieOptions);
-    if (data.firstName) Cookies.set('firstName', data.firstName, cookieOptions);
-    if (data.lastName) Cookies.set('lastName', data.lastName, cookieOptions);
-    if (status) Cookies.set('subscriptionStatus', status, cookieOptions);
+    if (role) setStorageItem('userRole', role, cookieOptions);
+    if (userEmail) setStorageItem('userEmail', userEmail, cookieOptions);
+    if (data.firstName) setStorageItem('firstName', data.firstName, cookieOptions);
+    if (data.lastName) setStorageItem('lastName', data.lastName, cookieOptions);
+    if (status) setStorageItem('subscriptionStatus', status, cookieOptions);
     if (expiry) {
       const expiryStr = typeof expiry === 'string' ? expiry : JSON.stringify(expiry);
-      Cookies.set('subscriptionExpiryDate', expiryStr, cookieOptions);
+      setStorageItem('subscriptionExpiryDate', expiryStr, cookieOptions);
     }
-    if (data.orgId) Cookies.set('orgId', data.orgId, cookieOptions);
-    if (data.orgName) Cookies.set('orgName', data.orgName, cookieOptions);
-    if (data.clientId) Cookies.set('clientId', data.clientId, cookieOptions);
-    if (data.clientName) Cookies.set('clientName', data.clientName, cookieOptions);
-    if (data.terminalId) Cookies.set('terminalId', data.terminalId, cookieOptions);
-    if (data.terminalName) Cookies.set('terminalName', data.terminalName, cookieOptions);
-    if (data.userId) Cookies.set('userId', data.userId, cookieOptions);
-    if (data.currency) Cookies.set('currency', data.currency, cookieOptions);
-    if (data.country) Cookies.set('country', data.country, cookieOptions);
-    Cookies.set('timezone', tz, cookieOptions);
+    if (data.orgId) setStorageItem('orgId', data.orgId, cookieOptions);
+    if (data.orgName) setStorageItem('orgName', data.orgName, cookieOptions);
+    if (data.clientId) setStorageItem('clientId', data.clientId, cookieOptions);
+    if (data.clientName) setStorageItem('clientName', data.clientName, cookieOptions);
+    if (data.terminalId) setStorageItem('terminalId', data.terminalId, cookieOptions);
+    if (data.terminalName) setStorageItem('terminalName', data.terminalName, cookieOptions);
+    if (data.userId) setStorageItem('userId', data.userId, cookieOptions);
+    if (data.currency) setStorageItem('currency', data.currency, cookieOptions);
+    if (data.country) setStorageItem('country', data.country, cookieOptions);
+    setStorageItem('timezone', tz, cookieOptions);
     
-    Cookies.set('canCancelOrder', String(pCanCancelOrder), cookieOptions);
-    Cookies.set('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
-    Cookies.set('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
+    setStorageItem('canCancelOrder', String(pCanCancelOrder), cookieOptions);
+    setStorageItem('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
+    setStorageItem('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
 
     // Fetch assigned menus immediately after login
     fetchAssignedMenus();
@@ -227,18 +259,18 @@ export const AuthProvider = ({ children }) => {
       const resolvedTimezone = orgData.timezone || clientData.timezone;
       if (resolvedTimezone) {
         setTimezone(resolvedTimezone);
-        Cookies.set('timezone', resolvedTimezone, cookieOptions);
+        setStorageItem('timezone', resolvedTimezone, cookieOptions);
       }
       if (clientData.posType) {
         setPosType(clientData.posType);
-        Cookies.set('posType', clientData.posType, cookieOptions);
+        setStorageItem('posType', clientData.posType, cookieOptions);
       }
     }).catch(() => {});
   };
 
   const updateSubscription = useCallback((status, expiry, activeModulesList, activeModulesDetailedList) => {
     const normalizedStatus = (status || '').toUpperCase();
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
 
     setSubscriptionStatus(normalizedStatus || null);
     setSubscriptionExpiryDate(expiry || null);
@@ -250,28 +282,28 @@ export const AuthProvider = ({ children }) => {
     setActiveModulesDetailed(detailedModules);
 
     if (normalizedStatus) {
-      Cookies.set('subscriptionStatus', normalizedStatus, cookieOptions);
+      setStorageItem('subscriptionStatus', normalizedStatus, cookieOptions);
     } else {
-      Cookies.remove('subscriptionStatus', { path: '/' });
+      removeStorageItem('subscriptionStatus', { path: '/' });
     }
 
     if (expiry) {
       const expiryStr = typeof expiry === 'string' ? expiry : JSON.stringify(expiry);
-      Cookies.set('subscriptionExpiryDate', expiryStr, cookieOptions);
+      setStorageItem('subscriptionExpiryDate', expiryStr, cookieOptions);
     } else {
-      Cookies.remove('subscriptionExpiryDate', { path: '/' });
+      removeStorageItem('subscriptionExpiryDate', { path: '/' });
     }
     
     if (modules.length > 0) {
-      Cookies.set('activeModules', JSON.stringify(modules), cookieOptions);
+      setStorageItem('activeModules', JSON.stringify(modules), cookieOptions);
     } else {
-      Cookies.remove('activeModules', { path: '/' });
+      removeStorageItem('activeModules', { path: '/' });
     }
 
     if (detailedModules.length > 0) {
-      Cookies.set('activeModulesDetailed', JSON.stringify(detailedModules), cookieOptions);
+      setStorageItem('activeModulesDetailed', JSON.stringify(detailedModules), cookieOptions);
     } else {
-      Cookies.remove('activeModulesDetailed', { path: '/' });
+      removeStorageItem('activeModulesDetailed', { path: '/' });
     }
   }, []);
 
@@ -316,29 +348,29 @@ export const AuthProvider = ({ children }) => {
     setAssignedMenus([]);
     
     const removeOptions = { path: '/' };
-    Cookies.remove('access_token', removeOptions);
-    Cookies.remove('refresh_token', removeOptions);
-    Cookies.remove('userRole', removeOptions);
-    Cookies.remove('userEmail', removeOptions);
-    Cookies.remove('firstName', removeOptions);
-    Cookies.remove('lastName', removeOptions);
-    Cookies.remove('subscriptionStatus', removeOptions);
-    Cookies.remove('subscriptionExpiryDate', removeOptions);
-    Cookies.remove('orgId', removeOptions);
-    Cookies.remove('orgName', removeOptions);
-    Cookies.remove('clientId', removeOptions);
-    Cookies.remove('clientName', removeOptions);
-    Cookies.remove('terminalId', removeOptions);
-    Cookies.remove('terminalName', removeOptions);
-    Cookies.remove('userId', removeOptions);
-    Cookies.remove('currency', removeOptions);
-    Cookies.remove('country', removeOptions);
-    Cookies.remove('timezone', removeOptions);
-    Cookies.remove('posType', removeOptions);
-    Cookies.remove('canCancelOrder', removeOptions);
-    Cookies.remove('canDeleteOrderItem', removeOptions);
-    Cookies.remove('canDecrementOrderItem', removeOptions);
-    Cookies.remove('activeModulesDetailed', removeOptions);
+    removeStorageItem('access_token', removeOptions);
+    removeStorageItem('refresh_token', removeOptions);
+    removeStorageItem('userRole', removeOptions);
+    removeStorageItem('userEmail', removeOptions);
+    removeStorageItem('firstName', removeOptions);
+    removeStorageItem('lastName', removeOptions);
+    removeStorageItem('subscriptionStatus', removeOptions);
+    removeStorageItem('subscriptionExpiryDate', removeOptions);
+    removeStorageItem('orgId', removeOptions);
+    removeStorageItem('orgName', removeOptions);
+    removeStorageItem('clientId', removeOptions);
+    removeStorageItem('clientName', removeOptions);
+    removeStorageItem('terminalId', removeOptions);
+    removeStorageItem('terminalName', removeOptions);
+    removeStorageItem('userId', removeOptions);
+    removeStorageItem('currency', removeOptions);
+    removeStorageItem('country', removeOptions);
+    removeStorageItem('timezone', removeOptions);
+    removeStorageItem('posType', removeOptions);
+    removeStorageItem('canCancelOrder', removeOptions);
+    removeStorageItem('canDeleteOrderItem', removeOptions);
+    removeStorageItem('canDecrementOrderItem', removeOptions);
+    removeStorageItem('activeModulesDetailed', removeOptions);
     
     try {
       await api.post('/api/v1/auth/logout');
@@ -388,21 +420,21 @@ export const AuthProvider = ({ children }) => {
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
     setTimezone(newTimezone || null);
-    const cookieOptions = { expires: 7, secure: true, sameSite: 'strict', path: '/' };
+    const cookieOptions = getFrontendCookieOptions();
     if (newOrgId) {
-      Cookies.set('orgId', newOrgId, cookieOptions);
+      setStorageItem('orgId', newOrgId, cookieOptions);
     } else {
-      Cookies.remove('orgId', { path: '/' });
+      removeStorageItem('orgId', { path: '/' });
     }
     if (newOrgName) {
-      Cookies.set('orgName', newOrgName, cookieOptions);
+      setStorageItem('orgName', newOrgName, cookieOptions);
     } else {
-      Cookies.remove('orgName', { path: '/' });
+      removeStorageItem('orgName', { path: '/' });
     }
     if (newTimezone) {
-      Cookies.set('timezone', newTimezone, cookieOptions);
+      setStorageItem('timezone', newTimezone, cookieOptions);
     } else {
-      Cookies.remove('timezone', { path: '/' });
+      removeStorageItem('timezone', { path: '/' });
     }
     if (typeof window !== 'undefined') {
       window.location.reload();
@@ -460,3 +492,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+

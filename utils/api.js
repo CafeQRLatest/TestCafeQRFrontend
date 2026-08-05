@@ -53,9 +53,22 @@ const AUTH_COOKIE_NAMES = [
   'timezone',
 ];
 
+const getHeaderVal = (name) => {
+  let val = Cookies.get(name);
+  if ((val === undefined || val === null || val === '') && typeof window !== 'undefined') {
+    try {
+      val = window.localStorage.getItem(name) || undefined;
+    } catch (e) {}
+  }
+  return val;
+};
+
 const clearAuthCookies = () => {
   AUTH_COOKIE_NAMES.forEach((name) => {
     Cookies.remove(name, { path: '/' });
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(name); } catch (e) {}
+    }
   });
 };
 
@@ -199,24 +212,24 @@ api.interceptors.request.use(
   async (config) => {
     config.headers = config.headers || {};
 
-    // Attach JWT access token as Authorization header (cross-domain safe)
-    const accessToken = Cookies.get('access_token');
+    // Attach JWT access token as Authorization header
+    const accessToken = getHeaderVal('access_token');
     if (accessToken) {
       config.headers['Authorization'] = `Bearer ${accessToken}`;
     }
     
-    // Read context from cookies (synced in AuthContext)
-    config.headers['X-Client-ID'] = Cookies.get('clientId') || '0';
-    config.headers['X-Org-ID'] = Cookies.get('orgId') || '0';
-    config.headers['X-Terminal-ID'] = Cookies.get('terminalId') || '0';
-    config.headers['X-User-ID'] = Cookies.get('userId') || '0';
-    config.headers['X-User-Email'] = Cookies.get('userEmail') || '';
-    config.headers['X-User-Role'] = Cookies.get('userRole') || '';
-    config.headers['X-Client-Name'] = Cookies.get('clientName') || '';
-    config.headers['X-Org-Name'] = Cookies.get('orgName') || '';
-    config.headers['X-Terminal-Name'] = Cookies.get('terminalName') || '';
-    config.headers['X-Currency'] = Cookies.get('currency') || 'INR';
-    config.headers['X-Country'] = Cookies.get('country') || '';
+    // Read context from cookies or localStorage fallback
+    config.headers['X-Client-ID'] = getHeaderVal('clientId') || '0';
+    config.headers['X-Org-ID'] = getHeaderVal('orgId') || '0';
+    config.headers['X-Terminal-ID'] = getHeaderVal('terminalId') || '0';
+    config.headers['X-User-ID'] = getHeaderVal('userId') || '0';
+    config.headers['X-User-Email'] = getHeaderVal('userEmail') || '';
+    config.headers['X-User-Role'] = getHeaderVal('userRole') || '';
+    config.headers['X-Client-Name'] = getHeaderVal('clientName') || '';
+    config.headers['X-Org-Name'] = getHeaderVal('orgName') || '';
+    config.headers['X-Terminal-Name'] = getHeaderVal('terminalName') || '';
+    config.headers['X-Currency'] = getHeaderVal('currency') || 'INR';
+    config.headers['X-Country'] = getHeaderVal('country') || '';
 
     return installOfflineAdapterIfNeeded(config);
   },
