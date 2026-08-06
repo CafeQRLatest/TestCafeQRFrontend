@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-
+import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -13,7 +13,7 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaSearch, FaWarehouse, FaTag, FaExchangeAlt, 
   FaTrash, FaPlus, FaMinus, FaFolderOpen, FaBoxOpen,
-  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye
+  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye, FaHistory
 } from 'react-icons/fa';
 import VariantSelector from '../../components/VariantSelector';
 
@@ -50,7 +50,7 @@ function AdjustmentContent() {
   const searchWrapRef = useRef(null);
 
   const [adjustment, setAdjustment] = useState({
-    adjustmentNumber: `ADJ-${Date.now().toString().slice(-6)}`,
+    adjustmentNumber: '',
     adjustmentDate: new Date().toISOString(),
     warehouseId: '',
     reason: 'AUDIT',
@@ -105,7 +105,12 @@ function AdjustmentContent() {
   const fetchDrafts = async () => {
     try {
       const resp = await api.get('/api/v1/inventory/adjustments?status=DRAFT');
-      if (resp.data.success) setDrafts(resp.data.data || []);
+      if (resp.data.success) {
+        const raw = resp.data.data;
+        const list = Array.isArray(raw) ? raw : (raw?.content || []);
+        const draftList = list.filter(d => d.status === 'DRAFT');
+        setDrafts(draftList);
+      }
     } catch (err) {
       console.warn("Failed to load drafts");
     }
@@ -121,25 +126,61 @@ function AdjustmentContent() {
       const resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
       if (resp.data.success) {
         const stockMap = {};
-        (resp.data.data || []).forEach(s => {
-          const entry = { ...s, currentStock: Number(s.currentQuantity) || 0 };
+        const variantSums = {};
+        const hasVariantMap = {};
+        const rawItems = resp.data.data || [];
 
-          if (s.variantId) {
-            // Variant-specific key: productId_variantId (used by VariantSelector & table)
-            const variantKey = `${String(s.productId).toLowerCase()}_${String(s.variantId).toLowerCase()}`;
-            stockMap[variantKey] = entry;
-            // Also store without lowercase for safety
-            stockMap[`${s.productId}_${s.variantId}`] = entry;
-          } else {
-            // Non-variant product key: productId only
-            stockMap[String(s.productId).toLowerCase()] = entry;
-            stockMap[s.productId] = entry;
+        // Pass 1: Process variant entries first
+        rawItems.forEach(item => {
+          const rawPId = String(item.productId || '');
+          const rawVId = item.variantId ? String(item.variantId) : '';
+          const qty = Number(item.currentQuantity) || 0;
+          const entry = { ...item, currentStock: qty };
+
+          if (rawVId) {
+            const pLower = rawPId.toLowerCase();
+            const vLower = rawVId.toLowerCase();
+            
+            stockMap[`${rawPId}_${rawVId}`] = entry;
+            stockMap[`${pLower}_${vLower}`] = entry;
+
+            hasVariantMap[rawPId] = true;
+            hasVariantMap[pLower] = true;
+
+            variantSums[pLower] = (variantSums[pLower] || 0) + qty;
           }
         });
+
+        // Pass 2: Process non-variant entries only if product has no variants
+        rawItems.forEach(item => {
+          const rawPId = String(item.productId || '');
+          const rawVId = item.variantId ? String(item.variantId) : '';
+          const qty = Number(item.currentQuantity) || 0;
+          const entry = { ...item, currentStock: qty };
+
+          if (!rawVId) {
+            const pLower = rawPId.toLowerCase();
+            if (!hasVariantMap[rawPId] && !hasVariantMap[pLower]) {
+              stockMap[rawPId] = entry;
+              stockMap[pLower] = entry;
+            }
+          }
+        });
+
+        // Pass 3: Map calculated variant sums to parent product IDs
+        Object.keys(variantSums).forEach(pLower => {
+          const totalVariantQty = variantSums[pLower];
+          const sumObj = {
+            currentStock: totalVariantQty,
+            currentQuantity: totalVariantQty
+          };
+          stockMap[pLower] = sumObj;
+        });
+
         setSourceStock(stockMap);
       }
     } catch (err) {
-      console.warn("Failed to fetch location stock");
+      console.warn("Failed to fetch location stock:", err);
     } finally {
       setFetchingStock(false);
     }
@@ -262,7 +303,11 @@ function AdjustmentContent() {
 
     setSaving(true);
     try {
-      const payload = { ...adjustment, status: finalStatus };
+      const payload = {
+        ...adjustment,
+        adjustmentNumber: adjustment.adjustmentNumber || null,
+        status: finalStatus
+      };
       const method = adjustment.id ? 'put' : 'post';
       const url = adjustment.id 
         ? `/api/v1/inventory/adjustments/${adjustment.id}` 
@@ -273,7 +318,7 @@ function AdjustmentContent() {
       if (resp.data.success) {
         showToast(`Adjustment ${finalStatus === 'COMPLETED' ? 'Executed' : 'Saved'}!`, "success");
         setAdjustment({
-          adjustmentNumber: `ADJ-${Date.now().toString().slice(-6)}`,
+          adjustmentNumber: '',
           adjustmentDate: new Date().toISOString(),
           warehouseId: '',
           reason: 'AUDIT',
@@ -406,7 +451,7 @@ function AdjustmentContent() {
                              <div className="sug-cat">{p.categoryName} • {p.productCode || 'NO SKU'}</div>
                            </div>
                            <div className="sug-stock success">
-                             {sourceStock[p.id]?.currentStock || 0} {p.unitName}
+                             {(sourceStock[p.id] || sourceStock[String(p.id).toLowerCase()])?.currentStock || 0} {p.unitName}
                            </div>
                          </div>
                        ))
@@ -528,16 +573,32 @@ function AdjustmentContent() {
 
           <div className="fluid-sidebar">
              <div className="premium-card summary-card">
-                <div className="summary-list">
-                  <div className="sm-item">
-                    <span className="sm-label">Document:</span>
-                    <div style={{display:'flex', alignItems:'center', gap: '8px'}}>
-                      <span className="sm-value">{adjustment.adjustmentNumber}</span>
-                      <button className="invoke-btn" onClick={() => setShowDraftModal(true)} title="Load Drafts">
-                        <FaFolderOpen />
+                <div className="summary-card-header">
+                  <h3 className="comp-summary-title">Audit Summary</h3>
+                  <div className="header-actions">
+                    {Array.isArray(drafts) && drafts.length > 0 && (
+                      <button 
+                        type="button"
+                        className="drafts-header-btn" 
+                        onClick={() => setShowDraftModal(true)} 
+                        title="Load Pending Drafts"
+                      >
+                        <FaFolderOpen /> Drafts ({drafts.length})
                       </button>
-                    </div>
+                    )}
+                    <Link href="/owner/stock-adjustment-reports" className="history-header-btn" title="View Adjustment History">
+                      <FaHistory /> History
+                    </Link>
                   </div>
+                </div>
+
+                <div className="summary-list">
+                  {Boolean(adjustment.adjustmentNumber) && (
+                    <div className="sm-item">
+                      <span className="sm-label">Document:</span>
+                      <span className="sm-value">{adjustment.adjustmentNumber}</span>
+                    </div>
+                  )}
                   <div className="sm-item">
                     <span className="sm-label">Location:</span>
                     <span className="sm-value">{warehouses.find(w => w.id === adjustment.warehouseId)?.name || 'Select Warehouse'}</span>
@@ -576,23 +637,27 @@ function AdjustmentContent() {
                   />
                 </div>
 
-                <div className="comp-action-stack">
-                   <button 
-                     className="action-prime"
-                     onClick={() => handleSave('COMPLETED')}
-                     disabled={saving}
-                   >
-                     {saving ? "..." : "Adjust"}
-                   </button>
-                   
-                   <button 
-                     className="action-sec"
-                     onClick={() => handleSave('DRAFT')}
-                     disabled={saving}
-                   >
-                     <FaSave /> Save Draft
-                   </button>
-                </div>
+                 <div className="comp-action-stack">
+                    <button 
+                      className="action-prime"
+                      onClick={() => handleSave('COMPLETED')}
+                      disabled={saving}
+                    >
+                      {saving ? "..." : "Adjust"}
+                    </button>
+                    
+                    <button 
+                      className="action-sec"
+                      onClick={() => handleSave('DRAFT')}
+                      disabled={saving}
+                    >
+                      <FaSave /> Save Draft
+                    </button>
+
+                    <Link href="/owner/stock-adjustment-reports" className="action-history">
+                      <FaHistory /> Adjustment History
+                    </Link>
+                 </div>
              </div>
           </div>
         </div>
@@ -620,7 +685,7 @@ function AdjustmentContent() {
                 <button onClick={() => setShowDraftModal(false)}>&times;</button>
               </div>
               <div className="modal-body">
-                {drafts.length === 0 ? (
+                {(!Array.isArray(drafts) || drafts.length === 0) ? (
                   <div className="no-drafts">No pending drafts found.</div>
                 ) : (
                   <div className="draft-grid">
@@ -715,7 +780,18 @@ function AdjustmentContent() {
 
 
         /* Summary Sidebar */
-        .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 16px; }
+        .summary-card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
+        .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+
+        .drafts-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #fff7ed; color: #ea580c; border: 1.5px solid #fed7aa; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(234, 88, 12, 0.05); }
+        .drafts-header-btn:hover { background: #ea580c; color: #ffffff; border-color: #ea580c; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.25); transform: translateY(-1px); }
+
+        .history-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f8fafc; color: #475569; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; transition: all 0.2s ease; }
+        .history-header-btn:hover { background: #0f172a; color: #ffffff; border-color: #0f172a; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15); transform: translateY(-1px); }
+
+        .action-history { display: flex; align-items: center; justify-content: center; gap: 8px; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; margin-top: 4px; }
+        .action-history:hover { background: #0f172a; color: white; border-color: #0f172a; }
         .summary-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
         .sm-item { display: flex; justify-content: space-between; font-size: 12px; color: #1e293b; }
         .sm-label { font-weight: 600; color: #64748b; }

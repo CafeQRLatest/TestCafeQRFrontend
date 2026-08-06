@@ -47,7 +47,7 @@ function TransferContent() {
   const searchWrapRef = useRef(null);
 
   const [transfer, setTransfer] = useState({
-    transferNumber: 'Auto Generated',
+    transferNumber: '',
     transferDate: new Date().toISOString(),
     sourceWarehouseId: '',
     destWarehouseId: '',
@@ -83,8 +83,8 @@ function TransferContent() {
     }
   }, [transfer.sourceWarehouseId]);
 
-  // Restrict Source Warehouse ONLY to the active/logged-in organization's warehouses
-  const sourceWarehouses = useMemo(() => {
+  // Restrict BOTH Source & Target Warehouses ONLY to the active/logged-in organization's warehouses
+  const orgWarehouses = useMemo(() => {
     return warehouses.filter(w => {
       if (!currentOrgId) return true;
       const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
@@ -92,22 +92,30 @@ function TransferContent() {
     });
   }, [warehouses, currentOrgId]);
 
+  const sourceWarehouses = orgWarehouses;
+
   const sourceWarehouseOptions = useMemo(() => {
-    return sourceWarehouses.map(w => ({ value: w.id, label: w.name }));
-  }, [sourceWarehouses]);
+    return orgWarehouses.map(w => ({ value: w.id, label: w.name }));
+  }, [orgWarehouses]);
+
+  const warehouseOptions = useMemo(() => {
+    return orgWarehouses.map(w => ({ value: w.id, label: w.name }));
+  }, [orgWarehouses]);
 
   useEffect(() => {
-    if (sourceWarehouses.length > 0) {
-      const defaultWh = sourceWarehouses.find(w => w.isDefault) || sourceWarehouses[0];
+    if (orgWarehouses.length > 0) {
+      const defaultWh = orgWarehouses.find(w => w.isDefault) || orgWarehouses[0];
       setTransfer(prev => {
-        const isCurrentValid = sourceWarehouses.some(w => w.id === prev.sourceWarehouseId);
-        if (!isCurrentValid && defaultWh) {
-          return { ...prev, sourceWarehouseId: defaultWh.id };
-        }
-        return prev;
+        const isSourceValid = orgWarehouses.some(w => w.id === prev.sourceWarehouseId);
+        const isDestValid = orgWarehouses.some(w => w.id === prev.destWarehouseId);
+        return {
+          ...prev,
+          sourceWarehouseId: isSourceValid ? prev.sourceWarehouseId : (defaultWh ? defaultWh.id : ''),
+          destWarehouseId: isDestValid ? prev.destWarehouseId : ''
+        };
       });
     }
-  }, [sourceWarehouses]);
+  }, [orgWarehouses]);
 
   const fetchInitialData = async () => {
     try {
@@ -142,7 +150,12 @@ function TransferContent() {
   const fetchDrafts = async () => {
     try {
       const resp = await api.get('/api/v1/inventory/transfers?status=DRAFT');
-      if (resp.data.success) setDrafts(resp.data.data || []);
+      if (resp.data.success) {
+        const raw = resp.data.data;
+        const list = Array.isArray(raw) ? raw : (raw?.content || []);
+        const draftList = list.filter(d => d.status === 'DRAFT');
+        setDrafts(draftList);
+      }
     } catch (err) {
       console.warn("Failed to load drafts");
     }
@@ -163,26 +176,64 @@ function TransferContent() {
     showToast(`Loaded ${d.transferNumber}`, "success");
   };
 
-  const fetchSourceStock = async (warehouseId) => {
+  const fetchSourceStock = async (whId) => {
+    if (!whId) return;
     setFetchingStock(true);
     try {
-      const resp = await api.get(`/api/v1/inventory/stock-overview/${warehouseId}`);
+      const resp = await api.get(`/api/v1/inventory/stock-overview/${whId}`);
       if (resp.data.success) {
         const stockMap = {};
-        (resp.data.data || []).forEach(item => {
-          const pId = item.productId;
-          const vId = item.variantId;
-          const key = vId ? `${pId}_${vId}` : pId;
-          item.currentStock = item.currentQuantity;
-          stockMap[key] = item;
-          if (vId) {
-            const baseStock = stockMap[pId] ? (Number(stockMap[pId].currentStock) || 0) : 0;
-            stockMap[pId] = {
-              ...item,
-              currentStock: baseStock + (Number(item.currentQuantity) || 0)
-            };
+        const variantSums = {};
+        const hasVariantMap = {};
+        const rawItems = resp.data.data || [];
+
+        // Pass 1: Process variant entries first
+        rawItems.forEach(item => {
+          const rawPId = String(item.productId || '');
+          const rawVId = item.variantId ? String(item.variantId) : '';
+          const qty = Number(item.currentQuantity) || 0;
+          const entry = { ...item, currentStock: qty };
+
+          if (rawVId) {
+            const pLower = rawPId.toLowerCase();
+            const vLower = rawVId.toLowerCase();
+            
+            stockMap[`${rawPId}_${rawVId}`] = entry;
+            stockMap[`${pLower}_${vLower}`] = entry;
+
+            hasVariantMap[rawPId] = true;
+            hasVariantMap[pLower] = true;
+
+            variantSums[pLower] = (variantSums[pLower] || 0) + qty;
           }
         });
+
+        // Pass 2: Process non-variant entries only if product has no variants
+        rawItems.forEach(item => {
+          const rawPId = String(item.productId || '');
+          const rawVId = item.variantId ? String(item.variantId) : '';
+          const qty = Number(item.currentQuantity) || 0;
+          const entry = { ...item, currentStock: qty };
+
+          if (!rawVId) {
+            const pLower = rawPId.toLowerCase();
+            if (!hasVariantMap[rawPId] && !hasVariantMap[pLower]) {
+              stockMap[rawPId] = entry;
+              stockMap[pLower] = entry;
+            }
+          }
+        });
+
+        // Pass 3: Map calculated variant sums to parent product IDs
+        Object.keys(variantSums).forEach(pLower => {
+          const totalVariantQty = variantSums[pLower];
+          const sumObj = {
+            currentStock: totalVariantQty,
+            currentQuantity: totalVariantQty
+          };
+          stockMap[pLower] = sumObj;
+        });
+
         setSourceStock(stockMap);
       }
     } catch (err) {
@@ -252,7 +303,7 @@ function TransferContent() {
           : 'Draft Saved.';
         showToast(toastMsg, "success");
         setTransfer({
-          transferNumber: 'Auto Generated',
+          transferNumber: '',
           transferDate: new Date().toISOString(),
           sourceWarehouseId: sourceWarehouseOptions[0]?.value || '',
           destWarehouseId: '',
@@ -273,6 +324,13 @@ function TransferContent() {
   };
 
   const handleAddProduct = async (product) => {
+    if (!transfer.sourceWarehouseId) {
+      showToast("Please select a Source Warehouse first", "error");
+      setProductSearch("");
+      setShowSuggestions(false);
+      return;
+    }
+
     const hasVars = Boolean(
       product.hasVariants ||
       product.has_variants ||
@@ -301,14 +359,34 @@ function TransferContent() {
   };
 
   const addProductToTransferLine = (product, selectedVariant = null) => {
+    if (!transfer.sourceWarehouseId) {
+      showToast("Please select a Source Warehouse first", "error");
+      setProductSearch("");
+      setShowSuggestions(false);
+      return;
+    }
+
     const variantId = selectedVariant ? selectedVariant.id : null;
     const variantLabel = selectedVariant ? selectedVariant.label : null;
 
-    const stockKey = variantId ? `${product.id}_${variantId}` : product.id;
-    const stockObj = sourceStock[stockKey] || sourceStock[product.id];
-    const available = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
-
     const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name;
+
+    let available = 0;
+    if (variantId) {
+      const vKey = `${product.id}_${variantId}`;
+      const vObj = sourceStock[vKey];
+      available = vObj ? (Number(vObj.currentStock ?? vObj.currentQuantity) || 0) : 0;
+    } else {
+      const pObj = sourceStock[product.id];
+      available = pObj ? (Number(pObj.currentStock ?? pObj.currentQuantity) || 0) : 0;
+    }
+
+    if (available <= 0) {
+      showToast(`Cannot add "${displayName}". 0 stock available in source warehouse.`, "error");
+      setProductSearch("");
+      setShowSuggestions(false);
+      return;
+    }
 
     const existingIdx = transfer.lines.findIndex(l => 
       String(l.productId) === String(product.id) &&
@@ -317,8 +395,11 @@ function TransferContent() {
 
     if (existingIdx >= 0) {
       const currentQty = Number(transfer.lines[existingIdx].transferQuantity) || 0;
-      if (transfer.sourceWarehouseId && available > 0 && currentQty >= available) {
-        showToast(`Warning: quantity exceeds available stock (${available} units) for ${displayName}`, "error");
+      if (currentQty + 1 > available) {
+        showToast(`Cannot add more "${displayName}". Maximum available stock is ${available} units.`, "error");
+        setProductSearch("");
+        setShowSuggestions(false);
+        return;
       }
       const newLines = [...transfer.lines];
       newLines[existingIdx].transferQuantity = currentQty + 1;
@@ -336,9 +417,6 @@ function TransferContent() {
           }
         ] 
       });
-      if (transfer.sourceWarehouseId && available <= 0) {
-        showToast(`"${displayName}" added (0 available stock in source warehouse)`, "error");
-      }
     }
     setProductSearch("");
     setShowSuggestions(false);
@@ -391,9 +469,6 @@ function TransferContent() {
 
   const getSourceWhName = () => warehouses.find(w => w.id === transfer.sourceWarehouseId)?.name || 'Origin';
   const getDestWhName = () => warehouses.find(w => w.id === transfer.destWarehouseId)?.name || 'Target';
-
-
-  const warehouseOptions = warehouses.map(w => ({ value: w.id, label: w.name }));
 
   const filteredSuggestions = productSearch.trim() === "" 
     ? products.slice(0, 15) 
@@ -472,7 +547,7 @@ function TransferContent() {
                       <div className="no-sug">Catalog item not found.</div>
                     ) : (
                       filteredSuggestions.map(p => {
-                        const stockObj = sourceStock[p.id];
+                        const stockObj = sourceStock[p.id] || sourceStock[String(p.id).toLowerCase()];
                         const currentStock = stockObj ? stockObj.currentStock : 0;
                         const hasSource = !!transfer.sourceWarehouseId;
                         return (
@@ -490,7 +565,7 @@ function TransferContent() {
                              </div>
                              {hasSource && (
                                <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
-                                 {currentStock} Available
+                                 <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock > 0 ? `${currentStock} Available` : '0 Available'}
                                </div>
                              )}
                           </div>
@@ -662,23 +737,32 @@ function TransferContent() {
 
           <div className="fluid-sidebar">
              <div className="premium-card summary-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 className="comp-summary-title" style={{ margin: 0 }}>Process Summary</h3>
-                  <Link href="/owner/stock-transfer-reports" className="history-header-btn" title="View Transfer History">
-                    <FaHistory /> History
-                  </Link>
+                <div className="summary-card-header">
+                  <h3 className="comp-summary-title">Process Summary</h3>
+                  <div className="header-actions">
+                    {Array.isArray(drafts) && drafts.length > 0 && (
+                      <button 
+                        type="button"
+                        className="drafts-header-btn" 
+                        onClick={() => setShowDraftModal(true)} 
+                        title="Load Pending Drafts"
+                      >
+                        <FaFolderOpen /> Drafts ({drafts.length})
+                      </button>
+                    )}
+                    <Link href="/owner/stock-transfer-reports" className="history-header-btn" title="View Transfer History">
+                      <FaHistory /> History
+                    </Link>
+                  </div>
                 </div>
                 
                 <div className="summary-list">
-                  <div className="sm-item">
-                    <span className="sm-label">Document:</span>
-                    <div style={{display:'flex', alignItems:'center', gap: '8px'}}>
+                  {Boolean(transfer.transferNumber) && (
+                    <div className="sm-item">
+                      <span className="sm-label">Document:</span>
                       <span className="sm-value">{transfer.transferNumber}</span>
-                      <button className="invoke-btn" onClick={() => setShowDraftModal(true)} title="Load Drafts">
-                        <FaFolderOpen />
-                      </button>
                     </div>
-                  </div>
+                  )}
                   <div className="sm-item">
                     <span className="sm-label">Origin:</span>
                     <span className="sm-value">{getSourceWhName()}</span>
@@ -782,7 +866,7 @@ function TransferContent() {
                 <button onClick={() => setShowDraftModal(false)}>&times;</button>
               </div>
               <div className="modal-body">
-                {drafts.length === 0 ? (
+                {(!Array.isArray(drafts) || drafts.length === 0) ? (
                   <div className="no-drafts">No pending drafts found.</div>
                 ) : (
                   <div className="draft-grid">
@@ -808,7 +892,7 @@ function TransferContent() {
         {activeVariantProduct && (
           <VariantSelector
             product={activeVariantProduct}
-            isPurchaseMode={true}
+            isPurchaseMode={false}
             stockMap={sourceStock}
             onClose={() => setActiveVariantProduct(null)}
             onSelect={(selectedVariant) => {
@@ -856,7 +940,9 @@ function TransferContent() {
         .sug-item:hover { background: #fff7ed; }
         .sug-name { font-size: 14px; font-weight: 700; color: #0f172a; }
         .sug-cat { font-size: 11px; color: #f97316; font-weight: 700; text-transform: uppercase; }
-        .sug-stock { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 6px; }
+        .sug-stock { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+        .sug-stock.instock { background: #dcfce7 !important; color: #15803d !important; border: 1px solid #86efac !important; }
+        .sug-stock.outofstock { background: #fef2f2 !important; color: #dc2626 !important; border: 1px solid #fca5a5 !important; }
         .no-sug { padding: 20px; text-align: center; color: #64748b; font-size: 13px; font-weight: 600; }
 
         /* Manifest Table Overhaul */
@@ -895,10 +981,15 @@ function TransferContent() {
         .premium-textarea:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15); }
 
         /* Compact Summary Sidebar Re-Polished */
-        .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 16px; }
+        .summary-card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; }
+        .comp-summary-title { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
 
-        .history-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; border-radius: 8px; font-size: 11px; font-weight: 700; text-decoration: none; transition: all 0.2s; }
-        .history-header-btn:hover { background: #f97316; color: white; border-color: #f97316; }
+        .drafts-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #fff7ed; color: #ea580c; border: 1.5px solid #fed7aa; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(234, 88, 12, 0.05); }
+        .drafts-header-btn:hover { background: #ea580c; color: #ffffff; border-color: #ea580c; box-shadow: 0 4px 10px rgba(234, 88, 12, 0.25); transform: translateY(-1px); }
+
+        .history-header-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #f8fafc; color: #475569; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; transition: all 0.2s ease; }
+        .history-header-btn:hover { background: #0f172a; color: #ffffff; border-color: #0f172a; box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15); transform: translateY(-1px); }
 
         .action-history { display: flex; align-items: center; justify-content: center; gap: 8px; background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; transition: all 0.2s; margin-top: 4px; }
         .action-history:hover { background: #0f172a; color: white; border-color: #0f172a; }

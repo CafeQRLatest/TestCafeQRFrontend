@@ -145,7 +145,13 @@ function AdjustmentReportContent() {
     const matchWh = !warehouseFilter || String(a.warehouseId) === String(warehouseFilter);
     let matchDate = true;
     if (dateFrom) matchDate = new Date(a.adjustmentDate) >= new Date(dateFrom);
-    if (dateTo && matchDate) matchDate = new Date(a.adjustmentDate) <= new Date(dateTo);
+    if (dateTo && matchDate) {
+      const endDate = new Date(dateTo);
+      if (!String(dateTo).includes('T')) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+      matchDate = new Date(a.adjustmentDate) <= endDate;
+    }
 
     return matchSearch && matchStatus && matchReason && matchWh && matchDate;
   });
@@ -435,6 +441,8 @@ function AdjustmentReportContent() {
         {viewingDoc && (
           <StockDocumentViewerPopup
             doc={viewingDoc}
+            timezone={timezone}
+            formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
           />
         )}

@@ -4,6 +4,7 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { FaPrint } from 'react-icons/fa';
 import { generateStockTransferPdf } from '../../utils/stockTransferPdf';
+import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
 
 export default function StockDocumentViewerPopup({
   doc,
@@ -11,13 +12,15 @@ export default function StockDocumentViewerPopup({
   warehouses: initialWarehouses = [],
   products: initialProducts = [],
   timezone,
-  formatTzDate,
+  formatTzDate: formatTzDateProp,
   onClose,
   onConfirmTransfer = null
 }) {
   const auth = useAuth() || {};
   const { firstName, lastName, email: authEmail, userId: authUserId, userRole } = auth;
   const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
+  const activeTz = auth.timezone || timezone;
+  const formatDateFn = formatTzDateProp || formatTzDateUtil;
 
   const [currentDoc, setCurrentDoc] = useState(doc);
   const [loading, setLoading] = useState(false);
@@ -160,16 +163,12 @@ export default function StockDocumentViewerPopup({
   // Date & Time formatting
   const formattedDateStr = (() => {
     if (!docDate) return { date: '—', time: '' };
-    if (formatTzDate) {
-      const d = formatTzDate(docDate, timezone, { format: 'date' });
-      const t = formatTzDate(docDate, timezone, { format: 'time' });
-      return { date: d || '—', time: t || '' };
-    }
     try {
-      const dt = new Date(docDate);
-      return { date: dt.toLocaleDateString(), time: dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+      const d = formatDateFn(docDate, activeTz, { format: 'date' });
+      const t = formatDateFn(docDate, activeTz, { format: 'time' });
+      return { date: d || '—', time: t || '' };
     } catch (e) {
-      return { date: docDate, time: '' };
+      return { date: String(docDate), time: '' };
     }
   })();
 

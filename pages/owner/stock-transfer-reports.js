@@ -98,7 +98,13 @@ function TransferReportContent() {
 
     let matchDate = true;
     if (dateFrom) matchDate = new Date(t.transferDate) >= new Date(dateFrom);
-    if (dateTo && matchDate) matchDate = new Date(t.transferDate) <= new Date(dateTo);
+    if (dateTo && matchDate) {
+      const endDate = new Date(dateTo);
+      if (!String(dateTo).includes('T')) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+      matchDate = new Date(t.transferDate) <= endDate;
+    }
 
     return matchSearch && matchFromWh && matchToWh && matchDate;
   });
