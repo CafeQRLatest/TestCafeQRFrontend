@@ -810,14 +810,13 @@ export default function PurchaseForm({
                 >
                   <FaSave /> Save as Draft
                 </button>
-                {po.id && (
-                  <button
-                    className={`${styles['btn-danger']} ${styles.full}`}
-                    onClick={() => setShowCancelConfirm(true)}
-                  >
-                    <FaTimesCircle /> Cancel Order
-                  </button>
-                )}
+                <button
+                  className={`${styles['btn-outline']} ${styles.full}`}
+                  onClick={() => startFresh && startFresh()}
+                  style={{ background: '#f8fafc', color: '#475569', borderColor: '#cbd5e1' }}
+                >
+                  <FaTimesCircle /> Clear All
+                </button>
               </div>
             ) : (
               <div 
@@ -832,12 +831,14 @@ export default function PurchaseForm({
                 </span>
               </div>
             )}
-            <button
-              className={styles['btn-new-po']}
-              onClick={() => startFresh && startFresh()}
-            >
-              <FaPlus /> {isLocked ? 'Create New PO' : 'Start Fresh'}
-            </button>
+            {isLocked && (
+              <button
+                className={styles['btn-new-po']}
+                onClick={() => startFresh && startFresh()}
+              >
+                <FaPlus /> Create New PO
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -875,9 +876,9 @@ export default function PurchaseForm({
       {showDraftModal && (
         <div className={styles['modal-overlay']} onClick={() => setShowDraftModal(false)}>
           <div className={styles['modal-box']} onClick={e => e.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <span><FaFolderOpen style={{ marginRight: '6px' }} /> Saved Drafts ({drafts.length})</span>
-              <button className={styles['modal-close']} onClick={() => setShowDraftModal(false)}>×</button>
+            <div className={styles['modal-head']} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Draft Orders ({drafts.length})</span>
+              <button className={styles['modal-close']} onClick={() => setShowDraftModal(false)} title="Close">×</button>
             </div>
             <div className={styles['modal-body']}>
               {drafts.map(d => {

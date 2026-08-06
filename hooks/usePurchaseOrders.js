@@ -397,13 +397,8 @@ export function usePurchaseOrders() {
           targetStatus === 'CONFIRMED' ? '📦 Order confirmed!' :
           '💾 Draft saved successfully!';
         toast(msg, 'success');
-
-        if (targetStatus === 'DRAFT') {
-          setPo(p => ({ ...p, id: saved.id, orderStatus: 'DRAFT' }));
-        } else {
-          setPo(blankPO());
-          setStep(1);
-        }
+        setPo(blankPO());
+        setStep(1);
         fetchDrafts();
         setErrors({});
       }
@@ -459,7 +454,8 @@ export function usePurchaseOrders() {
     setPo(blankPO());
     setErrors({});
     setStep(1);
-  }, []);
+    toast('Cleared all', 'success');
+  }, [toast]);
 
   /* ── derived state ── */
   const vendorOptions    = useMemo(() => vendors.map(v => ({ value: String(v.id), label: v.name })), [vendors]);

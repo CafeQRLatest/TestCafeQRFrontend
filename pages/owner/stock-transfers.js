@@ -13,7 +13,7 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaExchangeAlt, FaTrash, FaSearch, FaSave,
   FaWarehouse, FaMapMarkerAlt, FaPlus, FaMinus,
-  FaFolderOpen, FaBoxOpen, FaHistory
+  FaFolderOpen, FaBoxOpen, FaHistory, FaTimes, FaTimesCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 
 export default function StockTransfersPage() {
@@ -44,6 +44,7 @@ function TransferContent() {
   const [productSearch, setProductSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeVariantProduct, setActiveVariantProduct] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const searchWrapRef = useRef(null);
 
   const [transfer, setTransfer] = useState({
@@ -322,11 +323,53 @@ function TransferContent() {
       setSaving(false);
     }
   };
+  const handleClearDraft = () => {
+    setTransfer({
+      transferNumber: '',
+      transferDate: new Date().toISOString(),
+      sourceWarehouseId: sourceWarehouseOptions[0]?.value || '',
+      destWarehouseId: '',
+      status: 'DRAFT',
+      lines: []
+    });
+    setSourceStock({});
+    setProductSearch("");
+    showToast("Cleared all", "success");
+  };
+
+  const handleCancelDraft = async () => {
+    if (!transfer.id) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...transfer,
+        status: "CANCELLED"
+      };
+      await api.put(`/api/v1/inventory/transfers/${transfer.id}`, payload);
+      showToast(`Draft ${transfer.transferNumber || ''} cancelled successfully!`, "success");
+      setShowCancelConfirm(false);
+      handleClearDraft();
+      fetchDrafts();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to cancel draft", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleAddProduct = async (product) => {
     if (!transfer.sourceWarehouseId) {
       showToast("Please select a Source Warehouse first", "error");
       setProductSearch("");
+      setShowSuggestions(false);
+      return;
+    }
+
+    const stockObj = sourceStock[product.id] || sourceStock[String(product.id).toLowerCase()];
+    const currentStock = stockObj ? stockObj.currentStock : 0;
+
+    if (currentStock <= 0) {
+      showToast(`"${product.name}" is out of stock in the selected warehouse.`, "error");
       setShowSuggestions(false);
       return;
     }
@@ -526,7 +569,6 @@ function TransferContent() {
               <div className="search-bar product">
                 <FaSearch className="search-icon" />
                 <input 
-                  autoFocus={true}
                   type="text" 
                   placeholder="Search products..."
                   value={productSearch}
@@ -837,6 +879,16 @@ function TransferContent() {
                      <FaSave /> Save as Draft
                    </button>
 
+                   <button 
+                     type="button"
+                     className="action-sec clear-all-btn"
+                     onClick={handleClearDraft}
+                     disabled={saving}
+                     style={{ background: '#f8fafc', color: '#475569', borderColor: '#cbd5e1' }}
+                   >
+                     <FaTimesCircle /> Clear All
+                   </button>
+
                    <Link href="/owner/stock-transfer-reports" className="action-history">
                      <FaHistory /> Transfer History
                    </Link>
@@ -859,11 +911,18 @@ function TransferContent() {
         )}
 
         {showDraftModal && (
-          <div className="draft-modal-overlay">
-            <div className="draft-modal">
-              <div className="modal-head">
-                <h3>Draft Recovery Hub</h3>
-                <button onClick={() => setShowDraftModal(false)}>&times;</button>
+          <div className="draft-modal-overlay" onClick={() => setShowDraftModal(false)}>
+            <div className="draft-modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Draft Orders</h3>
+                <button 
+                  type="button" 
+                  onClick={() => setShowDraftModal(false)}
+                  style={{ background: '#f1f5f9', border: 'none', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Close"
+                >
+                  <FaTimes />
+                </button>
               </div>
               <div className="modal-body">
                 {(!Array.isArray(drafts) || drafts.length === 0) ? (
@@ -883,6 +942,44 @@ function TransferContent() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Draft Confirmation Modal */}
+        {showCancelConfirm && (
+          <div className="draft-modal-overlay" onClick={() => setShowCancelConfirm(false)}>
+            <div className="draft-modal" style={{ maxWidth: '420px', borderTop: '3px solid #ef4444' }} onClick={e => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+                  <FaExclamationTriangle /> Cancel Draft Transfer?
+                </h3>
+                <button className="invoke-btn" onClick={() => setShowCancelConfirm(false)}>&times;</button>
+              </div>
+              <div className="modal-body" style={{ padding: '20px' }}>
+                <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#334155' }}>
+                  Are you sure you want to cancel draft <strong>{transfer.transferNumber || 'document'}</strong>? This action will mark the draft as CANCELLED and clear the form.
+                </p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button 
+                    type="button"
+                    className="action-sec" 
+                    style={{ width: 'auto', padding: '10px 18px' }}
+                    onClick={() => setShowCancelConfirm(false)}
+                  >
+                    Keep Draft
+                  </button>
+                  <button 
+                    type="button"
+                    className="action-prime" 
+                    style={{ width: 'auto', padding: '10px 18px', background: '#dc2626' }}
+                    disabled={saving}
+                    onClick={handleCancelDraft}
+                  >
+                    {saving ? 'Cancelling...' : 'Yes, Cancel Draft'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

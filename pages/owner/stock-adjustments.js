@@ -13,7 +13,7 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaSearch, FaWarehouse, FaTag, FaExchangeAlt, 
   FaTrash, FaPlus, FaMinus, FaFolderOpen, FaBoxOpen,
-  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye, FaHistory
+  FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye, FaHistory, FaTimes, FaTimesCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 import VariantSelector from '../../components/VariantSelector';
 
@@ -39,6 +39,7 @@ function AdjustmentContent() {
   const [products, setProducts] = useState([]);
   const [drafts, setDrafts] = useState([]);
   const [showDraftModal, setShowDraftModal] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [viewingDoc, setViewingDoc] = useState(null);
   
   const [loading, setLoading] = useState(true);
@@ -335,6 +336,39 @@ function AdjustmentContent() {
       setSaving(false);
     }
   };
+  const handleClearDraft = () => {
+    setAdjustment({
+      adjustmentNumber: '',
+      adjustmentDate: new Date().toISOString(),
+      warehouseId: '',
+      reason: 'AUDIT',
+      status: 'DRAFT',
+      lines: [],
+      notes: ''
+    });
+    setProductSearch("");
+    showToast("Cleared all", "success");
+  };
+
+  const handleCancelDraft = async () => {
+    if (!adjustment.id) return;
+    setSaving(true);
+    try {
+      const payload = {
+        ...adjustment,
+        status: "CANCELLED"
+      };
+      await api.put(`/api/v1/inventory/adjustments/${adjustment.id}`, payload);
+      showToast(`Draft ${adjustment.adjustmentNumber || ''} cancelled successfully!`, "success");
+      setShowCancelConfirm(false);
+      handleClearDraft();
+      fetchDrafts();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to cancel draft", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const showToast = (msg, type = 'success') => {
     notify(type === 'error' ? 'error' : 'success', msg);
@@ -424,7 +458,6 @@ function AdjustmentContent() {
               <div className="search-bar product">
                 <FaSearch className="search-icon" />
                 <input 
-                  autoFocus={true}
                   type="text" 
                   placeholder="Search products..." 
                   value={productSearch}
@@ -444,17 +477,24 @@ function AdjustmentContent() {
                      {filteredSuggestions.length === 0 ? (
                         <div className="no-sug">No products found matching &quot;{productSearch}&quot;</div>
                      ) : (
-                       filteredSuggestions.map(p => (
-                         <div key={p.id} className="sug-item" onClick={() => addProductToManifest(p)}>
-                           <div className="sug-left">
-                             <div className="sug-name">{p.name}</div>
-                             <div className="sug-cat">{p.categoryName} • {p.productCode || 'NO SKU'}</div>
-                           </div>
-                           <div className="sug-stock success">
-                             {(sourceStock[p.id] || sourceStock[String(p.id).toLowerCase()])?.currentStock || 0} {p.unitName}
-                           </div>
-                         </div>
-                       ))
+                      filteredSuggestions.map(p => {
+                        const stockObj = sourceStock[p.id] || sourceStock[String(p.id).toLowerCase()];
+                        const currentStock = stockObj ? stockObj.currentStock : 0;
+                        const hasWarehouse = !!adjustment.warehouseId;
+                        return (
+                          <div key={p.id} className="sug-item" onClick={() => addProductToManifest(p)}>
+                            <div className="sug-left">
+                              <div className="sug-name">{p.name} {p.productCode ? `(#${p.productCode})` : ''}</div>
+                              <div className="sug-cat">{p.categoryName || 'General'}</div>
+                            </div>
+                            {hasWarehouse && (
+                              <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
+                                <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock > 0 ? `${currentStock} Available` : '0 Available'}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                      )}
                    </div>
                  )}
@@ -496,7 +536,7 @@ function AdjustmentContent() {
                                 </div>
                               </td>
                               <td className="col-stock">
-                                <div className="classic-pill success" style={{ background: '#ecfdf5', color: '#059669', display: 'inline-flex', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                <div className={`classic-pill ${currentStockVal > 0 ? 'success' : 'danger'}`} style={{ background: currentStockVal > 0 ? '#ecfdf5' : '#fef2f2', color: currentStockVal > 0 ? '#059669' : '#dc2626', display: 'inline-flex', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
                                   {currentStockVal} {line.unitName || p.unitName || 'units'}
                                 </div>
                               </td>
@@ -654,6 +694,16 @@ function AdjustmentContent() {
                       <FaSave /> Save Draft
                     </button>
 
+                    <button 
+                      type="button"
+                      className="action-sec clear-all-btn"
+                      onClick={handleClearDraft}
+                      disabled={saving}
+                      style={{ background: '#f8fafc', color: '#475569', borderColor: '#cbd5e1' }}
+                    >
+                      <FaTimesCircle /> Clear All
+                    </button>
+
                     <Link href="/owner/stock-adjustment-reports" className="action-history">
                       <FaHistory /> Adjustment History
                     </Link>
@@ -678,11 +728,18 @@ function AdjustmentContent() {
         )}
 
         {showDraftModal && (
-          <div className="draft-modal-overlay">
-            <div className="draft-modal">
-              <div className="modal-head">
-                <h3>Draft Corrections Hub</h3>
-                <button onClick={() => setShowDraftModal(false)}>&times;</button>
+          <div className="draft-modal-overlay" onClick={() => setShowDraftModal(false)}>
+            <div className="draft-modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Draft Orders</h3>
+                <button 
+                  type="button" 
+                  onClick={() => setShowDraftModal(false)}
+                  style={{ background: '#f1f5f9', border: 'none', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 800, color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  title="Close"
+                >
+                  <FaTimes />
+                </button>
               </div>
               <div className="modal-body">
                 {(!Array.isArray(drafts) || drafts.length === 0) ? (
@@ -702,6 +759,44 @@ function AdjustmentContent() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Draft Confirmation Modal */}
+        {showCancelConfirm && (
+          <div className="draft-modal-overlay" onClick={() => setShowCancelConfirm(false)}>
+            <div className="draft-modal" style={{ maxWidth: '420px', borderTop: '3px solid #ef4444' }} onClick={e => e.stopPropagation()}>
+              <div className="modal-head">
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+                  <FaExclamationTriangle /> Cancel Draft Adjustment?
+                </h3>
+                <button className="invoke-btn" onClick={() => setShowCancelConfirm(false)}>&times;</button>
+              </div>
+              <div className="modal-body" style={{ padding: '20px' }}>
+                <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#334155' }}>
+                  Are you sure you want to cancel draft <strong>{adjustment.adjustmentNumber || 'document'}</strong>? This action will mark the draft as CANCELLED and clear the form.
+                </p>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                  <button 
+                    type="button"
+                    className="action-sec" 
+                    style={{ width: 'auto', padding: '10px 18px' }}
+                    onClick={() => setShowCancelConfirm(false)}
+                  >
+                    Keep Draft
+                  </button>
+                  <button 
+                    type="button"
+                    className="action-prime" 
+                    style={{ width: 'auto', padding: '10px 18px', background: '#dc2626' }}
+                    disabled={saving}
+                    onClick={handleCancelDraft}
+                  >
+                    {saving ? 'Cancelling...' : 'Yes, Cancel Draft'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -747,7 +842,9 @@ function AdjustmentContent() {
         .sug-item:hover { background: #fff7ed; }
         .sug-name { font-size: 14px; font-weight: 700; color: #0f172a; }
         .sug-cat { font-size: 11px; color: #f97316; font-weight: 700; text-transform: uppercase; }
-        .sug-stock { font-size: 12px; font-weight: 800; padding: 4px 8px; border-radius: 6px; }
+        .sug-stock { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; }
+        .sug-stock.instock { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .sug-stock.outofstock { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
         /* Manifest Table Overhaul */
         .cart-table-wrapper { width: 100%; overflow-x: auto; }

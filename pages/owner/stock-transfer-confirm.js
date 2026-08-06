@@ -11,7 +11,7 @@ import NiceSelect from "../../components/NiceSelect";
 import CafeQRPopup from "../../components/CafeQRPopup";
 import StockDocumentViewerPopup from "../../components/purchasing/StockDocumentViewerPopup";
 import api from "../../utils/api";
-import { formatTzDate } from "../../utils/timezoneUtils";
+import { formatTzDate, getBusinessNow, businessTimeToUtc } from "../../utils/timezoneUtils";
 import { generateStockTransferPdf } from "../../utils/stockTransferPdf";
 import {
   FaSearch, FaCalendarAlt, FaCheckCircle, FaTruck,
@@ -54,12 +54,27 @@ function ConfirmContent() {
   const [voidingDoc, setVoidingDoc] = useState(null);
   const [voiding, setVoiding] = useState(false);
 
-  const getTodayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const getTodayStartStr = (tz) => {
+    const d = getBusinessNow(tz);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00`;
   };
-  const [dateFrom, setDateFrom] = useState(getTodayStr());
-  const [dateTo, setDateTo] = useState(getTodayStr());
+
+  const getTodayEndStr = (tz) => {
+    const d = getBusinessNow(tz);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T23:59`;
+  };
+
+  const [dateFrom, setDateFrom] = useState(() => getTodayStartStr(timezone));
+  const [dateTo, setDateTo] = useState(() => getTodayEndStr(timezone));
+
+  useEffect(() => {
+    if (timezone) {
+      setDateFrom(getTodayStartStr(timezone));
+      setDateTo(getTodayEndStr(timezone));
+    }
+  }, [timezone]);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -176,6 +191,43 @@ function ConfirmContent() {
     }
   };
 
+  const isDateInRange = useCallback((transferDateStr) => {
+    if (!transferDateStr) return true;
+
+    let rawIso = String(transferDateStr);
+    if (rawIso.length >= 19 && rawIso.includes('T') && !rawIso.includes('Z') && !rawIso.match(/[+-]\d{2}:\d{2}$/)) {
+      rawIso = rawIso + 'Z';
+    }
+    const transferMs = new Date(rawIso).getTime();
+    if (isNaN(transferMs)) return true;
+
+    if (dateFrom) {
+      let fromMs;
+      if (dateFrom.includes('T')) {
+        const utcStr = businessTimeToUtc(dateFrom, timezone);
+        fromMs = utcStr ? new Date(utcStr).getTime() : new Date(`${dateFrom}:00`).getTime();
+      } else {
+        const utcStr = businessTimeToUtc(`${dateFrom}T00:00`, timezone);
+        fromMs = utcStr ? new Date(utcStr).getTime() : new Date(`${dateFrom}T00:00:00`).getTime();
+      }
+      if (!isNaN(fromMs) && transferMs < fromMs) return false;
+    }
+
+    if (dateTo) {
+      let toMs;
+      if (dateTo.includes('T')) {
+        const utcStr = businessTimeToUtc(dateTo, timezone);
+        toMs = utcStr ? new Date(utcStr).getTime() + 59999 : new Date(`${dateTo}:59`).getTime();
+      } else {
+        const utcStr = businessTimeToUtc(`${dateTo}T23:59`, timezone);
+        toMs = utcStr ? new Date(utcStr).getTime() + 59999 : new Date(`${dateTo}T23:59:59`).getTime();
+      }
+      if (!isNaN(toMs) && transferMs > toMs) return false;
+    }
+
+    return true;
+  }, [dateFrom, dateTo, timezone]);
+
   const filtered = transfers.filter(t => {
     const matchStatus = !statusFilter || statusFilter === "ALL" ? true : t.status === statusFilter;
     const matchSearch =
@@ -185,9 +237,7 @@ function ConfirmContent() {
     const matchWh = !warehouseFilter ||
       String(t.sourceWarehouseId) === String(warehouseFilter) ||
       String(t.destWarehouseId) === String(warehouseFilter);
-    let matchDate = true;
-    if (dateFrom) matchDate = new Date(t.transferDate) >= new Date(dateFrom);
-    if (dateTo && matchDate) matchDate = new Date(t.transferDate) <= new Date(dateTo + "T23:59:59");
+    const matchDate = isDateInRange(t.transferDate);
     return matchStatus && matchSearch && matchWh && matchDate;
   });
 
