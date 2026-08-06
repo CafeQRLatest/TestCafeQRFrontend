@@ -54,11 +54,11 @@ function ValuationContent() {
       .catch(() => {});
   }, []);
 
-  const loadValuationData = async (orgIdVal, whIdVal) => {
+  const loadValuationData = async (whIdVal) => {
     setLoading(true);
     try {
-      const effectiveOrg = orgIdVal !== undefined ? orgIdVal : selectedOrgId;
       const effectiveWh = whIdVal !== undefined ? whIdVal : selectedWarehouseId;
+      const effectiveOrg = currentOrgId;
 
       const params = {};
       if (effectiveOrg) params.orgId = effectiveOrg;
@@ -81,7 +81,6 @@ function ValuationContent() {
         setProducts(pResp.data.data || []);
       }
 
-      // Correct endpoint: /api/v1/inventory/stock-overview
       let stockUrl = '/api/v1/inventory/stock-overview';
       let stockParams = {};
       if (effectiveWh && effectiveWh !== 'ALL') {
@@ -109,21 +108,21 @@ function ValuationContent() {
   };
 
   useEffect(() => {
-    loadValuationData(selectedOrgId, selectedWarehouseId || 'ALL');
-  }, [selectedOrgId]);
+    loadValuationData(selectedWarehouseId || 'ALL');
+  }, [currentOrgId, selectedWarehouseId]);
 
+  // Filter Warehouses by current active organization
   const filteredWarehouses = useMemo(() => {
-    if (!selectedOrgId) return warehouses;
+    if (!currentOrgId) return warehouses;
     return warehouses.filter(w => {
       const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || w.organization?.id || '');
-      return !wOrg || String(wOrg) === String(selectedOrgId);
+      return !wOrg || String(wOrg) === String(currentOrgId);
     });
-  }, [warehouses, selectedOrgId]);
+  }, [warehouses, currentOrgId]);
 
 
   // Build Valuation Items from granular Stock Snapshots & Products
-  const allValuationItems = [];
-  const processedKeys = new Set();
+  const valuationMap = new Map();
 
   // Pre-build set of productIds that have at least one variant snapshot
   const productsWithVariantSnapshots = new Set(
@@ -141,44 +140,48 @@ function ValuationContent() {
       if (!vId && productsWithVariantSnapshots.has(pId)) return;
 
       const key = vId ? `${pId}_${vId}` : pId;
-      if (processedKeys.has(key)) return;
-      processedKeys.add(key);
-
-      const p = products.find(prod => String(prod.id).toLowerCase() === pId);
       const qty = Number(s.currentQuantity || 0);
 
-      const unitCost = Number(
-        s.variantCostPrice ?? s.unitCost ?? s.costPrice ?? p?.costPrice ?? p?.purchasePrice ?? p?.price ?? 0
-      );
-      const totalVal = qty * unitCost;
+      if (valuationMap.has(key)) {
+        const existing = valuationMap.get(key);
+        existing.currentQuantity += qty;
+        existing.totalValue = existing.currentQuantity * existing.unitCost;
+      } else {
+        const p = products.find(prod => String(prod.id).toLowerCase() === pId);
+        const unitCost = Number(
+          s.variantCostPrice ?? s.unitCost ?? s.costPrice ?? p?.costPrice ?? p?.purchasePrice ?? p?.price ?? 0
+        );
+        const variantLabel = s.variantOptionName || s.variantName || s.variantLabel;
+        const displayName = variantLabel ? `${p?.name || s.productName || 'Product'} (${variantLabel})` : (p?.name || s.productName || 'Unknown Product');
 
-      const variantLabel = s.variantOptionName || s.variantName || s.variantLabel;
-      const displayName = variantLabel ? `${p?.name || s.productName || 'Product'} (${variantLabel})` : (p?.name || s.productName || 'Unknown Product');
+        const isIng = p ? (
+          p.isIngredient === true ||
+          p.is_ingredient === true ||
+          String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
+          String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
+          String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
+          String(p.categoryName || '').toLowerCase().includes('ingredient')
+        ) : false;
 
-      const isIng = p ? (
-        p.isIngredient === true ||
-        p.is_ingredient === true ||
-        String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
-        String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
-        String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
-        String(p.categoryName || '').toLowerCase().includes('ingredient')
-      ) : false;
-
-      allValuationItems.push({
-        id: key,
-        productId: s.productId,
-        variantId: s.variantId || null,
-        sku: p?.productCode || p?.sku || s.productCode || '—',
-        productName: displayName,
-        categoryName: p?.categoryName || s.categoryName || (isIng ? 'Ingredients' : 'General'),
-        isIngredient: isIng,
-        currentQuantity: qty,
-        unitCost: unitCost,
-        totalValue: totalVal,
-        unitOfMeasure: p?.uomName || p?.unitOfMeasure || p?.uom || 'units'
-      });
+        valuationMap.set(key, {
+          id: key,
+          productId: s.productId,
+          variantId: s.variantId || null,
+          sku: p?.productCode || p?.sku || s.productCode || '—',
+          productName: displayName,
+          categoryName: p?.categoryName || s.categoryName || (isIng ? 'Ingredients' : 'General'),
+          isIngredient: isIng,
+          currentQuantity: qty,
+          unitCost: unitCost,
+          totalValue: qty * unitCost,
+          unitOfMeasure: p?.uomName || p?.unitOfMeasure || p?.uom || 'units'
+        });
+      }
     }
   });
+
+  const allValuationItems = Array.from(valuationMap.values());
+  const processedKeys = new Set(allValuationItems.map(i => i.id));
 
   // Fallback: add products with no stock snapshot at all (show 0 qty)
   // Skip products that have variant-level snapshots (they already appear as variants above)
@@ -264,42 +267,19 @@ function ValuationContent() {
         {/* Toolbar Filters */}
         <div className="toolbar">
           <div className="toolbar-left">
-            {/* Organization Filter */}
-            {(isSuperAdmin || organizations.length > 0) && (
-              <div className="wh-select-wrap">
-                <NiceSelect
-                  value={selectedOrgId}
-                  onChange={(orgVal) => {
-                    setSelectedOrgId(orgVal);
-                    setSelectedWarehouseId('ALL');
-                    loadValuationData(orgVal, 'ALL');
-                  }}
-                  options={[
-                    { value: '', label: 'All Organizations' },
-                    ...organizations.map(o => ({
-                      value: o.id,
-                      label: o.name || `Org #${o.id}`
-                    }))
-                  ]}
-                  placeholder="Select Organization..."
-                  style={{ minWidth: '200px' }}
-                />
-              </div>
-            )}
-
             {/* Warehouse Filter */}
             <div className="wh-select-wrap">
               <NiceSelect
                 value={selectedWarehouseId}
                 onChange={(whId) => {
                   setSelectedWarehouseId(whId);
-                  loadValuationData(selectedOrgId, whId);
+                  loadValuationData(whId);
                 }}
                 options={[
                   { value: 'ALL', label: 'All Warehouses' },
                   ...filteredWarehouses.map(w => ({
                     value: w.id,
-                    label: `${w.name}${w.code ? ` (${w.code})` : ''}${w.isDefault ? ' ⭐ Default' : ''}`
+                    label: `${w.name}${w.code ? ` (${w.code})` : ''}${w.isDefault ? ' (Default)' : ''}`
                   }))
                 ]}
                 placeholder={filteredWarehouses.length === 0 ? "No warehouses found" : "Select Warehouse..."}
