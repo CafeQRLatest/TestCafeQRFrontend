@@ -914,7 +914,7 @@ function TransferContent() {
           <div className="draft-modal-overlay" onClick={() => setShowDraftModal(false)}>
             <div className="draft-modal" onClick={e => e.stopPropagation()}>
               <div className="modal-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Draft Orders</h3>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>Draft Orders ({drafts.length})</h3>
                 <button 
                   type="button" 
                   onClick={() => setShowDraftModal(false)}
@@ -929,17 +929,23 @@ function TransferContent() {
                   <div className="no-drafts">No pending drafts found.</div>
                 ) : (
                   <div className="draft-grid">
-                    {drafts.map(d => (
-                      <div key={d.id} className="draft-tile" onClick={() => loadDraft(d)}>
-                        <div className="tile-main">
-                          <span className="tile-id">{d.transferNumber}</span>
-                          <span className="tile-date">{formatTzDate(d.transferDate, timezone, { format: 'date' })}</span>
+                    {drafts.map(d => {
+                      const itemCount = (d.lines || d.items || []).length;
+                      return (
+                        <div key={d.id} className="draft-tile" onClick={() => loadDraft(d)}>
+                          <div className="tile-main">
+                            <span className="tile-id">{d.transferNumber}</span>
+                            <span className="tile-date">{formatTzDate(d.transferDate, timezone, { format: 'date' })}</span>
+                          </div>
+                          <div className="tile-route">
+                            {warehouses.find(w => w.id === d.sourceWarehouseId)?.name || 'N/A'} &rarr; {warehouses.find(w => w.id === d.destWarehouseId)?.name || 'N/A'}
+                          </div>
+                          <div className="tile-foot" style={{ marginTop: '6px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                            <span>{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+                          </div>
                         </div>
-                        <div className="tile-route">
-                          {warehouses.find(w => w.id === d.sourceWarehouseId)?.name || 'N/A'} &rarr; {warehouses.find(w => w.id === d.destWarehouseId)?.name || 'N/A'}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
