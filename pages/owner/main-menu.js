@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
@@ -8,7 +9,8 @@ import {
   FaChartLine, FaCreditCard, FaBoxes, FaBookOpen, FaBalanceScale,
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
   FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle,
-  FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar
+  FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar,
+  FaSearch, FaTimes
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -16,14 +18,54 @@ export default function MainMenuPage() {
 }
 
 function MainMenuContent() {
+  const router = useRouter();
   const { loading: authLoading, isAuthenticated } = useAuth();
   const [assignedMenus, setAssignedMenus] = useState([]);
   const [config, setConfig] = useState(null);
   const [fetching, setFetching] = useState(true);
 
+  /* ── Super Search Bar States ── */
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchInputRef = useRef(null);
+  const searchContainerRef = useRef(null);
+
   useEffect(() => {
     if (isAuthenticated) fetchAssignedMenus();
   }, [isAuthenticated]);
+
+  /* ── Keyboard Shortcuts (Ctrl+K, Cmd+K, /) ── */
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInputActive = activeTag === 'input' || activeTag === 'textarea';
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === '/' && !isInputActive) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+        setIsSearchFocused(false);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  /* ── Click Outside Search Container ── */
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchAssignedMenus = async () => {
     try {
@@ -47,7 +89,6 @@ function MainMenuContent() {
     'Table Management':   { name: 'Table Management',     desc: 'Dine-in floor plan',            icon: <FaTable />,        color: '#f97316', bg: '#fff7ed', cat: 'Operations'  },
     'Billing & Reports':  { name: 'Reports & Billing',    desc: 'Invoices & tax reports',        icon: <FaFileInvoice />,  color: '#8b5cf6', bg: '#faf5ff', cat: 'Insights',   url: '/owner/reports' },
     'Reports & Billing':  { name: 'Reports & Billing',    desc: 'Tax & invoices',                icon: <FaCalculator />,   color: '#3b82f6', bg: '#eff6ff', cat: 'Insights',   url: '/owner/reports' },
-    'Billing & Reports':  { name: 'Reports & Billing',    desc: 'Tax & invoices',                icon: <FaCalculator />,   color: '#3b82f6', bg: '#eff6ff', cat: 'Insights',   url: '/owner/reports' },
     'Stock':              { name: 'Stock & Inventory',    desc: 'Manage inventory & stock',      icon: <FaBoxes />,        color: '#ea580c', bg: '#fff7ed', cat: 'Operations'  },
     'Accounting':         { name: 'Accounting',           desc: 'Journal & ledgers',             icon: <FaBalanceScale />, color: '#10b981', bg: '#f0fdf4', cat: 'Insights'    },
     'Credit Settlements': { name: 'Credit Settlements',   desc: 'Customer & vendor credit settlements', icon: <FaUsers />, color: '#14b8a6', bg: '#f0fdfa', cat: 'Insights', url: '/owner/credit-settlements' },
@@ -75,7 +116,6 @@ function MainMenuContent() {
     return isMenuVisibleForConfig(m, config);
   });
 
-  // Deduplicate by resolved name to avoid showing same item twice
   const seenNames = new Set();
   const filteredItems = [];
   allowedMenus.forEach(m => {
@@ -104,10 +144,36 @@ function MainMenuContent() {
     cat:   'Settings',
   });
 
-  // Group by category
+  /* ── Live Search Matching Logic ── */
+  const searchQueryClean = searchQuery.trim().toLowerCase();
+  const searchMatchingItems = searchQueryClean
+    ? filteredItems.filter(item => 
+        item.title.toLowerCase().includes(searchQueryClean) ||
+        item.desc.toLowerCase().includes(searchQueryClean) ||
+        item.cat.toLowerCase().includes(searchQueryClean)
+      )
+    : [];
+
+  const handleExecuteSearch = (targetItem) => {
+    const itemToOpen = targetItem || searchMatchingItems[0];
+    if (itemToOpen && itemToOpen.href) {
+      setIsSearchFocused(false);
+      router.push(itemToOpen.href);
+    }
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleExecuteSearch();
+    }
+  };
+
+  // Group items by category (live filtered if searching)
+  const displayItemsList = searchQueryClean ? searchMatchingItems : filteredItems;
   const grouped = {};
   categoryOrder.forEach(c => { grouped[c] = []; });
-  filteredItems.forEach(item => {
+  displayItemsList.forEach(item => {
     const c = categoryOrder.includes(item.cat) ? item.cat : 'Operations';
     grouped[c].push(item);
   });
@@ -130,12 +196,38 @@ function MainMenuContent() {
   return (
     <DashboardLayout title="Business Suite">
       <div className="menu-wrap">
+
+        {/* ─── Super Search Bar Container ─── */}
+        <div className="super-search-wrapper" ref={searchContainerRef}>
+          <div className={`super-search-bar ${isSearchFocused ? 'focused' : ''}`}>
+            {/* Search Input */}
+            <input
+              ref={searchInputRef}
+              type="text"
+              className="super-search-input"
+              placeholder="Search actions, modules, features... (Ctrl + K)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onKeyDown={handleInputKeyDown}
+            />
+            <button
+              type="button"
+              className="super-search-btn"
+              onClick={() => handleExecuteSearch()}
+              title="Search"
+            >
+              <FaSearch />
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Category Sections & Cards Grid ─── */}
         {categoryOrder.map(cat => {
           const items = grouped[cat];
           if (!items || items.length === 0) return null;
           return (
             <div key={cat} className="cat-block">
-
               {/* Minimal section divider */}
               <div className="section-rule">
                 <span className="section-label">{cat}</span>
@@ -171,10 +263,207 @@ function MainMenuContent() {
         .menu-wrap {
           display: flex;
           flex-direction: column;
-          gap: 28px;
+          gap: 24px;
           max-width: 1200px;
           margin: 0 auto;
           padding-bottom: 32px;
+        }
+
+        /* ─── Super Search Bar ─── */
+        .super-search-wrapper {
+          position: relative;
+          width: 100%;
+          max-width: 620px;
+          margin: 0 auto 12px;
+          z-index: 100;
+        }
+        .super-search-bar {
+          position: relative;
+          display: flex;
+          align-items: center;
+          background: #ffffff;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 9999px;
+          padding: 4px 6px 4px 22px;
+          box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
+          transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .super-search-bar:hover {
+          border-color: #cbd5e1;
+          box-shadow: 0 12px 28px -5px rgba(249, 115, 22, 0.16), 0 6px 12px -2px rgba(15, 23, 42, 0.06);
+        }
+        .super-search-bar.focused {
+          border-color: #f97316;
+          box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.18), 0 14px 35px -5px rgba(249, 115, 22, 0.2);
+        }
+        .super-search-input {
+          flex: 1;
+          height: 44px;
+          border: none;
+          outline: none;
+          background: transparent;
+          font-size: 14.5px;
+          font-weight: 500;
+          color: #0f172a;
+          padding-right: 12px;
+          font-family: inherit;
+        }
+        .super-search-input::placeholder {
+          color: #94a3b8;
+          font-weight: 400;
+        }
+        .super-search-clear {
+          background: #f1f5f9;
+          border: none;
+          color: #64748b;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          cursor: pointer;
+          margin-right: 8px;
+          transition: all 0.15s;
+        }
+        .super-search-clear:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+        .super-search-btn {
+          width: 42px;
+          height: 42px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+          border: none;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          cursor: pointer;
+          flex-shrink: 0;
+          box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+          transition: transform 0.18s, box-shadow 0.18s, background 0.18s;
+        }
+        .super-search-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 6px 18px rgba(234, 88, 12, 0.45);
+          background: linear-gradient(135deg, #fb923c 0%, #c2410c 100%);
+        }
+
+        /* ─── Floating Dropdown Popup ─── */
+        .super-search-dropdown {
+          position: absolute;
+          top: calc(100% + 8px);
+          left: 0;
+          right: 0;
+          background: #ffffff;
+          border: 1px solid #fed7aa;
+          border-radius: 18px;
+          box-shadow: 0 20px 40px -10px rgba(249, 115, 22, 0.2), 0 10px 20px -5px rgba(15, 23, 42, 0.08);
+          overflow: hidden;
+          z-index: 1000;
+          animation: slideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .dropdown-hdr {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px 16px;
+          background: #fff7ed;
+          border-bottom: 1px solid #ffedd5;
+          font-size: 9.5px;
+          font-weight: 800;
+          color: #ea580c;
+          letter-spacing: 0.08em;
+        }
+        .dropdown-kbd {
+          color: #94a3b8;
+          font-weight: 600;
+          text-transform: none;
+        }
+        .dropdown-no-results {
+          padding: 24px;
+          text-align: center;
+          font-size: 13px;
+          color: #64748b;
+          font-weight: 500;
+        }
+        .dropdown-list {
+          max-height: 340px;
+          overflow-y: auto;
+          padding: 6px;
+        }
+        .dropdown-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 14px;
+          border-radius: 12px;
+          cursor: pointer;
+          text-decoration: none;
+          transition: background 0.15s;
+        }
+        .dropdown-item:hover {
+          background: #fff7ed;
+        }
+        .item-icon-box {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          flex-shrink: 0;
+        }
+        .item-text-box {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .item-title-line {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .item-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .item-cat-tag {
+          font-size: 9.5px;
+          font-weight: 700;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #f1f5f9;
+          color: #64748b;
+          text-transform: uppercase;
+        }
+        .item-desc-text {
+          font-size: 11px;
+          color: #64748b;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .item-arrow-icon {
+          font-size: 11px;
+          color: #cbd5e1;
+          transition: color 0.15s, transform 0.15s;
+        }
+        .dropdown-item:hover .item-arrow-icon {
+          color: #f97316;
+          transform: translateX(2px);
         }
 
         /* ─── Section divider ─── */
@@ -288,6 +577,7 @@ function MainMenuContent() {
         }
         @media (max-width: 768px) {
           .card-grid { grid-template-columns: repeat(2, 1fr); }
+          .super-search-wrapper { max-width: 100%; }
         }
         @media (max-width: 640px) {
           .card-grid { grid-template-columns: 1fr; gap: 6px; }
