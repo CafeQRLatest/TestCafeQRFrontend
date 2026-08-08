@@ -814,6 +814,7 @@ function AdjustmentContent() {
       {activeVariantProduct && (
         <VariantSelector
           product={activeVariantProduct}
+          isPurchaseMode={true}
           onClose={() => setActiveVariantProduct(null)}
           stockMap={sourceStock}
           onSelect={handleVariantSelect}

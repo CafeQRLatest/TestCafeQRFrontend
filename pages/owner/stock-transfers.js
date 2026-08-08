@@ -995,7 +995,7 @@ function TransferContent() {
         {activeVariantProduct && (
           <VariantSelector
             product={activeVariantProduct}
-            isPurchaseMode={false}
+            isPurchaseMode={true}
             stockMap={sourceStock}
             onClose={() => setActiveVariantProduct(null)}
             onSelect={(selectedVariant) => {
