@@ -98,7 +98,7 @@ export function usePurchaseOrders() {
   }, [timezone, getBusinessNow, fromDate]);
 
   /* ── filters ── */
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('CONFIRMED_COMPLETED');
   const [filterVendor, setFilterVendor] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
   const [filterPayMethod, setFilterPayMethod] = useState('');
@@ -469,45 +469,70 @@ export function usePurchaseOrders() {
     }
   }, [po, validate, toast, fetchDrafts]);
 
-  /* ── load draft ── */
-  const loadDraft = useCallback((d) => {
-    setPo({
-      id:            d.id,
-      orderNo:       d.orderNo,
-      orderType:     'PURCHASE',
-      orderStatus:   d.orderStatus,
-      paymentStatus: d.paymentStatus || 'PENDING',
-      paymentMethod: d.paymentMethod || '',
-      vendorId:      d.vendorId   ? String(d.vendorId)   : '',
-      warehouseId:   d.warehouseId ? String(d.warehouseId) : '',
-      orderDate:     d.orderDate   ? String(d.orderDate).slice(0, 16)   : new Date().toISOString().slice(0, 16),
-      expectedDate:  d.expectedDate ? String(d.expectedDate).slice(0, 16) : '',
-      reference:     d.reference   || '',
-      description:   d.description || '',
-      lines: (d.lines || []).map(l => {
-        const prod = products.find(p => String(p.id) === String(l.productId));
-        return recalcLine({
-          productId:      l.productId,
-          productName:    prod?.name      || l.productName   || 'Unknown',
-          productCode:    prod?.productCode || l.productCode  || '',
-          categoryName:   prod?.categoryName || l.categoryName || '',
-          unitOfMeasure:  l.unitOfMeasure || 'units',
-          quantity:       parseFloat(l.quantity)  || 1,
-          unitPrice:      parseFloat(l.unitPrice)  || 0,
-          taxRate:        parseFloat(l.taxRate)    || 0,
-          discountAmount: parseFloat(l.discountAmount) || 0,
-          taxAmount:      parseFloat(l.taxAmount)  || 0,
-          lineTotal:      parseFloat(l.lineTotal)  || 0,
-        });
-      }),
-      totalAmount:    parseFloat(d.totalAmount)    || 0,
-      totalTaxAmount: parseFloat(d.totalTaxAmount) || 0,
-      grandTotal:     parseFloat(d.grandTotal)     || 0,
+  /* ── load draft / edit order ── */
+  const loadDraft = useCallback(async (d) => {
+    let fullOrder = d;
+    const orderId = d.id || d.orderId;
+    if (orderId && (!d.lines || !Array.isArray(d.lines) || d.lines.length === 0)) {
+      try {
+        const res = await api.get(`/api/v1/purchase/orders/${orderId}`);
+        if (res.data?.data) {
+          fullOrder = res.data.data;
+        }
+      } catch (err) {
+        console.warn('Could not fetch full PO lines for editing:', err);
+      }
+    }
+
+    const rawLines = fullOrder.lines || [];
+    const loadedLines = rawLines.map(l => {
+      const pId = l.productId || l.id;
+      const prod = products.find(p => String(p.id) === String(pId));
+      return recalcLine({
+        productId:      pId,
+        variantId:      l.variantId || null,
+        productName:    l.productName || prod?.name || 'Unknown Item',
+        productCode:    l.productCode || prod?.productCode || '',
+        categoryName:   l.categoryName || prod?.categoryName || '',
+        unitOfMeasure:  l.unitOfMeasure || prod?.unitOfMeasure || 'units',
+        quantity:       parseFloat(l.quantity) || 1,
+        unitPrice:      parseFloat(l.unitPrice ?? l.price ?? 0),
+        taxRate:        parseFloat(l.taxRate ?? 0),
+        discountAmount: parseFloat(l.discountAmount ?? 0),
+        taxAmount:      parseFloat(l.taxAmount ?? 0),
+        lineTotal:      parseFloat(l.lineTotal ?? 0),
+      });
     });
+
+    const isCredit = (fullOrder.paymentMethod || '').toUpperCase() === 'CREDIT' || (fullOrder.paymentStatus || '').toUpperCase() === 'PENDING';
+    const effectivePaymentMethod = fullOrder.paymentMethod ? fullOrder.paymentMethod.toUpperCase() : (isCredit ? 'CREDIT' : '');
+    const effectivePaymentStatus = fullOrder.paymentStatus ? fullOrder.paymentStatus.toUpperCase() : (isCredit ? 'PENDING' : 'PAID');
+
+    setPo({
+      id:            fullOrder.id,
+      orderNo:       fullOrder.orderNo,
+      orderType:     'PURCHASE',
+      orderStatus:   fullOrder.orderStatus || 'DRAFT',
+      isReceived:    Boolean(fullOrder.isReceived),
+      paymentStatus: effectivePaymentStatus,
+      paymentMethod: effectivePaymentMethod,
+      vendorId:      fullOrder.vendorId ? String(fullOrder.vendorId) : '',
+      warehouseId:   fullOrder.warehouseId ? String(fullOrder.warehouseId) : '',
+      orderDate:     fullOrder.orderDate ? String(fullOrder.orderDate).slice(0, 16) : new Date().toISOString().slice(0, 16),
+      reference:     fullOrder.reference || fullOrder.referenceNo || '',
+      description:   fullOrder.description || '',
+      lines:         loadedLines,
+      totalAmount:    parseFloat(fullOrder.totalAmount || 0),
+      totalTaxAmount: parseFloat(fullOrder.totalTaxAmount || 0),
+      grandTotal:     parseFloat(fullOrder.grandTotal || 0),
+    });
+
     setShowDraftModal(false);
     setErrors({});
-    toast(`Loaded draft ${d.orderNo}`, 'success');
-  }, [products, recalcLine, toast]);
+    setView('form');
+    setStep(1);
+    toast(`Loaded order ${fullOrder.orderNo || ''}`, 'success');
+  }, [products, recalcLine, setView, toast]);
 
   const startFresh = useCallback(() => {
     setPo(blankPO());
@@ -534,27 +559,34 @@ export function usePurchaseOrders() {
   }, [products, productSearch]);
 
   const payMethodOptions = useMemo(() => {
+    let list = [];
     if (!paymentTypes || paymentTypes.length === 0) {
-      return [
-        { value: 'CASH', label: 'Cash' },
-        { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-        { value: 'UPI', label: 'UPI / Digital' },
-        { value: 'CARD', label: 'Card' },
-        { value: 'CHEQUE', label: 'Cheque' },
-        { value: 'CREDIT', label: 'Credit' }
+      list = [
+        { value: 'CASH', label: 'Cash', paymentType: 'CASH' },
+        { value: 'BANK_TRANSFER', label: 'Bank Transfer', paymentType: 'BANK_TRANSFER' },
+        { value: 'UPI', label: 'UPI / Digital', paymentType: 'UPI' },
+        { value: 'CARD', label: 'Card', paymentType: 'CARD' },
+        { value: 'CHEQUE', label: 'Cheque', paymentType: 'CHEQUE' },
+        { value: 'CREDIT', label: 'Credit', paymentType: 'CREDIT' }
       ];
+    } else {
+      list = paymentTypes
+        .filter(pt => {
+          const act = pt.isActive ?? pt.isactive ?? 'Y';
+          const isPur = pt.purchase === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('PURCHASES') : pt.applicableFor === 'PURCHASES');
+          return act === 'Y' && isPur !== false;
+        })
+        .map(pt => ({
+          value: (pt.paymentType || '').toUpperCase() === 'CREDIT' ? 'CREDIT' : (pt.displayName ? pt.displayName.toUpperCase().replace(/\s+/g, '_') : (pt.paymentType || 'OTHERS')),
+          label: pt.displayName || pt.paymentType,
+          paymentType: pt.paymentType
+        }));
     }
-    return paymentTypes
-      .filter(pt => {
-        const act = pt.isActive ?? pt.isactive ?? 'Y';
-        const isPur = pt.purchase === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('PURCHASES') : pt.applicableFor === 'PURCHASES');
-        return act === 'Y' && isPur !== false;
-      })
-      .map(pt => ({
-        value: pt.paymentType === 'CREDIT' ? 'CREDIT' : (pt.displayName ? pt.displayName.toUpperCase().replace(/\s+/g, '_') : (pt.paymentType || 'OTHERS')),
-        label: pt.displayName || pt.paymentType,
-        paymentType: pt.paymentType
-      }));
+
+    if (!list.some(opt => opt.value === 'CREDIT' || opt.paymentType === 'CREDIT')) {
+      list.push({ value: 'CREDIT', label: 'Credit', paymentType: 'CREDIT' });
+    }
+    return list;
   }, [paymentTypes]);
 
   const stepOk = useMemo(() => ({

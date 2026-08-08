@@ -118,8 +118,8 @@ export default function PurchaseCards({
                   </>
                 )}
 
-                {/* CONFIRMED: Receive + Edit + Void */}
-                {o.orderStatus === 'CONFIRMED' && (
+                {/* CONFIRMED (Ordered, not yet received): Receive + Edit + Void */}
+                {o.orderStatus === 'CONFIRMED' && !o.isReceived && (
                   <>
                     <button 
                       className={`${styles['btn-edit']} ${styles.sm}`} 
@@ -144,15 +144,9 @@ export default function PurchaseCards({
                   </>
                 )}
 
-                {/* COMPLETED: Edit + Void */}
-                {o.orderStatus === 'COMPLETED' && (
+                {/* COMPLETED / RECEIVED (Already received): Void only (No Edit) */}
+                {(o.orderStatus === 'COMPLETED' || o.isReceived) && (
                   <>
-                    <button 
-                      className={`${styles['btn-edit']} ${styles.sm}`} 
-                      onClick={() => { loadDraft(o); setView('form'); }}
-                    >
-                      Edit <FaChevronRight />
-                    </button>
                     <button 
                       className={`${styles['btn-edit']} ${styles.sm}`} 
                       style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fca5a5' }}

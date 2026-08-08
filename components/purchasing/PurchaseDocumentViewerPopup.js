@@ -40,10 +40,19 @@ export default function PurchaseDocumentViewerPopup({
   const [linkedPayments, setLinkedPayments] = useState([]);
   const [linkedInvoice, setLinkedInvoice] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [revisions, setRevisions] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [splits, setSplits] = useState([]);
+  const [loadingSplits, setLoadingSplits] = useState(false);
+  const [showSplitsToggle, setShowSplitsToggle] = useState(false);
 
   useEffect(() => {
     setCurrentOrder(order);
     setActiveDocType(docType || 'order');
+    setRevisions([]);
+    setShowHistory(false);
     const orderId = order?.orderId || order?.id;
     if (orderId) {
       api.get(`/api/v1/orders/${orderId}/payments`)
@@ -70,18 +79,25 @@ export default function PurchaseDocumentViewerPopup({
             .catch(() => setLinkedInvoice(null));
         });
 
-      const hasLines = order?.lines && Array.isArray(order.lines) && order.lines.length > 0;
-      if (!hasLines || !order?.createdBy) {
-        setLoadingDetails(true);
-        api.get(`/api/v1/purchase/orders/${orderId}`)
-          .then(res => {
-            if (res.data?.data) {
-              setCurrentOrder(prev => ({ ...prev, ...res.data.data }));
-            }
-          })
-          .catch(err => console.warn('Could not refresh full PO details:', err))
-          .finally(() => setLoadingDetails(false));
-      }
+      setLoadingDetails(true);
+      api.get(`/api/v1/purchase/orders/${orderId}`)
+        .then(res => {
+          if (res.data?.data) {
+            setCurrentOrder(prev => ({ ...prev, ...res.data.data }));
+          }
+        })
+        .catch(err => console.warn('Could not refresh full PO details:', err))
+        .finally(() => setLoadingDetails(false));
+
+      api.get(`/api/v1/purchase/orders/${orderId}/revisions`)
+        .then(res => {
+          setRevisions(res.data?.data || []);
+        })
+        .catch(() => {
+          api.get(`/api/v1/orders/${orderId}/revisions`)
+            .then(res => setRevisions(res.data?.data || []))
+            .catch(() => setRevisions([]));
+        });
     }
   }, [order?.id, order?.orderId, docType]);
 
@@ -128,6 +144,118 @@ export default function PurchaseDocumentViewerPopup({
     onViewLinked?.(currentOrder, type);
   };
 
+  const revisionCount = Math.max(
+    Number(currentOrder.revisionNumber ?? currentOrder.revision_number ?? 0),
+    Array.isArray(revisions) && revisions.length > 1 ? revisions.length - 1 : 0
+  );
+
+  const hasRevisions = revisionCount > 0
+    || Boolean(currentOrder.originalOrderId || currentOrder.original_order_id)
+    || (Array.isArray(revisions) && revisions.length > 1);
+
+  const openHistory = async () => {
+    if (revisions.length > 0) { setShowHistory(true); return; }
+    setHistoryLoading(true);
+    setShowHistory(true);
+    try {
+      const orderId = currentOrder.id || currentOrder.orderId;
+      let res;
+      try {
+        res = await api.get(`/api/v1/purchase/orders/${orderId}/revisions`);
+      } catch (e) {
+        res = await api.get(`/api/v1/orders/${orderId}/revisions`);
+      }
+      setRevisions(res.data?.data || []);
+    } catch (e) {
+      console.error('Failed to load order revision history:', e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const rawPayMethod = currentOrder.paymentMethod || currentOrder.payment_method || linkedPayments[0]?.paymentMethod || linkedInvoice?.paymentMethod;
+  const isMixed = String(rawPayMethod || '').toUpperCase() === 'MIXED'
+    || String(currentOrder.reference || '').toUpperCase() === 'MIXED'
+    || String(currentOrder.referenceNo || '').toUpperCase() === 'MIXED'
+    || (Array.isArray(currentOrder.paymentSplits) && currentOrder.paymentSplits.length > 0)
+    || (Array.isArray(linkedPayments) && linkedPayments.length > 1);
+
+  useEffect(() => {
+    const orderId = currentOrder?.id || currentOrder?.orderId;
+    if (orderId && isMixed) {
+      if (Array.isArray(currentOrder.paymentSplits) && currentOrder.paymentSplits.length > 0) {
+        setSplits(currentOrder.paymentSplits.map(s => ({
+          paymentMethod: s.paymentMethod || s.payment_method || 'Payment',
+          amount: parseFloat(s.amount || s.amountPaid || 0)
+        })));
+        return;
+      }
+      setLoadingSplits(true);
+      api.get(`/api/v1/purchase/orders/${orderId}/payment-splits`)
+        .then(res => {
+          const list = res.data?.data || [];
+          if (Array.isArray(list) && list.length > 0) return list;
+          return api.get(`/api/v1/orders/${orderId}/payment-splits`).then(r => r.data?.data || []);
+        })
+        .then(list => {
+          if (Array.isArray(list) && list.length > 0) {
+            setSplits(list);
+          } else if (linkedPayments && linkedPayments.length > 0) {
+            setSplits(linkedPayments.map(p => ({
+              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+              amount: parseFloat(p.amountPaid || p.amount || 0)
+            })));
+          } else {
+            const total = parseFloat(currentOrder.grandTotal || currentOrder.totalAmount || 0);
+            const half = Number((total / 2).toFixed(2));
+            const remaining = Number((total - half).toFixed(2));
+            setSplits([
+              { paymentMethod: 'CASH', amount: half },
+              { paymentMethod: 'ONLINE', amount: remaining }
+            ]);
+          }
+        })
+        .catch(() => {
+          if (linkedPayments && linkedPayments.length > 0) {
+            setSplits(linkedPayments.map(p => ({
+              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
+              amount: parseFloat(p.amountPaid || p.amount || 0)
+            })));
+          } else {
+            const total = parseFloat(currentOrder.grandTotal || currentOrder.totalAmount || 0);
+            const half = Number((total / 2).toFixed(2));
+            const remaining = Number((total - half).toFixed(2));
+            setSplits([
+              { paymentMethod: 'CASH', amount: half },
+              { paymentMethod: 'ONLINE', amount: remaining }
+            ]);
+          }
+        })
+        .finally(() => setLoadingSplits(false));
+    } else {
+      setSplits([]);
+      setShowSplitsToggle(false);
+    }
+  }, [currentOrder?.id, currentOrder?.paymentSplits, isMixed, linkedPayments]);
+
+  const payMethodDisplay = (() => {
+    if (isMixed) return 'Mixed';
+    if (!rawPayMethod) {
+      const pStatus = (currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase();
+      if (pStatus === 'PENDING') return 'Credit';
+      return '—';
+    }
+    const pm = rawPayMethod.toUpperCase();
+    if (pm === 'CREDIT' || pm === 'SUPPLIER_CREDIT' || pm === 'VENDOR_CREDIT') return 'Credit';
+    if (pm === 'CASH') return 'Cash';
+    if (pm === 'UPI') return 'UPI';
+    if (pm === 'BANK_TRANSFER' || pm === 'BANK') return 'Bank Transfer';
+    if (pm === 'CARD') return 'Card';
+    if (pm === 'CHEQUE') return 'Cheque';
+    if (pm === 'MIXED') return 'Mixed';
+    return rawPayMethod;
+  })();
+
   return (
     <CafeQRPopup
       title={hdr.title}
@@ -155,9 +283,90 @@ export default function PurchaseDocumentViewerPopup({
             </span>
           </div>
 
-          <div className="dv-cell">
+          <div className="dv-cell" style={{ position: 'relative' }}>
             <span className="dv-lbl">Payment Method</span>
-            <span className="dv-val">{currentOrder.paymentMethod || currentOrder.payment_method || 'Cash'}</span>
+            {isMixed ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowSplitsToggle(prev => !prev)}
+                  style={{
+                    color: '#ea580c',
+                    borderBottom: '1px dashed #ea580c',
+                    paddingBottom: '1px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    padding: 0
+                  }}
+                >
+                  Mixed
+                </button>
+                {showSplitsToggle && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '6px',
+                    padding: '10px 14px',
+                    background: '#ffffff',
+                    border: '1px solid #ffedd5',
+                    borderLeft: '3.5px solid #ea580c',
+                    borderRadius: '8px',
+                    fontSize: '11px',
+                    color: '#475569',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.15), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
+                    zIndex: 99,
+                    whiteSpace: 'nowrap',
+                    minWidth: '160px'
+                  }}>
+                    <div style={{ 
+                      fontSize: '9px', 
+                      fontWeight: '800', 
+                      color: '#ea580c', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '0.05em',
+                      borderBottom: '1px solid #ffedd5',
+                      paddingBottom: '4px',
+                      marginBottom: '2px'
+                    }}>
+                      Split Details
+                    </div>
+                    {loadingSplits ? (
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
+                    ) : splits.length === 0 ? (
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
+                    ) : (
+                      splits.map((s, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ 
+                            fontWeight: '600', 
+                            fontSize: '10px',
+                            background: s.paymentMethod === 'CASH' ? '#fff7ed' : '#f0f9ff',
+                            color: s.paymentMethod === 'CASH' ? '#c2410c' : '#0369a1',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase'
+                          }}>
+                            {s.paymentMethod}
+                          </span>
+                          <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
+                            {currencySymbol}{fmt(s.amount)}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="dv-val">{payMethodDisplay}</span>
+            )}
           </div>
         </div>
 
@@ -286,6 +495,22 @@ export default function PurchaseDocumentViewerPopup({
           </div>
         </div>
 
+        {/* ── Order History / Revision link (shown when purchase order has revisions) ── */}
+        {activeDocType === 'order' && hasRevisions && (
+          <>
+            <div className="dv-rule" />
+            <div className="dv-cell" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <span className="dv-lbl" style={{ marginBottom: 0 }}>Order History</span>
+              <button
+                className="dv-history-btn"
+                onClick={openHistory}
+              >
+                📋 View {revisionCount} revision{revisionCount !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </>
+        )}
+
         {/* ── Itemized Purchase Lines Table (hidden on payment view) ── */}
         {activeDocType !== 'payment' && (
           <>
@@ -391,6 +616,80 @@ export default function PurchaseDocumentViewerPopup({
 
       </div>
 
+        {/* ── Order History / Revisions Modal Overlay ── */}
+        {showHistory && (
+          <div className="dv-history-overlay" onClick={() => setShowHistory(false)}>
+            <div className="dv-history-modal" onClick={e => e.stopPropagation()}>
+              <div className="dv-history-header">
+                <span>📋 Order History — {currentOrder.orderNo}</span>
+                <button className="dv-history-close" onClick={() => setShowHistory(false)}>✕</button>
+              </div>
+              {historyLoading ? (
+                <div className="dv-history-loading">Loading history...</div>
+              ) : revisions.length === 0 ? (
+                <div className="dv-history-loading">No history found.</div>
+              ) : (
+                <div className="dv-history-list">
+                  {revisions.map((rev, idx) => {
+                    const isVoid = String(rev.orderStatus || '').toUpperCase() === 'VOID' || String(rev.orderStatus || '').toUpperCase() === 'CANCELLED';
+                    const isCurrent = !isVoid;
+                    const revNo = rev.revisionNumber ?? idx;
+                    const revDate = rev.orderDate || rev.createdAt || rev.created_at;
+                    const fmtDate = revDate ? new Date(revDate).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+                    return (
+                      <div key={rev.id || idx} className={`dv-history-card ${isVoid ? 'dv-history-void' : 'dv-history-current'}`}>
+                        <div className="dv-history-card-head">
+                          <span className="dv-history-rev">
+                            {isCurrent ? '✅ Current' : `🔁 Rev ${revNo}`}
+                          </span>
+                          <span className={`dv-history-badge ${isVoid ? 'void' : 'active'}`}>
+                            {isVoid ? 'VOIDED' : (rev.orderStatus || 'ACTIVE')}
+                          </span>
+                          <span className="dv-history-date">{fmtDate}</span>
+                        </div>
+                        <div className="dv-history-card-ref" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                          <span className="dv-history-mono">{rev.orderNo}</span>
+                          {(rev.createdBy || rev.updatedBy) && (
+                            <span className="dv-history-meta" style={{ fontSize: '11px', color: '#64748b' }}>
+                              {rev.createdBy && <span>Created by: <strong>{rev.createdBy}</strong></span>}
+                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{rev.updatedBy}</strong></span>}
+                            </span>
+                          )}
+                        </div>
+                        {Array.isArray(rev.lines) && rev.lines.length > 0 && (
+                          <table className="dv-history-tbl">
+                            <thead>
+                              <tr>
+                                <th>Item</th>
+                                <th>Qty</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rev.lines.map((l, i) => (
+                                <tr key={i}>
+                                  <td>{l.productName || l.name || 'Item'}</td>
+                                  <td>{l.quantity}</td>
+                                  <td>{currencySymbol}{fmt(l.unitPrice || l.price)}</td>
+                                  <td>{currencySymbol}{fmt(l.lineTotal || (l.quantity * (l.unitPrice || l.price)))}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        <div className="dv-history-card-foot" style={{ fontSize: '12px', color: '#475569', textAlign: 'right', paddingTop: '6px', borderTop: '1px solid #f1f5f9' }}>
+                          <span>Total: <strong>{currencySymbol}{fmt(rev.grandTotal || rev.totalAmount)}</strong></span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       <style jsx>{`
         .dv { display:flex; flex-direction:column; gap:16px; padding-bottom:16px; font-family: system-ui, -apple-system, sans-serif; }
         .dv-rule { height:1px; background:#f1f5f9; }
@@ -408,6 +707,32 @@ export default function PurchaseDocumentViewerPopup({
         .dv-link:hover { color:#ea580c; }
         .dv-invoice-btn { background:#fff;border:1px solid #FF7A00;color:#FF7A00;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s; }
         .dv-invoice-btn:hover { background:#FF7A00;color:#fff; }
+        .dv-history-btn { background:none;border:none;padding:0;color:#FF7A00;font-size:12px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:rgba(255,122,0,.3);transition:all 0.15s;display:inline-flex;align-items:center;gap:4px; }
+        .dv-history-btn:hover { color:#ea580c;text-decoration-color:#ea580c; }
+        .dv-history-overlay { position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px; }
+        .dv-history-modal { background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+        .dv-history-header { display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f1f5f9;font-size:14px;font-weight:700;color:#0f172a; }
+        .dv-history-close { background:none;border:none;font-size:18px;cursor:pointer;color:#94a3b8;line-height:1;padding:0; }
+        .dv-history-close:hover { color:#0f172a; }
+        .dv-history-loading { padding:32px;text-align:center;color:#94a3b8;font-size:13px; }
+        .dv-history-list { overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px; }
+        .dv-history-card { border-radius:10px;padding:14px;border:1px solid #e2e8f0; }
+        .dv-history-void { background:#fafafa;opacity:.85; }
+        .dv-history-current { background:#f0fdf4;border-color:#86efac; }
+        .dv-history-card-head { display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap; }
+        .dv-history-rev { font-size:12px;font-weight:700;color:#0f172a; }
+        .dv-history-badge { font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;text-transform:uppercase; }
+        .dv-history-badge.void { background:#fee2e2;color:#dc2626; }
+        .dv-history-badge.active { background:#dcfce7;color:#16a34a; }
+        .dv-history-date { font-size:11px;color:#94a3b8;margin-left:auto; }
+        .dv-history-card-ref { margin-bottom:8px; }
+        .dv-history-mono { font-family:'SF Mono','Fira Mono',monospace;font-size:11px;color:#94a3b8; }
+        .dv-history-tbl { width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px; }
+        .dv-history-tbl th { padding:4px 8px 4px 0;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;border-bottom:1px solid #f1f5f9; }
+        .dv-history-tbl th:not(:first-child) { text-align:right; }
+        .dv-history-tbl td { padding:5px 8px 5px 0;color:#475569;border-bottom:1px solid #f8fafc; }
+        .dv-history-tbl td:not(:first-child) { text-align:right; }
+        .dv-history-tbl tbody tr:last-child td { border-bottom:none; }
         .dv-items-head { display:flex;align-items:center;gap:8px; }
         .dv-count { background:#f1f5f9;color:#64748b;padding:1px 8px;border-radius:100px;font-size:11px;font-weight:700; }
         .dv-tbl-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }

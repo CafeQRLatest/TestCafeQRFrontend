@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { FaTimes, FaWallet, FaBook, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
+import { FaTimes, FaWallet, FaBook, FaExclamationTriangle, FaPlus, FaInfoCircle } from 'react-icons/fa';
 
 // â”€â”€â”€ Inline styles (mirrors PaymentDialog.styles.js) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -299,12 +299,7 @@ export default function PurchasePaymentPopup({
           </>
         )}
 
-        {/* CREDIT note */}
-        {isCredit && (
-          <div style={css.creditNote}>
-            â„¹ï¸ Credit payment â€” this order will be marked as <strong>Pending</strong> until settled.
-          </div>
-        )}
+
 
         {/* MIXED split panel */}
         {isMixed && (

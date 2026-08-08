@@ -34,6 +34,7 @@ export default function PurchaseFilters({
           { value: 'DRAFT', label: 'Drafts' },
           { value: 'CONFIRMED', label: 'Completed' },
           { value: 'COMPLETED', label: 'Received' },
+          { value: 'CONFIRMED_COMPLETED', label: 'Completed + Received' },
           { value: 'VOID', label: 'Voided' }
         ]}
       />

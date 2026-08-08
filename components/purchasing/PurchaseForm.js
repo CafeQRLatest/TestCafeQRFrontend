@@ -323,18 +323,6 @@ export default function PurchaseForm({
                 />
               </div>
 
-              {/* Expected Delivery */}
-              <div className={styles['field-group']}>
-                <label className={styles['field-label']}>
-                  <FaCalendarAlt className={styles['lbl-icon']} /> Expected Delivery
-                </label>
-                <PremiumDateTimePicker 
-                  value={po.expectedDate} 
-                  onChange={(v) => setPo(p => ({ ...p, expectedDate: v }))}
-                  disabled={isLocked}
-                />
-              </div>
-
               {/* Reference */}
               <div className={`${styles['field-group']} ${styles['span-2']}`}>
                 <label className={styles['field-label']}>
@@ -863,10 +851,8 @@ export default function PurchaseForm({
                 >
                   {saving ? (
                     <><span className={styles['btn-spin']} /> Saving...</>
-                  ) : markAsReceived ? (
-                    <><FaCheckCircle /> Complete Order</>
                   ) : (
-                    <><FaTruck /> Save Order</>
+                    <><FaCheckCircle /> Complete Order</>
                   )}
                 </button>
                 <button
@@ -932,7 +918,7 @@ export default function PurchaseForm({
               onClick={handleProceedToPayment} 
               disabled={saving}
             >
-              {saving ? '...' : markAsReceived ? 'Complete Order' : 'Save Order'}
+              {saving ? '...' : 'Complete Order'}
             </button>
           </div>
         </div>

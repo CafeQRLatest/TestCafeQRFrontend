@@ -164,8 +164,8 @@ export default function PurchaseTable({
                       </>
                     )}
 
-                    {/* CONFIRMED (Ordered but not received): Receive + Edit + Void */}
-                    {o.orderStatus === 'CONFIRMED' && (
+                    {/* CONFIRMED (Ordered, not yet received): Receive + Edit + Void */}
+                    {o.orderStatus === 'CONFIRMED' && !o.isReceived && (
                       <>
                         <button 
                           className={styles['btn-edit']} 
@@ -193,16 +193,9 @@ export default function PurchaseTable({
                       </>
                     )}
 
-                    {/* COMPLETED (Already received): Edit + Void (No Receive) */}
-                    {o.orderStatus === 'COMPLETED' && (
+                    {/* COMPLETED / RECEIVED (Already received): Void only (No Edit) */}
+                    {(o.orderStatus === 'COMPLETED' || o.isReceived) && (
                       <>
-                        <button 
-                          className={styles['btn-edit']} 
-                          onClick={() => { loadDraft(o); setView('form'); }}
-                          title="Edit Received Order"
-                        >
-                          Edit <FaChevronRight />
-                        </button>
                         <button 
                           className={styles['btn-edit']} 
                           style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fca5a5' }}
