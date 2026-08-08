@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fa';
 import api from '../../utils/api';
 import VariantSelector from '../VariantSelector';
+import PurchasePaymentPopup from './PurchasePaymentPopup';
 
 const STEPS = [
   { id: 1, label: 'Supplier',  icon: <FaUserTie /> },
@@ -36,7 +37,8 @@ export default function PurchaseForm({
   timezone, formatTzDate,
   startFresh,
   styles,
-  warehouseStock = {}
+  warehouseStock = {},
+  toast
 }) {
   const searchRef = useRef(null);
   const searchInp = useRef(null);
@@ -44,6 +46,8 @@ export default function PurchaseForm({
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [markAsReceived, setMarkAsReceived] = useState(true);
   const [activeVariantProduct, setActiveVariantProduct] = useState(null);
+  const [showPaymentPopup, setShowPaymentPopup] = useState(false);
+  const [pendingTargetStatus, setPendingTargetStatus] = useState(null);
 
   const handleProductClick = async (product) => {
     const hasVars = Boolean(
@@ -75,8 +79,12 @@ export default function PurchaseForm({
 
   useEffect(() => {
     let active = true;
-    const orgParam = po.orgId ? `&orgId=${po.orgId}` : '';
-    api.get(`/api/v1/purchasing/payment-types?applicableFor=PURCHASES${orgParam}`)
+    const currentOrg = po.orgId || (typeof window !== 'undefined' ? (require('js-cookie').default?.get?.('orgId') || localStorage.getItem('pos_org_id') || '') : '');
+    const params = { applicableFor: 'PURCHASES' };
+    if (currentOrg) {
+      params.orgId = currentOrg;
+    }
+    api.get('/api/v1/payment-types', { params })
       .then(res => {
         if (active && res?.data?.success && res?.data?.data) {
           setPaymentTypes(res.data.data);
@@ -89,24 +97,18 @@ export default function PurchaseForm({
   }, [po.orgId]);
 
   const payMethodOptions = useMemo(() => {
-    if (paymentTypes.length === 0) {
-      return [
-        { value: 'CREDIT', label: 'Credit' },
-        { value: 'CASH', label: 'Cash' },
-        { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-        { value: 'UPI', label: 'UPI / Digital' },
-        { value: 'CARD', label: 'Card' },
-        { value: 'CHEQUE', label: 'Cheque' }
-      ];
+    if (!paymentTypes || paymentTypes.length === 0) {
+      return [];
     }
     return paymentTypes
       .filter(pt => {
         const act = pt.isActive ?? pt.isactive ?? 'Y';
-        return act === 'Y';
+        const isPur = pt.purchase === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('PURCHASES') : pt.applicableFor === 'PURCHASES');
+        return act === 'Y' && isPur !== false;
       })
       .map(pt => ({
-        value: pt.paymentType === 'CREDIT' ? 'CREDIT' : pt.displayName.toUpperCase(),
-        label: pt.displayName
+        value: pt.paymentType === 'CREDIT' ? 'CREDIT' : (pt.displayName ? pt.displayName.toUpperCase().replace(/\s+/g, '_') : (pt.paymentType || 'OTHERS')),
+        label: pt.displayName || pt.paymentType
       }));
   }, [paymentTypes]);
 
@@ -118,6 +120,13 @@ export default function PurchaseForm({
           ...p,
           paymentMethod: payMethodOptions[0].value,
           paymentStatus: payMethodOptions[0].value === 'CREDIT' ? 'PENDING' : 'PAID'
+        }));
+      }
+    } else {
+      if (po.paymentMethod) {
+        setPo(p => ({
+          ...p,
+          paymentMethod: '',
         }));
       }
     }
@@ -136,6 +145,69 @@ export default function PurchaseForm({
 
   // Derived blank check
   const isDraftBlank = !po.vendorId && !po.warehouseId && !po.lines.length;
+
+  const handleProceedToPayment = () => {
+    const errs = {};
+    if (!po.vendorId) errs.vendorId = 'Please select a vendor / supplier';
+    if (!po.warehouseId) errs.warehouseId = 'Please select a receiving warehouse';
+    if (!po.lines || !po.lines.length) errs.lines = 'Cart is empty. Please add at least one product.';
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      const missing = [];
+      if (errs.vendorId) missing.push('Vendor');
+      if (errs.warehouseId) missing.push('Warehouse');
+      if (errs.lines) missing.push('Products in Cart');
+
+      if (errs.lines && missing.length === 1) {
+        toast?.('No products in cart! Please add at least one product before proceeding.', 'error');
+      } else {
+        toast?.(`Please fill all mandatory fields: ${missing.join(', ')}`, 'error');
+      }
+
+      if (errs.vendorId || errs.warehouseId) {
+        setStep(1);
+      }
+      return;
+    }
+
+    if (payMethodOptions.length === 0) {
+      setErrors(prev => ({
+        ...prev,
+        paymentMethod: 'Cannot complete purchase order: Payment type not set in payment type master for purchase'
+      }));
+      toast?.('Cannot complete purchase order: Payment type not set in payment type master for purchase', 'error');
+      return;
+    }
+
+    const targetStatus = markAsReceived ? 'COMPLETED' : 'CONFIRMED';
+    setPendingTargetStatus(targetStatus);
+    setShowPaymentPopup(true);
+  };
+
+  const handleSaveDraft = () => {
+    if (!po.vendorId && !po.warehouseId && (!po.lines || !po.lines.length)) {
+      toast?.('Nothing to save yet. Please fill mandatory fields: Vendor, Warehouse, or Products.', 'error');
+      return;
+    }
+    handleSave('DRAFT');
+  };
+
+  const handleNextToProducts = () => {
+    const errs = {};
+    if (!po.vendorId) errs.vendorId = 'Please select a vendor / supplier';
+    if (!po.warehouseId) errs.warehouseId = 'Please select a receiving warehouse';
+
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      const missing = [];
+      if (errs.vendorId) missing.push('Vendor');
+      if (errs.warehouseId) missing.push('Warehouse');
+      toast?.(`Please fill all mandatory fields: ${missing.join(', ')}`, 'error');
+      return;
+    }
+    setStep(2);
+  };
 
   return (
     <div className={styles['po-wrap']}>
@@ -284,16 +356,7 @@ export default function PurchaseForm({
             <div className={`${styles['step-nav']} ${styles['mobile-only']}`}>
               <button 
                 className={`${styles['btn-primary']} ${styles.full}`}
-                onClick={() => { 
-                  if (!po.vendorId || !po.warehouseId) { 
-                    setErrors({ 
-                      vendorId: !po.vendorId ? 'Required' : '', 
-                      warehouseId: !po.warehouseId ? 'Required' : '' 
-                    }); 
-                    return; 
-                  } 
-                  setStep(2); 
-                }}
+                onClick={handleNextToProducts}
               >
                 Next: Add Products <FaChevronRight />
               </button>
@@ -311,14 +374,6 @@ export default function PurchaseForm({
                 </div>
               </div>
               <div className={styles['card-actions']}>
-                {po.lines.length > 0 && !isLocked && (
-                  <button 
-                    className={styles['btn-header-danger']} 
-                    onClick={() => { if (window.confirm('Clear all items?')) setPo(p => ({ ...p, lines: [], totalAmount: 0, totalTaxAmount: 0, grandTotal: 0 })); }}
-                  >
-                    <FaTrash /> Clear All
-                  </button>
-                )}
                 {po.lines.length > 0 && (
                   <span className={styles['items-badge']}>
                     {po.lines.length} item{po.lines.length > 1 ? 's' : ''}
@@ -399,18 +454,44 @@ export default function PurchaseForm({
             {/* Line items list */}
             <div ref={linesEndRef} />
             {errors.lines && (
-              <div className={styles['inline-error']}>
-                <FaExclamationCircle /> {errors.lines}
+              <div 
+                className={styles['inline-error']} 
+                style={{ 
+                  margin: '12px 16px', 
+                  padding: '10px 14px', 
+                  background: '#fef2f2', 
+                  border: '1.5px solid #fecaca', 
+                  borderRadius: '10px', 
+                  color: '#b91c1c', 
+                  fontSize: '13px', 
+                  fontWeight: '700', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px' 
+                }}
+              >
+                <FaExclamationCircle style={{ color: '#dc2626', fontSize: '16px', flexShrink: 0 }} />
+                <span>{errors.lines}</span>
               </div>
             )}
 
             {po.lines.length === 0 ? (
-              <div className={styles['lines-empty-premium']}>
+              <div 
+                className={styles['lines-empty-premium']} 
+                style={errors.lines ? { border: '2px dashed #fca5a5', background: '#fff5f5' } : {}}
+              >
                 <div className={styles['empty-graphic']}>
                   <div className={styles['blob']} />
-                  <FaBoxOpen className={styles['lines-empty-icon']} />
+                  <FaBoxOpen className={styles['lines-empty-icon']} style={errors.lines ? { color: '#ef4444' } : {}} />
                 </div>
-                <h3>Your order is empty</h3>
+                <h3 style={errors.lines ? { color: '#dc2626' } : {}}>
+                  {errors.lines ? 'Mandatory: Add at least one product' : 'Your order is empty'}
+                </h3>
+                <p style={{ color: errors.lines ? '#b91c1c' : '#64748b', fontSize: '12px', marginTop: '4px', textAlign: 'center' }}>
+                  {errors.lines 
+                    ? 'Cart is empty. Search products above or select from recent products to add items.'
+                    : 'Search products above or select from the list to add items to your cart'}
+                </p>
               </div>
             ) : (
               <>
@@ -681,29 +762,14 @@ export default function PurchaseForm({
                 </div>
               )}
 
-              {!isLocked && (
-                <div className={styles['summary-field-group']}>
-                  <label className={styles['sf-label']}>Payment Mode</label>
-                  <NiceSelect 
-                    placeholder="Select payment method..."
-                    options={payMethodOptions}
-                    value={po.paymentMethod}
-                    onChange={(v) => setPo(p => ({
-                      ...p,
-                      paymentMethod: v,
-                      paymentStatus: v === 'CREDIT' ? 'PENDING' : 'PAID'
-                    }))}
-                  />
-                </div>
-              )}
-              {isLocked && (
+              {isLocked && po.paymentMethod && (
                 <div className={styles['info-row']}>
                   <span className={styles['info-label']}>Payment Mode</span>
                   <span className={styles['info-value']}>
                     {po.paymentMethod === 'CREDIT' ? 'Credit' :
                      po.paymentMethod === 'BANK_TRANSFER' ? 'Bank Transfer' :
                      po.paymentMethod === 'UPI' ? 'UPI / Digital' :
-                     po.paymentMethod ? po.paymentMethod.charAt(0) + po.paymentMethod.slice(1).toLowerCase() : 'Cash'}
+                     po.paymentMethod ? po.paymentMethod.charAt(0) + po.paymentMethod.slice(1).toLowerCase() : 'Not Set'}
                   </span>
                 </div>
               )}
@@ -793,7 +859,7 @@ export default function PurchaseForm({
                 <button
                   className={`${styles['btn-primary']} ${styles.full}`}
                   disabled={saving}
-                  onClick={() => handleSave(markAsReceived ? 'COMPLETED' : 'CONFIRMED')}
+                  onClick={handleProceedToPayment}
                 >
                   {saving ? (
                     <><span className={styles['btn-spin']} /> Saving...</>
@@ -806,7 +872,7 @@ export default function PurchaseForm({
                 <button
                   className={`${styles['btn-outline']} ${styles.full}`}
                   disabled={saving || isDraftBlank}
-                  onClick={() => handleSave('DRAFT')}
+                  onClick={handleSaveDraft}
                 >
                   <FaSave /> Save as Draft
                 </button>
@@ -855,7 +921,7 @@ export default function PurchaseForm({
           <div className={styles['mb-right']}>
             <button 
               className={styles['mb-save']} 
-              onClick={() => handleSave('DRAFT')} 
+              onClick={handleSaveDraft} 
               disabled={saving} 
               title="Save Draft"
             >
@@ -863,7 +929,7 @@ export default function PurchaseForm({
             </button>
             <button 
               className={styles['mb-confirm']} 
-              onClick={() => handleSave(markAsReceived ? 'COMPLETED' : 'CONFIRMED')} 
+              onClick={handleProceedToPayment} 
               disabled={saving}
             >
               {saving ? '...' : markAsReceived ? 'Complete Order' : 'Save Order'}
@@ -949,6 +1015,22 @@ export default function PurchaseForm({
           themeColor="#ea580c"
           themeSoftColor="#fff7ed"
           themeDarkColor="#c2410c"
+        />
+      )}
+
+      {/* ── Purchase Payment Popup ─────────────────── */}
+      {showPaymentPopup && (
+        <PurchasePaymentPopup
+          po={po}
+          payMethodOptions={payMethodOptions}
+          currencySymbol={currencySymbol}
+          saving={saving}
+          onClose={() => setShowPaymentPopup(false)}
+          onConfirm={({ paymentMethod, paymentStatus, paymentSplits }) => {
+            // Pass payment details directly to avoid async state race
+            setShowPaymentPopup(false);
+            handleSave(pendingTargetStatus, { paymentMethod, paymentStatus, paymentSplits });
+          }}
         />
       )}
     </div>

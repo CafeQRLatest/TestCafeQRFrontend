@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { useCurrencySymbol } from './useCurrencySymbol';
+import { getBusinessNow, getLocalISOString, businessTimeToUtc } from '../utils/timezoneUtils';
 
 const STATUS_CFG = {
   DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
-  CONFIRMED: { label: 'Confirmed', color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
+  CONFIRMED: { label: 'Completed', color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
   COMPLETED: { label: 'Received',  color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
   CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+  VOID:      { label: 'Voided',    color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
 };
 
 const blankPO = () => ({
@@ -15,7 +17,7 @@ const blankPO = () => ({
   orderType:      'PURCHASE',
   orderStatus:    'DRAFT',
   paymentStatus:  'PENDING',
-  paymentMethod:  'CREDIT',
+  paymentMethod:  '',
   vendorId:       '',
   warehouseId:    '',
   orderDate:      new Date().toISOString().slice(0, 16),
@@ -50,6 +52,7 @@ export function usePurchaseOrders() {
   const [history,        setHistory]        = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage,    setHistoryPage]    = useState({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
+  const [paymentTypes,   setPaymentTypes]   = useState([]);
 
   /* ── product search ── */
   const [productSearch,   setProductSearch]   = useState('');
@@ -85,13 +88,11 @@ export function usePurchaseOrders() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
-  // Lazy initialize filter dates when timezone initializes
+  // Lazy initialize filter dates when timezone initializes (Same day default: Today 00:00 to Today 23:59)
   useEffect(() => {
     if (timezone && !fromDate) {
       const now = getBusinessNow();
-      const past = new Date(now);
-      past.setDate(past.getDate() - 30);
-      setFromDate(`${getLocalDate(past)}T00:00`);
+      setFromDate(`${getLocalDate(now)}T00:00`);
       setToDate(`${getLocalDate(now)}T23:59`);
     }
   }, [timezone, getBusinessNow, fromDate]);
@@ -101,6 +102,18 @@ export function usePurchaseOrders() {
   const [filterVendor, setFilterVendor] = useState('');
   const [filterWarehouse, setFilterWarehouse] = useState('');
   const [filterPayMethod, setFilterPayMethod] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
+
+  // Debounced search — only fires fetchHistory 350ms after user stops typing
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchDebounceRef = useRef(null);
+  const handleFilterSearchChange = useCallback((value) => {
+    setFilterSearch(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+    }, 350);
+  }, []);
 
   /* ── current PO ── */
   const [po, setPo] = useState(blankPO());
@@ -188,13 +201,16 @@ export function usePurchaseOrders() {
   const fetchHistory = useCallback(async (pageNum = 0) => {
     setHistoryLoading(true);
     try {
+      const fromUtc = fromDate ? businessTimeToUtc(fromDate, timezone) : null;
+      const toUtc = toDate ? businessTimeToUtc(toDate, timezone) : null;
       const params = {
         status: filterStatus === 'ALL' ? null : filterStatus,
         vendorId: filterVendor || null,
         warehouseId: filterWarehouse || null,
         paymentMethod: filterPayMethod || null,
-        fromDate: fromDate ? new Date(fromDate).toISOString() : null,
-        toDate: toDate ? new Date(toDate).toISOString() : null,
+        searchTerm: debouncedSearch || null,
+        fromDate: fromUtc,
+        toDate: toUtc,
         page: pageNum,
         size: historyPage.size || 20
       };
@@ -211,7 +227,7 @@ export function usePurchaseOrders() {
       }
     } catch { toast('Failed to load history', 'error'); }
     finally { setHistoryLoading(false); }
-  }, [filterStatus, filterVendor, filterWarehouse, filterPayMethod, fromDate, toDate, historyPage.size, toast]);
+  }, [filterStatus, filterVendor, filterWarehouse, filterPayMethod, debouncedSearch, fromDate, toDate, timezone, historyPage.size, toast]);
 
   /* ── load master data ── */
   useEffect(() => {
@@ -221,10 +237,11 @@ export function usePurchaseOrders() {
         const isSuperAdmin = userRole === 'SUPER_ADMIN';
         const params = currentOrgId ? { orgId: currentOrgId } : {};
 
-        const [vR, wR, pR] = await Promise.all([
+        const [vR, wR, pR, ptR] = await Promise.all([
           api.get('/api/v1/purchasing/vendors', { params }),
           api.get('/api/v1/warehouses', { params }),
           api.get('/api/v1/products', { params }),
+          api.get('/api/v1/payment-types', { params: { ...params, applicableFor: 'PURCHASES' } }).catch(() => ({ data: { data: [] } })),
         ]);
 
         const rawVendors = vR.data.success ? vR.data.data || [] : [];
@@ -253,6 +270,10 @@ export function usePurchaseOrders() {
         setProducts(  pR.data.success
           ? (pR.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false && !p.hasIngredients)
           : []);
+
+        if (ptR?.data?.success && ptR.data.data) {
+          setPaymentTypes(ptR.data.data);
+        }
       } catch {
         toast('Failed to load data — please refresh', 'error');
       } finally {
@@ -265,7 +286,7 @@ export function usePurchaseOrders() {
 
   useEffect(() => {
     if (view === 'history' && fromDate) fetchHistory();
-  }, [view, fromDate, toDate, filterStatus, filterVendor, filterWarehouse, filterPayMethod, fetchHistory]);
+  }, [view, fromDate, toDate, filterStatus, filterVendor, filterWarehouse, filterPayMethod, debouncedSearch, fetchHistory]);
 
   /* ── product actions ── */
   const addProduct = useCallback((product, selectedVariant = null) => {
@@ -312,7 +333,12 @@ export function usePurchaseOrders() {
     setPo(p => ({ ...p, lines, ...calcTotals(lines) }));
     setProductSearch('');
     setShowSuggestions(false);
-  }, [po.lines, recalcLine, calcTotals, toast]);
+    setErrors(prev => {
+      const next = { ...prev };
+      delete next.lines;
+      return next;
+    });
+  }, [po.lines, recalcLine, calcTotals, setErrors]);
 
   const updateLine = useCallback((idx, field, val) => {
     setPo(p => {
@@ -329,24 +355,56 @@ export function usePurchaseOrders() {
   }, [calcTotals]);
 
   /* ── validation ── */
-  const validate = useCallback(() => {
+  const validate = useCallback((paymentMethodOverride = null) => {
     const e = {};
-    if (!po.vendorId)   e.vendorId   = 'Please select a vendor';
-    if (!po.warehouseId) e.warehouseId = 'Please select a warehouse';
-    if (!po.lines.length) e.lines    = 'Add at least one product';
+    if (!po.vendorId) e.vendorId = 'Please select a vendor / supplier';
+    if (!po.warehouseId) e.warehouseId = 'Please select a receiving warehouse';
+    if (!po.lines || !po.lines.length) e.lines = 'Cart is empty. Please add at least one product.';
+    const effectivePaymentMethod = paymentMethodOverride ?? po.paymentMethod;
+    if (!effectivePaymentMethod) e.paymentMethod = 'Cannot complete purchase order: Payment type not set in payment type master for purchase';
     setErrors(e);
-    return Object.keys(e).length === 0;
-  }, [po.vendorId, po.warehouseId, po.lines.length]);
+
+    if (Object.keys(e).length > 0) {
+      const missing = [];
+      if (e.vendorId) missing.push('Vendor');
+      if (e.warehouseId) missing.push('Warehouse');
+      if (e.lines) missing.push('Products in Cart');
+      if (e.paymentMethod) missing.push('Payment Method');
+
+      if (e.lines && missing.length === 1) {
+        toast('No products in cart! Please add at least one product before continuing.', 'error');
+      } else {
+        toast(`Please fill all mandatory fields: ${missing.join(', ')}`, 'error');
+      }
+      return false;
+    }
+    return true;
+  }, [po.vendorId, po.warehouseId, po.lines, po.paymentMethod, setErrors, toast]);
 
   /* ── save ── */
-  const handleSave = useCallback(async (targetStatus) => {
-    if (targetStatus !== 'DRAFT' && !validate()) {
-      toast('Please fix the errors before continuing', 'error');
-      return;
+  const handleSave = useCallback(async (targetStatus, paymentOverride = null) => {
+    // paymentOverride = { paymentMethod, paymentStatus, paymentSplits? } from PurchasePaymentPopup
+    const effectivePaymentMethod = paymentOverride?.paymentMethod ?? po.paymentMethod;
+    const effectivePaymentStatus = paymentOverride?.paymentStatus ?? po.paymentStatus;
+    const effectivePaymentSplits = paymentOverride?.paymentSplits ?? null;
+
+    if (targetStatus !== 'DRAFT') {
+      if (!effectivePaymentMethod) {
+        setErrors(prev => ({
+          ...prev,
+          paymentMethod: 'Cannot complete purchase order: Payment type not set in payment type master for purchase'
+        }));
+        toast('Cannot complete purchase order: Payment type not set in payment type master for purchase', 'error');
+        return;
+      }
+      if (!validate(effectivePaymentMethod)) {
+        return;
+      }
     }
     if (targetStatus === 'DRAFT') {
-      if (!po.vendorId && !po.warehouseId && !po.lines.length) {
-        toast('Nothing to save yet', 'error'); return;
+      if (!po.vendorId && !po.warehouseId && (!po.lines || !po.lines.length)) {
+        toast('Nothing to save yet. Please fill mandatory fields: Vendor, Warehouse, or Products.', 'error');
+        return;
       }
     }
     setSaving(true);
@@ -356,8 +414,10 @@ export function usePurchaseOrders() {
         orderType: 'PURCHASE',
         orgId: activeOrg || null,
         orderStatus: targetStatus,
-        paymentStatus: po.paymentStatus || 'PENDING',
-        paymentMethod: po.paymentMethod || 'CREDIT',
+        isReceived: targetStatus === 'COMPLETED' || Boolean(po.isReceived),
+        paymentStatus: effectivePaymentStatus || 'PENDING',
+        paymentMethod: effectivePaymentMethod || null,
+        paymentSplits: effectivePaymentSplits || null,
         vendorId: po.vendorId || null,
         warehouseId: po.warehouseId || null,
         orderDate: po.orderDate ? new Date(po.orderDate).toISOString() : new Date().toISOString(),
@@ -390,7 +450,6 @@ export function usePurchaseOrders() {
           });
 
       if (resp.data.success) {
-        const saved = resp.data.data;
         const msg =
           targetStatus === 'COMPLETED' ? '✅ Order received — stock updated!' :
           targetStatus === 'CANCELLED' ? 'Order has been cancelled' :
@@ -418,7 +477,7 @@ export function usePurchaseOrders() {
       orderType:     'PURCHASE',
       orderStatus:   d.orderStatus,
       paymentStatus: d.paymentStatus || 'PENDING',
-      paymentMethod: d.paymentMethod || 'CASH',
+      paymentMethod: d.paymentMethod || '',
       vendorId:      d.vendorId   ? String(d.vendorId)   : '',
       warehouseId:   d.warehouseId ? String(d.warehouseId) : '',
       orderDate:     d.orderDate   ? String(d.orderDate).slice(0, 16)   : new Date().toISOString().slice(0, 16),
@@ -474,6 +533,30 @@ export function usePurchaseOrders() {
         ).slice(0, 20);
   }, [products, productSearch]);
 
+  const payMethodOptions = useMemo(() => {
+    if (!paymentTypes || paymentTypes.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+        { value: 'UPI', label: 'UPI / Digital' },
+        { value: 'CARD', label: 'Card' },
+        { value: 'CHEQUE', label: 'Cheque' },
+        { value: 'CREDIT', label: 'Credit' }
+      ];
+    }
+    return paymentTypes
+      .filter(pt => {
+        const act = pt.isActive ?? pt.isactive ?? 'Y';
+        const isPur = pt.purchase === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('PURCHASES') : pt.applicableFor === 'PURCHASES');
+        return act === 'Y' && isPur !== false;
+      })
+      .map(pt => ({
+        value: pt.paymentType === 'CREDIT' ? 'CREDIT' : (pt.displayName ? pt.displayName.toUpperCase().replace(/\s+/g, '_') : (pt.paymentType || 'OTHERS')),
+        label: pt.displayName || pt.paymentType,
+        paymentType: pt.paymentType
+      }));
+  }, [paymentTypes]);
+
   const stepOk = useMemo(() => ({
     1: !!(po.vendorId && po.warehouseId),
     2: po.lines.length > 0,
@@ -487,6 +570,8 @@ export function usePurchaseOrders() {
     vendors,
     warehouses,
     products,
+    paymentTypes,
+    payMethodOptions,
     loading,
     saving,
     view,
@@ -521,6 +606,9 @@ export function usePurchaseOrders() {
     setFilterVendor,
     filterWarehouse,
     setFilterWarehouse,
+    filterSearch,
+    setFilterSearch,
+    handleFilterSearchChange,
     filterPayMethod,
     setFilterPayMethod,
     po,

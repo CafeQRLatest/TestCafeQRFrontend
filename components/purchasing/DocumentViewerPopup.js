@@ -289,13 +289,15 @@ export default function DocumentViewerPopup({
   
   React.useEffect(() => {
     const orderId = currentOrder?.orderId || currentOrder?.id;
-    const hasLines = currentOrder?.lines && currentOrder.lines.length > 0;
-    if (docType !== 'payment' && orderId && !hasLines) {
+    const hasLines = currentOrder?.lines && Array.isArray(currentOrder.lines) && currentOrder.lines.length > 0;
+    if (docType !== 'payment' && orderId && (!hasLines || !currentOrder?.createdBy)) {
       setLoadingOrder(true);
-      api.get(`/api/v1/orders/${orderId}`)
+      const isPo = (currentOrder.poNumber || currentOrder.vendorId || currentOrder.vendor_id || String(currentOrder.orderNo || '').startsWith('PO-') || currentOrder.orderType === 'PURCHASE' || currentOrder.order_type === 'PURCHASE');
+      const endpoint = isPo ? `/api/v1/purchase/orders/${orderId}` : `/api/v1/orders/${orderId}`;
+      api.get(endpoint)
         .then(res => {
           if (res.data?.data) {
-            setCurrentOrder(res.data.data);
+            setCurrentOrder(prev => ({ ...prev, ...res.data.data }));
           }
         })
         .catch(err => {
@@ -537,8 +539,8 @@ export default function DocumentViewerPopup({
     >
       <div className="dv">
 
-        {/* ── supplier/customer · warehouse/table · date · method/terminal ── */}
-        <div className="dv-row4">
+        {/* ── supplier/customer · warehouse/table · method/terminal ── */}
+        <div className="dv-row3">
           {(!isSale || config?.customersEnabled) && (
             <div className="dv-cell">
               <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
@@ -566,27 +568,6 @@ export default function DocumentViewerPopup({
             </div>
           )}
           <div className="dv-cell">
-            <span className="dv-lbl">Date</span>
-            <span className="dv-val">
-              {formatTzDate(
-                (docType === 'invoice' && invoiceData)
-                  ? (invoiceData.invoiceDate || invoiceData.invoice_date)
-                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.transactionDate || currentOrder.transaction_date || currentOrder.paymentDate || currentOrder.payment_date || currentOrder.createdAt || currentOrder.created_at),
-                timezone,
-                { format: 'date' }
-              )}
-            </span>
-            <span className="dv-sub">
-              {formatTzDate(
-                (docType === 'invoice' && invoiceData)
-                  ? (invoiceData.invoiceDate || invoiceData.invoice_date)
-                  : (currentOrder.orderDate || currentOrder.order_date || currentOrder.transactionDate || currentOrder.transaction_date || currentOrder.paymentDate || currentOrder.payment_date || currentOrder.createdAt || currentOrder.created_at),
-                timezone,
-                { format: 'time' }
-              )}
-            </span>
-          </div>
-          <div className="dv-cell">
             <span className="dv-lbl">{(docType === 'payment' || !isSale) ? 'Payment Method' : 'Terminal'}</span>
             <span className="dv-val">
               {(docType === 'payment' || !isSale)
@@ -599,215 +580,324 @@ export default function DocumentViewerPopup({
         <div className="dv-rule" />
 
         {/* ── reference · cross-ref · payment ── */}
-        <div className="dv-row3">
-          <div className="dv-cell" style={{ position: 'relative' }}>
-            <span className="dv-lbl">{(docType === 'order' && !isSale) ? 'Comments' : 'Reference'}</span>
-            {isMixed ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <button 
-                  onClick={() => setShowSplitsToggle(!showSplitsToggle)}
-                  className="dv-link"
-                  style={{ 
-                    textTransform: 'capitalize', 
-                    fontWeight: '700', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '4px',
-                    color: '#ea580c',
-                    borderBottom: '1px dashed #ea580c',
-                    paddingBottom: '1px',
-                    background: 'none',
-                    borderTop: 'none',
-                    borderLeft: 'none',
-                    borderRight: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Mixed
-                </button>
-                {showSplitsToggle && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    marginTop: '6px',
-                    padding: '10px 14px',
-                    background: '#ffffff',
-                    border: '1px solid #ffedd5',
-                    borderLeft: '3.5px solid #ea580c',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    color: '#475569',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.15), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
-                    zIndex: 99,
-                    whiteSpace: 'nowrap',
-                    minWidth: '150px'
-                  }}>
-                    <div style={{ 
-                      fontSize: '9px', 
-                      fontWeight: '800', 
-                      color: '#ea580c', 
-                      textTransform: 'uppercase', 
-                      letterSpacing: '0.05em',
-                      borderBottom: '1px solid #ffedd5',
-                      paddingBottom: '4px',
-                      marginBottom: '2px'
-                    }}>
-                      Split Details
-                    </div>
-                    {loadingSplits ? (
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
-                    ) : splits.length === 0 ? (
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
-                    ) : (
-                      splits.map((s, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ 
-                            fontWeight: '600', 
-                            fontSize: '10px',
-                            background: s.paymentMethod === 'CASH' ? '#fff7ed' : '#f0f9ff',
-                            color: s.paymentMethod === 'CASH' ? '#c2410c' : '#0369a1',
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            textTransform: 'uppercase'
-                          }}>
-                            {s.paymentMethod}
-                          </span>
-                          <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
-                            {currencySymbol}{fmt(s.amount)}
-                          </span>
-                        </div>
-                      ))
-                    )}
+        {!isSale ? (
+          <>
+            {/* Line 1: Note & Supplier Invoice (hidden on payment popup) */}
+            {docType !== 'payment' && (
+              <>
+                <div className="dv-row2">
+                  <div className="dv-cell" style={{ position: 'relative' }}>
+                    <span className="dv-lbl">Note</span>
+                    <span className="dv-val dv-mono">
+                      {currentOrder.description || currentOrder.comments || '—'}
+                    </span>
                   </div>
-                )}
-              </div>
-            ) : (
-              <span className="dv-val dv-mono">
-                {(docType === 'order' && !isSale)
-                  ? (currentOrder.description || currentOrder.comments || '—')
-                  : (currentOrder.referenceNo || currentOrder.reference || '—')}
-              </span>
-            )}
-          </div>
-          <div className="dv-cell">
-            {(docType === 'order' && !isSale) ? (
-              <>
-                <span className="dv-lbl">Supplier Invoice</span>
-                {(currentOrder.reference || currentOrder.referenceNo) ? (
-                  <span className="dv-val dv-mono" style={{ color: '#0f172a', fontWeight: '600' }}>
-                    {currentOrder.reference || currentOrder.referenceNo}
-                  </span>
-                ) : (
-                  <span className="dv-nil">Not provided</span>
-                )}
-              </>
-            ) : docType === 'order' ? (
-              <>
-                <span className="dv-lbl">Invoice No</span>
-                {currentOrder.invoiceNo ? (
-                  <button className="dv-link" onClick={() => handleLinked('invoice')}>{currentOrder.invoiceNo}</button>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                    <span className="dv-nil">Not generated</span>
-                    {currentOrder.orderStatus !== 'DRAFT' && currentOrder.orderStatus !== 'CANCELLED' && (
-                      <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>
-                        {isSale ? 'Invoke Order' : 'Receive & Generate Bill'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <span className="dv-lbl">Order No</span>
-                {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
-                  <button 
-                    className="dv-link" 
-                    onClick={() => {
-                      const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
-                      const isPo = String(oNo || '').startsWith('PO-') || currentOrder.orderType === 'PURCHASE' || currentOrder.order_type === 'PURCHASE';
-                      onViewLinked?.({ 
-                        ...currentOrder, 
-                        id: currentOrder.orderId || currentOrder.id, 
-                        orderNo: oNo, 
-                        poNumber: isPo ? oNo : null,
-                        orderType: isPo ? 'PURCHASE' : 'SALE'
-                      }, 'order');
-                    }}
-                  >
-                    {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
-                  </button>
-                ) : (
-                  <span className="dv-nil">—</span>
-                )}
-              </>
-            )}
-          </div>
-          <div className="dv-cell">
-            {docType === 'payment' ? (
-              <>
-                <span className="dv-lbl">Invoice No</span>
-                {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
-                  <button 
-                    className="dv-link" 
-                    onClick={() => {
-                      const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
-                      onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
-                    }}
-                  >
-                    {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
-                  </button>
-                ) : (
-                  <span className="dv-nil">—</span>
-                )}
-              </>
-            ) : (
-              <>
-                <span className="dv-lbl">Payment</span>
-                {payments && payments.length > 0 ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
-                    {payments.map((p, idx) => (
-                      <span key={p.id || p.paymentId || idx}>
-                        <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
-                          {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
-                        </button>
-                        {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
+                  <div className="dv-cell">
+                    <span className="dv-lbl">Supplier Invoice</span>
+                    {(currentOrder.reference || currentOrder.referenceNo) ? (
+                      <span className="dv-val dv-mono" style={{ color: '#0f172a', fontWeight: '600' }}>
+                        {currentOrder.reference || currentOrder.referenceNo}
                       </span>
-                    ))}
+                    ) : (
+                      <span className="dv-nil">Not provided</span>
+                    )}
                   </div>
-                ) : isPaid ? (
-                  <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
-                ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
-                  <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
-                ) : (
-                  <span className="dv-muted">Pending</span>
-                )}
+                </div>
+
+                <div className="dv-rule" />
               </>
             )}
-          </div>
-        </div>
 
-        {/* ── Created/Updated auditing info ── */}
-        {(currentOrder.createdBy || currentOrder.updatedBy) && (
+            {/* Line 2: Dynamic cross-reference cells depending on docType */}
+            <div className="dv-row2">
+              {docType === 'invoice' || docType === 'payment' ? (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Order No</span>
+                  {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
+                    <button 
+                      className="dv-link" 
+                      onClick={() => {
+                        const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
+                        onViewLinked?.({ 
+                          ...currentOrder, 
+                          id: currentOrder.orderId || currentOrder.id, 
+                          orderNo: oNo, 
+                          orderType: 'PURCHASE'
+                        }, 'order');
+                      }}
+                    >
+                      {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
+                    </button>
+                  ) : (
+                    <span className="dv-nil">—</span>
+                  )}
+                </div>
+              ) : (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Invoice No</span>
+                  {currentOrder.invoiceNo ? (
+                    <button className="dv-link" onClick={() => handleLinked('invoice')}>{currentOrder.invoiceNo}</button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      <span className="dv-nil">Not generated</span>
+                      {currentOrder.orderStatus !== 'DRAFT' && currentOrder.orderStatus !== 'CANCELLED' && (
+                        <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>
+                          Receive & Generate Bill
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {docType === 'payment' ? (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Invoice No</span>
+                  {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
+                    <button 
+                      className="dv-link" 
+                      onClick={() => {
+                        const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
+                        onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
+                      }}
+                    >
+                      {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
+                    </button>
+                  ) : (
+                    <span className="dv-nil">—</span>
+                  )}
+                </div>
+              ) : (
+                <div className="dv-cell">
+                  <span className="dv-lbl">Payment</span>
+                  {payments && payments.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                      {payments.map((p, idx) => (
+                        <span key={p.id || p.paymentId || idx}>
+                          <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
+                            {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
+                          </button>
+                          {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
+                        </span>
+                      ))}
+                    </div>
+                  ) : isPaid ? (
+                    <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
+                  ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
+                    <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
+                  ) : (
+                    <span className="dv-muted">Pending</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="dv-row3">
+            <div className="dv-cell" style={{ position: 'relative' }}>
+              <span className="dv-lbl">Reference</span>
+              {isMixed ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <button 
+                    onClick={() => setShowSplitsToggle(!showSplitsToggle)}
+                    className="dv-link"
+                    style={{ 
+                      textTransform: 'capitalize', 
+                      fontWeight: '700', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '4px',
+                      color: '#ea580c',
+                      borderBottom: '1px dashed #ea580c',
+                      paddingBottom: '1px',
+                      background: 'none',
+                      borderTop: 'none',
+                      borderLeft: 'none',
+                      borderRight: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Mixed
+                  </button>
+                  {showSplitsToggle && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '6px',
+                      padding: '10px 14px',
+                      background: '#ffffff',
+                      border: '1px solid #ffedd5',
+                      borderLeft: '3.5px solid #ea580c',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.15), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
+                      zIndex: 99,
+                      whiteSpace: 'nowrap',
+                      minWidth: '150px'
+                    }}>
+                      <div style={{ 
+                        fontSize: '9px', 
+                        fontWeight: '800', 
+                        color: '#ea580c', 
+                        textTransform: 'uppercase', 
+                        letterSpacing: '0.05em',
+                        borderBottom: '1px solid #ffedd5',
+                        paddingBottom: '4px',
+                        marginBottom: '2px'
+                      }}>
+                        Split Details
+                      </div>
+                      {loadingSplits ? (
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
+                      ) : splits.length === 0 ? (
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
+                      ) : (
+                        splits.map((s, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ 
+                              fontWeight: '600', 
+                              fontSize: '10px',
+                              background: s.paymentMethod === 'CASH' ? '#fff7ed' : '#f0f9ff',
+                              color: s.paymentMethod === 'CASH' ? '#c2410c' : '#0369a1',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              textTransform: 'uppercase'
+                            }}>
+                              {s.paymentMethod}
+                            </span>
+                            <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
+                              {currencySymbol}{fmt(s.amount)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="dv-val dv-mono">
+                  {currentOrder.referenceNo || currentOrder.reference || '—'}
+                </span>
+              )}
+            </div>
+            <div className="dv-cell">
+              {docType === 'order' ? (
+                <>
+                  <span className="dv-lbl">Invoice No</span>
+                  {currentOrder.invoiceNo ? (
+                    <button className="dv-link" onClick={() => handleLinked('invoice')}>{currentOrder.invoiceNo}</button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      <span className="dv-nil">Not generated</span>
+                      {currentOrder.orderStatus !== 'DRAFT' && currentOrder.orderStatus !== 'CANCELLED' && (
+                        <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>
+                          Invoke Order
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="dv-lbl">Order No</span>
+                  {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
+                    <button 
+                      className="dv-link" 
+                      onClick={() => {
+                        const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
+                        onViewLinked?.({ 
+                          ...currentOrder, 
+                          id: currentOrder.orderId || currentOrder.id, 
+                          orderNo: oNo, 
+                          orderType: 'SALE'
+                        }, 'order');
+                      }}
+                    >
+                      {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
+                    </button>
+                  ) : (
+                    <span className="dv-nil">—</span>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="dv-cell">
+              {docType === 'payment' ? (
+                <>
+                  <span className="dv-lbl">Invoice No</span>
+                  {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
+                    <button 
+                      className="dv-link" 
+                      onClick={() => {
+                        const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
+                        onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
+                      }}
+                    >
+                      {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
+                    </button>
+                  ) : (
+                    <span className="dv-nil">—</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="dv-lbl">Payment</span>
+                  {payments && payments.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                      {payments.map((p, idx) => (
+                        <span key={p.id || p.paymentId || idx}>
+                          <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
+                            {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
+                          </button>
+                          {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
+                        </span>
+                      ))}
+                    </div>
+                  ) : isPaid ? (
+                    <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
+                  ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
+                    <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
+                  ) : (
+                    <span className="dv-muted">Pending</span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Created/Updated auditing info with date & time ── */}
+        {(currentOrder.createdBy || currentOrder.updatedBy || currentOrder.createdAt || currentOrder.created_at) && (
           <>
             <div className="dv-rule" />
             <div className="dv-row2">
-              {currentOrder.createdBy && (
-                <div className="dv-cell">
-                  <span className="dv-lbl">Created By</span>
-                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy}</span>
-                </div>
-              )}
-              {currentOrder.updatedBy && (
-                <div className="dv-cell">
-                  <span className="dv-lbl">Last Updated By</span>
-                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy}</span>
-                </div>
-              )}
+              <div className="dv-cell">
+                <span className="dv-lbl">Created By</span>
+                <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
+                <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                  {formatTzDate(
+                    currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date,
+                    timezone,
+                    { format: 'datetime' }
+                  )}
+                </span>
+              </div>
+              <div className="dv-cell">
+                <span className="dv-lbl">Last Updated By</span>
+                <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
+                <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                  {formatTzDate(
+                    currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
+                    timezone,
+                    { format: 'datetime' }
+                  )}
+                </span>
+              </div>
             </div>
           </>
         )}
@@ -891,6 +981,9 @@ export default function DocumentViewerPopup({
                 </div>
               </>
             );
+          }
+          if (docType === 'payment' || (currentOrder.description && (currentOrder.description.startsWith('Purchase Payment for PO') || currentOrder.description.startsWith('Payment for')))) {
+            return null;
           }
           return (
             <>

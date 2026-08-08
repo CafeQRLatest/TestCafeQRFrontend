@@ -129,7 +129,7 @@ function PaymentTypesContent() {
       if (isSuperAdmin && selectedBranchId !== 'ALL') {
         params.orgId = selectedBranchId;
       }
-      const res = await api.get('/api/v1/purchasing/payment-types', { params });
+      const res = await api.get('/api/v1/payment-types', { params });
       if (res.data.success) setPaymentTypes(res.data.data || []);
     } catch (err) {
       console.error('Failed to load payment types:', err);
@@ -167,8 +167,8 @@ function PaymentTypesContent() {
     try {
       const isNew = !selected.id;
       const url = isNew
-        ? '/api/v1/purchasing/payment-types'
-        : `/api/v1/purchasing/payment-types/${selected.id}`;
+        ? '/api/v1/payment-types'
+        : `/api/v1/payment-types/${selected.id}`;
       const payload = {
         ...selected,
         purchase: purchaseEnabled ? (selected.purchase || 'N') : 'N',
@@ -197,7 +197,7 @@ function PaymentTypesContent() {
       message: `Delete "${name}"? This cannot be undone.`,
       onConfirm: async () => {
         try {
-          await api.delete(`/api/v1/purchasing/payment-types/${id}`);
+          await api.delete(`/api/v1/payment-types/${id}`);
           notify('success', 'Payment type deleted');
           fetchPaymentTypes();
         } catch (err) {

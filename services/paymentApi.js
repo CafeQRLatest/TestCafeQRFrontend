@@ -1,4 +1,4 @@
-﻿import api from '../utils/api';
+import api from '../utils/api';
 
 /**
  * Module-level Promise cache scoped by orgId.
@@ -24,7 +24,7 @@ export function fetchSalesPaymentTypes(orgId, options = {}) {
     paymentTypesCache.set(
       key,
       api
-        .get('/api/v1/purchasing/payment-types', {
+        .get('/api/v1/payment-types', {
           ...options,
           params: {
             ...(options.params || {}),

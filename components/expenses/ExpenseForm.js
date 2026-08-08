@@ -83,7 +83,7 @@ export default function ExpenseForm({
   useEffect(() => {
     let active = true;
     const orgParam = (isSuperAdmin && fBranchId && fBranchId !== SCOPE_GLOBAL) ? `&orgId=${fBranchId}` : '';
-    api.get(`/api/v1/purchasing/payment-types?applicableFor=EXPENSES${orgParam}`)
+    api.get(`/api/v1/payment-types?applicableFor=EXPENSES${orgParam}`)
       .then(res => {
         if (active && res?.data?.success && res?.data?.data) {
           setPaymentTypes(res.data.data);

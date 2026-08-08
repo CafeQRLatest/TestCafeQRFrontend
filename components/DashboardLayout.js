@@ -19,7 +19,7 @@ import { getNetworkStatus } from '../utils/networkState';
 /**
  * DashboardLayout Component
  */
-export default function DashboardLayout({ children, title, subtitle, showBack = false, backUrl = null, noSidebar = false, hideTitle = false, noPadding = false }) {
+export default function DashboardLayout({ children, title, subtitle, showBack = false, backUrl = null, onBack = null, noSidebar = false, hideTitle = false, noPadding = false }) {
   const { logout, userRole, email, firstName, lastName, fullName, orgId, orgName, clientName, terminalId, terminalName, isAuthenticated, assignedMenus } = useAuth();
   const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -185,7 +185,9 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
                   {showBack && (
                     <button
                       onClick={() => {
-                        if (backUrl) {
+                        if (onBack) {
+                          onBack();
+                        } else if (backUrl) {
                           router.push(backUrl);
                         } else {
                           router.back();

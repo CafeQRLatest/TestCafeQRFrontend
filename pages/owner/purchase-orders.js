@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { useAuth } from '../../context/AuthContext';
@@ -10,12 +10,12 @@ import PurchaseFilters from '../../components/purchasing/PurchaseFilters';
 import PurchaseTable from '../../components/purchasing/PurchaseTable';
 import PurchaseCards from '../../components/purchasing/PurchaseCards';
 import PurchaseForm from '../../components/purchasing/PurchaseForm';
-import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
+import PurchaseDocumentViewerPopup from '../../components/purchasing/PurchaseDocumentViewerPopup';
 import { usePurchaseOrders } from '../../hooks/usePurchaseOrders';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import api from '../../utils/api';
 import { 
-  FaPlus, FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileInvoiceDollar 
+  FaPlus, FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileInvoiceDollar, FaBan 
 } from 'react-icons/fa';
 import styles from '../../components/purchasing/Purchasing.module.css';
 
@@ -73,6 +73,8 @@ function PurchaseContent() {
     setFilterWarehouse,
     filterPayMethod,
     setFilterPayMethod,
+    filterSearch,
+    handleFilterSearchChange,
     po,
     setPo,
     toast,
@@ -85,6 +87,7 @@ function PurchaseContent() {
     startFresh,
     vendorOptions,
     warehouseOptions,
+    payMethodOptions,
     selectedVendor,
     selectedWarehouse,
     isLocked,
@@ -103,6 +106,96 @@ function PurchaseContent() {
     }
   }, [router.query.view, setView]);
 
+  // ── Multi-Select Bulk Actions State ───────────────────────────────────────
+  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
+  const [bulkVoidModalOpen, setBulkVoidModalOpen] = useState(false);
+  const [bulkReceiveModalOpen, setBulkReceiveModalOpen] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  const handleToggleSelect = useCallback((orderId) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }, []);
+
+  const isAllSelected = history.length > 0 && history.every(o => selectedOrderIds.has(o.id));
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev);
+      if (history.length > 0 && history.every(o => next.has(o.id))) {
+        history.forEach(o => next.delete(o.id));
+      } else {
+        history.forEach(o => next.add(o.id));
+      }
+      return next;
+    });
+  }, [history]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedOrderIds(new Set());
+  }, []);
+
+  // Compute selected order capabilities
+  const selectedOrders = useMemo(() => {
+    return history.filter(o => selectedOrderIds.has(o.id));
+  }, [history, selectedOrderIds]);
+
+  // Bulk void is allowed as long as any non-voided order is selected
+  const canBulkVoid = selectedOrders.length > 0 && selectedOrders.some(o => o.orderStatus !== 'VOID' && o.orderStatus !== 'CANCELLED');
+
+  // Bulk receive is allowed ONLY IF all selected orders are non-received and not voided/cancelled
+  const canBulkReceive = selectedOrders.length > 0 && selectedOrders.every(o => !o.isReceived && o.orderStatus !== 'VOID' && o.orderStatus !== 'CANCELLED');
+
+  const confirmBulkVoid = useCallback(async () => {
+    if (selectedOrderIds.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      const orderIds = Array.from(selectedOrderIds);
+      const r = await api.post('/api/v1/purchase/orders/bulk-void', { orderIds });
+      if (r.data.success) {
+        const res = r.data.data;
+        toast(`✅ Voided ${res.processedCount} purchase orders successfully!`, 'success');
+        if (res.errors && res.errors.length > 0) {
+          toast(`⚠️ ${res.errors.length} order(s) could not be voided`, 'warning');
+        }
+        setSelectedOrderIds(new Set());
+        setBulkVoidModalOpen(false);
+        fetchHistory();
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to bulk void orders', 'error');
+    } finally {
+      setBulkProcessing(false);
+    }
+  }, [selectedOrderIds, fetchHistory, toast]);
+
+  const confirmBulkReceive = useCallback(async () => {
+    if (selectedOrderIds.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      const orderIds = Array.from(selectedOrderIds);
+      const r = await api.post('/api/v1/purchase/orders/bulk-receive', { orderIds });
+      if (r.data.success) {
+        const res = r.data.data;
+        toast(`✅ Received ${res.processedCount} purchase orders & updated warehouse stock!`, 'success');
+        if (res.errors && res.errors.length > 0) {
+          toast(`⚠️ ${res.errors.length} order(s) could not be received`, 'warning');
+        }
+        setSelectedOrderIds(new Set());
+        setBulkReceiveModalOpen(false);
+        fetchHistory();
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to bulk receive orders', 'error');
+    } finally {
+      setBulkProcessing(false);
+    }
+  }, [selectedOrderIds, fetchHistory, toast]);
+
   // ── Document Viewer Popup ─────────────────────────────────────────────────
   // viewingDoc = { order, type: 'order' | 'invoice' | 'payment' } | null
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -117,7 +210,7 @@ function PurchaseContent() {
 
   const handleInvoiceOrder = useCallback(async (order) => {
     try {
-      const r = await api.patch(`/api/v1/purchase/orders/${order.id}`, { orderStatus: 'COMPLETED' });
+      const r = await api.post(`/api/v1/purchase/orders/${order.id}/receive`);
       if (r.data.success) {
         toast('✅ Purchase Order received — Vendor Bill Invoice generated!', 'success');
         fetchHistory(); // refresh the table list
@@ -130,7 +223,7 @@ function PurchaseContent() {
 
   const handleReceiveOrder = useCallback(async (order) => {
     try {
-      const r = await api.patch(`/api/v1/purchase/orders/${order.id}`, { orderStatus: 'COMPLETED' });
+      const r = await api.post(`/api/v1/purchase/orders/${order.id}/receive`);
       if (r.data.success) {
         toast('✅ Order received — Stock updated & Vendor Bill generated!', 'success');
         fetchHistory();
@@ -139,6 +232,26 @@ function PurchaseContent() {
       toast(err.response?.data?.message || 'Failed to receive order', 'error');
     }
   }, [fetchHistory, toast]);
+
+  const [cancelTarget, setCancelTarget] = useState(null);
+
+  const handleCancelOrder = useCallback((order) => {
+    setCancelTarget(order);
+  }, []);
+
+  const confirmCancel = useCallback(async () => {
+    if (!cancelTarget) return;
+    try {
+      const r = await api.post(`/api/v1/purchase/orders/${cancelTarget.id}/void`);
+      if (r.data.success) {
+        toast(`✅ Purchase Order ${cancelTarget.orderNo} voided successfully`, 'success');
+        setCancelTarget(null);
+        fetchHistory();
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to void order', 'error');
+    }
+  }, [cancelTarget, fetchHistory, toast]);
 
   // ── Loading Skeleton ──────────────────────────────────────────────────────
   if (loading) {
@@ -168,30 +281,75 @@ function PurchaseContent() {
         <Head>
           <title>PO History — Cafe QR</title>
         </Head>
-        <DashboardLayout title="Purchase Orders" showBack={false}>
+        <DashboardLayout title="PO History" showBack={true} onBack={() => setView('form')}>
           <div className={`${styles['po-wrap']} po-wrap`}>
-            {/* Toolbar */}
-            <div className={styles['hist-toolbar']}>
-              <div className={styles['hist-toolbar-left']}>
-                <PurchaseFilters
-                  fromDate={fromDate} setFromDate={setFromDate}
-                  toDate={toDate} setToDate={setToDate}
-                  filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-                  filterVendor={filterVendor} setFilterVendor={setFilterVendor}
-                  filterWarehouse={filterWarehouse} setFilterWarehouse={setFilterWarehouse}
-                  filterPayMethod={filterPayMethod} setFilterPayMethod={setFilterPayMethod}
-                  vendorOptions={vendorOptions} warehouseOptions={warehouseOptions}
-                  styles={styles}
-                />
-              </div>
-              <button 
-                className={`${styles['btn-primary']} ${styles['mobile-hidden']}`} 
-                style={{ height: '36px', padding: '0 16px', fontSize: '13px', whiteSpace: 'nowrap', flexShrink: 0 }}
-                onClick={() => { startFresh && startFresh(); setView('form'); }}
-              >
-                <FaPlus /> Create Order
-              </button>
+            {/* Filter Card (FIRST) */}
+            <div className={styles['hist-toolbar']} style={{ width: '100%', marginBottom: '12px' }}>
+              <PurchaseFilters
+                fromDate={fromDate} setFromDate={setFromDate}
+                toDate={toDate} setToDate={setToDate}
+                filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+                filterVendor={filterVendor} setFilterVendor={setFilterVendor}
+                filterWarehouse={filterWarehouse} setFilterWarehouse={setFilterWarehouse}
+                filterPayMethod={filterPayMethod} setFilterPayMethod={setFilterPayMethod}
+                filterSearch={filterSearch} handleFilterSearchChange={handleFilterSearchChange}
+                payMethodOptions={payMethodOptions}
+                vendorOptions={vendorOptions} warehouseOptions={warehouseOptions}
+                styles={styles}
+              />
             </div>
+
+            {/* Bulk Action Buttons Row (Only shown when orders are selected) */}
+            {(canBulkReceive || canBulkVoid) && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '16px', gap: '10px' }}>
+                {canBulkReceive && (
+                  <button
+                    onClick={() => setBulkReceiveModalOpen(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      height: '36px',
+                      padding: '0 16px',
+                      borderRadius: '20px',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 3px 10px rgba(5,150,105,0.3)'
+                    }}
+                  >
+                    <FaCheckCircle style={{ fontSize: '13px' }} /> Receive ({selectedOrderIds.size})
+                  </button>
+                )}
+                {canBulkVoid && (
+                  <button
+                    onClick={() => setBulkVoidModalOpen(true)}
+                    style={{
+                      background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      height: '36px',
+                      padding: '0 16px',
+                      borderRadius: '20px',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 3px 10px rgba(220,38,38,0.3)'
+                    }}
+                  >
+                    <FaBan style={{ fontSize: '13px' }} /> Void ({selectedOrderIds.size})
+                  </button>
+                )}
+              </div>
+            )}
 
             {historyLoading ? (
               <div className={styles['po-spinner-box']}>
@@ -199,12 +357,22 @@ function PurchaseContent() {
                 <span>Loading orders...</span>
               </div>
             ) : history.length === 0 ? (
-              <div className={styles['po-empty-state']}>
-                <h3>No Purchase Orders yet</h3>
-                <p>Create your first PO to start tracking supplier orders</p>
-                <button className={styles['btn-primary']} onClick={() => setView('form')}>
-                  <FaPlus /> Create Purchase Order
-                </button>
+              <div style={{
+                textAlign: 'center',
+                padding: '48px 16px',
+                color: '#64748b',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: '#fff',
+                borderRadius: '16px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 2px 12px rgba(0, 0, 0, 0.03)'
+              }}>
+                <FaFileInvoiceDollar style={{ fontSize: '40px', color: '#cbd5e1' }} />
+                <div style={{ fontSize: '15px', fontWeight: '700', color: '#475569' }}>No orders found</div>
               </div>
             ) : (
               <>
@@ -222,6 +390,11 @@ function PurchaseContent() {
                   onViewDocument={handleViewDocument}
                   onInvoiceOrder={handleInvoiceOrder}
                   onReceiveOrder={handleReceiveOrder}
+                  onCancelOrder={handleCancelOrder}
+                  selectedOrderIds={selectedOrderIds}
+                  onToggleSelect={handleToggleSelect}
+                  onSelectAll={handleSelectAll}
+                  isAllSelected={isAllSelected}
                 />
                 <PurchaseCards
                   history={history}
@@ -237,6 +410,9 @@ function PurchaseContent() {
                   onViewDocument={handleViewDocument}
                   onInvoiceOrder={handleInvoiceOrder}
                   onReceiveOrder={handleReceiveOrder}
+                  onCancelOrder={handleCancelOrder}
+                  selectedOrderIds={selectedOrderIds}
+                  onToggleSelect={handleToggleSelect}
                 />
                 {historyPage.totalPages > 1 && (
                   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', padding: '20px 0 8px' }}>
@@ -287,9 +463,9 @@ function PurchaseContent() {
           {message && <Toast msg={message} type={msgType} onClose={() => setMessage(null)} />}
         </DashboardLayout>
 
-        {/* Document Viewer Popup */}
+        {/* Purchase Document Viewer Popup */}
         {viewingDoc && (
-          <DocumentViewerPopup
+          <PurchaseDocumentViewerPopup
             order={viewingDoc.order}
             docType={viewingDoc.type}
             vendors={vendors}
@@ -302,6 +478,162 @@ function PurchaseContent() {
             onInvoiceOrder={handleInvoiceOrder}
             STATUS_CFG={STATUS_CFG}
           />
+        )}
+
+        {/* Single Void / Cancel Purchase Order Confirmation Modal */}
+        {cancelTarget && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 99999, padding: '16px'
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: '16px', maxWidth: '420px', width: '100%',
+              padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%', background: '#fee2e2',
+                color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px', fontSize: '20px'
+              }}>
+                <FaBan />
+              </div>
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
+                Void Purchase Order?
+              </h3>
+              <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                Are you sure you want to void / cancel Purchase Order <strong style={{ color: '#0f172a' }}>{cancelTarget.orderNo}</strong>? This will void linked vendor bills, payments, and reverse warehouse stock.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  onClick={() => setCancelTarget(null)}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                    background: '#fff', color: '#475569', fontWeight: '600', fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmCancel}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: 'none',
+                    background: '#dc2626', color: '#fff', fontWeight: '600', fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Confirm Void
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Void Modal */}
+        {bulkVoidModalOpen && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 99999, padding: '16px'
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: '16px', maxWidth: '440px', width: '100%',
+              padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%', background: '#fee2e2',
+                color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px', fontSize: '20px'
+              }}>
+                <FaBan />
+              </div>
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
+                Void {selectedOrderIds.size} Purchase Order(s)?
+              </h3>
+              <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                Are you sure you want to void all <strong style={{ color: '#0f172a' }}>{selectedOrderIds.size}</strong> selected purchase orders? Any linked vendor bills and outbound payments will also be voided and inventory stock intake reversed.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  disabled={bulkProcessing}
+                  onClick={() => setBulkVoidModalOpen(false)}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                    background: '#fff', color: '#475569', fontWeight: '600', fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={bulkProcessing}
+                  onClick={confirmBulkVoid}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: 'none',
+                    background: '#dc2626', color: '#fff', fontWeight: '700', fontSize: '13px',
+                    cursor: bulkProcessing ? 'not-allowed' : 'pointer', opacity: bulkProcessing ? 0.7 : 1
+                  }}
+                >
+                  {bulkProcessing ? 'Voiding...' : `Confirm Void (${selectedOrderIds.size})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Receive Modal */}
+        {bulkReceiveModalOpen && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 99999, padding: '16px'
+          }}>
+            <div style={{
+              background: '#fff', borderRadius: '16px', maxWidth: '440px', width: '100%',
+              padding: '24px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%', background: '#ecfdf5',
+                color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px', fontSize: '20px'
+              }}>
+                <FaCheckCircle />
+              </div>
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
+                Receive {selectedOrderIds.size} Purchase Order(s)?
+              </h3>
+              <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>
+                Are you sure you want to receive all <strong style={{ color: '#0f172a' }}>{selectedOrderIds.size}</strong> selected orders? This will intake the items into destination warehouses and generate corresponding Vendor Bill invoices.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  disabled={bulkProcessing}
+                  onClick={() => setBulkReceiveModalOpen(false)}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0',
+                    background: '#fff', color: '#475569', fontWeight: '600', fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={bulkProcessing}
+                  onClick={confirmBulkReceive}
+                  style={{
+                    flex: 1, padding: '10px 16px', borderRadius: '10px', border: 'none',
+                    background: '#059669', color: '#fff', fontWeight: '700', fontSize: '13px',
+                    cursor: bulkProcessing ? 'not-allowed' : 'pointer', opacity: bulkProcessing ? 0.7 : 1
+                  }}
+                >
+                  {bulkProcessing ? 'Receiving...' : `Confirm Receive (${selectedOrderIds.size})`}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </>
     );
@@ -335,6 +667,7 @@ function PurchaseContent() {
           startFresh={startFresh}
           styles={styles}
           warehouseStock={warehouseStock}
+          toast={toast}
         />
         {message && <Toast msg={message} type={msgType} onClose={() => setMessage(null)} />}
       </DashboardLayout>
