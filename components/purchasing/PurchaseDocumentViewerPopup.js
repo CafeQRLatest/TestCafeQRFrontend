@@ -101,41 +101,39 @@ export default function PurchaseDocumentViewerPopup({
     }
   }, [order?.id, order?.orderId, docType]);
 
-  if (!currentOrder) return null;
-
-  const vendor = vendors.find(v => String(v.id) === String(currentOrder.vendorId || currentOrder.vendor_id)) || {};
-  const warehouse = warehouses.find(w => String(w.id) === String(currentOrder.warehouseId || currentOrder.warehouse_id)) || {};
+  const vendor = vendors.find(v => String(v.id) === String(currentOrder?.vendorId || currentOrder?.vendor_id)) || {};
+  const warehouse = warehouses.find(w => String(w.id) === String(currentOrder?.warehouseId || currentOrder?.warehouse_id)) || {};
   
   const cfg = (() => {
     if (activeDocType === 'payment') {
       return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
     }
     if (activeDocType === 'invoice') {
-      const isPaidInv = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID';
+      const isPaidInv = (currentOrder?.paymentStatus || currentOrder?.payment_status) === 'PAID';
       return isPaidInv 
         ? { label: 'Paid', bg: '#dcfce7', color: '#15803d' }
         : { label: 'Unpaid', bg: '#fef3c7', color: '#b45309' };
     }
-    const st = String(currentOrder.orderStatus || 'DRAFT').toUpperCase();
+    const st = String(currentOrder?.orderStatus || 'DRAFT').toUpperCase();
     return STATUS_CFG[st] || STATUS_CFG.DRAFT || { label: st, bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' };
   })();
 
-  const lines = currentOrder.lines || [];
-  const grandTotal = parseFloat(currentOrder.grandTotal || currentOrder.totalAmount || 0);
-  const subTotal = parseFloat(currentOrder.subtotal || currentOrder.totalAmount || currentOrder.grossAmount || 0);
-  const taxTotal = parseFloat(currentOrder.totalTaxAmount || currentOrder.taxAmount || 0);
-  const discountTotal = parseFloat(currentOrder.totalDiscountAmount || 0);
-  const roundOff = parseFloat(currentOrder.roundOffAmount || 0);
-  const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || activeDocType === 'payment';
+  const lines = currentOrder?.lines || [];
+  const grandTotal = parseFloat(currentOrder?.grandTotal || currentOrder?.totalAmount || 0);
+  const subTotal = parseFloat(currentOrder?.subtotal || currentOrder?.totalAmount || currentOrder?.grossAmount || 0);
+  const taxTotal = parseFloat(currentOrder?.totalTaxAmount || currentOrder?.taxAmount || 0);
+  const discountTotal = parseFloat(currentOrder?.totalDiscountAmount || 0);
+  const roundOff = parseFloat(currentOrder?.roundOffAmount || 0);
+  const isPaid = (currentOrder?.paymentStatus || currentOrder?.payment_status) === 'PAID' || activeDocType === 'payment';
 
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const invoiceNumStr = linkedInvoice?.invoiceNo || currentOrder.invoiceNo || (currentOrder.orderNo ? 'BILL-' + currentOrder.orderNo.replace(/^PO-/, '') : '—');
+  const invoiceNumStr = linkedInvoice?.invoiceNo || currentOrder?.invoiceNo || (currentOrder?.orderNo ? 'BILL-' + currentOrder.orderNo.replace(/^PO-/, '') : '—');
 
   const HEADER = {
-    order:   { subtitle: 'Purchase Order', title: currentOrder.orderNo || '—' },
+    order:   { subtitle: 'Purchase Order', title: currentOrder?.orderNo || '—' },
     invoice: { subtitle: 'Invoice', title: invoiceNumStr },
-    payment: { subtitle: 'Payment', title: currentOrder.paymentNo || currentOrder.referenceNo || (currentOrder.orderNo ? 'PAY-' + currentOrder.orderNo.replace(/^PO-/, '') : '—') },
+    payment: { subtitle: 'Payment', title: currentOrder?.paymentNo || currentOrder?.referenceNo || (currentOrder?.orderNo ? 'PAY-' + currentOrder.orderNo.replace(/^PO-/, '') : '—') },
   };
   const hdr = HEADER[activeDocType] || HEADER.order;
 
@@ -145,12 +143,12 @@ export default function PurchaseDocumentViewerPopup({
   };
 
   const revisionCount = Math.max(
-    Number(currentOrder.revisionNumber ?? currentOrder.revision_number ?? 0),
+    Number(currentOrder?.revisionNumber ?? currentOrder?.revision_number ?? 0),
     Array.isArray(revisions) && revisions.length > 1 ? revisions.length - 1 : 0
   );
 
   const hasRevisions = revisionCount > 0
-    || Boolean(currentOrder.originalOrderId || currentOrder.original_order_id)
+    || Boolean(currentOrder?.originalOrderId || currentOrder?.original_order_id)
     || (Array.isArray(revisions) && revisions.length > 1);
 
   const openHistory = async () => {
@@ -158,7 +156,7 @@ export default function PurchaseDocumentViewerPopup({
     setHistoryLoading(true);
     setShowHistory(true);
     try {
-      const orderId = currentOrder.id || currentOrder.orderId;
+      const orderId = currentOrder?.id || currentOrder?.orderId;
       let res;
       try {
         res = await api.get(`/api/v1/purchase/orders/${orderId}/revisions`);
@@ -173,11 +171,11 @@ export default function PurchaseDocumentViewerPopup({
     }
   };
 
-  const rawPayMethod = currentOrder.paymentMethod || currentOrder.payment_method || linkedPayments[0]?.paymentMethod || linkedInvoice?.paymentMethod;
+  const rawPayMethod = currentOrder?.paymentMethod || currentOrder?.payment_method || linkedPayments[0]?.paymentMethod || linkedInvoice?.paymentMethod;
   const isMixed = String(rawPayMethod || '').toUpperCase() === 'MIXED'
-    || String(currentOrder.reference || '').toUpperCase() === 'MIXED'
-    || String(currentOrder.referenceNo || '').toUpperCase() === 'MIXED'
-    || (Array.isArray(currentOrder.paymentSplits) && currentOrder.paymentSplits.length > 0)
+    || String(currentOrder?.reference || '').toUpperCase() === 'MIXED'
+    || String(currentOrder?.referenceNo || '').toUpperCase() === 'MIXED'
+    || (Array.isArray(currentOrder?.paymentSplits) && currentOrder.paymentSplits.length > 0)
     || (Array.isArray(linkedPayments) && linkedPayments.length > 1);
 
   useEffect(() => {
@@ -206,7 +204,7 @@ export default function PurchaseDocumentViewerPopup({
               amount: parseFloat(p.amountPaid || p.amount || 0)
             })));
           } else {
-            const total = parseFloat(currentOrder.grandTotal || currentOrder.totalAmount || 0);
+            const total = parseFloat(currentOrder?.grandTotal || currentOrder?.totalAmount || 0);
             const half = Number((total / 2).toFixed(2));
             const remaining = Number((total - half).toFixed(2));
             setSplits([
@@ -222,7 +220,7 @@ export default function PurchaseDocumentViewerPopup({
               amount: parseFloat(p.amountPaid || p.amount || 0)
             })));
           } else {
-            const total = parseFloat(currentOrder.grandTotal || currentOrder.totalAmount || 0);
+            const total = parseFloat(currentOrder?.grandTotal || currentOrder?.totalAmount || 0);
             const half = Number((total / 2).toFixed(2));
             const remaining = Number((total - half).toFixed(2));
             setSplits([
@@ -241,7 +239,7 @@ export default function PurchaseDocumentViewerPopup({
   const payMethodDisplay = (() => {
     if (isMixed) return 'Mixed';
     if (!rawPayMethod) {
-      const pStatus = (currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase();
+      const pStatus = (currentOrder?.paymentStatus || currentOrder?.payment_status || '').toUpperCase();
       if (pStatus === 'PENDING') return 'Credit';
       return '—';
     }
@@ -255,6 +253,8 @@ export default function PurchaseDocumentViewerPopup({
     if (pm === 'MIXED') return 'Mixed';
     return rawPayMethod;
   })();
+
+  if (!currentOrder) return null;
 
   return (
     <CafeQRPopup
