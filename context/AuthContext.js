@@ -65,118 +65,149 @@ export const AuthProvider = ({ children }) => {
   const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);
   const router = useRouter();
 
-  useEffect(() => {
-    // Check for session metadata in cookies or localStorage fallback
-    const storedRole = getStorageItem('userRole');
-    const storedEmail = getStorageItem('userEmail');
-    const storedFirstName = getStorageItem('firstName');
-    const storedLastName = getStorageItem('lastName');
-    const storedStatus = (getStorageItem('subscriptionStatus') || '').toUpperCase();
-    const storedExpiry = getStorageItem('subscriptionExpiryDate');
-    const storedOrgId = getStorageItem('orgId');
-    const storedOrgName = getStorageItem('orgName');
-    const storedClientId = getStorageItem('clientId');
-    const storedClientName = getStorageItem('clientName');
-    const storedTerminalId = getStorageItem('terminalId');
-    const storedTerminalName = getStorageItem('terminalName');
-    const storedUserId = getStorageItem('userId');
-    const storedCurrency = getStorageItem('currency');
-    const storedCountry = getStorageItem('country');
-    const storedTimezone = getStorageItem('timezone');
-    const storedPosType = getStorageItem('posType');
-    const storedCanCancelOrder = getStorageItem('canCancelOrder');
-    const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');
-    const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
-    const storedModules = getStorageItem('activeModules');
-    const storedModulesDetailed = getStorageItem('activeModulesDetailed');
-    
-    if (storedEmail) setEmail(storedEmail);
-    if (storedFirstName) setFirstName(storedFirstName);
-    if (storedLastName) setLastName(storedLastName);
-    if (storedRole) setUserRole(storedRole);
-    if (storedStatus) setSubscriptionStatus(storedStatus);
-    if (storedOrgId) setOrgId(storedOrgId);
-    if (storedOrgName) setOrgName(storedOrgName);
-    if (storedClientId) setClientId(storedClientId);
-    if (storedClientName) setClientName(storedClientName);
-    if (storedTerminalId) setTerminalId(storedTerminalId);
-    if (storedTerminalName) setTerminalName(storedTerminalName);
-    if (storedUserId) setUserId(storedUserId);
-    if (storedCurrency) setCurrency(storedCurrency);
-    if (storedCountry) setCountry(storedCountry);
-    if (storedTimezone) setTimezone(storedTimezone);
-    if (storedPosType) setPosType(storedPosType);
-    if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');
-    if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
-    if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
-    if (storedModules) {
-      try {
-        setActiveModules(JSON.parse(storedModules));
-      } catch (e) {
-        setActiveModules([]);
-      }
+  const fetchAssignedMenus = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      console.log('[AuthContext] Device offline, skipping fetchAssignedMenus');
+      setMenusLoading(false);
+      return;
     }
-    if (storedModulesDetailed) {
-      try {
-        setActiveModulesDetailed(JSON.parse(storedModulesDetailed));
-      } catch (e) {
-        setActiveModulesDetailed([]);
+    try {
+      setMenusLoading(true);
+      console.log('[AuthContext] Fetching assigned menus from /api/v1/users/menus...');
+      const resp = await api.get('/api/v1/users/menus');
+      console.log('[AuthContext] Menus response:', resp.data?.success, 'Count:', resp.data?.data?.length);
+      if (resp.data.success) {
+        setAssignedMenus(resp.data.data || []);
       }
-    }
-    
-    if (storedExpiry) {
-      try {
-        const parsed = JSON.parse(storedExpiry);
-        setSubscriptionExpiryDate(parsed);
-      } catch (e) {
-        setSubscriptionExpiryDate(storedExpiry);
+    } catch (err) {
+      if (err?.message !== 'Network Error') {
+        console.error("[AuthContext] Failed to fetch assigned menus:", err?.response?.status || err?.message || err);
       }
-    }
-
-    // Auto-fetch and sync latest client profile (timezone, currency, country) in the background if authenticated
-    if (storedEmail) {
-      const cookieOptions = getFrontendCookieOptions();
-      Promise.all([
-        api.get('/api/v1/clients/me', { skipAuthRedirect: true }).catch(() => null),
-        storedOrgId ? api.get(`/api/v1/organizations/${storedOrgId}`, { skipAuthRedirect: true }).catch(() => null) : Promise.resolve(null)
-      ]).then(([clientRes, orgRes]) => {
-        const clientData = clientRes?.data?.success ? (clientRes.data.data || {}) : {};
-        const orgData = orgRes?.data?.success ? (orgRes.data.data || {}) : {};
-        
-        const resolvedTimezone = orgData.timezone || clientData.timezone;
-
-        if (resolvedTimezone) {
-          setTimezone(resolvedTimezone);
-          setStorageItem('timezone', resolvedTimezone, cookieOptions);
-        }
-        if (clientData.currency) {
-          setCurrency(clientData.currency);
-          setStorageItem('currency', clientData.currency, cookieOptions);
-        }
-        if (clientData.country) {
-          setCountry(clientData.country);
-          setStorageItem('country', clientData.country, cookieOptions);
-        }
-        if (clientData.posType) {
-          setPosType(clientData.posType);
-          setStorageItem('posType', clientData.posType, cookieOptions);
-        }
-      }).catch(err => console.error("Profile sync error", err));
-
-      api.get('/api/v1/subscription/status', { skipAuthRedirect: true }).then(res => {
-        if (res.data?.success) {
-          const subData = res.data.data || {};
-          updateSubscription(subData.status, subData.expiryDate, subData.activeModules, subData.activeModulesDetailed);
-        }
-      }).catch(err => console.error("Subscription sync error", err));
-
-      // Fetch assigned menus for the logged-in user
-      fetchAssignedMenus();
-    } else {
+    } finally {
       setMenusLoading(false);
     }
-    
-    setLoading(false);
+  };
+
+  useEffect(() => {
+    try {
+      console.log('[AuthContext] Starting session initialization from storage/cookies...');
+      // Check for session metadata in cookies or localStorage fallback
+      const storedRole = getStorageItem('userRole');
+      const storedEmail = getStorageItem('userEmail');
+      const storedFirstName = getStorageItem('firstName');
+      const storedLastName = getStorageItem('lastName');
+      const storedStatus = (getStorageItem('subscriptionStatus') || '').toUpperCase();
+      const storedExpiry = getStorageItem('subscriptionExpiryDate');
+      const storedOrgId = getStorageItem('orgId');
+      const storedOrgName = getStorageItem('orgName');
+      const storedClientId = getStorageItem('clientId');
+      const storedClientName = getStorageItem('clientName');
+      const storedTerminalId = getStorageItem('terminalId');
+      const storedTerminalName = getStorageItem('terminalName');
+      const storedUserId = getStorageItem('userId');
+      const storedCurrency = getStorageItem('currency');
+      const storedCountry = getStorageItem('country');
+      const storedTimezone = getStorageItem('timezone');
+      const storedPosType = getStorageItem('posType');
+      const storedCanCancelOrder = getStorageItem('canCancelOrder');
+      const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');
+      const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
+      const storedModules = getStorageItem('activeModules');
+      const storedModulesDetailed = getStorageItem('activeModulesDetailed');
+      
+      console.log('[AuthContext] Storage loaded:', { storedEmail, storedRole, storedOrgId, storedClientId, storedStatus });
+
+      if (storedEmail) setEmail(storedEmail);
+      if (storedFirstName) setFirstName(storedFirstName);
+      if (storedLastName) setLastName(storedLastName);
+      if (storedRole) setUserRole(storedRole);
+      if (storedStatus) setSubscriptionStatus(storedStatus);
+      if (storedOrgId) setOrgId(storedOrgId);
+      if (storedOrgName) setOrgName(storedOrgName);
+      if (storedClientId) setClientId(storedClientId);
+      if (storedClientName) setClientName(storedClientName);
+      if (storedTerminalId) setTerminalId(storedTerminalId);
+      if (storedTerminalName) setTerminalName(storedTerminalName);
+      if (storedUserId) setUserId(storedUserId);
+      if (storedCurrency) setCurrency(storedCurrency);
+      if (storedCountry) setCountry(storedCountry);
+      if (storedTimezone) setTimezone(storedTimezone);
+      if (storedPosType) setPosType(storedPosType);
+      if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');
+      if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
+      if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
+      if (storedModules) {
+        try {
+          setActiveModules(JSON.parse(storedModules));
+        } catch (e) {
+          setActiveModules([]);
+        }
+      }
+      if (storedModulesDetailed) {
+        try {
+          setActiveModulesDetailed(JSON.parse(storedModulesDetailed));
+        } catch (e) {
+          setActiveModulesDetailed([]);
+        }
+      }
+      
+      if (storedExpiry) {
+        try {
+          const parsed = JSON.parse(storedExpiry);
+          setSubscriptionExpiryDate(parsed);
+        } catch (e) {
+          setSubscriptionExpiryDate(storedExpiry);
+        }
+      }
+
+      // Auto-fetch and sync latest client profile (timezone, currency, country) in the background if authenticated
+      if (storedEmail) {
+        const cookieOptions = getFrontendCookieOptions();
+        Promise.all([
+          api.get('/api/v1/clients/me', { skipAuthRedirect: true }).catch(() => null),
+          storedOrgId ? api.get(`/api/v1/organizations/${storedOrgId}`, { skipAuthRedirect: true }).catch(() => null) : Promise.resolve(null)
+        ]).then(([clientRes, orgRes]) => {
+          const clientData = clientRes?.data?.success ? (clientRes.data.data || {}) : {};
+          const orgData = orgRes?.data?.success ? (orgRes.data.data || {}) : {};
+          
+          const resolvedTimezone = orgData.timezone || clientData.timezone;
+
+          if (resolvedTimezone) {
+            setTimezone(resolvedTimezone);
+            setStorageItem('timezone', resolvedTimezone, cookieOptions);
+          }
+          if (clientData.currency) {
+            setCurrency(clientData.currency);
+            setStorageItem('currency', clientData.currency, cookieOptions);
+          }
+          if (clientData.country) {
+            setCountry(clientData.country);
+            setStorageItem('country', clientData.country, cookieOptions);
+          }
+          if (clientData.posType) {
+            setPosType(clientData.posType);
+            setStorageItem('posType', clientData.posType, cookieOptions);
+          }
+        }).catch(err => console.error("[AuthContext] Profile sync error:", err));
+
+        api.get('/api/v1/subscription/status', { skipAuthRedirect: true }).then(res => {
+          if (res.data?.success) {
+            const subData = res.data.data || {};
+            updateSubscription(subData.status, subData.expiryDate, subData.activeModules, subData.activeModulesDetailed);
+          }
+        }).catch(err => console.error("[AuthContext] Subscription sync error:", err));
+
+        // Fetch assigned menus for the logged-in user
+        fetchAssignedMenus();
+      } else {
+        setMenusLoading(false);
+      }
+    } catch (err) {
+      console.error("[AuthContext] Init error:", err);
+    } finally {
+      console.log('[AuthContext] Session init complete, setting loading = false');
+      setLoading(false);
+    }
   }, []);
 
   const login = (data) => {
@@ -306,26 +337,6 @@ export const AuthProvider = ({ children }) => {
       removeStorageItem('activeModulesDetailed', { path: '/' });
     }
   }, []);
-
-  const fetchAssignedMenus = async () => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setMenusLoading(false);
-      return;
-    }
-    try {
-      setMenusLoading(true);
-      const resp = await api.get('/api/v1/users/menus');
-      if (resp.data.success) {
-        setAssignedMenus(resp.data.data || []);
-      }
-    } catch (err) {
-      if (err?.message !== 'Network Error') {
-        console.error("Failed to fetch assigned menus:", err);
-      }
-    } finally {
-      setMenusLoading(false);
-    }
-  };
 
   const logout = async () => {
     setUserRole(null);
@@ -486,7 +497,14 @@ export const AuthProvider = ({ children }) => {
       hasModule,
       loading 
     }}>
-      {!loading && children}
+      {loading ? (
+        <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#f97316', fontFamily: 'sans-serif' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '32px', height: '32px', border: '3px solid #334155', borderTopColor: '#f97316', borderRadius: '50%' }} />
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>Loading CafeQR...</span>
+          </div>
+        </div>
+      ) : children}
     </AuthContext.Provider>
   );
 };

@@ -47,16 +47,25 @@ export default function RoleGate({ children, allowedRoles, requiredMenu }) {
   const isWaiting = loading || (requiredMenu && menusLoading && !isSuperAdmin);
 
   useEffect(() => {
+    console.log('[RoleGate] Check:', { isWaiting, isAuthenticated, userRole, allowedRoles, hasMenuAccess, requiredMenu, path: router.pathname });
     if (!isWaiting) {
       if (!isAuthenticated) {
-        router.push('/login');
+        console.warn('[RoleGate] Not authenticated -> Redirecting to /login from', router.pathname);
+        router.replace('/login').catch(() => {
+          if (typeof window !== 'undefined') window.location.href = '/login';
+        });
       } else if (allowedRoles && !allowedRoles.includes(userRole)) {
-        // Static role check failed
-        router.push('/owner/main-menu');
+        console.warn(`[RoleGate] Role "${userRole}" not allowed for route -> Redirecting to /owner/main-menu from`, router.pathname);
+        router.replace('/owner/main-menu').catch(() => {
+          if (typeof window !== 'undefined') window.location.href = '/owner/main-menu';
+        });
       } else if (!hasMenuAccess) {
-        // Dynamic menu permission check failed
-        console.warn(`[RoleGate] Access denied: user role "${userRole}" does not have menu "${requiredMenu}" assigned.`);
-        router.push('/owner/main-menu');
+        console.warn(`[RoleGate] Access denied: user role "${userRole}" does not have menu "${requiredMenu}" assigned -> Redirecting to /owner/main-menu from`, router.pathname);
+        router.replace('/owner/main-menu').catch(() => {
+          if (typeof window !== 'undefined') window.location.href = '/owner/main-menu';
+        });
+      } else {
+        console.log('[RoleGate] Access GRANTED for path:', router.pathname);
       }
     }
   }, [isWaiting, isAuthenticated, userRole, allowedRoles, hasMenuAccess, requiredMenu, router]);
@@ -70,9 +79,9 @@ export default function RoleGate({ children, allowedRoles, requiredMenu }) {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f1f5f9;
+            background: #0f172a;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            color: #64748b;
+            color: #94a3b8;
           }
         `}</style>
         <p>Verifying permissions...</p>
@@ -81,7 +90,22 @@ export default function RoleGate({ children, allowedRoles, requiredMenu }) {
   }
 
   if (!isAuthenticated || (allowedRoles && !allowedRoles.includes(userRole)) || !hasMenuAccess) {
-    return null; // Don't show anything while redirecting
+    return (
+      <div className="gate-loading">
+        <style jsx>{`
+          .gate-loading {
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0f172a;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #94a3b8;
+          }
+        `}</style>
+        <p>Redirecting...</p>
+      </div>
+    );
   }
 
   return children;

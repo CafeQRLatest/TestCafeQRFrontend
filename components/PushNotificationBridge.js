@@ -159,26 +159,32 @@ export default function PushNotificationBridge() {
         console.log('[PushBridge] Native notification channels verified/created.');
 
         // 2. Register native action category for Delivery orders (adds Accept/Decline buttons)
-        await PushNotifications.registerActionTypes({
-          types: [
-            {
-              id: 'DELIVERY_ACTIONS',
-              actions: [
+        try {
+          if (typeof PushNotifications.registerActionTypes === 'function') {
+            await PushNotifications.registerActionTypes({
+              types: [
                 {
-                  id: 'accept',
-                  title: 'Accept',
-                  foreground: true,
-                },
-                {
-                  id: 'decline',
-                  title: 'Decline',
-                  foreground: true,
+                  id: 'DELIVERY_ACTIONS',
+                  actions: [
+                    {
+                      id: 'accept',
+                      title: 'Accept',
+                      foreground: true,
+                    },
+                    {
+                      id: 'decline',
+                      title: 'Decline',
+                      foreground: true,
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-        });
-        console.log('[PushBridge] Native delivery action categories registered.');
+            });
+            console.log('[PushBridge] Native delivery action categories registered.');
+          }
+        } catch (e) {
+          console.warn('[PushBridge] Action types registration skipped/unsupported:', e?.message || e);
+        }
 
         // 3. Play sounds for push notifications received while the app is in the foreground
         receivedListener = await PushNotifications.addListener(

@@ -44,8 +44,10 @@ export default function PwaLifecycle() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     if ('serviceWorker' in navigator) {
-      const shouldRegister = process.env.NODE_ENV === 'production'
-        || window.location.search.includes('sw=1');
+      const isNativeApp = Boolean(window?.Capacitor?.isNativePlatform?.() || window?.Capacitor?.isNative || window?.cordova);
+      const shouldRegister = !isNativeApp && (
+        process.env.NODE_ENV === 'production' || window.location.search.includes('sw=1')
+      );
 
       if (shouldRegister) {
         navigator.serviceWorker.register('/service-worker.js').then((registration) => {

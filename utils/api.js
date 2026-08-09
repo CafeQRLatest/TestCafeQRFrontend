@@ -17,7 +17,9 @@ import {
 import { getFrontendCookieOptions } from './cookieOptions';
 
 export const getApiUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  let envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  // Strip any accidental trailing /api or / to avoid double /api/api/v1/ endpoints
+  envUrl = envUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname;
     if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && envUrl.includes('localhost:8080')) {
@@ -231,6 +233,8 @@ api.interceptors.request.use(
     config.headers['X-Currency'] = getHeaderVal('currency') || 'INR';
     config.headers['X-Country'] = getHeaderVal('country') || '';
 
+    console.log('[API Request]', config.method?.toUpperCase(), config.url, { hasToken: !!accessToken, email: config.headers['X-User-Email'] });
+
     return installOfflineAdapterIfNeeded(config);
   },
   (error) => Promise.reject(error)
@@ -377,10 +381,13 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      // Attempt to refresh the token using the stored refresh_token
-      const refreshToken = Cookies.get('refresh_token');
+      // Attempt to refresh the token using the stored refresh_token (support localStorage fallback for native apps)
+      const refreshToken = getHeaderVal('refresh_token');
+      const baseUrl = getApiUrl().replace(/\/+$/, '');
+      const refreshUrl = baseUrl.endsWith('/api') ? `${baseUrl}/v1/auth/refresh` : `${baseUrl}/api/v1/auth/refresh`;
+
       const refreshResponse = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/refresh`,
+        refreshUrl,
         {},
         { 
           withCredentials: true,
@@ -390,10 +397,19 @@ api.interceptors.response.use(
 
       // Store the new tokens from the response
       if (refreshResponse.data?.data?.accessToken) {
-        Cookies.set('access_token', refreshResponse.data.data.accessToken, getFrontendCookieOptions());
-      }
-      if (refreshResponse.data?.data?.refreshToken) {
-        Cookies.set('refresh_token', refreshResponse.data.data.refreshToken, getFrontendCookieOptions());
+        const newAccess = refreshResponse.data.data.accessToken;
+        const newRefresh = refreshResponse.data.data.refreshToken;
+        const cookieOpts = getFrontendCookieOptions();
+        
+        Cookies.set('access_token', newAccess, cookieOpts);
+        if (newRefresh) Cookies.set('refresh_token', newRefresh, cookieOpts);
+        
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem('access_token', newAccess);
+            if (newRefresh) window.localStorage.setItem('refresh_token', newRefresh);
+          } catch (e) {}
+        }
       }
 
       // Success: process queued requests

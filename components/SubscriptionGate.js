@@ -31,17 +31,19 @@ const SubscriptionGate = ({ children }) => {
   useEffect(() => {
     // Small delay to allow AuthContext state to stabilize
     if (!loading) {
+      console.log('[SubscriptionGate] AuthContext loading complete. Enabling isReady in 100ms');
       const timer = setTimeout(() => setIsReady(true), 100);
       return () => clearTimeout(timer);
     }
   }, [loading]);
 
   useEffect(() => {
+    console.log('[SubscriptionGate] Status:', { isReady, isAuthenticated, isActive, exempt, shouldBlock, path: router.pathname });
     if (shouldBlock) {
-      console.log('SubscriptionGate: Redirecting to /subscription because isActive is false');
+      console.warn('[SubscriptionGate] Redirecting to /subscription because isActive is false');
       router.replace('/subscription');
     }
-  }, [router, shouldBlock]);
+  }, [router, shouldBlock, isReady, isAuthenticated, isActive, exempt]);
 
   if (loading || (!isReady && isAuthenticated) || shouldBlock) {
     return (
