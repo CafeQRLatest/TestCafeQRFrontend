@@ -831,7 +831,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     if (!isMenuVisibleForConfig(m, config)) return false;
 
     // Strict Sachet Gate: cashier/manager cannot see unsubscribed features, owners see them to prompt upgrading
-    if (userRole !== 'OWNER') {
+    if (userRole !== 'OWNER' && userRole !== 'SUPER_ADMIN' && userRole !== 'ROLE_SUPER_ADMIN') {
       if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
         return false;
       }
@@ -1098,7 +1098,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     if (!isMenuVisibleForConfig(m, config)) return false;
 
     // Strict Sachet Gate: cashier/manager cannot see unsubscribed features, owners see them to prompt upgrading
-    if (userRole !== 'OWNER') {
+    if (userRole !== 'OWNER' && userRole !== 'SUPER_ADMIN' && userRole !== 'ROLE_SUPER_ADMIN') {
       if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
         return false;
       }
