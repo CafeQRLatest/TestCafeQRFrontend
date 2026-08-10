@@ -296,7 +296,16 @@ function buildVariantOptions(product, isPurchaseMode = false) {
 
   const pricings = Array.isArray(product?.variantPricings) ? product.variantPricings : [];
   if (pricings.length) {
-    return pricings
+    // Sort pricings to match the exact order of the options defined in the Variant Group
+    const groupOptions = (product?.variantMappings || []).flatMap(m => m.variantGroup?.options || []);
+    const sortedPricings = [...pricings].sort((a, b) => {
+      const idxA = groupOptions.findIndex(o => o.id === a.variantOption?.id);
+      const idxB = groupOptions.findIndex(o => o.id === b.variantOption?.id);
+      if (idxA === -1 || idxB === -1) return 0;
+      return idxA - idxB;
+    });
+
+    return sortedPricings
       .filter((pricing) => pricing?.isAvailable !== false && pricing?.variantOption)
       .map((pricing) => {
         const option = pricing.variantOption;
