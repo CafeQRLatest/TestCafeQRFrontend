@@ -6,6 +6,7 @@ export default function useCart({ notify }) {
   const [cart, setCart] = useState([]);
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
+  const [variablePriceProduct, setVariablePriceProduct] = useState(null);
   
   // In-memory product details cache (persists for the POS session mount)
   const productDetailsCacheRef = useRef(new Map());
@@ -123,6 +124,11 @@ export default function useCart({ notify }) {
   }, [notify]);
 
   const addToCart = useCallback(async (product) => {
+    // Variable price products: open the price modal instead of adding directly
+    if (product.isVariablePrice) {
+      setVariablePriceProduct(product);
+      return;
+    }
     if (hasExtendedOptions(product)) {
       await openVariantSelector(product);
       return;
@@ -135,6 +141,24 @@ export default function useCart({ notify }) {
       description: null
     });
   }, [openVariantSelector, addPreparedToCart]);
+
+  const addVariablePriceToCart = useCallback((product, customPrice, qty = 1) => {
+    const uniqueKey = `${product.id}:vp_${Date.now()}`;
+    for (let i = 0; i < qty; i++) {
+      const entryKey = qty > 1 ? `${product.id}:vp_${Date.now()}_${i}` : uniqueKey;
+      addPreparedToCart({
+        ...product,
+        productId: product.id,
+        cartKey: entryKey,
+        displayName: product.name,
+        price: customPrice,
+        is_custom_price: true,
+        qty: 1,
+        description: null
+      });
+    }
+    setVariablePriceProduct(null);
+  }, [addPreparedToCart]);
 
   const addVariantToCart = useCallback((variant, additionalItems = []) => {
     if (!variantProduct) return;
@@ -274,12 +298,15 @@ export default function useCart({ notify }) {
     variantProduct,
     setVariantProduct,
     variantLoading,
+    variablePriceProduct,
+    setVariablePriceProduct,
     productCartQuantity,
     baseProductCartLine,
     variantQuantityMap,
     currentVariantQuantities,
     addToCart,
     addVariantToCart,
+    addVariablePriceToCart,
     syncVariantCart,
     updateQty,
     decrementProduct,

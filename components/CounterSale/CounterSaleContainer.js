@@ -6,6 +6,7 @@ import CounterHeader from './components/CounterHeader';
 import ProductCatalog from './components/ProductCatalog';
 import CartSidebar from './components/CartSidebar';
 import DiscountDialog from './components/DiscountDialog';
+import VariablePriceModal from './components/VariablePriceModal';
 import * as S from './CounterSale.styles';
 
 // Import sub-modals from parent directory
@@ -127,6 +128,17 @@ export default function CounterSaleContainer(props) {
             themeColor={ui.THEME.main}
             themeSoftColor={ui.THEME.soft}
             themeDarkColor={ui.THEME.dark}
+          />
+        )}
+
+        {cart.variablePriceProduct && (
+          <VariablePriceModal
+            product={cart.variablePriceProduct}
+            onClose={() => cart.setVariablePriceProduct(null)}
+            onConfirm={cart.addVariablePriceToCart}
+            sym={ui.sym}
+            themeColor={ui.THEME.main}
+            currencyDecimalPlaces={bootstrap.config?.currencyDecimalPlaces ?? 2}
           />
         )}
 

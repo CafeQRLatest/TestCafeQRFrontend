@@ -212,6 +212,8 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [loading, setLoading] = useState(true);
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
+  const [variablePriceProduct, setVariablePriceProduct] = useState(null);
+  const [variablePriceInput, setVariablePriceInput] = useState('');
 
   const [discountType, setDiscountType] = useState('amount');
   const [discountValue, setDiscountValue] = useState(0);
@@ -499,6 +501,12 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   };
 
   const addProduct = async (product) => {
+    // Variable price: show a prompt for custom price
+    if (product.isVariablePrice) {
+      setVariablePriceProduct(product);
+      setVariablePriceInput(String(Number(product.price || 0)));
+      return;
+    }
     const hasVariants = Boolean(product.hasVariants || product.has_variants || Number(product.variantCount || product.variant_count || 0) > 0);
     const hasUpsells = Boolean(product.hasUpsells || Number(product.upsellCount || 0) > 0);
     
@@ -507,6 +515,20 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       return;
     }
     upsertLine(productToLine(product));
+  };
+
+  const confirmVariablePrice = () => {
+    if (!variablePriceProduct) return;
+    const customPrice = parseFloat(variablePriceInput);
+    if (isNaN(customPrice) || customPrice < 0) return;
+    const uniqueKey = `${variablePriceProduct.id}:vp_${Date.now()}`;
+    upsertLine({
+      ...productToLine(variablePriceProduct),
+      cartKey: uniqueKey,
+      unitPrice: customPrice,
+    });
+    setVariablePriceProduct(null);
+    setVariablePriceInput('');
   };
 
   const addOptions = (variant, additionalItems = []) => {
@@ -797,7 +819,10 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                   return (
                     <ProductButton key={product.id} type="button" onClick={() => addProduct(product)}>
                       <div>
-                        <strong>{product.name}</strong>
+                        <strong>
+                          {product.name}
+                          {product.isVariablePrice && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '6px', verticalAlign: 'middle' }}>OPEN</span>}
+                        </strong>
                         <span>{product.categoryName || 'Menu item'}</span>
                       </div>
                       {hasOptions || product.hasUpsells || product.upsellCount > 0 ? (

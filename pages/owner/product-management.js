@@ -366,6 +366,7 @@ function ProductManagementContent() {
       isVariant: toBoolean(product.isVariant, false),
       isPackagedGood: toBoolean(product.isPackagedGood, false),
       isIngredient: toBoolean(product.isIngredient, false),
+      isVariablePrice: toBoolean(product.isVariablePrice, false),
       productCode: product.productCode || '',
       taxRate: toNumber(product.taxRate, 0),
       taxCode: product.taxCode || '',
@@ -389,7 +390,8 @@ function ProductManagementContent() {
     if (e) e.preventDefault();
 
     const isIngredient = Boolean(selectedProduct.isIngredient);
-    if (!isIngredient && (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '')) {
+    const isVariablePrice = Boolean(selectedProduct.isVariablePrice);
+    if (!isIngredient && !isVariablePrice && (selectedProduct.price === null || selectedProduct.price === undefined || isNaN(selectedProduct.price) || selectedProduct.price === '')) {
       notify('error', 'Sale Price is required');
       return;
     }
@@ -496,7 +498,7 @@ function ProductManagementContent() {
   const startNewProduct = () => {
     setSelectedProduct({
       name: '', description: '', price: 0, isAvailable: true, imageUrl: '',
-      productType: 'VEG', isVariant: false, isPackagedGood: false, isIngredient: false, productCode: '',
+      productType: 'VEG', isVariant: false, isPackagedGood: false, isIngredient: false, isVariablePrice: false, productCode: '',
       taxRate: 0, taxCode: '', mrp: 0, costPrice: 0, barcode: '', minStockLevel: 0,
       kdsStation: '', uom: null, category: categories[0] || null, isActive: true,
       variantMappings: [], variantPricings: [], upsells: [], pricelistProducts: [], recipeLines: []

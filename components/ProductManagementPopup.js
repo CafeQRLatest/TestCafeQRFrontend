@@ -251,6 +251,7 @@ export default function ProductManagementPopup({
       isVariant: toBoolean(p.isVariant, false),
       isPackagedGood: toBoolean(p.isPackagedGood, false),
       isIngredient: toBoolean(p.isIngredient, false),
+      isVariablePrice: toBoolean(p.isVariablePrice, false),
       productCode: p.productCode || '',
       taxRate: toNumber(p.taxRate, 0),
       taxCode: p.taxCode || '',
@@ -517,7 +518,7 @@ export default function ProductManagementPopup({
                </div>
              </div>
 
-             <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: inventoryEnabled ? '1fr 1fr' : '1fr', gap: '16px' }}>
+             <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: inventoryEnabled ? '1fr 1fr 1fr' : '1fr 1fr', gap: '16px' }}>
                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                    <label style={{ margin: 0 }}>Packaged Good</label>
                    <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
@@ -532,6 +533,12 @@ export default function ProductManagementPopup({
                      </div>
                   </div>
                 )}
+                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                   <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Variable Price</label>
+                   <div className={`erp-switch ${selectedProduct.isVariablePrice ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isVariablePrice: !selectedProduct.isVariablePrice})}>
+                     <div className="switch-knob"></div>
+                   </div>
+                </div>
              </div>
 
              {taxEnabled && selectedProduct.isPackagedGood && (

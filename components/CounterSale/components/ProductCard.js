@@ -105,6 +105,7 @@ const ProductCard = React.memo(function ProductCard({
         <S.CsCategoryTag>{product.categoryName || 'Menu item'}</S.CsCategoryTag>
         <S.CsProdPriceRow>
           <S.CsProdPrice $themeColor={theme.main}>
+            {product.isVariablePrice && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px', verticalAlign: 'middle' }}>OPEN</span>}
             {sym}{Number(product.price || 0).toFixed(currencyDecimalPlaces)}{hasOptions ? '+' : ''}
           </S.CsProdPrice>
           {hasOptions ? (
