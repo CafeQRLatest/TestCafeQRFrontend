@@ -227,13 +227,17 @@ function WarehouseContent() {
                       <label className="v2-checkbox-label">
                         <input 
                           type="checkbox" 
-                          disabled={!isAdmin || warehouses.length <= 1}
-                          checked={warehouses.length <= 1 ? true : Boolean(selectedWarehouse.isDefault)} 
+                          disabled={!isAdmin || warehouses.length <= 1 || Boolean(selectedWarehouse?.id && selectedWarehouse?.isDefault)}
+                          checked={warehouses.length <= 1 ? true : Boolean(selectedWarehouse?.isDefault)} 
                           onChange={(e) => setSelectedWarehouse({...selectedWarehouse, isDefault: e.target.checked})} 
                         />
                         <span className="checkbox-text">Default Warehouse for Organization</span>
                       </label>
-                      <span className="checkbox-hint">Stock for completed sales and purchases in this organization will automatically use this warehouse.</span>
+                      <span className="checkbox-hint">
+                        {selectedWarehouse?.isDefault 
+                          ? 'This is currently the default warehouse for the organization. To change the default warehouse, edit another warehouse and mark it as default.' 
+                          : 'Stock for completed sales and purchases in this organization will automatically use this warehouse.'}
+                      </span>
                     </div>
                   </div>
                 </section>
