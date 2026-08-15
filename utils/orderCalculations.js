@@ -450,9 +450,19 @@ export function calculateOrderTotals(
   const roundCfg = profile?.round_off_config || {};
   let roundOffAmount = 0;
 
-  const isRoundOffEnabled = roundCfg.round_off_enabled !== undefined 
-    ? Boolean(roundCfg.round_off_enabled) 
-    : Boolean(profile?.roundOffEnabled);
+  const isCreditOrder = Boolean(
+    profile?.isCredit || 
+    profile?.isCreditOrder || 
+    profile?.paymentMethod === 'CREDIT' || 
+    profile?.payment_method === 'CREDIT' ||
+    profile?.isCreditSale
+  );
+
+  const isRoundOffEnabled = !isCreditOrder && (
+    roundCfg.round_off_enabled !== undefined 
+      ? Boolean(roundCfg.round_off_enabled) 
+      : Boolean(profile?.roundOffEnabled)
+  );
 
   const roundOffMode = String(roundCfg.round_off_mode || profile?.roundOffMode || 'AUTOMATIC')
     .trim()

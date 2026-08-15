@@ -33,7 +33,7 @@ export default function OrderSummary({
           <span>{sym}{(totals.total_tax_added + totals.total_tax_included).toFixed(currencyDecimalPlaces)}</span>
         </S.CsSummaryRow>
       )}
-      {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && (
+      {config?.roundOffEnabled && config?.roundOffMode === 'automatic' && roundOffPreview !== 0 && !config?.isCredit && !config?.isCreditSale && (
         <S.CsSummaryRow style={{ color: '#94a3b8' }}>
           <span>Round Off</span>
           <span>{(roundOffPreview > 0 ? '+' : '')}{sym}{Math.abs(roundOffPreview).toFixed(currencyDecimalPlaces)}</span>

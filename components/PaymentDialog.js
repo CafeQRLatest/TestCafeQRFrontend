@@ -238,6 +238,8 @@ export default function PaymentDialog({
   const totals = useMemo(() => {
     if (cartItems.length === 0) return null;
 
+    const isCreditPayment = paymentMethod === 'CREDIT';
+
     const configProfile = {
       tax_enabled: config?.taxEnabled,
       default_tax_rate: (() => {
@@ -248,8 +250,9 @@ export default function PaymentDialog({
       })(),
       prices_include_tax: config?.pricesIncludeTax,
       currencyDecimalPlaces: dp,
+      isCredit: isCreditPayment,
       round_off_config: {
-        round_off_enabled: roundOffEnabled,
+        round_off_enabled: isCreditPayment ? false : roundOffEnabled,
         round_off_mode: roundOffMode,
         round_off_auto_factor: roundOffAutoFactor,
       }
@@ -348,8 +351,10 @@ export default function PaymentDialog({
     }
   }, [activeBasePayable, roundOffMode, dp]);
 
+  const isCreditPayment = paymentMethod === 'CREDIT';
+
   const roundOff = useMemo(() => {
-    if (!roundOffEnabled) return 0;
+    if (!roundOffEnabled || isCreditPayment) return 0;
     if (roundOffMode === 'automatic') {
       return totals ? totals.autoRoundOff : 0;
     } else { // manual
@@ -358,14 +363,14 @@ export default function PaymentDialog({
       }
       return Number((Number(manualFinalAmount) - activeBasePayable).toFixed(dp));
     }
-  }, [roundOffEnabled, roundOffMode, totals, manualFinalAmount, activeBasePayable, dp]);
+  }, [roundOffEnabled, isCreditPayment, roundOffMode, totals, manualFinalAmount, activeBasePayable, dp]);
 
   // Payable = clean base + round-off (whatever mode)
-  const payable = roundOffEnabled
+  const payable = (roundOffEnabled && !isCreditPayment)
     ? (roundOffMode === 'manual' && manualFinalAmount !== '' && !isNaN(Number(manualFinalAmount))
         ? Number(Number(manualFinalAmount).toFixed(dp))
         : Number((activeBasePayable + roundOff).toFixed(dp)))
-    : activeBasePayable;
+    : Number(activeBasePayable.toFixed(dp));
 
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
@@ -595,7 +600,7 @@ export default function PaymentDialog({
           {disc > 0 && <Row style={{ color: '#dc2626' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
           {config?.taxEnabled && <Row><span>Subtotal</span><strong>{money(taxableSubtotal)}</strong></Row>}
           {config?.taxEnabled && <Row><span>Tax Amount</span><strong>{money(tax)}</strong></Row>}
-          {roundOffEnabled && roundOff !== 0 && (
+          {roundOffEnabled && !isCreditPayment && roundOff !== 0 && (
             <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
               <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>
               <strong>{roundOff > 0 ? '+' : ''}{money(roundOff)}</strong>
@@ -612,7 +617,7 @@ export default function PaymentDialog({
           </DiscountBtn>
         )}
 
-        {roundOffEnabled && roundOffMode === 'manual' && (
+        {!isCreditPayment && roundOffEnabled && roundOffMode === 'manual' && (
           <Field>
             Desired Final Amount
             <input
@@ -624,7 +629,7 @@ export default function PaymentDialog({
             />
           </Field>
         )}
-        {roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
+        {!isCreditPayment && roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
           <Field>
             Round Off (Auto)
             <input type="number" step="any" value={roundOff.toFixed(dp)} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />

@@ -1482,6 +1482,7 @@ export default function OrdersPage() {
       // because the bill is usually already printed via the "Bill" button.
       const payloadToSend = {
         ...settlementPayload,
+        ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
         skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill']
       };
 

@@ -1586,7 +1586,7 @@ function SalesContent() {
         ? {
           creditCustomerId: payload.creditCustomerId,
           discountAmount: payload.discountAmount,
-          roundOffAmount: payload.roundOffAmount,
+          roundOffAmount: 0,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
         }
         : {
