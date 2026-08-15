@@ -384,37 +384,120 @@ export default function Reports() {
         <NiceSelect value={invoiceFilter} onChange={(v) => { setInvoiceFilter(v); setInvoicePage(0); }} options={[
           {value:'ALL',label:'All Sales'},{value:'PAID',label:'Paid'},{value:'CREDIT',label:'Credit/Unpaid'},{value:'VOIDED',label:'Voided'}
         ]} style={{width:180}} />
-        <button className="rpt-exp-btn" onClick={() => exportCSV(
-          ['Order No','Invoice No','Date','Branch','Customer','Type','Table','Order Status','Invoice Status','Payment Status','Payment Method','Payment No','Tax','Discount','Total','Due','Void Reason'],
-          salesInvoices.map(tx => [
-            tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
-            tx.orderStatus, tx.invoiceStatus, tx.paymentStatus, tx.paymentMethod, tx.paymentNo,
-            tx.totalTaxAmount, tx.totalDiscountAmount, tx.grandTotal, tx.amountDue, tx.voidReason
-          ].map(csvCell).join(',')),
-          'sales_invoices'
-        )}><FaFileCsv /> CSV</button>
-        <button className="rpt-exp-btn" onClick={() => exportExcel(
-          salesInvoices.map(tx => ({
-            'Order No': tx.orderNo,
-            'Invoice No': tx.invoiceNo,
-            Date: tx.transactionDate,
-            Branch: branchLabel(tx),
-            Customer: tx.customerName,
-            Type: tx.fulfillmentType,
-            Table: tx.tableNumber,
-            'Order Status': tx.orderStatus,
-            'Invoice Status': tx.invoiceStatus,
-            'Payment Status': tx.paymentStatus,
-            'Payment Method': tx.paymentMethod,
-            'Payment No': tx.paymentNo,
-            Tax: tx.totalTaxAmount,
-            Discount: tx.totalDiscountAmount,
-            Total: tx.grandTotal,
-            Due: tx.amountDue,
-            'Void Reason': tx.voidReason || '',
-          })),
-          'Sales & Invoices', 'sales_invoices'
-        )}><FaFileExcel /> Excel</button>
+        <button className="rpt-exp-btn" onClick={() => {
+          const headers = [
+            'Order No', 'Invoice No', 'Date', 'Branch', 'Customer', 'Type', 'Table',
+            'Order Status', 'Invoice Status', 'Payment Method', 'Payment No',
+            'Line No', 'Item Name', 'Category', 'Tax Rate %', 'Qty', 'Unit Rate', 'Line Taxable', 'CGST Amt', 'SGST Amt', 'Line Total',
+            'Invoice Discount', 'Invoice Tax', 'Invoice Total', 'Amount Due', 'Void Reason'
+          ];
+          const rows = [];
+          salesInvoices.forEach(tx => {
+            const baseRow = [
+              tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
+              tx.orderStatus, tx.invoiceStatus, tx.paymentMethod, tx.paymentNo
+            ];
+            const invoiceSummary = [
+              tx.totalDiscountAmount, tx.totalTaxAmount, tx.grandTotal, tx.amountDue, tx.voidReason
+            ];
+
+            if (tx.lines && tx.lines.length > 0) {
+              tx.lines.forEach((line, index) => {
+                const taxRate = Number(line.taxRate || 0);
+                const taxAmount = Number(line.taxAmount || 0);
+                const cgst = (taxAmount / 2).toFixed(2);
+                const sgst = (taxAmount / 2).toFixed(2);
+                const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+                
+                rows.push([...baseRow, 
+                  index + 1, 
+                  line.productName, 
+                  line.categoryName, 
+                  taxRate, 
+                  line.quantity, 
+                  line.unitPrice, 
+                  lineTaxable, 
+                  cgst, 
+                  sgst, 
+                  line.lineTotal,
+                  ...invoiceSummary
+                ].map(csvCell).join(','));
+              });
+            } else {
+              rows.push([...baseRow, 
+                '', '', '', '', '', '', '', '', '', '', 
+                ...invoiceSummary
+              ].map(csvCell).join(','));
+            }
+          });
+          exportCSV(headers, rows, 'sales_invoices_detailed');
+        }}><FaFileCsv /> CSV</button>
+        <button className="rpt-exp-btn" onClick={() => {
+          const data = [];
+          salesInvoices.forEach(tx => {
+            const baseObj = {
+              'Order No': tx.orderNo,
+              'Invoice No': tx.invoiceNo,
+              'Date': tx.transactionDate,
+              'Branch': branchLabel(tx),
+              'Customer': tx.customerName,
+              'Type': tx.fulfillmentType,
+              'Table': tx.tableNumber,
+              'Order Status': tx.orderStatus,
+              'Invoice Status': tx.invoiceStatus,
+              'Payment Method': tx.paymentMethod,
+              'Payment No': tx.paymentNo,
+            };
+            const invoiceSummaryObj = {
+              'Invoice Discount': tx.totalDiscountAmount,
+              'Invoice Tax': tx.totalTaxAmount,
+              'Invoice Total': tx.grandTotal,
+              'Amount Due': tx.amountDue,
+              'Void Reason': tx.voidReason || '',
+            };
+
+            if (tx.lines && tx.lines.length > 0) {
+              tx.lines.forEach((line, index) => {
+                const taxRate = Number(line.taxRate || 0);
+                const taxAmount = Number(line.taxAmount || 0);
+                const cgst = (taxAmount / 2).toFixed(2);
+                const sgst = (taxAmount / 2).toFixed(2);
+                const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+
+                data.push({
+                  ...baseObj,
+                  'Line No': index + 1,
+                  'Item Name': line.productName,
+                  'Category': line.categoryName,
+                  'Tax Rate %': taxRate,
+                  'Qty': line.quantity,
+                  'Unit Rate': line.unitPrice,
+                  'Line Taxable': lineTaxable,
+                  'CGST Amt': cgst,
+                  'SGST Amt': sgst,
+                  'Line Total': line.lineTotal,
+                  ...invoiceSummaryObj
+                });
+              });
+            } else {
+              data.push({
+                ...baseObj,
+                'Line No': '',
+                'Item Name': '',
+                'Category': '',
+                'Tax Rate %': '',
+                'Qty': '',
+                'Unit Rate': '',
+                'Line Taxable': '',
+                'CGST Amt': '',
+                'SGST Amt': '',
+                'Line Total': '',
+                ...invoiceSummaryObj
+              });
+            }
+          });
+          exportExcel(data, 'Sales & Invoices Detailed', 'sales_invoices_detailed');
+        }}><FaFileExcel /> Excel</button>
       </div>
       {salesInvoices.length === 0 ? <div className="rpt-empty">No sales found</div> : (
         <div className="rpt-tbl-wrap">
