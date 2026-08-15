@@ -18,11 +18,18 @@ export const suspendCustomer = (id) =>
 export const reactivateCustomer = (id) => 
   api.post(`/api/v1/credit/customers/${id}/reactivate`);
 
-export const fetchCustomerOrders = (id) => 
-  api.get(`/api/v1/credit/customers/${id}/orders`);
+export const fetchCustomerOrders = (id, page = 0, size = 50, partnerType = 'CUSTOMER') => 
+  api.get(`/api/v1/credit/customers/${id}/orders`, { params: { page, size, partnerType } });
 
-export const fetchCustomerPayments = (id) => 
-  api.get(`/api/v1/credit/customers/${id}/payments`);
+export const fetchCustomerPayments = (id, page = 0, size = 50, partnerType = 'CUSTOMER') => 
+  api.get(`/api/v1/credit/customers/${id}/payments`, { params: { page, size, partnerType } });
 
-export const recordPayment = (id, payload) => 
-  api.post(`/api/v1/credit/customers/${id}/payments`, payload);
+export const recordPayment = (id, payload, options = {}) => {
+  const idempotencyKey = options.idempotencyKey || `credit_pay_${id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  return api.post(`/api/v1/credit/customers/${id}/payments`, payload, {
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+      ...(options.headers || {})
+    }
+  });
+};

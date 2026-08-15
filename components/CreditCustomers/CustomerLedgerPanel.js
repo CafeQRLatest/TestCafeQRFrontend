@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FaWallet } from 'react-icons/fa';
 import { formatTzDate } from '../../utils/timezoneUtils';
+import PageSizeSelect from './PageSizeSelect';
 
 export default function CustomerLedgerPanel({
   customer,
@@ -14,52 +15,75 @@ export default function CustomerLedgerPanel({
   handleViewPayment,
   openPayment,
 }) {
-  const [orderPage, setOrderPage] = React.useState(1);
-  const [paymentPage, setPaymentPage] = React.useState(1);
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(10);
 
-  React.useEffect(() => {
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentPageSize, setPaymentPageSize] = useState(10);
+
+  useEffect(() => {
     setOrderPage(1);
     setPaymentPage(1);
-  }, [customer?.id]);
+  }, [customer?.id, orderPageSize, paymentPageSize]);
 
-  const pageSize = 10;
-  
-  const totalOrderPages = Math.ceil(orders.length / pageSize);
-  const totalPaymentPages = Math.ceil(payments.length / pageSize);
+  const openOrders = useMemo(() => {
+    return (orders || []).filter((o) => {
+      const st = String(o.status || '').toUpperCase();
+      const due = Number(o.amountDue ?? 0);
+      return st !== 'PAID' && (o.amountDue == null || due > 0);
+    });
+  }, [orders]);
 
-  const paginatedOrders = React.useMemo(() => {
-    const start = (orderPage - 1) * pageSize;
-    return orders.slice(start, start + pageSize);
-  }, [orders, orderPage]);
+  const totalOrderPages = Math.max(1, Math.ceil(openOrders.length / orderPageSize));
+  const totalPaymentPages = Math.max(1, Math.ceil(payments.length / paymentPageSize));
 
-  const paginatedPayments = React.useMemo(() => {
-    const start = (paymentPage - 1) * pageSize;
-    return payments.slice(start, start + pageSize);
-  }, [payments, paymentPage]);
+  const paginatedOrders = useMemo(() => {
+    const start = (orderPage - 1) * orderPageSize;
+    return openOrders.slice(start, start + orderPageSize);
+  }, [openOrders, orderPage, orderPageSize]);
 
-  const renderPagination = (currentPage, totalPages, totalItems, onPageChange) => {
-    if (totalPages <= 1) return null;
+  const paginatedPayments = useMemo(() => {
+    const start = (paymentPage - 1) * paymentPageSize;
+    return payments.slice(start, start + paymentPageSize);
+  }, [payments, paymentPage, paymentPageSize]);
+
+  const renderPagination = (currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange) => {
+    if (totalItems === 0) return null;
+    const startRecord = (currentPage - 1) * pageSize + 1;
+    const endRecord = Math.min(currentPage * pageSize, totalItems);
+
     return (
-      <div className="pagination-bar" style={{ marginTop: '8px', padding: '12px 0' }}>
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          className="pg-btn"
-        >
-          ← Prev
-        </button>
+      <div className="pagination-bar" style={{ marginTop: '8px', padding: '12px 16px' }}>
+        <PageSizeSelect
+          value={pageSize}
+          options={[5, 10, 25, 50]}
+          onChange={(newSize) => {
+            onPageSizeChange(newSize);
+            onPageChange(1);
+          }}
+          label="Per page"
+        />
         <span className="pg-info">
-          Page {currentPage} of {totalPages} &nbsp;·&nbsp; {totalItems} records
+          Showing {startRecord}–{endRecord} of {totalItems} records (Page {currentPage} of {totalPages})
         </span>
-        <button
-          type="button"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          className="pg-btn"
-        >
-          Next →
-        </button>
+        <div className="pg-controls">
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="pg-btn"
+          >
+            ← Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className="pg-btn"
+          >
+            Next →
+          </button>
+        </div>
       </div>
     );
   };
@@ -72,7 +96,7 @@ export default function CustomerLedgerPanel({
           className={`expanded-tab ${activeTab === 'orders' ? 'active' : ''}`}
           onClick={() => setActiveTab('orders')}
         >
-          Credit Orders ({orders.length})
+          Credit Orders ({openOrders.length})
         </button>
         <button
           type="button"
@@ -84,8 +108,8 @@ export default function CustomerLedgerPanel({
       </div>
 
       {activeTab === 'orders' ? (
-        orders.length === 0 ? (
-          <div className="ledger-empty">No credit orders recorded.</div>
+        openOrders.length === 0 ? (
+          <div className="ledger-empty">No pending credit orders found for this customer.</div>
         ) : (
           <div className="rpt-tbl-wrap" style={{ marginTop: '8px' }}>
             <table className="rpt-tbl" style={{ minWidth: '600px', marginBottom: 0 }}>
@@ -135,7 +159,7 @@ export default function CustomerLedgerPanel({
                 ))}
               </tbody>
             </table>
-            {renderPagination(orderPage, totalOrderPages, orders.length, setOrderPage)}
+            {renderPagination(orderPage, totalOrderPages, orders.length, orderPageSize, setOrderPage, setOrderPageSize)}
           </div>
         )
       ) : (
@@ -173,7 +197,7 @@ export default function CustomerLedgerPanel({
                 ))}
               </tbody>
             </table>
-            {renderPagination(paymentPage, totalPaymentPages, payments.length, setPaymentPage)}
+            {renderPagination(paymentPage, totalPaymentPages, payments.length, paymentPageSize, setPaymentPage, setPaymentPageSize)}
           </div>
         )
       )}

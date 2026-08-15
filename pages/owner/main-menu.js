@@ -275,7 +275,7 @@ function MainMenuContent() {
           width: 100%;
           max-width: 620px;
           margin: 0 auto 12px;
-          z-index: 100;
+          z-index: 10;
         }
         .super-search-bar {
           position: relative;

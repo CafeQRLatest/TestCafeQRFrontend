@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import CreditCustomerRow from './CreditCustomerRow';
+import PageSizeSelect from './PageSizeSelect';
 
 export default function CreditCustomerTable({
   customers = [],
@@ -18,14 +19,21 @@ export default function CreditCustomerTable({
   handleViewPayment,
 }) {
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState(10);
 
-  const totalPages = Math.ceil(customers.length / pageSize);
+  useEffect(() => {
+    setPage(1);
+  }, [customers.length, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(customers.length / pageSize));
 
   const paginatedCustomers = useMemo(() => {
     const start = (page - 1) * pageSize;
     return customers.slice(start, start + pageSize);
-  }, [customers, page]);
+  }, [customers, page, pageSize]);
+
+  const startRecord = customers.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRecord = Math.min(page * pageSize, customers.length);
 
   return (
     <div className="rpt-tbl-wrap">
@@ -70,27 +78,35 @@ export default function CreditCustomerTable({
         </tbody>
       </table>
 
-      {totalPages > 1 && (
+      {customers.length > 0 && (
         <div className="pagination-bar">
-          <button
-            type="button"
-            className="pg-btn"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-          >
-            ← Prev
-          </button>
+          <PageSizeSelect
+            value={pageSize}
+            options={[10, 25, 50, 100]}
+            onChange={setPageSize}
+            label="Show per page"
+          />
           <span className="pg-info">
-            Page {page} of {totalPages} &nbsp;·&nbsp; {customers.length} records
+            Showing {startRecord}–{endRecord} of {customers.length} customers (Page {page} of {totalPages})
           </span>
-          <button
-            type="button"
-            className="pg-btn"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-          >
-            Next →
-          </button>
+          <div className="pg-controls">
+            <button
+              type="button"
+              className="pg-btn"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              className="pg-btn"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaBook, FaPlus, FaTimes, FaWallet } from 'react-icons/fa';
+import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore } from 'react-icons/fa';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
@@ -27,6 +27,16 @@ import {
 const toNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getMethodIcon = (val, ptType) => {
+  const v = String(val || '').toUpperCase();
+  if (v === 'CASH') return <FaMoneyBillWave style={{ fontSize: '14px', color: '#16a34a' }} />;
+  if (v === 'ONLINE' || v === 'UPI' || v === 'QR CODE') return <FaQrcode style={{ fontSize: '14px', color: '#0284c7' }} />;
+  if (v === 'CARD') return <FaCreditCard style={{ fontSize: '14px', color: '#6366f1' }} />;
+  if (ptType === 'CREDIT' || v.includes('CREDIT')) return <FaBook style={{ fontSize: '14px', color: '#d97706' }} />;
+  if (v === 'MIXED') return <FaLayerGroup style={{ fontSize: '14px', color: '#ea580c' }} />;
+  return <FaStore style={{ fontSize: '14px', color: '#64748b' }} />;
 };
 
 export default function PaymentDialog({ 
@@ -621,16 +631,60 @@ export default function PaymentDialog({
           </Field>
         )}
 
-        <Field style={{ marginBottom: 4 }}>
-          Payment Method
-          <NiceSelect
-            value={paymentMethod}
-            onChange={chooseMethod}
-            placeholder="Select Payment Method..."
-            options={selectOptions}
-            maxHeight={300}
-            style={{ height: 42, minWidth: 0 }}
-          />
+        <Field style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>Payment Method</span>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Select method</span>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '8px',
+            maxHeight: '190px',
+            overflowY: 'auto',
+            paddingRight: '4px',
+          }}>
+            {selectOptions.map((opt) => {
+              const isSelected = paymentMethod === opt.value;
+              const displayLabel = opt.value === 'CREDIT' ? 'Credit Ledger' 
+                : (opt.value === 'MIXED' ? 'Split Payment' 
+                : (opt.displayName || opt.label.replace(' (Credit Ledger)', '').replace(' / Split Payment', '')));
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => chooseMethod(opt.value)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    border: isSelected ? '2px solid #ea580c' : '1.5px solid #e2e8f0',
+                    background: isSelected ? '#fff7ed' : '#ffffff',
+                    color: isSelected ? '#ea580c' : '#334155',
+                    fontWeight: isSelected ? '700' : '600',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.15s ease',
+                    boxShadow: isSelected ? '0 3px 8px rgba(234, 88, 12, 0.18)' : '0 1px 2px rgba(0, 0, 0, 0.03)',
+                    lineHeight: '1.2'
+                  }}
+                >
+                  <span style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {displayLabel}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </Field>
 
         {isCreditSelected && (

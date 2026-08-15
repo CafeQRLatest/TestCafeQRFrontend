@@ -126,14 +126,93 @@ export default function DocumentViewerPopup({
 
   const [payments, setPayments] = React.useState([]);
   const [loadingPayments, setLoadingPayments] = React.useState(false);
+  const [showMixedSplitsToggle, setShowMixedSplitsToggle] = React.useState(false);
+  const [fetchedTerminal, setFetchedTerminal] = React.useState(null);
+
+  React.useEffect(() => {
+    setShowMixedSplitsToggle(false);
+  }, [currentOrder?.id, currentOrder?.orderId]);
+
+  React.useEffect(() => {
+    const tId = currentOrder?.terminalId || currentOrder?.terminal_id;
+    if (tId && !currentOrder?.terminalCode && !currentOrder?.terminalName && !currentOrder?.terminal_code) {
+      api.get(`/api/v1/terminals/${tId}`)
+        .then(res => {
+          const t = res.data?.data;
+          if (t) {
+            setFetchedTerminal(t.terminalCode || t.name || t.terminal_code);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setFetchedTerminal(null);
+    }
+  }, [currentOrder?.terminalId, currentOrder?.terminal_id]);
+
+  const effectivePayments = React.useMemo(() => {
+    if (payments && payments.length > 0) return payments;
+    const splits = currentOrder?.paymentSplits || currentOrder?.payment_splits;
+    if (Array.isArray(splits) && splits.length > 0) {
+      return splits.map(s => ({
+        paymentMethod: s.paymentMethod || s.payment_method || 'CASH',
+        amountPaid: parseFloat(s.amount || s.amountPaid || 0)
+      }));
+    }
+    return [];
+  }, [payments, currentOrder?.paymentSplits, currentOrder?.payment_splits]);
 
   React.useEffect(() => {
     if (docType !== 'payment') {
-      if (currentOrder?.payments && Array.isArray(currentOrder.payments) && currentOrder.payments.length > 0) {
-        setPayments(currentOrder.payments);
+      const orderId = currentOrder?.orderId || currentOrder?.id;
+      if (orderId) {
+        setLoadingPayments(true);
+        api.get(`/api/v1/orders/${orderId}/payments`)
+          .then(res => {
+            const fetched = res.data?.data || [];
+            if (fetched && fetched.length > 0) {
+              setPayments(fetched);
+            } else if (currentOrder?.payments && Array.isArray(currentOrder.payments) && currentOrder.payments.length > 0) {
+              setPayments(currentOrder.payments);
+            } else if (currentOrder?.referenceNo || currentOrder?.paymentNo || currentOrder?.receiptNo) {
+              const refStr = currentOrder.referenceNo || currentOrder.paymentNo || currentOrder.receiptNo;
+              if (refStr && refStr !== '—' && !refStr.startsWith('PO-') && !refStr.startsWith('SO-') && !refStr.startsWith('BILL-')) {
+                setPayments([{
+                  id: currentOrder.id,
+                  referenceNo: refStr,
+                  receiptNo: refStr,
+                  amount: currentOrder.amountPaid || currentOrder.totalAmount || currentOrder.grandTotal || 0,
+                }]);
+              } else {
+                setPayments([]);
+              }
+            } else {
+              setPayments([]);
+            }
+          })
+          .catch(() => {
+            if (currentOrder?.payments && Array.isArray(currentOrder.payments) && currentOrder.payments.length > 0) {
+              setPayments(currentOrder.payments);
+            } else if (currentOrder?.referenceNo || currentOrder?.paymentNo || currentOrder?.receiptNo) {
+              const refStr = currentOrder.referenceNo || currentOrder.paymentNo || currentOrder.receiptNo;
+              if (refStr && refStr !== '—' && !refStr.startsWith('PO-') && !refStr.startsWith('SO-') && !refStr.startsWith('BILL-')) {
+                setPayments([{
+                  id: currentOrder.id,
+                  referenceNo: refStr,
+                  receiptNo: refStr,
+                  amount: currentOrder.amountPaid || currentOrder.totalAmount || currentOrder.grandTotal || 0,
+                }]);
+              } else {
+                setPayments([]);
+              }
+            } else {
+              setPayments(currentOrder?.payments || []);
+            }
+          })
+          .finally(() => setLoadingPayments(false));
         return;
       }
-      // Check localStorage vendor payment history
+
+      // Check localStorage vendor payment history fallback for purchase orders
       if (typeof window !== 'undefined') {
         try {
           const saved = localStorage.getItem('vendor_payments_history');
@@ -155,7 +234,6 @@ export default function DocumentViewerPopup({
               }
             });
             if (matched.length > 0) {
-              // Deduplicate by payment ID / referenceNo
               const uniqueMatched = matched.filter((item, idx, self) => 
                 idx === self.findIndex(t => (t.id === item.id || t.referenceNo === item.referenceNo))
               );
@@ -178,96 +256,11 @@ export default function DocumentViewerPopup({
           return;
         }
       }
-      const orderId = currentOrder?.orderId || currentOrder?.id;
-      if (orderId) {
-        setLoadingPayments(true);
-        api.get(`/api/v1/orders/${orderId}/payments`)
-          .then(res => {
-            const fetched = res.data?.data || [];
-            if (fetched && fetched.length > 0) {
-              setPayments(fetched);
-            } else if (currentOrder?.payments) {
-              setPayments(currentOrder.payments);
-            } else {
-              setPayments([]);
-            }
-          })
-          .catch(() => {
-            setPayments(currentOrder?.payments || []);
-          })
-          .finally(() => setLoadingPayments(false));
-      } else {
-        setPayments(currentOrder?.payments || []);
-      }
+      setPayments(currentOrder?.payments || []);
     } else {
       setPayments([]);
     }
-  }, [currentOrder?.id, currentOrder?.orderId, currentOrder?.payments, currentOrder?.referenceNo, currentOrder?.paymentNo, docType]);
-
-  const [splits, setSplits] = React.useState([]);
-  const [loadingSplits, setLoadingSplits] = React.useState(false);
-  const [showSplitsToggle, setShowSplitsToggle] = React.useState(false);
-
-  React.useEffect(() => {
-    // Inline isMixed check here since isSale/isMixed are defined later in the function body.
-    // isMixed for the purpose of loading splits = has multiple payments or MIXED method (sale orders only).
-    const orderIsSale = !(currentOrder?.vendorId || currentOrder?.vendorName || currentOrder?.vendor_id || currentOrder?.vendor_name || currentOrder?.poNumber);
-    const effectIsMixed = orderIsSale && (currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1));
-    if (currentOrder?.id && effectIsMixed) {
-      if (payments && payments.length > 1) {
-        setSplits(payments.map(p => ({
-          paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
-          amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
-          referenceNo: p.referenceNo || p.reference_no
-        })));
-        return;
-      }
-      setLoadingSplits(true);
-      api.get(`/api/v1/orders/${currentOrder.id}/payment-splits`)
-        .then(res => {
-          const list = res.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
-            setSplits(list);
-          } else if (payments && payments.length > 0) {
-            setSplits(payments.map(p => ({
-              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
-              amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
-              referenceNo: p.referenceNo || p.reference_no
-            })));
-          } else {
-            const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
-            const half = Number((total / 2).toFixed(2));
-            const remaining = Number((total - half).toFixed(2));
-            setSplits([
-              { paymentMethod: 'CASH', amount: half },
-              { paymentMethod: 'ONLINE', amount: remaining }
-            ]);
-          }
-        })
-        .catch(err => {
-          console.warn('Failed to load splits, using fallback', err);
-          if (payments && payments.length > 0) {
-            setSplits(payments.map(p => ({
-              paymentMethod: p.paymentMethod || p.payment_method || 'Payment',
-              amount: parseFloat(p.amountPaid || p.amount_paid || p.amount || 0),
-              referenceNo: p.referenceNo || p.reference_no
-            })));
-          } else {
-            const total = parseFloat(currentOrder.grandTotal || currentOrder.amount || 0);
-            const half = Number((total / 2).toFixed(2));
-            const remaining = Number((total - half).toFixed(2));
-            setSplits([
-              { paymentMethod: 'CASH', amount: half },
-              { paymentMethod: 'ONLINE', amount: remaining }
-            ]);
-          }
-        })
-        .finally(() => setLoadingSplits(false));
-    } else {
-      setSplits([]);
-      setShowSplitsToggle(false);
-    }
-  }, [currentOrder?.id, currentOrder?.referenceNo, currentOrder?.reference, currentOrder?.paymentMethod, currentOrder?.vendorId, currentOrder?.vendorName, currentOrder?.vendor_id, currentOrder?.vendor_name, currentOrder?.poNumber, payments]);
+  }, [currentOrder?.id, currentOrder?.orderId, docType]);
 
   const [invoiceData, setInvoiceData] = React.useState(null);
   React.useEffect(() => {
@@ -448,7 +441,13 @@ export default function DocumentViewerPopup({
     || (!rawOrderType.includes('PURCHASE') && !rawOrderNo.startsWith('PO-') && !rawPaymentType.includes('OUTBOUND') && !currentOrder.vendorId && !currentOrder.vendor_id && !currentOrder.vendorName);
 
   const isVendorPayment = !isSale;
-  const isMixed = isSale && (currentOrder?.referenceNo === 'MIXED' || currentOrder?.reference === 'MIXED' || currentOrder?.paymentMethod === 'MIXED' || (payments && payments.length > 1));
+  const isMixed = (
+    currentOrder?.paymentMethod === 'MIXED' ||
+    currentOrder?.payment_method === 'MIXED' ||
+    (effectivePayments && effectivePayments.length > 1) ||
+    (currentOrder?.paymentSplits && currentOrder.paymentSplits.length > 1) ||
+    (currentOrder?.payment_splits && currentOrder.payment_splits.length > 1)
+  );
   const vendor = (!isSale || isVendorPayment) && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId || currentOrder.vendor_id)) : null;
   const warehouse = (!isSale || isVendorPayment) && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId || currentOrder.warehouse_id)) : null;
   const cfg = (() => {
@@ -567,20 +566,156 @@ export default function DocumentViewerPopup({
               </span>
             </div>
           )}
-          <div className="dv-cell">
+          <div className="dv-cell" style={{ position: 'relative' }}>
             <span className="dv-lbl">{(docType === 'payment' || !isSale) ? 'Payment Method' : 'Terminal'}</span>
-            <span className="dv-val">
-              {(docType === 'payment' || !isSale)
-                ? (currentOrder.paymentMethod || currentOrder.payment_method || currentOrder.reference || 'Cash')
-                : (currentOrder.terminalCode || currentOrder.terminalName || currentOrder.terminal_code || '-')}
-            </span>
+            {(docType === 'payment' || !isSale) ? (
+              isMixed ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowMixedSplitsToggle(prev => !prev)}
+                    title="Click to view split details"
+                    style={{
+                      color: '#ea580c',
+                      borderBottom: '1px dashed #ea580c',
+                      paddingBottom: '1px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      padding: 0,
+                      textAlign: 'left',
+                      width: 'fit-content'
+                    }}
+                  >
+                    Mixed
+                  </button>
+                  {showMixedSplitsToggle && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '6px',
+                      padding: '10px 14px',
+                      background: '#ffffff',
+                      border: '1px solid #ffedd5',
+                      borderLeft: '3.5px solid #ea580c',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      color: '#475569',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.2), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
+                      zIndex: 99,
+                      whiteSpace: 'nowrap',
+                      minWidth: '180px'
+                    }}>
+                      <div style={{ 
+                        fontSize: '9px', 
+                        fontWeight: '800', 
+                        color: '#ea580c', 
+                        textTransform: 'uppercase', 
+                        letterSpacing: '0.05em',
+                        borderBottom: '1px solid #ffedd5',
+                        paddingBottom: '4px',
+                        marginBottom: '2px'
+                      }}>
+                        Split Payment Details
+                      </div>
+                      {effectivePayments && effectivePayments.length > 0 ? (
+                        effectivePayments.map((p, idx) => {
+                          const pm = String(p.paymentMethod || p.payment_method || '').toUpperCase();
+                          const fmtPm = pm === 'CASH' ? 'Cash' : (pm === 'CARD' ? 'Card' : (pm === 'UPI' || pm === 'QR CODE' ? 'UPI/QR' : pm));
+                          const amt = p.amountPaid ?? p.amount ?? p.allocatedAmount;
+                          return (
+                            <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ 
+                                fontWeight: '600', 
+                                fontSize: '10px',
+                                background: pm === 'CASH' ? '#fff7ed' : '#f0f9ff',
+                                color: pm === 'CASH' ? '#c2410c' : '#0369a1',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                {fmtPm}
+                              </span>
+                              <span style={{ fontWeight: '700', color: '#0f172a' }}>
+                                {amt != null && !isNaN(Number(amt)) ? `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details available</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <span className="dv-val" style={{ fontWeight: '600' }}>
+                  {(() => {
+                    const rawPm = String(currentOrder.paymentMethod || currentOrder.payment_method || currentOrder.reference || 'Cash').toUpperCase();
+                    if (rawPm === 'QR CODE' || rawPm === 'UPI / QR CODE') return 'UPI / QR Code';
+                    if (rawPm === 'CASH') return 'Cash';
+                    if (rawPm === 'CARD') return 'Card';
+                    return rawPm.charAt(0) + rawPm.slice(1).toLowerCase();
+                  })()}
+                </span>
+              )
+            ) : (
+              <span className="dv-val">
+                {currentOrder.terminalCode || currentOrder.terminalName || currentOrder.terminal_code || fetchedTerminal || '-'}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="dv-rule" />
 
         {/* ── reference · cross-ref · payment ── */}
-        {!isSale ? (
+        {docType === 'payment' ? (
+          <div className="dv-row2">
+            <div className="dv-cell">
+              <span className="dv-lbl">Order No</span>
+              {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
+                <button 
+                  className="dv-link" 
+                  onClick={() => {
+                    const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
+                    onViewLinked?.({ 
+                      ...currentOrder, 
+                      id: currentOrder.orderId || currentOrder.id, 
+                      orderNo: oNo, 
+                      orderType: 'SALE'
+                    }, 'order');
+                  }}
+                >
+                  {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
+                </button>
+              ) : (
+                <span className="dv-nil">—</span>
+              )}
+            </div>
+            <div className="dv-cell">
+              <span className="dv-lbl">Invoice No</span>
+              {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
+                <button 
+                  className="dv-link" 
+                  onClick={() => {
+                    const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
+                    onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
+                  }}
+                >
+                  {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
+                </button>
+              ) : (
+                <span className="dv-nil">—</span>
+              )}
+            </div>
+          </div>
+        ) : !isSale ? (
           <>
             {/* Line 1: Note & Supplier Invoice (hidden on payment popup) */}
             {docType !== 'payment' && (
@@ -668,18 +803,28 @@ export default function DocumentViewerPopup({
                   )}
                 </div>
               ) : (
-                <div className="dv-cell">
+                <div className="dv-cell" style={{ position: 'relative' }}>
                   <span className="dv-lbl">Payment</span>
                   {payments && payments.length > 0 ? (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
-                      {payments.map((p, idx) => (
-                        <span key={p.id || p.paymentId || idx}>
-                          <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
-                            {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
-                          </button>
-                          {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
-                        </span>
-                      ))}
+                      {payments.map((p, idx) => {
+                        const pm = String(p.paymentMethod || p.payment_method || currentOrder.paymentMethod || currentOrder.payment_method || '').toUpperCase();
+                        const pmColors = { CASH: { bg: '#fff7ed', color: '#c2410c' }, UPI: { bg: '#f0f9ff', color: '#0369a1' }, 'QR CODE': { bg: '#f0f9ff', color: '#0369a1' }, CARD: { bg: '#f5f3ff', color: '#7c3aed' }, MIXED: { bg: '#fef3c7', color: '#b45309' } };
+                        const pmStyle = pmColors[pm] || { bg: '#f1f5f9', color: '#475569' };
+                        return (
+                          <span key={p.id || p.paymentId || idx} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
+                              {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
+                            </button>
+                            {pm && (
+                              <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', background: pmStyle.bg, color: pmStyle.color, padding: '1px 5px', borderRadius: '4px', letterSpacing: '0.04em' }}>
+                                {pm === 'QR CODE' ? 'UPI/QR' : pm}
+                              </span>
+                            )}
+                            {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '2px' }}>,</span>}
+                          </span>
+                        );
+                      })}
                     </div>
                   ) : isPaid ? (
                     <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
@@ -693,33 +838,34 @@ export default function DocumentViewerPopup({
             </div>
           </>
         ) : (
+          // Sale order or invoice popup
           <div className="dv-row3">
+            {/* Cell 1: Payment Type — only for invoice; order skips to keep it simple */}
             <div className="dv-cell" style={{ position: 'relative' }}>
-              <span className="dv-lbl">Reference</span>
+              <span className="dv-lbl">Payment Type</span>
               {isMixed ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <button 
-                    onClick={() => setShowSplitsToggle(!showSplitsToggle)}
-                    className="dv-link"
-                    style={{ 
-                      textTransform: 'capitalize', 
-                      fontWeight: '700', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '4px',
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowMixedSplitsToggle(prev => !prev)}
+                    title="Click to view split details"
+                    style={{
                       color: '#ea580c',
                       borderBottom: '1px dashed #ea580c',
                       paddingBottom: '1px',
                       background: 'none',
-                      borderTop: 'none',
-                      borderLeft: 'none',
-                      borderRight: 'none',
-                      cursor: 'pointer'
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      padding: 0,
+                      textAlign: 'left',
+                      width: 'fit-content'
                     }}
                   >
                     Mixed
                   </button>
-                  {showSplitsToggle && (
+                  {showMixedSplitsToggle && (
                     <div style={{
                       position: 'absolute',
                       top: '100%',
@@ -735,10 +881,10 @@ export default function DocumentViewerPopup({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '6px',
-                      boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.15), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
+                      boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.2), 0 8px 10px -6px rgba(234, 88, 12, 0.15)',
                       zIndex: 99,
                       whiteSpace: 'nowrap',
-                      minWidth: '150px'
+                      minWidth: '180px'
                     }}>
                       <div style={{ 
                         fontSize: '9px', 
@@ -750,41 +896,51 @@ export default function DocumentViewerPopup({
                         paddingBottom: '4px',
                         marginBottom: '2px'
                       }}>
-                        Split Details
+                        Split Payment Details
                       </div>
-                      {loadingSplits ? (
-                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>Loading splits...</span>
-                      ) : splits.length === 0 ? (
-                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details</span>
+                      {effectivePayments && effectivePayments.length > 0 ? (
+                        effectivePayments.map((p, idx) => {
+                          const pm = String(p.paymentMethod || p.payment_method || '').toUpperCase();
+                          const fmtPm = pm === 'CASH' ? 'Cash' : (pm === 'CARD' ? 'Card' : (pm === 'UPI' || pm === 'QR CODE' ? 'UPI/QR' : pm));
+                          const amt = p.amountPaid ?? p.amount ?? p.allocatedAmount;
+                          return (
+                            <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ 
+                                fontWeight: '600', 
+                                fontSize: '10px',
+                                background: pm === 'CASH' ? '#fff7ed' : '#f0f9ff',
+                                color: pm === 'CASH' ? '#c2410c' : '#0369a1',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                {fmtPm}
+                              </span>
+                              <span style={{ fontWeight: '700', color: '#0f172a' }}>
+                                {amt != null && !isNaN(Number(amt)) ? `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                              </span>
+                            </div>
+                          );
+                        })
                       ) : (
-                        splits.map((s, idx) => (
-                          <div key={idx} style={{ display: 'flex', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ 
-                              fontWeight: '600', 
-                              fontSize: '10px',
-                              background: s.paymentMethod === 'CASH' ? '#fff7ed' : '#f0f9ff',
-                              color: s.paymentMethod === 'CASH' ? '#c2410c' : '#0369a1',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              textTransform: 'uppercase'
-                            }}>
-                              {s.paymentMethod}
-                            </span>
-                            <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#1e293b' }}>
-                              {currencySymbol}{fmt(s.amount)}
-                            </span>
-                          </div>
-                        ))
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>No split details available</span>
                       )}
                     </div>
                   )}
                 </div>
               ) : (
-                <span className="dv-val dv-mono">
-                  {currentOrder.referenceNo || currentOrder.reference || '—'}
+                <span className="dv-val" style={{ fontWeight: '600' }}>
+                  {(() => {
+                    const rawPm = String((payments && payments[0]?.paymentMethod) || currentOrder.paymentMethod || currentOrder.payment_method || currentOrder.referenceNo || currentOrder.reference || '').toUpperCase();
+                    if (!rawPm || rawPm === 'MIXED') return payments && payments.length > 0 ? 'Mixed' : 'Cash';
+                    if (rawPm === 'QR CODE' || rawPm === 'UPI / QR CODE' || rawPm === 'UPI') return 'UPI / QR Code';
+                    if (rawPm === 'CASH') return 'Cash';
+                    if (rawPm === 'CARD') return 'Card';
+                    return rawPm.charAt(0) + rawPm.slice(1).toLowerCase();
+                  })()}
                 </span>
               )}
             </div>
+            {/* Cell 2: Invoice No (order) or Order No (invoice) */}
             <div className="dv-cell">
               {docType === 'order' ? (
                 <>
@@ -795,9 +951,7 @@ export default function DocumentViewerPopup({
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                       <span className="dv-nil">Not generated</span>
                       {currentOrder.orderStatus !== 'DRAFT' && currentOrder.orderStatus !== 'CANCELLED' && (
-                        <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>
-                          Invoke Order
-                        </button>
+                        <button className="dv-invoice-btn" onClick={() => onInvoiceOrder?.(currentOrder)}>Invoke Order</button>
                       )}
                     </div>
                   )}
@@ -806,16 +960,11 @@ export default function DocumentViewerPopup({
                 <>
                   <span className="dv-lbl">Order No</span>
                   {(currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no) ? (
-                    <button 
-                      className="dv-link" 
+                    <button
+                      className="dv-link"
                       onClick={() => {
                         const oNo = currentOrder.orderNo || currentOrder.order_no || currentOrder.poNumber;
-                        onViewLinked?.({ 
-                          ...currentOrder, 
-                          id: currentOrder.orderId || currentOrder.id, 
-                          orderNo: oNo, 
-                          orderType: 'SALE'
-                        }, 'order');
+                        onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, orderNo: oNo, orderType: 'SALE' }, 'order');
                       }}
                     >
                       {currentOrder.orderNo || currentOrder.poNumber || currentOrder.order_no}
@@ -826,46 +975,26 @@ export default function DocumentViewerPopup({
                 </>
               )}
             </div>
+            {/* Cell 3: Payment links */}
             <div className="dv-cell">
-              {docType === 'payment' ? (
-                <>
-                  <span className="dv-lbl">Invoice No</span>
-                  {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo) ? (
-                    <button 
-                      className="dv-link" 
-                      onClick={() => {
-                        const iNo = currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo;
-                        onViewLinked?.({ ...currentOrder, id: currentOrder.orderId || currentOrder.id, invoiceNo: iNo, billNo: iNo }, 'invoice');
-                      }}
-                    >
-                      {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo}
-                    </button>
-                  ) : (
-                    <span className="dv-nil">—</span>
-                  )}
-                </>
+              <span className="dv-lbl">Payment</span>
+              {payments && payments.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                  {payments.map((p, idx) => (
+                    <span key={p.id || p.paymentId || idx}>
+                      <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
+                        {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
+                      </button>
+                      {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
+                    </span>
+                  ))}
+                </div>
+              ) : isPaid ? (
+                <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
+              ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
+                <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
               ) : (
-                <>
-                  <span className="dv-lbl">Payment</span>
-                  {payments && payments.length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
-                      {payments.map((p, idx) => (
-                        <span key={p.id || p.paymentId || idx}>
-                          <button className="dv-link" onClick={() => handleLinkedPayment(p)}>
-                            {p.referenceNo || p.receiptNo || p.paymentNo || p.id || 'Payment'}
-                          </button>
-                          {idx < payments.length - 1 && <span style={{ color: '#94a3b8', marginRight: '4px' }}>,</span>}
-                        </span>
-                      ))}
-                    </div>
-                  ) : isPaid ? (
-                    <span style={{ color: '#16a34a', fontWeight: '700', fontSize: '12px' }}>Paid</span>
-                  ) : (String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIAL' || String(currentOrder.paymentStatus || currentOrder.payment_status || '').toUpperCase() === 'PARTIALLY_PAID') ? (
-                    <span style={{ color: '#b45309', fontWeight: '700', fontSize: '12px' }}>Partially Paid</span>
-                  ) : (
-                    <span className="dv-muted">Pending</span>
-                  )}
-                </>
+                <span className="dv-muted">Pending</span>
               )}
             </div>
           </div>

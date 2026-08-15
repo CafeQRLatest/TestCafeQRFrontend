@@ -164,11 +164,10 @@ export default function useCreditSettlements() {
       const isSuperAdmin = userRole === 'SUPER_ADMIN';
       const params = currentOrgId ? { orgId: currentOrgId } : {};
 
-      const [configRes, customersRes, vendorsRes, ordersRes, sequencesRes] = await Promise.all([
+      const [configRes, customersRes, vendorsRes, sequencesRes] = await Promise.all([
         service.fetchConfigurations(),
         service.fetchCustomers().catch(() => ({ data: { data: [] } })),
-        api.get('/api/v1/purchasing/vendors', { params }).catch(() => ({ data: { data: [] } })),
-        api.get('/api/v1/purchase/orders', { params }).catch(() => ({ data: { data: [] } })),
+        api.get('/api/v1/credit/partners', { params: { ...params, partnerType: 'VENDOR' } }).catch(() => ({ data: { data: [] } })),
         api.get('/api/v1/settings/sequences').catch(() => ({ data: { data: [] } })),
       ]);
 
@@ -176,77 +175,18 @@ export default function useCreditSettlements() {
       setCustomers(customersRes.data?.data || []);
       setSequences(sequencesRes.data?.data || []);
 
-      const rawVendors = vendorsRes.data?.success ? vendorsRes.data.data || [] : [];
+      const rawVendors = vendorsRes.data?.success ? vendorsRes.data.data || [] : (Array.isArray(vendorsRes.data?.data) ? vendorsRes.data.data : []);
       const filteredVendors = rawVendors.filter((v) => {
         if (!currentOrgId || isSuperAdmin) return true;
         const vOrg = String(v.organizationId || v.organization_id || v.orgId || v.org_id || '');
         return !vOrg || String(vOrg) === String(currentOrgId);
       });
 
-      const allOrders = Array.isArray(ordersRes.data?.data) 
-        ? ordersRes.data.data 
-        : (ordersRes.data?.data?.content || []);
-
-      // Use refs to read current (non-stale) local state during loadData
-      const currentOrdersByVendor = ordersByVendorRef.current;
-      const currentPaymentsByVendor = paymentsByVendorRef.current;
-
-      // Group orders by vendor and filter ONLY RECEIVED / COMPLETED orders
-      // Always prefer local amountPaid if it is higher than backend (local is more recent)
-      const ordersMap = {};
-      allOrders.forEach((o) => {
-        const vId = o.vendorId || o.vendor_id;
-        const st = String(o.orderStatus || o.order_status || '').toUpperCase();
-        if (vId && (st === 'COMPLETED' || st === 'RECEIVED')) {
-          if (!ordersMap[vId]) ordersMap[vId] = [];
-
-          const existingOrder = (currentOrdersByVendor[vId] || []).find((e) => e.id === o.id);
-          const prevPaid = Number(existingOrder?.amountPaid || existingOrder?.amount_paid || 0);
-          const backendPaid = Number(o.amountPaid || o.amount_paid || 0);
-          // Use whichever is greater: local in-memory (post-payment) or backend
-          const finalPaid = Math.max(prevPaid, backendPaid);
-          const tot = Number(o.totalAmount || o.total_amount || 0);
-          const finalStatus = (finalPaid >= tot - 0.05) ? 'PAID' : (finalPaid > 0 ? 'PARTIAL' : (o.paymentStatus || o.payment_status || 'PENDING'));
-
-          const vPayments = currentPaymentsByVendor[vId] || [];
-          const matchedPayments = vPayments.filter((p) => 
-            p.orderNo === (o.poNumber || o.orderNo) || 
-            p.poNumber === (o.poNumber || o.orderNo) || 
-            p.orderId === o.id
-          );
-          ordersMap[vId].push({
-            ...o,
-            amountPaid: finalPaid,
-            amount_paid: finalPaid,
-            paymentStatus: finalStatus,
-            payment_status: finalStatus,
-            payments: (existingOrder?.payments && existingOrder.payments.length > 0) ? existingOrder.payments : (o.payments || matchedPayments)
-          });
-        }
-      });
-      setOrdersByVendor(ordersMap);
-
-      // Compute vendor balances: sum net unpaid across all orders (totalAmount - amountPaid)
-      const computedVendors = filteredVendors.map((v) => {
-        const vOrders = ordersMap[v.id] || [];
-        const totalUnpaid = vOrders.reduce((sum, o) => {
-          const tot = Number(o.totalAmount || o.total_amount || 0);
-          const pd = Number(o.amountPaid || o.amount_paid || 0);
-          return sum + Math.max(0, tot - pd);
-        }, 0);
-        const opening = Number(v.openingBalance || 0);
-        const backendBal = Number(v.balance ?? v.currentBalance ?? 0);
-
-        // If backend already tracks balance natively, use it; otherwise compute from orders
-        const finalBalance = (backendBal === 0 && vOrders.length > 0)
-          ? totalUnpaid + opening
-          : (totalUnpaid > 0 ? totalUnpaid : (backendBal || opening));
-
-        return {
-          ...v,
-          balance: Math.max(0, finalBalance),
-        };
-      });
+      // CreditBPartnerDto directly includes backend-calculated `balance`
+      const computedVendors = filteredVendors.map((v) => ({
+        ...v,
+        balance: Number(v.balance ?? 0),
+      }));
 
       setVendors(computedVendors);
     } catch (error) {
@@ -328,25 +268,30 @@ export default function useCreditSettlements() {
     }
   };
 
-  const loadCustomerOrders = async (customer, force = false) => {
+  const loadCustomerOrders = async (customer, force = false, page = 0, size = 50) => {
     if (!customer?.id) return [];
     if (!force && ordersByCustomer[customer.id]) return ordersByCustomer[customer.id];
     try {
-      const { data } = await service.fetchCustomerOrders(customer.id);
+      const { data } = await service.fetchCustomerOrders(customer.id, page, size, 'CUSTOMER');
       const rows = Array.isArray(data.data) ? data.data : (data.data?.content || []);
-      setOrdersByCustomer((current) => ({ ...current, [customer.id]: rows }));
-      return rows;
+      const unpaidRows = rows.filter((o) => {
+        const st = String(o.status || '').toUpperCase();
+        const due = Number(o.amountDue ?? 0);
+        return st !== 'PAID' && (o.amountDue == null || due > 0);
+      });
+      setOrdersByCustomer((current) => ({ ...current, [customer.id]: unpaidRows }));
+      return unpaidRows;
     } catch {
       notify('error', 'Failed to load customer orders');
       return [];
     }
   };
 
-  const loadCustomerPayments = async (customer, force = false) => {
+  const loadCustomerPayments = async (customer, force = false, page = 0, size = 50) => {
     if (!customer?.id) return [];
     if (!force && paymentsByCustomer[customer.id]) return paymentsByCustomer[customer.id];
     try {
-      const { data } = await service.fetchCustomerPayments(customer.id);
+      const { data } = await service.fetchCustomerPayments(customer.id, page, size, 'CUSTOMER');
       const rows = Array.isArray(data.data) ? data.data : (data.data?.content || []);
       setPaymentsByCustomer((current) => ({ ...current, [customer.id]: rows }));
       return rows;
@@ -510,7 +455,7 @@ export default function useCreditSettlements() {
 
   const vendorTotals = useMemo(() => ({
     active: vendors.filter((v) => String(v.isactive || v.status || 'Y').toUpperCase() !== 'N').length,
-    owed: vendors.reduce((sum, v) => sum + Number(v.balance ?? v.openingBalance ?? 0), 0),
+    owed: vendors.reduce((sum, v) => sum + Number(v.balance ?? 0), 0),
     lifetime: vendors.reduce((sum, v) => sum + Number(v.creditLimit || v.openingBalance || 0), 0),
   }), [vendors]);
 
@@ -571,16 +516,51 @@ export default function useCreditSettlements() {
     if (!vendor?.id) return [];
     if (!force && ordersByVendor[vendor.id]) return ordersByVendor[vendor.id];
     try {
-      const { data } = await api.get('/api/v1/purchase/orders', { params: { vendorId: vendor.id } });
-      const rows = Array.isArray(data.data) ? data.data : (data.data?.content || []);
-      const receivedOrders = rows.filter((o) => {
-        const st = String(o.orderStatus || o.order_status || '').toUpperCase();
-        return st === 'COMPLETED' || st === 'RECEIVED';
+      // Use credit endpoint to get vendor bills (invoices) with accurate amountDue/amountPaid
+      const { data } = await api.get(`/api/v1/credit/partners/${vendor.id}/orders`, {
+        params: { partnerType: 'VENDOR', page: 0, size: 100 }
       });
-      setOrdersByVendor((current) => ({ ...current, [vendor.id]: receivedOrders }));
-      return receivedOrders;
+      const rows = Array.isArray(data.data)
+        ? data.data
+        : (data.data?.content || []);
+      const unpaidRows = rows.filter((o) => {
+        const st = String(o.status || o.paymentStatus || '').toUpperCase();
+        const due = Number(o.amountDue ?? 0);
+        return st !== 'PAID' && (o.amountDue == null || due > 0);
+      });
+      setOrdersByVendor((current) => ({ ...current, [vendor.id]: unpaidRows }));
+      return unpaidRows;
+    } catch (err) {
+      // Credit endpoint failed – fall back to raw purchase orders list
+      console.warn('Credit orders endpoint failed, falling back to purchase orders:', err?.response?.data?.message || err?.message);
+      try {
+        const { data } = await api.get('/api/v1/purchase/orders', { params: { vendorId: vendor.id, size: 200 } });
+        const rows = Array.isArray(data.data) ? data.data : (data.data?.content || []);
+        const receivedOrders = rows.filter((o) => {
+          const st = String(o.orderStatus || o.order_status || '').toUpperCase();
+          return st === 'COMPLETED' || st === 'RECEIVED';
+        });
+        setOrdersByVendor((current) => ({ ...current, [vendor.id]: receivedOrders }));
+        return receivedOrders;
+      } catch {
+        setOrdersByVendor((current) => ({ ...current, [vendor.id]: [] }));
+        return [];
+      }
+    }
+  };
+
+  const loadVendorPayments = async (vendor, force = false, page = 0, size = 50) => {
+    if (!vendor?.id) return [];
+    if (!force && paymentsByVendor[vendor.id]) return paymentsByVendor[vendor.id];
+    try {
+      const { data } = await api.get(`/api/v1/credit/partners/${vendor.id}/payments`, {
+        params: { partnerType: 'VENDOR', page, size }
+      });
+      const rows = Array.isArray(data.data) ? data.data : (data.data?.content || []);
+      setPaymentsByVendor((current) => ({ ...current, [vendor.id]: rows }));
+      return rows;
     } catch {
-      setOrdersByVendor((current) => ({ ...current, [vendor.id]: [] }));
+      notify('error', 'Failed to load vendor settlements history');
       return [];
     }
   };
@@ -588,11 +568,8 @@ export default function useCreditSettlements() {
   const openVendorPayment = async (vendor, order = null) => {
     setPaymentVendor(vendor);
     setVendorPaymentOrder(order);
-    // When settling a specific order, prefill with the actual REMAINING DUE (not total)
-    const tot = order ? Number(order.totalAmount || order.total_amount || 0) : 0;
-    const paid = order ? Number(order.amountPaid || order.amount_paid || 0) : 0;
-    const due = Math.max(0, tot - paid);
-    // Always prefill with remaining due amount
+    // When settling a specific order, prefill with REMAINING DUE from credit bill (amountDue)
+    const due = order ? Math.max(0, Number(order.amountDue ?? 0)) : 0;
     setVendorPaymentAmount(order ? String(due) : '');
     setVendorPaymentMethod('CASH');
     setVendorPaymentNotes('');
@@ -605,22 +582,18 @@ export default function useCreditSettlements() {
     try {
       const orders = await loadVendorOrders(vendor, true);
       const unpaidOrders = orders.filter((o) => {
-        const pSt = String(o.paymentStatus || o.payment_status || '').toUpperCase();
-        return pSt !== 'PAID';
+        const st = String(o.status || '').toUpperCase();
+        return st !== 'PAID' && Number(o.amountDue ?? 0) > 0;
       });
-      setVendorManualAllocations(unpaidOrders.map((o) => {
-        const oTot = Number(o.totalAmount || o.total_amount || 0);
-        const oPaid = Number(o.amountPaid || o.amount_paid || 0);
-        const oDue = Math.max(0, oTot - oPaid);
-        return {
-          orderId: o.id,
-          poNumber: o.poNumber || o.orderNo,
-          totalAmount: oTot,
-          amountPaid: oPaid,
-          amountDue: oDue,
-          amount: ''
-        };
-      }));
+      setVendorManualAllocations(unpaidOrders.map((o) => ({
+        invoiceId: o.invoiceId,
+        orderId: o.orderId,
+        poNumber: o.orderNo || o.invoiceNo,
+        totalAmount: Number(o.total ?? 0),
+        amountPaid: Number(o.amountPaid ?? 0),
+        amountDue: Number(o.amountDue ?? 0),
+        amount: ''
+      })));
     } catch {
       setVendorManualAllocations([]);
     }
@@ -631,11 +604,9 @@ export default function useCreditSettlements() {
     const amount = Number(vendorPaymentAmount || 0);
     if (amount <= 0) return notify('error', 'Enter a valid payment amount');
 
-    // For direct order settlement, validate amount does not exceed order due
-    if (vendorPaymentOrder?.id) {
-      const tot = Number(vendorPaymentOrder.totalAmount || vendorPaymentOrder.total_amount || 0);
-      const paid = Number(vendorPaymentOrder.amountPaid || vendorPaymentOrder.amount_paid || 0);
-      const due = Math.max(0, tot - paid);
+    // For direct order settlement, validate amount does not exceed invoice amountDue
+    if (vendorPaymentOrder) {
+      const due = Math.max(0, Number(vendorPaymentOrder.amountDue ?? 0));
       if (due > 0 && amount > due + 0.01) {
         return notify('error', `Amount ₹${amount} exceeds remaining due of ₹${due.toFixed(2)}`);
       }
@@ -643,167 +614,18 @@ export default function useCreditSettlements() {
 
     try {
       setSavingVendor(true);
-      const currentBal = Number(paymentVendor.balance ?? paymentVendor.openingBalance ?? 0);
-      const newBal = Math.max(0, currentBal - amount);
 
-      // Deduct balance from vendor profile
-      await api.put(`/api/v1/purchasing/vendors/${paymentVendor.id}`, {
-        ...paymentVendor,
-        openingBalance: newBal,
-        balance: newBal,
-      }).catch(() => {});
+      // Resolve invoiceId to link the credit payment to a specific vendor bill
+      const invoiceId = vendorPaymentOrder?.invoiceId ?? null;
 
-      // Update order payment status for settled orders (single order, manual, or FIFO)
-      let ordersToUpdate = [];
-      const vOrders = ordersByVendor[paymentVendor.id] || [];
-
-      if (vendorPaymentOrder?.id) {
-        // Direct single-order settlement
-        const tot = Number(vendorPaymentOrder.totalAmount || vendorPaymentOrder.total_amount || 0);
-        const paid = Number(vendorPaymentOrder.amountPaid || vendorPaymentOrder.amount_paid || 0);
-        const due = Math.max(0, tot - paid);
-        // Allocate only up to what is due
-        const allocAmt = due > 0 ? Math.min(amount, due) : amount;
-        ordersToUpdate.push({ order: vendorPaymentOrder, allocAmount: allocAmt });
-      } else if (vendorManualAllocations && vendorManualAllocations.length > 0 && vendorManualAllocations.some(a => Number(a.amount || 0) > 0)) {
-        // Manual allocation mode: user specifies per-order amounts
-        vendorManualAllocations.forEach((alloc) => {
-          const allocAmt = Number(alloc.amount || 0);
-          if (allocAmt > 0) {
-            const matched = vOrders.find((o) => o.id === alloc.orderId || o.id === alloc.id || (o.poNumber && o.poNumber === alloc.poNumber));
-            if (matched) ordersToUpdate.push({ order: matched, allocAmount: allocAmt });
-          }
-        });
-      } else {
-        // FIFO: settle oldest unpaid orders first
-        let remaining = amount;
-        for (const o of vOrders) {
-          if (remaining <= 0) break;
-          const pSt = String(o.paymentStatus || o.payment_status || '').toUpperCase();
-          if (pSt === 'PAID') continue;
-          const total = Number(o.totalAmount || o.total_amount || o.grandTotal || 0);
-          const prevPaid = Number(o.amountPaid || o.amount_paid || 0);
-          const due = Math.max(0, total - prevPaid);
-          if (due > 0) {
-            const allocAmt = Math.min(remaining, due);
-            ordersToUpdate.push({ order: o, allocAmount: allocAmt });
-            remaining -= allocAmt;
-          }
-        }
-      }
-
-      // Record payment log in vendor history using OUTBOUND_PAYMENT document sequence
-      const { formattedNumber, sequenceObj } = getNextSequence('OUTBOUND_PAYMENT');
-      const finalRefNo = vendorPaymentNotes?.trim() ? vendorPaymentNotes.trim() : formattedNumber;
-
-      const orderList = ordersToUpdate.map(({ order: o, allocAmount }) => ({
-        orderId: o.id,
-        orderNo: o.poNumber || o.orderNo || o.order_no,
-        poNumber: o.poNumber || o.orderNo || o.order_no,
-        invoiceNo: o.invoiceNo || o.invoice_no || o.billNo || o.poNumber || o.orderNo,
-        amount: allocAmount
-      }));
-
-      const primaryOrder = ordersToUpdate.length > 0 ? ordersToUpdate[0].order : vendorPaymentOrder;
-      const orderNumber = primaryOrder
-        ? (primaryOrder.poNumber || primaryOrder.orderNo || primaryOrder.order_no) 
-        : (orderList.map(item => item.orderNo).filter(Boolean).join(', ') || null);
-
-      const invoiceNumber = primaryOrder 
-        ? (primaryOrder.invoiceNo || primaryOrder.invoice_no || primaryOrder.billNo || primaryOrder.poNumber || primaryOrder.orderNo) 
-        : (orderList.map(item => item.invoiceNo).filter(Boolean).join(', ') || null);
-
-      const newPaymentLog = {
-        id: `VPAY-${Date.now()}`,
-        referenceNo: finalRefNo,
-        receiptNo: finalRefNo,
-        paymentNo: finalRefNo,
+      // Call credit payment API — backend handles allocation & invoice amountDue reduction
+      await api.post(`/api/v1/credit/partners/${paymentVendor.id}/payments`, {
         amount,
-        grandTotal: amount,
-        totalAmount: amount,
         paymentMethod: vendorPaymentMethod,
-        vendorName: paymentVendor.name,
-        vendorId: paymentVendor.id,
-        orderNo: orderNumber,
-        poNumber: orderNumber,
-        invoiceNo: invoiceNumber,
-        orderList,
-        notes: vendorPaymentNotes || (orderNumber ? `Settlement for ${orderNumber}` : 'Vendor Credit Settlement'),
-        createdAt: new Date().toISOString(),
-      };
-
-      const updateMap = {};
-      await Promise.all(
-        ordersToUpdate.map(async ({ order: o, allocAmount }) => {
-          const total = Number(o.totalAmount || o.total_amount || o.grandTotal || 0);
-          const prevPaid = Number(o.amountPaid || o.amount_paid || 0);
-          const newPaid = prevPaid + allocAmount;
-          const newStatus = (newPaid >= total - 0.01) ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'PENDING');
-
-          const oNo = o.poNumber || o.orderNo || o.order_no;
-          const iNo = o.invoiceNo || o.invoice_no || o.billNo || oNo;
-          const orderSpecificPaymentLog = {
-            ...newPaymentLog,
-            orderNo: oNo,
-            poNumber: oNo,
-            invoiceNo: iNo,
-            orderId: o.id,
-            amount: allocAmount
-          };
-
-          updateMap[o.id] = { newPaid, newStatus, paymentLog: orderSpecificPaymentLog };
-
-          await api.patch(`/api/v1/purchase/orders/${o.id}`, { 
-            paymentStatus: newStatus, 
-            payment_status: newStatus,
-            amountPaid: newPaid, 
-            amount_paid: newPaid 
-          }).catch(() => {});
-
-          await api.put(`/api/v1/purchase/orders/${o.id}`, { 
-            ...o, 
-            paymentStatus: newStatus, 
-            payment_status: newStatus, 
-            amountPaid: newPaid,
-            amount_paid: newPaid 
-          }).catch(() => {});
-        })
-      );
-
-      // Instantly update ordersByVendor local state
-      setOrdersByVendor((current) => {
-        const vendorList = current[paymentVendor.id] || [];
-        const updatedList = vendorList.map((o) => {
-          const match = updateMap[o.id];
-          if (match) {
-            const existingPayments = o.payments || [];
-            return {
-              ...o,
-              paymentStatus: match.newStatus,
-              payment_status: match.newStatus,
-              amountPaid: match.newPaid,
-              amount_paid: match.newPaid,
-              payments: [match.paymentLog, ...existingPayments]
-            };
-          }
-          return o;
-        });
-        return { ...current, [paymentVendor.id]: updatedList };
+        description: vendorPaymentNotes || null,
+        invoiceId,
+        partnerType: 'VENDOR',
       });
-
-      setPaymentsByVendor((current) => ({
-        ...current,
-        [paymentVendor.id]: [newPaymentLog, ...(current[paymentVendor.id] || [])]
-      }));
-
-      // Instantly update vendor balance in vendors list
-      setVendors((current) => current.map((v) => {
-        if (v.id !== paymentVendor.id) return v;
-        const updatedBal = Math.max(0, Number(v.balance ?? v.openingBalance ?? 0) - amount);
-        return { ...v, balance: updatedBal, openingBalance: updatedBal };
-      }));
-
-      await advanceSequence(sequenceObj);
 
       notify('success', `Vendor payment of ${money(amount)} settled successfully!`);
       setPaymentVendor(null);
@@ -811,7 +633,14 @@ export default function useCreditSettlements() {
       setVendorPaymentAmount('');
       setVendorPaymentNotes('');
       setVendorManualAllocations([]);
+      // Reload fresh data from backend (vendor balance, orders, payments all recalculated)
       await loadData();
+      if (expandedVendor?.id) {
+        await Promise.all([
+          loadVendorOrders({ id: expandedVendor.id }, true),
+          loadVendorPayments({ id: expandedVendor.id }, true),
+        ]);
+      }
     } catch (error) {
       notify('error', error.response?.data?.message || 'Vendor settlement failed');
     } finally {
@@ -826,7 +655,10 @@ export default function useCreditSettlements() {
     }
     setExpandedVendor(vendor);
     setActiveTab('orders');
-    await loadVendorOrders(vendor, true);
+    await Promise.all([
+      loadVendorOrders(vendor, true),
+      loadVendorPayments(vendor, true),
+    ]);
   };
 
   // Document Viewer Handlers

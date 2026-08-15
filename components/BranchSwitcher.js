@@ -141,7 +141,7 @@ export default function BranchSwitcher() {
         .branch-switcher-container {
           position: relative;
           font-family: 'Plus Jakarta Sans', sans-serif;
-          z-index: 100;
+          z-index: 9999;
         }
 
         .switcher-trigger {
@@ -228,6 +228,7 @@ export default function BranchSwitcher() {
           border-radius: 16px;
           box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
           overflow: hidden;
+          z-index: 10000;
           animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
