@@ -838,9 +838,6 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {
         return false;
       }
-      if (m.name === "Table Management" && !hasModule('TABLE_QR')) {
-        return false;
-      }
     }
 
     return true;
@@ -1103,9 +1100,6 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
         return false;
       }
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {
-        return false;
-      }
-      if (m.name === "Table Management" && !hasModule('TABLE_QR')) {
         return false;
       }
     }

@@ -116,8 +116,6 @@ export default function ModuleGate({ children }) {
       requiredSubscriptionModule = 'CREDIT_LEDGER';
     } else if (gate.flag === 'inventoryEnabled' || gate.flag === 'purchaseEnabled') {
       requiredSubscriptionModule = 'INVENTORY';
-    } else if (gate.flag === 'tableManagementEnabled') {
-      requiredSubscriptionModule = 'TABLE_QR';
     }
 
     if (requiredSubscriptionModule && !hasModule(requiredSubscriptionModule)) {
