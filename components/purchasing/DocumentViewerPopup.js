@@ -283,7 +283,7 @@ export default function DocumentViewerPopup({
   React.useEffect(() => {
     const orderId = currentOrder?.orderId || currentOrder?.id;
     const hasLines = currentOrder?.lines && Array.isArray(currentOrder.lines) && currentOrder.lines.length > 0;
-    if (docType !== 'payment' && orderId && (!hasLines || !currentOrder?.createdBy)) {
+    if (docType !== 'payment' && orderId) {
       setLoadingOrder(true);
       const isPo = (currentOrder.poNumber || currentOrder.vendorId || currentOrder.vendor_id || String(currentOrder.orderNo || '').startsWith('PO-') || currentOrder.orderType === 'PURCHASE' || currentOrder.order_type === 'PURCHASE');
       const endpoint = isPo ? `/api/v1/purchase/orders/${orderId}` : `/api/v1/orders/${orderId}`;
@@ -1118,8 +1118,10 @@ export default function DocumentViewerPopup({
             <>
               <div className="dv-rule" />
               <div className="dv-cell">
-                <span className="dv-lbl">Comments</span>
-                <span className="dv-comment">{currentOrder.description}</span>
+                <span className="dv-lbl">Comments / Instructions</span>
+                <span className="dv-val" style={{ fontSize: '13px', fontWeight: '500', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.5', marginTop: '2px' }}>
+                  {currentOrder.description.trim()}
+                </span>
               </div>
             </>
           );
@@ -1274,6 +1276,29 @@ export default function DocumentViewerPopup({
                             </span>
                             {(l.productCode || l.product_code) && <span className="dv-pcode">{l.productCode || l.product_code}</span>}
                             
+                            {/* Item-level Kitchen Note / Line Description */}
+                            {(() => {
+                              const note = String(l.description || l.notes || l.lineNotes || l.line_notes || l.itemNotes || '').trim();
+                              if (!note) return null;
+                              return (
+                                <div style={{
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: '#b45309',
+                                  background: '#fffbeb',
+                                  border: '1px solid #fde68a',
+                                  borderRadius: '4px',
+                                  padding: '2px 6px',
+                                  marginTop: '4px',
+                                  display: 'inline-block',
+                                  maxWidth: '100%',
+                                  lineHeight: '1.4'
+                                }}>
+                                  Note: {note}
+                                </div>
+                              );
+                            })()}
+
                             {/* Exclusive tax detailed breakdown */}
                             {taxEnabled && isExclusive && (
                               <div className="dv-exclusive-breakdown" style={{ 

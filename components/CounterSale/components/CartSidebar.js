@@ -1,9 +1,126 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaTimes, FaWallet, FaFire, FaUtensils } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
 import CartItem from './CartItem';
 import CustomerSelector from './CustomerSelector';
 import OrderSummary from './OrderSummary';
+
+// Dedicated sub-component for Kitchen Note with mode-aware dynamic coloring
+function KitchenNoteInput({ orderNote, setOrderNote, activeOrderMode, theme }) {
+  const [localValue, setLocalValue] = useState(orderNote || '');
+
+  // Keep local input in sync if parent orderNote changes from outside (e.g. cleared on order submit)
+  useEffect(() => {
+    setLocalValue(orderNote || '');
+  }, [orderNote]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setLocalValue(val);
+    if (typeof setOrderNote === 'function') {
+      setOrderNote(val);
+    }
+  };
+
+  const handleClear = () => {
+    setLocalValue('');
+    if (typeof setOrderNote === 'function') {
+      setOrderNote('');
+    }
+  };
+
+  const hasNote = Boolean(localValue && localValue.trim());
+  const isKitchenMode = activeOrderMode === 'kitchen';
+
+  // Dynamic Theme Colors: Softer Flame Orange for Kitchen mode, Emerald for Settle mode
+  const activeBg = isKitchenMode ? '#fff7ed' : '#f0fdf4';
+  const activeBorder = isKitchenMode ? '#fdba74' : '#a7f3d0';
+  const activeInputBorder = isKitchenMode ? '#fed7aa' : '#bbf7d0';
+  const activeTitleColor = isKitchenMode ? '#9a3412' : '#047857';
+  const activeGlow = isKitchenMode 
+    ? '0 2px 6px -1px rgba(249, 115, 22, 0.12)' 
+    : '0 2px 6px -1px rgba(16, 185, 129, 0.12)';
+
+  return (
+    <div 
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '5px',
+        padding: '8px 10px',
+        background: hasNote ? activeBg : '#f8fafc',
+        border: `1px solid ${hasNote ? activeBorder : '#e2e8f0'}`,
+        borderRadius: '8px',
+        boxShadow: hasNote ? activeGlow : '0 1px 2px rgba(15, 23, 42, 0.02)',
+        transition: 'all 0.15s ease-in-out'
+      }}
+    >
+      {/* Header bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{
+          fontSize: '9.5px',
+          fontWeight: 600,
+          color: hasNote ? activeTitleColor : '#64748b',
+          letterSpacing: '0.03em',
+          textTransform: 'uppercase'
+        }}>
+          Kitchen Note (whole order)
+        </span>
+        {hasNote && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClear();
+            }}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#ef4444',
+              cursor: 'pointer',
+              fontSize: '9.5px',
+              fontWeight: 600,
+              padding: '0 2px'
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Input Field */}
+      <div style={{ width: '100%' }}>
+        <input
+          type="text"
+          value={localValue}
+          onChange={handleChange}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onKeyUp={(e) => e.stopPropagation()}
+          placeholder="e.g. Less spicy, extra napkins..."
+          maxLength={200}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '5px 9px',
+            border: `1px solid ${hasNote ? activeInputBorder : '#cbd5e1'}`,
+            borderRadius: '6px',
+            fontSize: '11.5px',
+            fontWeight: 500,
+            color: '#0f172a',
+            background: 'white',
+            outline: 'none',
+            fontFamily: 'inherit',
+            transition: 'all 0.15s ease'
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CartSidebar({
   bootstrap,
@@ -20,7 +137,8 @@ export default function CartSidebar({
   const { productListingOn } = catalog;
   const { 
     items: cartItems, cartKeyFor, updateQty, handleEditProductFromCart, 
-    setItemDescription, totals, roundOffPreview, cartCountLabel 
+    setItemDescription, totals, roundOffPreview, cartCountLabel,
+    orderNote, setOrderNote
   } = cart;
   const {
     customersEnabled, selectedId: selectedCustomerId, name: customerName, 
@@ -137,6 +255,13 @@ export default function CartSidebar({
             </S.CsSummaryRow>
           </div>
 
+          <KitchenNoteInput 
+            orderNote={orderNote} 
+            setOrderNote={setOrderNote} 
+            activeOrderMode={activeOrderMode} 
+            theme={theme} 
+          />
+
           {discountsEnabled && activeOrderMode === 'settle' && (
             <S.CsDiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px' }}>
               {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)})` : 'Apply Discount'}
@@ -197,6 +322,13 @@ export default function CartSidebar({
                 <span style={{ color: theme.main, fontWeight: 900, fontSize: '16px' }}>{sym}{totals.total_inc_tax.toFixed(currencyDecimalPlaces)}</span>
               </div>
             </div>
+
+            <KitchenNoteInput 
+              orderNote={orderNote} 
+              setOrderNote={setOrderNote} 
+              activeOrderMode={activeOrderMode} 
+              theme={theme} 
+            />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>

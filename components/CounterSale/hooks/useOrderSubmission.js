@@ -78,6 +78,8 @@ export default function useOrderSubmission({ timezone }) {
     orgId,
     cart,
     setCart,
+    orderNote,
+    setOrderNote,
     totals,
     discountType,
     discountValue,
@@ -160,7 +162,8 @@ export default function useOrderSubmission({ timezone }) {
         knownOffline,
         mainOfflineDevice,
         skipAutoPrintKinds,
-        terminalId
+        terminalId,
+        orderNote
       });
 
       const fingerprint = stableSerialize(fingerprintPayload);
@@ -211,7 +214,8 @@ export default function useOrderSubmission({ timezone }) {
         knownOffline,
         mainOfflineDevice,
         skipAutoPrintKinds,
-        terminalId
+        terminalId,
+        orderNote
       });
 
       let requestPayload = {
@@ -309,6 +313,7 @@ export default function useOrderSubmission({ timezone }) {
 
       if (kind !== 'settle') {
         setCart([]);
+        if (typeof setOrderNote === 'function') setOrderNote('');
         if (config?.tableManagementEnabled) {
           if (onBack) onBack();
         }

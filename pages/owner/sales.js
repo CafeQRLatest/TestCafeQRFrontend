@@ -431,7 +431,10 @@ function SalesContent() {
   }, [userRole]);
 
   useEffect(() => {
-    api.get('/api/v1/terminals')
+    const url = (isSuperAdminRole(userRole) && orgId && orgId !== '0')
+      ? `/api/v1/terminals/org/${orgId}`
+      : '/api/v1/terminals';
+    api.get(url)
       .then(resp => {
         if (resp.data.success) {
           setTerminals(resp.data.data || []);
@@ -441,7 +444,7 @@ function SalesContent() {
         setTerminals([]);
         logSalesEndpointFailure('terminals fetch', err);
       });
-  }, []);
+  }, [orgId, userRole]);
 
   const handleOrgChange = useCallback((val) => {
     const selectedBranch = branches.find(b => String(b.id) === String(val));
@@ -739,7 +742,12 @@ function SalesContent() {
     });
   }, []);
 
-  const fetchHistoryOrders = useCallback(async (page = 0, filters = historyFilters) => {
+  const historyFiltersRef = useRef(historyFilters);
+  useEffect(() => {
+    historyFiltersRef.current = historyFilters;
+  }, [historyFilters]);
+
+  const fetchHistoryOrders = useCallback(async (page = 0, filtersToUse = null) => {
     if (historyAbortControllerRef.current) {
       historyAbortControllerRef.current.abort();
     }
@@ -748,23 +756,28 @@ function SalesContent() {
     
     setOrdersLoading(true);
     try {
-      const fromUtc = businessTimeToUtc(filters.from, timezone);
-      const toUtc = businessTimeToUtc(filters.to, timezone);
+      const activeFilters = filtersToUse || historyFiltersRef.current;
+      const rawQ = activeFilters.q?.trim() || '';
+      const cleanQ = rawQ.replace(/^[#\s]+/, '');
+      const queryToSend = cleanQ || rawQ;
+
+      const fromUtc = (activeFilters.from && !queryToSend) ? businessTimeToUtc(activeFilters.from, timezone) : undefined;
+      const toUtc = (activeFilters.to && !queryToSend) ? businessTimeToUtc(activeFilters.to, timezone) : undefined;
       
       const response = await api.post('/api/v2/sales/dashboard', {
         from: fromUtc,
         to: toUtc,
-        q: filters.q?.trim() || undefined,
-        status: filters.status || undefined,
-        orgId: orgId,
-        terminalId: filters.terminalId || undefined,
+        q: queryToSend || undefined,
+        status: activeFilters.status || undefined,
+        orgId: orgId || undefined,
+        terminalId: activeFilters.terminalId || undefined,
         page,
         size: historyPage.size || 20
       }, {
         signal: controller.signal
       });
 
-      const { summary, orders } = response.data.data || {};
+      const { summary, orders } = response.data?.data || {};
       
       if (historyAbortControllerRef.current === controller && isMountedRef.current) {
         if (orders) {
@@ -782,18 +795,19 @@ function SalesContent() {
         }
       }
     } catch (e) {
-      if (e && e.name !== 'CanceledError') {
-        if (historyAbortControllerRef.current === controller && isMountedRef.current) {
-          setHistoryOrders([]);
-          setHistoryPage({ number: 0, size: historyPage.size || 20, totalPages: 0, totalElements: 0 });
-          setHistorySummary(null);
-        }
-        if (e?.code === 'OFFLINE_CACHE_MISS') {
-          showToast('Open order history once online to prepare offline data.', 'error');
-        } else if (!isKnownOffline() && e?.message !== 'Network Error') {
-          console.error('Failed to fetch order history dashboard', e);
-          showToast(e?.response?.data?.message || 'Failed to load order history', 'error');
-        }
+      if (axios.isCancel(e) || e?.name === 'CanceledError' || e?.code === 'ERR_CANCELED') {
+        return; // Aborted request - do nothing
+      }
+      if (historyAbortControllerRef.current === controller && isMountedRef.current) {
+        setHistoryOrders([]);
+        setHistoryPage({ number: 0, size: historyPage.size || 20, totalPages: 0, totalElements: 0 });
+        setHistorySummary(null);
+      }
+      if (e?.code === 'OFFLINE_CACHE_MISS') {
+        showToast('Open order history once online to prepare offline data.', 'error');
+      } else if (!isKnownOffline() && e?.message !== 'Network Error') {
+        console.error('Failed to fetch order history dashboard', e);
+        showToast(e?.response?.data?.message || 'Failed to load order history', 'error');
       }
     } finally {
       if (historyAbortControllerRef.current === controller) {
@@ -803,7 +817,26 @@ function SalesContent() {
         }
       }
     }
-  }, [historyFilters, historyPage.size, showToast, timezone, orgId]);
+  }, [historyPage.size, showToast, timezone, orgId]);
+
+  const debouncedSearchRef = useRef(null);
+
+  const handleSearchChange = useCallback((newQ) => {
+    historyFiltersTouchedRef.current = true;
+    const nextFilters = { ...historyFiltersRef.current, q: newQ };
+    setHistoryFilters(nextFilters);
+
+    if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+    debouncedSearchRef.current = setTimeout(() => {
+      fetchHistoryOrders(0, nextFilters);
+    }, 350);
+  }, [fetchHistoryOrders]);
+
+  const handleHistoryFilterChange = useCallback((nextFilters) => {
+    historyFiltersTouchedRef.current = true;
+    setHistoryFilters(nextFilters);
+    fetchHistoryOrders(0, nextFilters);
+  }, [fetchHistoryOrders]);
 
   useEffect(() => {
     setSelectedTable(null);
@@ -877,15 +910,7 @@ function SalesContent() {
 
 
 
-  useEffect(() => {
-    if (!historyFiltersTouchedRef.current) return;
-    const delayDebounceFn = setTimeout(() => {
-      fetchHistoryOrders(0, historyFilters);
-    }, 400);
 
-    return () => clearTimeout(delayDebounceFn);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyFilters.q, fetchHistoryOrders]);
 
   // Refresh coordinator: handles all live-order, active table, credit config, and offline state fetches.
   // Coalesces overlapping refresh requests using pending refs to prevent timer duplication.
@@ -1896,16 +1921,14 @@ function SalesContent() {
             timezone={timezone}
             historySummary={historySummary}
             sym={sym}
-            onRefresh={() => fetchHistoryOrders(historyPage.number || 0)}
-            onPageChange={(page) => fetchHistoryOrders(page)}
-            onFilterChange={(nextFilters) => {
-              historyFiltersTouchedRef.current = true;
-              setHistoryFilters(nextFilters);
-              if (nextFilters.q === historyFilters.q) {
-                fetchHistoryOrders(0, nextFilters);
-              }
+            onRefresh={() => fetchHistoryOrders(historyPage.number || 0, historyFilters)}
+            onPageChange={(page) => fetchHistoryOrders(page, historyFilters)}
+            onFilterChange={handleHistoryFilterChange}
+            onSearchChange={handleSearchChange}
+            onApplyFilters={() => {
+              if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+              fetchHistoryOrders(0, historyFiltersRef.current);
             }}
-            onApplyFilters={() => fetchHistoryOrders(0)}
             onPrint={handlePrintOrder}
             onSettle={handleSettleOrder}
             onEdit={handleEditOrder}
@@ -2126,6 +2149,7 @@ function OrderHistory({
   onRefresh,
   onPageChange,
   onFilterChange,
+  onSearchChange,
   onApplyFilters,
   onPrint,
   onSettle,
@@ -2172,7 +2196,13 @@ function OrderHistory({
               type="search"
               value={filters.q || ''}
               placeholder="Search order, invoice, payment, customer, table..."
-              onChange={(event) => onFilterChange({ ...filters, q: event.target.value })}
+              onChange={(event) => {
+                if (onSearchChange) {
+                  onSearchChange(event.target.value);
+                } else {
+                  onFilterChange({ ...filters, q: event.target.value });
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -2231,18 +2261,7 @@ function OrderHistory({
             />
           </div>
 
-          {/* Org Selector */}
-          {isSuperAdminRole(userRole) && branches.length > 0 && (
-            <NiceSelect
-              className="nice-select"
-              options={[
-                { value: '', label: 'All Branches' },
-                ...branches.map(b => ({ value: b.id, label: b.name }))
-              ]}
-              value={orgId || ''}
-              onChange={onOrgChange}
-            />
-          )}
+
 
           {/* Status Selector */}
           <NiceSelect

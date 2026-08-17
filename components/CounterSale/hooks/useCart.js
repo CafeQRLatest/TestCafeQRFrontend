@@ -4,6 +4,7 @@ import { fetchProductDetails } from '../services/counterSaleApi';
 
 export default function useCart({ notify }) {
   const [cart, setCart] = useState([]);
+  const [orderNote, setOrderNote] = useState('');
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
   const [variablePriceProduct, setVariablePriceProduct] = useState(null);
@@ -295,6 +296,8 @@ export default function useCart({ notify }) {
   return {
     cart,
     setCart,
+    orderNote,
+    setOrderNote,
     variantProduct,
     setVariantProduct,
     variantLoading,

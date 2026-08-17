@@ -165,6 +165,7 @@ function normalizeDisplayItem(raw) {
     ),
     category: getCategoryName(raw, menu),
     uom_precision: raw?.uom_precision ?? raw?.uomPrecision ?? menu?.uom?.precision,
+    description: pickValue(raw, ["description", "notes", "line_notes", "itemNotes", "kitchenNote", "kitchen_note"], null) || null,
   };
 }
 
@@ -553,6 +554,15 @@ export function buildKotText(order, restaurantProfile) {
         const qty = rightAlign(qtyNum.toFixed(p), itemQtyW);
         lines.push(withMargins(leftAlign(nameLines[0], itemNameW) + " " + qty, layout));
         for (let i = 1; i < nameLines.length; i++) lines.push(withMargins(nameLines[i], layout));
+        // Item-level kitchen note
+        const itemNote = String(it?.description || it?.notes || it?.line_notes || it?.itemNotes || "").trim();
+        if (itemNote) {
+          lines.push(SIZE_1X + MODE_NO_BOLD);
+          wrapText(`  >> ${itemNote}`, W).forEach(noteLine => {
+            lines.push(withMargins(noteLine, layout));
+          });
+          lines.push(MODE_BOLD + getFontSizeCmd(bFontSize));
+        }
       });
       lines.push(SIZE_1X + MODE_NO_BOLD);
     }

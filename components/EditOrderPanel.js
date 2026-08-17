@@ -136,6 +136,7 @@ function normalizeLine(line, index) {
     taxType: line.taxType ?? line.tax_type ?? null,
     taxCode: line.taxCode ?? line.tax_code ?? null,
     taxName: line.taxName ?? line.tax_name ?? null,
+    description: line.description || line.notes || line.lineNotes || line.line_notes || line.itemNotes || '',
   };
 }
 
@@ -207,6 +208,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
   const sym = config?.currencySymbol || '₹';
+  const [orderNote, setOrderNote] = useState(() => order?.description || order?.comments || order?.note || '');
   const [lines, setLines] = useState(() => (order?.lines || []).map(normalizeLine));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -311,6 +313,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         if (!alive) return;
         const loadedOrder = orderRes.data.data || order;
         setFullOrder(loadedOrder);
+        setOrderNote(loadedOrder?.description || loadedOrder?.comments || loadedOrder?.note || '');
         setLines((loadedOrder?.lines || []).map(normalizeLine));
         setProducts(productsRes.data.data || []);
         setConfig(configRes.data.data || null);
@@ -755,6 +758,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         taxName: line.taxName,
         manualDiscountAmount: line.manualDiscountAmount,
         manualDiscountPercent: line.manualDiscountPercent,
+        description: line.description || line.notes || line.lineNotes || null,
       };
     });
 
@@ -767,6 +771,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       fulfillmentType: fullOrder?.fulfillmentType || fullOrder?.fulfillment_type || 'DINE_IN',
       tableNumber: fullOrder?.tableNumber || fullOrder?.table_number || null,
       tableId: fullOrder?.tableId || fullOrder?.table_id || null,
+      description: (orderNote && orderNote.trim()) ? orderNote.trim() : null,
       
       // Enriched order-level tax/discount fields (intent/snapshots only)
       orderDiscountType: discountType === 'percentage' || discountType === 'percent' ? 'PERCENT' : 'AMOUNT',

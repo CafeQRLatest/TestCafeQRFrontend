@@ -1034,15 +1034,21 @@ export default function OrdersPage() {
     api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
       .then(res => setCreditCustomers(res.data?.data || []))
       .catch(console.error);
-    api.get('/api/v1/terminals')
-      .then(res => setTerminals(res.data?.data || []))
-      .catch(console.error);
     if (userRole === 'SUPER_ADMIN') {
       api.get('/api/v1/organizations')
         .then(res => setBranches(res.data?.data || []))
         .catch(console.error);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    const url = (userRole === 'SUPER_ADMIN' && orgId && orgId !== '0')
+      ? `/api/v1/terminals/org/${orgId}`
+      : '/api/v1/terminals';
+    api.get(url)
+      .then(res => setTerminals(res.data?.data || []))
+      .catch(console.error);
+  }, [orgId, userRole]);
 
   useEffect(() => {
     if (config && config.tableManagementEnabled === false && activeSegment === 'table') {
@@ -1969,25 +1975,7 @@ export default function OrdersPage() {
                     />
                   </div>
 
-                  {userRole === 'SUPER_ADMIN' && branches.length > 0 && (
-                    <NiceSelect
-                      className="nice-select"
-                      options={[
-                        { value: '', label: 'All Branches' },
-                        ...branches.map(b => ({ value: b.id, label: b.name }))
-                      ]}
-                      value={historyFilters.branchId || ''}
-                      onChange={(val) => {
-                        historyFiltersTouchedRef.current = true;
-                        const f = { ...historyFilters, branchId: val };
-                        setHistoryFilters(f);
-                        fetchHistoryOrders(0, f);
-                        const branch = branches.find(b => String(b.id) === String(val));
-                        if (branch) switchBranch(branch.id, branch.name);
-                        else switchBranch(null, null);
-                      }}
-                    />
-                  )}
+
 
                   {terminals.length > 0 && (
                     <NiceSelect
