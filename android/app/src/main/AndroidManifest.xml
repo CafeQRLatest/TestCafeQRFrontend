@@ -55,5 +55,24 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Custom Firebase Messaging Service for rich Delivery notifications with Accept/Decline action buttons -->
+        <service
+            android:name=".CafeQrMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Receiver for handling Accept / Decline notification button clicks -->
+        <receiver
+            android:name=".NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.cafeqr.app.ACTION_ACCEPT_ORDER" />
+                <action android:name="com.cafeqr.app.ACTION_DECLINE_ORDER" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
