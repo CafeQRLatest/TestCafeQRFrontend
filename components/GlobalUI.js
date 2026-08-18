@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNotification } from '../context/NotificationContext';
+import TermsAcceptanceModal from './TermsAcceptanceModal';
 import { 
   FaCheckCircle, FaExclamationCircle, FaTimes, 
   FaExclamationTriangle, FaInfoCircle 
@@ -10,6 +11,7 @@ export default function GlobalUI() {
 
   return (
     <>
+      <TermsAcceptanceModal />
       <div className="global-toast-container">
         {notifications.map(n => (
           <div key={n.id} className={`custom-toast ${n.type}`}>

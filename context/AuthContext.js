@@ -63,6 +63,8 @@ export const AuthProvider = ({ children }) => {
   const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);
   const [activeModules, setActiveModules] = useState([]);
   const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);
+  const [termsAcceptedVersion, setTermsAcceptedVersion] = useState(null);
+  const [termsAcceptedAt, setTermsAcceptedAt] = useState(null);
   const router = useRouter();
 
   const fetchAssignedMenus = async () => {
@@ -114,13 +116,17 @@ export const AuthProvider = ({ children }) => {
       const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
       const storedModules = getStorageItem('activeModules');
       const storedModulesDetailed = getStorageItem('activeModulesDetailed');
+      const storedTermsVersion = getStorageItem('termsAcceptedVersion');
+      const storedTermsAt = getStorageItem('termsAcceptedAt');
       
-      console.log('[AuthContext] Storage loaded:', { storedEmail, storedRole, storedOrgId, storedClientId, storedStatus });
+      console.log('[AuthContext] Storage loaded:', { storedEmail, storedRole, storedOrgId, storedClientId, storedStatus, storedTermsVersion });
 
       if (storedEmail) setEmail(storedEmail);
       if (storedFirstName) setFirstName(storedFirstName);
       if (storedLastName) setLastName(storedLastName);
       if (storedRole) setUserRole(storedRole);
+      if (storedTermsVersion) setTermsAcceptedVersion(storedTermsVersion);
+      if (storedTermsAt) setTermsAcceptedAt(storedTermsAt);
       if (storedStatus) setSubscriptionStatus(storedStatus);
       if (storedOrgId) setOrgId(storedOrgId);
       if (storedOrgName) setOrgName(storedOrgName);
@@ -273,6 +279,16 @@ export const AuthProvider = ({ children }) => {
     if (data.country) setStorageItem('country', data.country, cookieOptions);
     setStorageItem('timezone', tz, cookieOptions);
     
+    if (data.termsAcceptedVersion) {
+      setTermsAcceptedVersion(data.termsAcceptedVersion);
+      setStorageItem('termsAcceptedVersion', data.termsAcceptedVersion, cookieOptions);
+    }
+    if (data.termsAcceptedAt) {
+      const termsAtStr = typeof data.termsAcceptedAt === 'string' ? data.termsAcceptedAt : JSON.stringify(data.termsAcceptedAt);
+      setTermsAcceptedAt(termsAtStr);
+      setStorageItem('termsAcceptedAt', termsAtStr, cookieOptions);
+    }
+
     setStorageItem('canCancelOrder', String(pCanCancelOrder), cookieOptions);
     setStorageItem('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
     setStorageItem('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
@@ -382,6 +398,11 @@ export const AuthProvider = ({ children }) => {
     removeStorageItem('canDeleteOrderItem', removeOptions);
     removeStorageItem('canDecrementOrderItem', removeOptions);
     removeStorageItem('activeModulesDetailed', removeOptions);
+    removeStorageItem('termsAcceptedVersion', removeOptions);
+    removeStorageItem('termsAcceptedAt', removeOptions);
+    
+    setTermsAcceptedVersion(null);
+    setTermsAcceptedAt(null);
     
     try {
       await api.post('/api/v1/auth/logout');
@@ -459,6 +480,26 @@ export const AuthProvider = ({ children }) => {
     return activeModules.includes(moduleName);
   };
 
+  const recordTermsAcceptance = async (version = 'v1.0') => {
+    try {
+      const cookieOptions = getFrontendCookieOptions();
+      const resp = await api.post('/api/v1/auth/accept-terms', { termsVersion: version });
+      if (resp.data?.success) {
+        const acceptedVersion = resp.data.data?.termsAcceptedVersion || version;
+        const acceptedAt = resp.data.data?.termsAcceptedAt || new Date().toISOString();
+        setTermsAcceptedVersion(acceptedVersion);
+        setTermsAcceptedAt(acceptedAt);
+        setStorageItem('termsAcceptedVersion', acceptedVersion, cookieOptions);
+        setStorageItem('termsAcceptedAt', String(acceptedAt), cookieOptions);
+        return true;
+      }
+    } catch (err) {
+      console.error('[AuthContext] recordTermsAcceptance failed:', err);
+      throw err;
+    }
+    return false;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       userRole,
@@ -494,6 +535,9 @@ export const AuthProvider = ({ children }) => {
       canDecrementOrderItem,
       activeModules,
       activeModulesDetailed,
+      termsAcceptedVersion,
+      termsAcceptedAt,
+      recordTermsAcceptance,
       hasModule,
       loading 
     }}>
