@@ -184,6 +184,7 @@ export function buildOrderPayload({
     orderSource: knownOffline ? 'OFFLINE' : 'ONLINE',
     ...(parsedDate ? { orderDate: parsedDate } : {}),
     description: (orderNote && orderNote.trim()) ? orderNote.trim() : null,
+    remarks: (orderNote && orderNote.trim()) ? orderNote.trim() : null,
     fulfillmentType: (initialTable && initialTable.tableNumber !== 'COUNTER')
       ? 'DINE_IN'
       : (initialTable?.orderType === 'DELIVERY' ? 'DELIVERY' : 'TAKEAWAY'),

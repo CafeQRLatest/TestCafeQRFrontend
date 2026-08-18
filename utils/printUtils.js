@@ -99,6 +99,38 @@ function pickBool(obj, keys, fallback = true) {
   return fallback;
 }
 
+function parseDeliveryDetails(description) {
+  if (!description || typeof description !== 'string') return null;
+  const emailMatch = description.match(/email:(.*?)(?=\s+\w+:|$)/);
+  const nameMatch = description.match(/name:(.*?)(?=\s+\w+:|$)/);
+  const phoneMatch = description.match(/phone:(.*?)(?=\s+\w+:|$)/);
+  const addressMatch = description.match(/address:(.*?)(?=\s+\w+:|$)/);
+  const noteMatch = description.match(/note:(.*?)(?=\s+\w+:|$)/);
+  
+  if (!emailMatch && !nameMatch && !phoneMatch && !addressMatch && !noteMatch) {
+    return null;
+  }
+  
+  return {
+    email: emailMatch ? emailMatch[1].trim() : '',
+    name: nameMatch ? nameMatch[1].trim() : '',
+    phone: phoneMatch ? phoneMatch[1].trim() : '',
+    address: addressMatch ? addressMatch[1].trim() : '',
+    note: noteMatch ? noteMatch[1].trim() : ''
+  };
+}
+
+function extractOrderRemarks(order) {
+  const raw = pickValue(order, ["remarks", "special_instructions", "specialInstructions", "instructions", "description"], "");
+  const str = typeof raw === 'string' ? raw.trim() : '';
+  if (!str) return '';
+  const delivery = parseDeliveryDetails(str);
+  if (delivery) {
+    return delivery.note || '';
+  }
+  return str;
+}
+
 function customerDisplay(order) {
   const customers = Array.isArray(order?.customers) ? order.customers : [];
   if (customers.length) {
@@ -502,11 +534,12 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(withMargins(`No. of Customers: ${customerCount}`, layout));
 
     const customerText = customerDisplay(order);
-    const inst = String(pickValue(order, ["special_instructions", "specialInstructions", "instructions"], "")).trim();
+    const inst = extractOrderRemarks(order);
 
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
     if (inst) {
       lines.push(withMargins(dashes(), layout));
+      lines.push(withMargins(MODE_BOLD + "Instructions:" + MODE_NO_BOLD, layout));
       inst.split('\n').map(s => s.trim()).filter(Boolean).forEach(line => {
         wrapText(line, W).forEach(wl => {
           lines.push(withMargins(wl, layout));
@@ -738,6 +771,13 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     const customerText = customerDisplay(order);
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
+
+    const receiptRemarks = extractOrderRemarks(order);
+    if (receiptRemarks) {
+      wrapText(`Remarks: ${receiptRemarks}`, W).forEach(line => {
+        lines.push(withMargins(line, layout));
+      });
+    }
 
     if (receiptHeader) {
       lines.push(withMargins(dashes(), layout));

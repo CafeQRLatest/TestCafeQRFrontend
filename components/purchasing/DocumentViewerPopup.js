@@ -1047,82 +1047,88 @@ export default function DocumentViewerPopup({
           </>
         )}
 
-        {/* ── comments ── */}
-        {currentOrder.description && (() => {
-          const details = parseDeliveryDetails(currentOrder.description);
-          if (details) {
-            return (
-              <>
-                <div className="dv-rule" />
-                <div className="dv-cell">
-                  <span className="dv-lbl" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7' }}>
-                    <FaTruck /> Delivery Details
-                  </span>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '12px',
-                    background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    marginTop: '6px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
-                      <FaUser style={{ color: '#0284c7' }} />
-                      <span><strong>Name:</strong> {details.name || 'N/A'}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
-                      <FaPhoneAlt style={{ color: '#0284c7' }} />
-                      <span><strong>Phone:</strong> {details.phone || 'N/A'}</span>
-                    </div>
-                    {details.email && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
-                        <FaEnvelope style={{ color: '#0284c7' }} />
-                        <span><strong>Email:</strong> {details.email}</span>
-                      </div>
-                    )}
-                    {details.address && (
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: '#0c4a6e', gridColumn: '1 / -1' }}>
-                        <FaMapMarkerAlt style={{ color: '#0284c7', marginTop: '2px' }} />
-                        <span><strong>Address:</strong> {details.address}</span>
-                      </div>
-                    )}
-                    {details.note && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '8px',
-                        fontSize: '12px',
-                        color: '#78350f',
-                        background: '#fffbeb',
-                        border: '1px solid #fde68a',
-                        borderRadius: '6px',
-                        padding: '8px 10px',
-                        gridColumn: '1 / -1',
-                        marginTop: '4px'
-                      }}>
-                        <FaStickyNote style={{ color: '#d97706', marginTop: '2px' }} />
-                        <span><strong>Note:</strong> {details.note}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            );
-          }
-          if (docType === 'payment' || (currentOrder.description && (currentOrder.description.startsWith('Purchase Payment for PO') || currentOrder.description.startsWith('Payment for')))) {
-            return null;
-          }
+        {/* ── comments & delivery ── */}
+        {(() => {
+          const deliveryDetails = currentOrder.description ? parseDeliveryDetails(currentOrder.description) : null;
+          const remarksText = currentOrder.remarks
+            ? currentOrder.remarks.trim()
+            : (!deliveryDetails && currentOrder.description && !currentOrder.description.startsWith('Purchase Payment for PO') && !currentOrder.description.startsWith('Payment for')
+                ? currentOrder.description.trim()
+                : '');
+          
           return (
             <>
-              <div className="dv-rule" />
-              <div className="dv-cell">
-                <span className="dv-lbl">Comments / Instructions</span>
-                <span className="dv-val" style={{ fontSize: '13px', fontWeight: '500', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.5', marginTop: '2px' }}>
-                  {currentOrder.description.trim()}
-                </span>
-              </div>
+              {deliveryDetails && (
+                <>
+                  <div className="dv-rule" />
+                  <div className="dv-cell">
+                    <span className="dv-lbl" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7' }}>
+                      <FaTruck /> Delivery Details
+                    </span>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '12px',
+                      background: '#f0f9ff',
+                      border: '1px solid #bae6fd',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      marginTop: '6px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                        <FaUser style={{ color: '#0284c7' }} />
+                        <span><strong>Name:</strong> {deliveryDetails.name || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                        <FaPhoneAlt style={{ color: '#0284c7' }} />
+                        <span><strong>Phone:</strong> {deliveryDetails.phone || 'N/A'}</span>
+                      </div>
+                      {deliveryDetails.email && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#0c4a6e' }}>
+                          <FaEnvelope style={{ color: '#0284c7' }} />
+                          <span><strong>Email:</strong> {deliveryDetails.email}</span>
+                        </div>
+                      )}
+                      {deliveryDetails.address && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: '#0c4a6e', gridColumn: '1 / -1' }}>
+                          <FaMapMarkerAlt style={{ color: '#0284c7', marginTop: '2px' }} />
+                          <span><strong>Address:</strong> {deliveryDetails.address}</span>
+                        </div>
+                      )}
+                      {deliveryDetails.note && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          fontSize: '12px',
+                          color: '#78350f',
+                          background: '#fffbeb',
+                          border: '1px solid #fde68a',
+                          borderRadius: '6px',
+                          padding: '8px 10px',
+                          gridColumn: '1 / -1',
+                          marginTop: '4px'
+                        }}>
+                          <FaStickyNote style={{ color: '#d97706', marginTop: '2px' }} />
+                          <span><strong>Note:</strong> {deliveryDetails.note}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {remarksText && docType !== 'payment' && (
+                <>
+                  <div className="dv-rule" />
+                  <div className="dv-cell">
+                    <span className="dv-lbl">Comments / Instructions</span>
+                    <span className="dv-val" style={{ fontSize: '13px', fontWeight: '500', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.5', marginTop: '2px' }}>
+                      {remarksText}
+                    </span>
+                  </div>
+                </>
+              )}
             </>
           );
         })()}

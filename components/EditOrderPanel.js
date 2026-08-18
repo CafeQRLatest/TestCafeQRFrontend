@@ -208,7 +208,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
   const sym = config?.currencySymbol || '₹';
-  const [orderNote, setOrderNote] = useState(() => order?.description || order?.comments || order?.note || '');
+  const [orderNote, setOrderNote] = useState(() => order?.remarks || order?.description || order?.comments || order?.note || '');
   const [lines, setLines] = useState(() => (order?.lines || []).map(normalizeLine));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -313,7 +313,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         if (!alive) return;
         const loadedOrder = orderRes.data.data || order;
         setFullOrder(loadedOrder);
-        setOrderNote(loadedOrder?.description || loadedOrder?.comments || loadedOrder?.note || '');
+        setOrderNote(loadedOrder?.remarks || loadedOrder?.description || loadedOrder?.comments || loadedOrder?.note || '');
         setLines((loadedOrder?.lines || []).map(normalizeLine));
         setProducts(productsRes.data.data || []);
         setConfig(configRes.data.data || null);
@@ -772,6 +772,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       tableNumber: fullOrder?.tableNumber || fullOrder?.table_number || null,
       tableId: fullOrder?.tableId || fullOrder?.table_id || null,
       description: (orderNote && orderNote.trim()) ? orderNote.trim() : null,
+      remarks: (orderNote && orderNote.trim()) ? orderNote.trim() : null,
       
       // Enriched order-level tax/discount fields (intent/snapshots only)
       orderDiscountType: discountType === 'percentage' || discountType === 'percent' ? 'PERCENT' : 'AMOUNT',

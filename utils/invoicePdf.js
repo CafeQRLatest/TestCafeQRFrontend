@@ -582,6 +582,17 @@ export async function downloadInvoicePdf(order, configOverride = null) {
     y += 12;
   }
 
+  // ── Remarks / Instructions ──────────────────────────────────────────────────
+  const remarksVal = order?.remarks || (order?.description && !order?.description.startsWith('Purchase Payment') && !order?.description.includes('name:') ? order.description : '');
+  if (remarksVal && remarksVal.trim()) {
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
+    doc.text('REMARKS / INSTRUCTIONS', margin, y);
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+    const splitNotes = doc.splitTextToSize(remarksVal.trim(), Math.max(60, bX - margin - 10));
+    doc.text(splitNotes, margin, y + 4);
+    y += (splitNotes.length * 4) + 6;
+  }
+
   // ── Bottom divider ────────────────────────────────────────────────────────────
   doc.setDrawColor(...ORANGE);
   doc.setLineWidth(0.4);
