@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getFCMToken } from '../lib/firebase/messaging';
-import { detectPushPlatform, getStoredPreference } from '../lib/push/tokenStore';
+import { detectPushPlatform, getStoredPreference, arePushAlertsDisabled } from '../lib/push/tokenStore';
 import api from '../utils/api';
 import { playSoundAlert, startDeliveryAlarm, stopDeliveryAlarm } from '../utils/audio';
 import { Capacitor } from '@capacitor/core';
@@ -17,6 +17,13 @@ export default function PushNotificationBridge() {
         document.cookie = `api_url=${encodeURIComponent(process.env.NEXT_PUBLIC_API_URL)}; path=/; max-age=31536000; SameSite=Lax`;
       }
       try {
+        // Respect user disabled preference: Do NOT auto-subscribe if disabled
+        const isExplicitlyDisabled = localStorage.getItem('cafeqr_notifications_enabled') === 'false' || arePushAlertsDisabled();
+        if (isExplicitlyDisabled) {
+          console.log('[PushBridge] Push notifications are disabled by user preference.');
+          return;
+        }
+
         // Retrieve current token silently (requestPermission = false)
         const token = await getFCMToken({ requestPermission: false });
         if (!token) {
@@ -61,6 +68,12 @@ export default function PushNotificationBridge() {
 
       // Handle custom sound playback
       if (type === 'new-order-push') {
+        const isNotifDisabled = localStorage.getItem('cafeqr_notifications_enabled') === 'false' || arePushAlertsDisabled();
+        if (isNotifDisabled) return;
+
+        const isSoundDisabled = localStorage.getItem('cafeqr_sound_enabled') === 'false';
+        if (isSoundDisabled) return;
+
         const detail = payload || {};
         const soundOrderId = detail.orderId || 'generic';
         
@@ -191,6 +204,12 @@ export default function PushNotificationBridge() {
           'pushNotificationReceived',
           (notification) => {
             console.log('[PushBridge] Native foreground notification received:', notification);
+            const isNotifDisabled = localStorage.getItem('cafeqr_notifications_enabled') === 'false' || arePushAlertsDisabled();
+            if (isNotifDisabled) return;
+
+            const isSoundDisabled = localStorage.getItem('cafeqr_sound_enabled') === 'false';
+            if (isSoundDisabled) return;
+
             const data = notification.data || {};
             const category = String(data.category || '').toUpperCase();
             const orderId = String(data.orderId || data.order_id || 'generic');

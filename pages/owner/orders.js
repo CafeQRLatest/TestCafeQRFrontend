@@ -106,7 +106,9 @@ import { stopDeliveryAlarm } from '../../utils/audio';
 import {
   getStoredPushToken,
   clearStoredPushToken,
-  detectPushPlatform
+  detectPushPlatform,
+  setPushAlertsDisabled,
+  arePushAlertsDisabled
 } from '../../lib/push/tokenStore';
 
 const slideIn = keyframes`
@@ -771,7 +773,9 @@ export default function OrdersPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSoundEnabled(localStorage.getItem('cafeqr_sound_enabled') !== 'false');
-      setNotifEnabled(localStorage.getItem('cafeqr_notifications_enabled') === 'true');
+      const notifPref = localStorage.getItem('cafeqr_notifications_enabled');
+      const isDisabled = notifPref === 'false' || arePushAlertsDisabled();
+      setNotifEnabled(!isDisabled && (notifPref === 'true' || !!getStoredPushToken()));
       setNotifyKitchen(localStorage.getItem('push_notify_kitchen') !== '0');
       setNotifyTakeaway(localStorage.getItem('push_notify_takeaway') !== '0');
       setNotifyDelivery(localStorage.getItem('push_notify_delivery') !== '0');
@@ -843,6 +847,7 @@ export default function OrdersPage() {
         if (token) {
           setNotifEnabled(true);
           localStorage.setItem('cafeqr_notifications_enabled', 'true');
+          setPushAlertsDisabled(false);
           
           await api.post('/api/v1/push/subscribe', {
             deviceToken: token,
@@ -854,26 +859,31 @@ export default function OrdersPage() {
           });
           notify('success', 'Push notifications enabled successfully!');
         } else {
-          alert('Failed to register notifications or permission denied.');
+          notify('warning', 'Failed to register notifications or permission denied.');
         }
       } catch (err) {
         console.error('Failed to enable push notifications:', err);
-        alert('Error enabling notifications: ' + err?.message);
+        notify('error', 'Error enabling notifications: ' + (err?.message || err));
       }
     } else {
       try {
-        const token = getStoredPushToken();
+        let token = getStoredPushToken();
+        if (!token) {
+          token = await getFCMToken({ requestPermission: false }).catch(() => null);
+        }
         if (token) {
           await api.post('/api/v1/push/unsubscribe', { deviceToken: token });
         }
-        clearStoredPushToken();
         setNotifEnabled(false);
         localStorage.setItem('cafeqr_notifications_enabled', 'false');
+        setPushAlertsDisabled(true);
         notify('info', 'Push notifications disabled.');
       } catch (err) {
         console.error('Failed to disable push:', err);
         setNotifEnabled(false);
         localStorage.setItem('cafeqr_notifications_enabled', 'false');
+        setPushAlertsDisabled(true);
+        notify('info', 'Push notifications disabled.');
       }
     }
   };
