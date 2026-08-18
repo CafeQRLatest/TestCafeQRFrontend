@@ -16,6 +16,7 @@ const DEFAULT_KOT_TEMPLATE = {
   feedLines: 3, autoCut: true,
   showRestaurantName: true, showDailyBillNo: true, showCustomerDetails: true,
   showTableLabel: true, showFssai: true, showGstBreakdown: false,
+  showInstructions: true,
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** KOT ***', footer: '*** SEND TO KITCHEN ***',
 };
@@ -26,6 +27,7 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   feedLines: 3, autoCut: true,
   showRestaurantName: true, showDailyBillNo: true, showCustomerDetails: true,
   showTableLabel: true, showFssai: true, showGstBreakdown: true,
+  showRemarks: true,
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** TAX INVOICE ***', footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -34,6 +36,7 @@ function mergeKotTemplate(template) {
   const src = template || {};
   return {
     ...DEFAULT_KOT_TEMPLATE, ...src,
+    showInstructions: src.showInstructions !== false,
     titleFontSize: src.titleFontSize ?? src.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? src.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? src.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
@@ -46,6 +49,7 @@ function mergeReceiptTemplate(template) {
   const src = template || {};
   return {
     ...DEFAULT_RECEIPT_TEMPLATE, ...src,
+    showRemarks: src.showRemarks !== false,
     titleFontSize: src.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
@@ -71,6 +75,11 @@ function syncTemplateToLS(documentKey, template) {
   localStorage.setItem(`${prefix}SHOW_TABLE_LABEL`, template.showTableLabel !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_FSSAI`, template.showFssai !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
+  if (documentKey === 'KOT') {
+    localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
+  } else {
+    localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
+  }
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
   localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
@@ -124,6 +133,8 @@ export async function ensurePrintTemplatesSynced(force = false) {
     localStorage.setItem('PRINT_SHOW_TABLE_LABEL', receipt.showTableLabel !== false ? '1' : '0');
     localStorage.setItem('PRINT_SHOW_FSSAI', receipt.showFssai !== false ? '1' : '0');
     localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receipt.showGstBreakdown !== false ? '1' : '0');
+    localStorage.setItem('PRINT_SHOW_REMARKS', receipt.showRemarks !== false ? '1' : '0');
+    localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? '1' : '0');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');

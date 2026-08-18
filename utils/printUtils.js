@@ -495,6 +495,7 @@ export function buildKotText(order, restaurantProfile) {
     const showDailyBillNo = getDocumentBool("KOT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
     const showCustomerDetails = getDocumentBool("KOT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
     const showTableLabel = getDocumentBool("KOT", "SHOW_TABLE_LABEL", "PRINT_SHOW_TABLE_LABEL", true);
+    const showInstructions = getDocumentBool("KOT", "SHOW_INSTRUCTIONS", "PRINT_KOT_SHOW_INSTRUCTIONS", true);
     const kotHeader = getLocalString('PRINT_KOT_HEADER', '*** KOT ***');
     const kotFooter = getLocalString('PRINT_KOT_FOOTER', '*** SEND TO KITCHEN ***');
 
@@ -537,7 +538,7 @@ export function buildKotText(order, restaurantProfile) {
     const inst = extractOrderRemarks(order);
 
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
-    if (inst) {
+    if (showInstructions && inst) {
       lines.push(withMargins(dashes(), layout));
       lines.push(withMargins(MODE_BOLD + "Instructions:" + MODE_NO_BOLD, layout));
       inst.split('\n').map(s => s.trim()).filter(Boolean).forEach(line => {
@@ -726,6 +727,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     const showTableLabel = getDocumentBool("RECEIPT", "SHOW_TABLE_LABEL", "PRINT_SHOW_TABLE_LABEL", true);
     const showFssai = getDocumentBool("RECEIPT", "SHOW_FSSAI", "PRINT_SHOW_FSSAI", true);
     const showGstBreakdown = getDocumentBool("RECEIPT", "SHOW_GST_BREAKDOWN", "PRINT_SHOW_GST_BREAKDOWN", true);
+    const showRemarks = getDocumentBool("RECEIPT", "SHOW_REMARKS", "PRINT_SHOW_REMARKS", true);
 
     const receiptHeader = getLocalString('PRINT_RECEIPT_HEADER', '*** TAX INVOICE ***');
     const receiptFooter = getLocalString('PRINT_RECEIPT_FOOTER', '* THANK YOU! VISIT AGAIN !! *');
@@ -773,7 +775,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
 
     const receiptRemarks = extractOrderRemarks(order);
-    if (receiptRemarks) {
+    if (showRemarks && receiptRemarks) {
       wrapText(`Remarks: ${receiptRemarks}`, W).forEach(line => {
         lines.push(withMargins(line, layout));
       });

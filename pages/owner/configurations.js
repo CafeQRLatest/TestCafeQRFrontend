@@ -90,6 +90,7 @@ const DEFAULT_THERMAL_LAYOUT = {
 const DEFAULT_KOT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: false,
+  showInstructions: true,
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
@@ -100,6 +101,7 @@ const DEFAULT_KOT_TEMPLATE = {
 const DEFAULT_RECEIPT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: true,
+  showRemarks: true,
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
@@ -114,6 +116,8 @@ const DEFAULT_THERMAL_TEMPLATE = {
   titleFontSize: DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
   kotTitleFontSize: DEFAULT_KOT_TEMPLATE.titleFontSize,
   showGstBreakdown: true,
+  showInstructions: true,
+  showRemarks: true,
   kotHeader: DEFAULT_KOT_TEMPLATE.header,
   kotFooter: DEFAULT_KOT_TEMPLATE.footer,
   receiptHeader: DEFAULT_RECEIPT_TEMPLATE.header,
@@ -180,6 +184,7 @@ const mergeKotTemplate = (template) => {
   return {
     ...DEFAULT_KOT_TEMPLATE,
     ...source,
+    showInstructions: source.showInstructions !== false,
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
@@ -193,6 +198,7 @@ const mergeReceiptTemplate = (template) => {
   return {
     ...DEFAULT_RECEIPT_TEMPLATE,
     ...source,
+    showRemarks: source.showRemarks !== false,
     titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
@@ -221,6 +227,8 @@ const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
     showTableLabel: receipt.showTableLabel !== false,
     showFssai: receipt.showFssai !== false,
     showGstBreakdown: receipt.showGstBreakdown !== false,
+    showRemarks: receipt.showRemarks !== false,
+    showInstructions: kot.showInstructions !== false,
     kotFontSize: kot.fontSize,
     kotTitleFontSize: kot.titleFontSize,
     kotTotalFontSize: kot.totalFontSize,
@@ -248,6 +256,11 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SHOW_TABLE_LABEL`, template.showTableLabel !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_FSSAI`, template.showFssai !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
+  if (documentKey === 'KOT') {
+    localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
+  } else {
+    localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
+  }
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
   localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
@@ -268,6 +281,8 @@ function syncPrintSettingsToLocalStorage(config) {
     localStorage.setItem('PRINT_SHOW_TABLE_LABEL', receipt.showTableLabel !== false ? 'true' : 'false');
     localStorage.setItem('PRINT_SHOW_FSSAI', receipt.showFssai !== false ? 'true' : 'false');
     localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receipt.showGstBreakdown !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_REMARKS', receipt.showRemarks !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? 'true' : 'false');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');
@@ -681,7 +696,8 @@ function ConfigurationsContent() {
       ['showCustomerDetails', 'Customer details'],
       ['showTableLabel', 'Table / order type'],
       ['showFssai', 'FSSAI license'],
-      ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown']] : []),
+      ...(kind === 'kotTemplate' ? [['showInstructions', 'Instructions']] : []),
+      ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown'], ['showRemarks', 'Remarks']] : []),
     ];
 
     return (
@@ -743,18 +759,29 @@ function ConfigurationsContent() {
           </div>
         </div>
 
-        <button type="button" className="template-toggle-row" onClick={() => setTemplate(kind, 'autoCut', !template.autoCut)}>
+        <button type="button" className={`template-toggle-row ${template.autoCut ? 'checked' : ''}`} onClick={() => setTemplate(kind, 'autoCut', !template.autoCut)}>
           <span>Auto-cut after print</span>
           <div className={`toggle-switch ${template.autoCut ? 'on' : ''}`}><div className="toggle-thumb" /></div>
         </button>
 
         <div className="template-checkbox-grid">
-          {visibilityOptions.map(([key, label]) => (
-            <button type="button" key={key} className="template-check" onClick={() => setTemplate(kind, key, !(template[key] !== false))}>
-              <span>{label}</span>
-              <div className={`toggle-switch small ${template[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
-            </button>
-          ))}
+          {visibilityOptions.map(([key, label]) => {
+            const isChecked = template[key] !== false;
+            return (
+              <button
+                type="button"
+                key={key}
+                className={`template-check ${isChecked ? 'checked' : ''}`}
+                onClick={() => setTemplate(kind, key, !isChecked)}
+                aria-pressed={isChecked}
+              >
+                <span>{label}</span>
+                <div className={`toggle-switch small ${isChecked ? 'on' : ''}`}>
+                  <div className="toggle-thumb" />
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         <div className="template-grid-fields">
@@ -1316,12 +1343,23 @@ function ConfigurationsContent() {
                           ['showTerms', 'Terms'],
                           ['showFooter', 'Footer'],
                           ['showSignature', 'Signature'],
-                        ].map(([key, label]) => (
-                          <button type="button" key={key} className="template-check" onClick={() => setTemplate('regularTemplate', key, !(regularTemplate[key] !== false))}>
-                            <span>{label}</span>
-                            <div className={`toggle-switch small ${regularTemplate[key] !== false ? 'on' : ''}`}><div className="toggle-thumb" /></div>
-                          </button>
-                        ))}
+                        ].map(([key, label]) => {
+                          const isChecked = regularTemplate[key] !== false;
+                          return (
+                            <button
+                              type="button"
+                              key={key}
+                              className={`template-check ${isChecked ? 'checked' : ''}`}
+                              onClick={() => setTemplate('regularTemplate', key, !isChecked)}
+                              aria-pressed={isChecked}
+                            >
+                              <span>{label}</span>
+                              <div className={`toggle-switch small ${isChecked ? 'on' : ''}`}>
+                                <div className="toggle-thumb" />
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <div className="template-grid-fields">
@@ -2060,21 +2098,39 @@ function ConfigurationsContent() {
            gap: 12px;
            width: 100%;
            background: #f8fafc;
-           border: 1px solid #edf2f7;
+           border: 1.5px solid #e2e8f0;
            border-radius: 10px;
-           color: #1e293b;
+           color: #475569;
            cursor: pointer;
            font-family: inherit;
            font-weight: 750;
            text-align: left;
+           transition: all 0.2s ease;
+        }
+        .template-toggle-row:hover,
+        .template-check:hover {
+           background: #f1f5f9;
+           border-color: #cbd5e1;
+           color: #1e293b;
+        }
+        .template-toggle-row.checked,
+        .template-check.checked {
+           background: #fff7ed;
+           border-color: #fdba74;
+           color: #c2410c;
+        }
+        .template-toggle-row.checked span,
+        .template-check.checked span {
+           font-weight: 800;
+           color: #9a3412;
         }
         .template-toggle-row {
            padding: 12px 14px;
         }
         .template-check {
            padding: 10px 12px;
-           min-height: 46px;
-           font-size: 12.5px;
+           min-height: 48px;
+           font-size: 13px;
         }
         .template-checkbox-grid {
            display: grid;
@@ -2385,14 +2441,32 @@ function ConfigurationsContent() {
            width: 100%;
            min-width: 0;
            background: #f8fafc;
-           border: 1px solid #edf2f7;
+           border: 1.5px solid #e2e8f0;
            border-radius: 10px;
-           color: #1e293b;
+           color: #475569;
            cursor: pointer;
            font-family: inherit;
            font-weight: 800;
            text-align: left;
            box-sizing: border-box;
+           transition: all 0.2s ease;
+        }
+        :global(.template-configuration-section .template-toggle-row:hover),
+        :global(.template-configuration-section .template-check:hover) {
+           background: #f1f5f9;
+           border-color: #cbd5e1;
+           color: #1e293b;
+        }
+        :global(.template-configuration-section .template-toggle-row.checked),
+        :global(.template-configuration-section .template-check.checked) {
+           background: #fff7ed;
+           border-color: #fdba74;
+           color: #c2410c;
+        }
+        :global(.template-configuration-section .template-toggle-row.checked span),
+        :global(.template-configuration-section .template-check.checked span) {
+           font-weight: 800;
+           color: #9a3412;
         }
         :global(.template-configuration-section .template-toggle-row) {
            min-height: 52px;
@@ -2401,7 +2475,7 @@ function ConfigurationsContent() {
         :global(.template-configuration-section .template-check) {
            min-height: 48px;
            padding: 10px 12px;
-           font-size: 12.5px;
+           font-size: 13px;
            line-height: 1.3;
         }
         :global(.template-configuration-section .template-check span),

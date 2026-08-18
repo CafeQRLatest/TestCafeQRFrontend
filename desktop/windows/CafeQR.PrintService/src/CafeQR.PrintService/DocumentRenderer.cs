@@ -1285,6 +1285,7 @@ namespace CafeQR.PrintService
             bool showDailyBillNo = ValueBool(tpl, "showDailyBillNo", true);
             bool showCustomerDetails = ValueBool(tpl, "showCustomerDetails", true);
             bool showTableLabel = ValueBool(tpl, "showTableLabel", true);
+            bool showInstructions = ValueBool(tpl, "showInstructions", true);
 
             string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
             string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
@@ -1352,8 +1353,8 @@ namespace CafeQR.PrintService
                 Add("Customer: " + customerText);
             }
 
-            var inst = PickValue(order, new[] { "special_instructions", "specialInstructions", "instructions" }).Trim();
-            if (!string.IsNullOrEmpty(inst))
+            var inst = PickValue(order, new[] { "remarks", "special_instructions", "specialInstructions", "instructions", "description" }).Trim();
+            if (showInstructions && !string.IsNullOrEmpty(inst))
             {
                 Add(dashes);
                 foreach (var rawLine in inst.Split('\n'))
@@ -1604,6 +1605,7 @@ namespace CafeQR.PrintService
             bool showCustomerDetails = tpl != null ? ValueBool(tpl, "showCustomerDetails", true) : true;
             bool showTableLabel = tpl != null ? ValueBool(tpl, "showTableLabel", true) : true;
             bool showFssai = tpl != null ? ValueBool(tpl, "showFssai", true) : true;
+            bool showInstructions = tpl != null ? ValueBool(tpl, "showInstructions", true) : true;
 
             string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
             string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
@@ -1672,14 +1674,14 @@ namespace CafeQR.PrintService
             }
 
             var customerText = CustomerDisplay(order);
-            var inst = PickValue(order, new[] { "special_instructions", "specialInstructions", "instructions" }).Trim();
+            var inst = PickValue(order, new[] { "remarks", "special_instructions", "specialInstructions", "instructions", "description" }).Trim();
 
             if (showCustomerDetails && !string.IsNullOrEmpty(customerText))
             {
                 lines.Add(WithMargins("Customer: " + customerText, layout));
             }
 
-            if (!string.IsNullOrEmpty(inst))
+            if (showInstructions && !string.IsNullOrEmpty(inst))
             {
                 lines.Add(WithMargins(dashes, layout));
                 var instLines = inst.Split('\n');
@@ -1849,6 +1851,7 @@ namespace CafeQR.PrintService
             bool showTableLabel = tpl != null ? ValueBool(tpl, "showTableLabel", true) : true;
             bool showFssai = tpl != null ? ValueBool(tpl, "showFssai", true) : true;
             bool showGstBreakdown = tpl != null ? ValueBool(tpl, "showGstBreakdown", true) : true;
+            bool showRemarks = tpl != null ? ValueBool(tpl, "showRemarks", true) : true;
 
             string receiptHeader = PickTemplateValue(tpl, new[] { "header", "receiptHeader" }, "*** TAX INVOICE ***");
             string receiptFooter = PickTemplateValue(tpl, new[] { "footer", "receiptFooter" }, "* THANK YOU! VISIT AGAIN !! *");
@@ -1913,6 +1916,15 @@ namespace CafeQR.PrintService
             if (showCustomerDetails && !string.IsNullOrEmpty(customerText))
             {
                 lines.Add(WithMargins("Customer: " + customerText, layout));
+            }
+
+            var remarks = PickValue(order, new[] { "remarks", "special_instructions", "specialInstructions", "instructions", "description" }).Trim();
+            if (showRemarks && !string.IsNullOrEmpty(remarks))
+            {
+                foreach (var line in WrapText("Remarks: " + remarks, W))
+                {
+                    lines.Add(WithMargins(line, layout));
+                }
             }
 
             if (!string.IsNullOrEmpty(receiptHeader))

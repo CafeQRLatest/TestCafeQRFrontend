@@ -126,6 +126,11 @@ export default function PrintLivePreview({ config }) {
                       Customer: John Doe (+91 99999 88888)
                     </div>
                   )}
+                  {receiptTemplate.showRemarks !== false && (
+                    <div className="remarks-info" style={{ color: '#0f172a', fontWeight: 600 }}>
+                      Remarks: Less spicy, pack extra mint chutney
+                    </div>
+                  )}
                 </div>
 
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
@@ -299,12 +304,15 @@ export default function PrintLivePreview({ config }) {
                 </div>
 
                 {/* Special Instructions */}
-                <div className="special-instructions text-left font-small">
-                  <div className="inst-label">Instructions:</div>
-                  <div className="inst-content">Make Paneer Butter Masala extra spicy. Naan should be crisp.</div>
-                </div>
-
-                <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
+                {kotTemplate.showInstructions !== false && (
+                  <>
+                    <div className="special-instructions text-left font-small">
+                      <div className="inst-label">Instructions:</div>
+                      <div className="inst-content">Make Paneer Butter Masala extra spicy. Naan should be crisp.</div>
+                    </div>
+                    <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
+                  </>
+                )}
 
                 {/* Table Highlight (KOT Title Font) */}
                 {kotTemplate.showTableLabel !== false && (
