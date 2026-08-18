@@ -2485,13 +2485,52 @@ function ConfigurationsContent() {
         }
         :global(.template-configuration-section .template-checkbox-grid) {
            display: grid;
-           grid-template-columns: repeat(2, minmax(0, 1fr));
+           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
            gap: 10px;
            width: 100%;
            min-width: 0;
         }
         :global(.template-configuration-section .toggle-switch) {
-           flex: 0 0 auto;
+           width: 38px;
+           height: 22px;
+           background: #cbd5e1;
+           border-radius: 99px;
+           position: relative;
+           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+           flex-shrink: 0;
+           cursor: pointer;
+           box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+        :global(.template-configuration-section .toggle-switch.on) {
+           background: #f97316;
+           box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
+        }
+        :global(.template-configuration-section .toggle-thumb) {
+           width: 16px;
+           height: 16px;
+           background: #ffffff;
+           border-radius: 50%;
+           position: absolute;
+           top: 3px;
+           left: 3px;
+           transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        }
+        :global(.template-configuration-section .toggle-switch.on .toggle-thumb) {
+           transform: translateX(16px);
+        }
+        :global(.template-configuration-section .toggle-switch.small) {
+           width: 36px;
+           height: 20px;
+        }
+        :global(.template-configuration-section .toggle-switch.small .toggle-thumb) {
+           width: 14px;
+           height: 14px;
+           top: 3px;
+           left: 3px;
+        }
+        :global(.template-configuration-section .toggle-switch.small.on .toggle-thumb) {
+           transform: translateX(16px);
         }
         :global(.template-configuration-section .logo-upload-row) {
            display: flex;
@@ -2558,16 +2597,20 @@ function ConfigurationsContent() {
            z-index: 10;
            width: 100%;
            min-width: 0;
-           max-width: 420px;
+           max-width: 440px;
            justify-self: end;
+           transition: max-width 0.3s ease;
+        }
+        :global(.template-configuration-section .print-preview-panel:has(.is-regular)) {
+           max-width: 540px;
         }
         :global(.template-configuration-section .print-preview-panel > *) {
            max-width: 100%;
         }
         @media (max-width: 1280px) {
            :global(.template-configuration-section .print-editor-layout) {
-              grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-              gap: 18px;
+              grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+              gap: 16px;
            }
         }
         @media (max-width: 1100px) {
@@ -2576,9 +2619,11 @@ function ConfigurationsContent() {
            }
            :global(.template-configuration-section .print-preview-panel) {
               position: static;
-              max-width: min(100%, 420px);
+              max-width: min(100%, 540px);
               justify-self: center;
-              margin-top: 8px;
+              margin-top: 16px;
+              margin-left: auto;
+              margin-right: auto;
            }
         }
         @media (max-width: 768px) {

@@ -44,7 +44,7 @@ export default function PrintLivePreview({ config }) {
   };
 
   return (
-    <div className="preview-container">
+    <div className={`preview-container ${activePreview === 'regular' ? 'is-regular' : ''}`}>
       {/* Selector Tabs */}
       <div className="preview-tabs">
         <button 
@@ -402,45 +402,47 @@ export default function PrintLivePreview({ config }) {
                   </div>
                 </div>
                 
-                <table className="regular-items-table">
-                  <thead>
-                    <tr>
-                      <th>Sl.</th>
-                      <th className="text-left">Item Description</th>
-                      {regularTemplate.showHsnSac && <th>HSN/SAC</th>}
-                      {regularTemplate.showUnits && <th>Unit</th>}
-                      <th className="text-right">Qty</th>
-                      <th className="text-right">Rate</th>
-                      {regularTemplate.showDiscounts && <th className="text-right">Disc</th>}
-                      {regularTemplate.showTax && <th className="text-right">{String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase()}</th>}
-                      <th className="text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>1</td>
-                      <td className="text-left">Chicken Biryani (Double Masala)</td>
-                      {regularTemplate.showHsnSac && <td>9963</td>}
-                      {regularTemplate.showUnits && <td>Pcs</td>}
-                      <td className="text-right">1</td>
-                      <td className="text-right">250.00</td>
-                      {regularTemplate.showDiscounts && <td className="text-right">25.00</td>}
-                      {regularTemplate.showTax && <td className="text-right">5.63</td>}
-                      <td className="text-right">250.00</td>
-                    </tr>
-                    <tr>
-                      <td>2</td>
-                      <td className="text-left">Paneer Butter Masala</td>
-                      {regularTemplate.showHsnSac && <td>9963</td>}
-                      {regularTemplate.showUnits && <td>Pcs</td>}
-                      <td className="text-right">2</td>
-                      <td className="text-right">180.00</td>
-                      {regularTemplate.showDiscounts && <td className="text-right">36.00</td>}
-                      {regularTemplate.showTax && <td className="text-right">8.10</td>}
-                      <td className="text-right">360.00</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="regular-table-container">
+                  <table className="regular-items-table">
+                    <thead>
+                      <tr>
+                        <th>Sl.</th>
+                        <th className="text-left">Item Description</th>
+                        {regularTemplate.showHsnSac && <th>HSN/SAC</th>}
+                        {regularTemplate.showUnits && <th>Unit</th>}
+                        <th className="text-right">Qty</th>
+                        <th className="text-right">Rate</th>
+                        {regularTemplate.showDiscounts && <th className="text-right">Disc</th>}
+                        {regularTemplate.showTax && <th className="text-right">{String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase()}</th>}
+                        <th className="text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>1</td>
+                        <td className="text-left">Chicken Biryani (Double Masala)</td>
+                        {regularTemplate.showHsnSac && <td>9963</td>}
+                        {regularTemplate.showUnits && <td>Pcs</td>}
+                        <td className="text-right">1</td>
+                        <td className="text-right">250.00</td>
+                        {regularTemplate.showDiscounts && <td className="text-right">25.00</td>}
+                        {regularTemplate.showTax && <td className="text-right">5.63</td>}
+                        <td className="text-right">250.00</td>
+                      </tr>
+                      <tr>
+                        <td>2</td>
+                        <td className="text-left">Paneer Butter Masala</td>
+                        {regularTemplate.showHsnSac && <td>9963</td>}
+                        {regularTemplate.showUnits && <td>Pcs</td>}
+                        <td className="text-right">2</td>
+                        <td className="text-right">180.00</td>
+                        {regularTemplate.showDiscounts && <td className="text-right">36.00</td>}
+                        {regularTemplate.showTax && <td className="text-right">8.10</td>}
+                        <td className="text-right">360.00</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
                 
                 <div className="regular-totals-section">
                   <div className="regular-totals-left">
@@ -524,11 +526,17 @@ export default function PrintLivePreview({ config }) {
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
           color: white;
           width: 100%;
-          max-width: 420px;
+          max-width: 440px;
           margin: 0 auto;
           display: flex;
           flex-direction: column;
           gap: 16px;
+          transition: max-width 0.3s ease;
+          box-sizing: border-box;
+        }
+
+        .preview-container.is-regular {
+          max-width: 540px;
         }
 
         .preview-tabs {
@@ -570,58 +578,73 @@ export default function PrintLivePreview({ config }) {
         .paper-viewport {
           display: flex;
           justify-content: center;
-          max-height: 520px;
+          align-items: flex-start;
+          max-height: 600px;
           overflow-y: auto;
-          padding: 10px 4px;
+          overflow-x: auto;
+          padding: 16px 8px;
           border-radius: 16px;
-          background: rgba(0, 0, 0, 0.2);
-          box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.2);
-          transition: max-width 0.3s ease;
+          background: rgba(0, 0, 0, 0.35);
+          box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.4);
+          transition: all 0.3s ease;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .paper-viewport.viewport-regular {
-          max-height: 560px;
+          max-height: 640px;
+          padding: 16px 8px;
         }
 
         /* Customize Scrollbar for Paper Viewport */
         .paper-viewport::-webkit-scrollbar {
           width: 6px;
+          height: 6px;
         }
         .paper-viewport::-webkit-scrollbar-track {
           background: transparent;
         }
         .paper-viewport::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.15);
           border-radius: 99px;
         }
 
         .paper-strip {
-          background: #ffffff;
-          color: #1e293b;
+          background: #ffffff !important;
+          color: #0f172a;
           width: 100%;
           max-width: 310px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          height: auto;
+          min-height: min-content;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.2);
           font-family: 'Courier New', Courier, monospace;
           font-size: 13px;
           line-height: 1.4;
           position: relative;
-          padding: 16px 12px;
+          padding: 20px 14px;
           display: flex;
           flex-direction: column;
+          border-radius: 4px;
+          box-sizing: border-box;
+          margin: 0 auto;
+          flex-shrink: 0;
           transition: all 0.3s ease;
         }
 
         .paper-strip.regular-page-strip {
           max-width: 100%;
+          width: 100%;
           font-family: 'Inter', -apple-system, sans-serif;
           font-size: 11px;
           line-height: 1.4;
-          padding: 24px;
-          border-radius: 4px;
+          padding: 20px 16px;
+          border-radius: 6px;
+          box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5);
         }
 
         .paper-content {
           width: 100%;
+          color: #0f172a;
         }
 
         .text-center { text-align: center; }
@@ -875,26 +898,36 @@ export default function PrintLivePreview({ config }) {
           border-radius: 6px;
         }
 
+        .regular-table-container {
+          width: 100%;
+          overflow-x: auto;
+          margin: 10px 0;
+          -webkit-overflow-scrolling: touch;
+        }
+
         .regular-items-table {
           width: 100%;
           border-collapse: collapse;
-          margin: 10px 0;
-          font-size: 9.5px;
+          font-size: 9px;
+          min-width: 320px;
         }
 
         .regular-items-table th {
           background: #f1f5f9;
           font-weight: 700;
           color: #334155;
-          padding: 6px 8px;
+          padding: 5px 6px;
           border-bottom: 1px solid #cbd5e1;
           text-align: center;
+          font-size: 8.5px;
+          white-space: nowrap;
         }
 
         .regular-items-table td {
-          padding: 6px 8px;
+          padding: 5px 6px;
           border-bottom: 1px solid #e2e8f0;
           text-align: center;
+          font-size: 9px;
         }
 
         .regular-items-table th.text-left, .regular-items-table td.text-left {
