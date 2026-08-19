@@ -8,8 +8,54 @@ import {
   FaSave, FaCheckCircle, FaExclamationCircle, FaPlus, FaStore, 
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaCompass, 
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
-  FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag
+  FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag,
+  FaImage, FaTrash, FaUpload
 } from 'react-icons/fa';
+
+/**
+ * Compresses and resizes any image to an ultra-efficient WebP data URI.
+ * Maintains aspect ratio, caps at maxWidth/maxHeight, and encodes to WebP at specified quality.
+ * Typical output size: 40KB - 75KB for a 1200x450 banner from a 10MB camera photo.
+ */
+function compressImageToWebP(file, maxWidth = 1200, maxHeight = 450, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      resolve(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+        const targetWidth = Math.round(width * scale);
+        const targetHeight = Math.round(height * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+        let webpData = canvas.toDataURL('image/webp', quality);
+        if (!webpData.startsWith('data:image/webp')) {
+          webpData = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(webpData);
+      };
+      img.onerror = reject;
+      img.src = readerEvent.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 const POS_CATEGORY_OPTIONS = [
   { value: 'Restaurant', label: '🍽️ Restaurant' },
@@ -376,7 +422,71 @@ function OrganizationSettingsContent() {
                   </div>
                 </section>
 
-                {/* 4. Delivery & Logistics */}
+                {/* 4. Branding & Delivery Website Hero Banner */}
+                <section className="v2-data-block full">
+                  <div className="block-header">
+                    <FaImage className="block-icon" />
+                    <h4>Delivery Website Hero Banner</h4>
+                  </div>
+                  <div className="block-content">
+                    <div className="banner-uploader-container">
+                      <div className="banner-preview-box">
+                        {selectedOrg.bannerUrl ? (
+                          <div className="banner-image-wrapper">
+                            <img src={selectedOrg.bannerUrl} alt="Hero Banner Preview" className="banner-preview-img" />
+                            <button
+                              type="button"
+                              className="remove-banner-btn"
+                              onClick={() => setSelectedOrg({...selectedOrg, bannerUrl: ''})}
+                              title="Remove Banner"
+                            >
+                              <FaTrash /> Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="banner-placeholder-box">
+                            <FaImage className="banner-ph-icon" />
+                            <p className="banner-ph-title">No Custom Hero Banner Uploaded</p>
+                            <p className="banner-ph-sub">Your delivery site currently displays the category default gradient & watermark.</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="banner-control-panel">
+                        <label className="banner-upload-label">
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const webpBase64 = await compressImageToWebP(file, 1200, 450, 0.82);
+                                if (webpBase64) {
+                                  setSelectedOrg(prev => ({ ...prev, bannerUrl: webpBase64 }));
+                                  setMessage("Hero banner optimized (WebP ~50KB) and ready to save!");
+                                  setMsgType("success");
+                                }
+                              } catch (err) {
+                                console.error("Compression failed:", err);
+                                setMessage("Failed to process image. Please try another file.");
+                                setMsgType("error");
+                              }
+                            }}
+                          />
+                          <FaUpload /> {selectedOrg.bannerUrl ? "Change Hero Banner" : "Upload Hero Banner"}
+                        </label>
+                        <div className="banner-hints">
+                          <p><strong>Recommended Aspect Ratio:</strong> 16:6 widescreen landscape (e.g. 1200 × 450 px).</p>
+                          <p><strong>Ultra-Fast WebP Compression:</strong> Images are automatically resized and converted to lightweight WebP format to save space and load instantly on mobile.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 5. Delivery & Logistics */}
                 <section className="v2-data-block">
                   <div className="block-header">
                     <FaTruckMoving className="block-icon" />
@@ -619,6 +729,36 @@ function OrganizationSettingsContent() {
 
         .block-content.dual { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
         .block-content.coords { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        .banner-uploader-container { display: flex; flex-direction: column; gap: 16px; }
+        .banner-preview-box {
+          width: 100%; height: 180px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 14px;
+          overflow: hidden; position: relative; display: flex; align-items: center; justify-content: center;
+        }
+        .banner-image-wrapper { width: 100%; height: 100%; position: relative; }
+        .banner-preview-img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+        .remove-banner-btn {
+          position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.9);
+          color: white; border: none; padding: 6px 14px; border-radius: 8px; font-size: 11px;
+          font-weight: 800; display: flex; align-items: center; gap: 6px; cursor: pointer;
+          backdrop-filter: blur(4px); transition: 0.2s;
+        }
+        .remove-banner-btn:hover { background: #dc2626; transform: scale(1.05); }
+        .banner-placeholder-box { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #94a3b8; text-align: center; padding: 20px; }
+        .banner-ph-icon { font-size: 32px; color: #cbd5e1; margin-bottom: 4px; }
+        .banner-ph-title { margin: 0; font-size: 13px; font-weight: 800; color: #64748b; }
+        .banner-ph-sub { margin: 0; font-size: 11px; font-weight: 500; color: #94a3b8; }
+        
+        .banner-control-panel { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .banner-upload-label {
+          display: inline-flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #ffedd5;
+          color: #c2410c; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 800;
+          cursor: pointer; transition: all 0.2s;
+        }
+        .banner-upload-label:hover { background: #ffedd5; transform: scale(1.02); }
+        .banner-hints { flex: 1; min-width: 260px; font-size: 11px; color: #64748b; line-height: 1.5; }
+        .banner-hints p { margin: 2px 0; }
+        .banner-hints strong { color: #334155; }
 
         .slider-box { display: flex; align-items: center; gap: 16px; }
         .slider-box input { flex: 1; accent-color: #f97316; }
