@@ -47,11 +47,15 @@ const COUNTRY_OPTIONS = [
 
 const POS_OPTIONS = [
   { label: 'Restaurant', value: 'RESTAURANT' },
-  { label: 'Cafe', value: 'CAFE' },
+  { label: 'Cafe & Bistro', value: 'CAFE' },
   { label: 'QSR (Quick Service)', value: 'QSR' },
+  { label: 'Bakery & Pastry', value: 'BAKERY' },
+  { label: 'Boutique & Fashion', value: 'BOUTIQUE' },
+  { label: 'Grocery & Supermarket', value: 'GROCERY' },
+  { label: 'Salon & Spa', value: 'SALON' },
   { label: 'Food Truck', value: 'FOOD_TRUCK' },
   { label: 'Bar / Pub', value: 'BAR' },
-  { label: 'Others', value: 'OTHERS' }
+  { label: 'Others / Retail', value: 'OTHERS' }
 ];
 
 export default function SignupPage() {

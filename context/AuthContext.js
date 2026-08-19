@@ -177,6 +177,7 @@ export const AuthProvider = ({ children }) => {
           const orgData = orgRes?.data?.success ? (orgRes.data.data || {}) : {};
           
           const resolvedTimezone = orgData.timezone || clientData.timezone;
+          const resolvedPosType = orgData.posType || clientData.posType;
 
           if (resolvedTimezone) {
             setTimezone(resolvedTimezone);
@@ -190,9 +191,9 @@ export const AuthProvider = ({ children }) => {
             setCountry(clientData.country);
             setStorageItem('country', clientData.country, cookieOptions);
           }
-          if (clientData.posType) {
-            setPosType(clientData.posType);
-            setStorageItem('posType', clientData.posType, cookieOptions);
+          if (resolvedPosType) {
+            setPosType(resolvedPosType);
+            setStorageItem('posType', resolvedPosType, cookieOptions);
           }
         }).catch(err => console.error("[AuthContext] Profile sync error:", err));
 
@@ -304,13 +305,14 @@ export const AuthProvider = ({ children }) => {
       const clientData = clientRes?.data?.success ? (clientRes.data.data || {}) : {};
       const orgData = orgRes?.data?.success ? (orgRes.data.data || {}) : {};
       const resolvedTimezone = orgData.timezone || clientData.timezone;
+      const resolvedPosType = orgData.posType || clientData.posType;
       if (resolvedTimezone) {
         setTimezone(resolvedTimezone);
         setStorageItem('timezone', resolvedTimezone, cookieOptions);
       }
-      if (clientData.posType) {
-        setPosType(clientData.posType);
-        setStorageItem('posType', clientData.posType, cookieOptions);
+      if (resolvedPosType) {
+        setPosType(resolvedPosType);
+        setStorageItem('posType', resolvedPosType, cookieOptions);
       }
     }).catch(() => {});
   };
@@ -448,10 +450,11 @@ export const AuthProvider = ({ children }) => {
     return isTrialOrActive && !isExpired;
   })();
 
-  const switchBranch = (newOrgId, newOrgName, newTimezone) => {
+  const switchBranch = (newOrgId, newOrgName, newTimezone, newPosType) => {
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
     setTimezone(newTimezone || null);
+    if (newPosType) setPosType(newPosType);
     const cookieOptions = getFrontendCookieOptions();
     if (newOrgId) {
       setStorageItem('orgId', newOrgId, cookieOptions);
@@ -467,6 +470,9 @@ export const AuthProvider = ({ children }) => {
       setStorageItem('timezone', newTimezone, cookieOptions);
     } else {
       removeStorageItem('timezone', { path: '/' });
+    }
+    if (newPosType) {
+      setStorageItem('posType', newPosType, cookieOptions);
     }
     if (typeof window !== 'undefined') {
       window.location.reload();

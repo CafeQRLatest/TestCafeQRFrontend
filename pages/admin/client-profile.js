@@ -149,6 +149,18 @@ const LANGUAGE_OPTIONS = [
   { value: 'Swahili',    label: 'Swahili' },
 ];
 
+const POS_CATEGORY_OPTIONS = [
+  { value: 'Restaurant', label: '🍽️ Restaurant' },
+  { value: 'Cafe', label: '☕ Cafe & Bistro' },
+  { value: 'QSR', label: '⚡ QSR & Fast Food' },
+  { value: 'Bakery', label: '🥐 Bakery & Pastry' },
+  { value: 'Bar', label: '🍸 Bar & Lounge' },
+  { value: 'Boutique', label: '👗 Boutique & Fashion' },
+  { value: 'Grocery', label: '🛒 Grocery & Supermarket' },
+  { value: 'Salon', label: '💇 Salon & Spa' },
+  { value: 'Others', label: '🏬 Retail & General Store' },
+];
+
 
 export default function ClientProfilePage() {
   return (
@@ -375,7 +387,7 @@ function ClientProfileContent() {
                   <div className="field-group">
                     <label>Primary Business Type</label>
                     <NiceSelect 
-                      options={[{value:'Cafe',label:'Cafe'},{value:'Restaurant',label:'Restaurant'},{value:'QSR',label:'QSR'},{value:'Bar',label:'Bar'},{value:'Bakery',label:'Bakery'},{value:'Others',label:'Others'}]}
+                      options={POS_CATEGORY_OPTIONS}
                       value={formData.posType}
                       onChange={val => handleChange('posType', val)}
                     />

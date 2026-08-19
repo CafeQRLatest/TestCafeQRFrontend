@@ -2,13 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { 
   FaSave, FaCheckCircle, FaExclamationCircle, FaPlus, FaStore, 
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaCompass, 
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
-  FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch
+  FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag
 } from 'react-icons/fa';
+
+const POS_CATEGORY_OPTIONS = [
+  { value: 'Restaurant', label: '🍽️ Restaurant' },
+  { value: 'Cafe', label: '☕ Cafe & Bistro' },
+  { value: 'QSR', label: '⚡ QSR & Fast Food' },
+  { value: 'Bakery', label: '🥐 Bakery & Pastry' },
+  { value: 'Bar', label: '🍸 Bar & Lounge' },
+  { value: 'Boutique', label: '👗 Boutique & Fashion' },
+  { value: 'Grocery', label: '🛒 Grocery & Supermarket' },
+  { value: 'Salon', label: '💇 Salon & Spa' },
+  { value: 'Others', label: '🏬 Retail & General Store' },
+];
 
 /**
  * Premium Branch Management Page (v2)
@@ -23,7 +36,7 @@ export default function OrganizationDetailsPage() {
 }
 
 function OrganizationSettingsContent() {
-  const { logout } = useAuth();
+  const { logout, posType: clientPosType } = useAuth();
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +114,7 @@ function OrganizationSettingsContent() {
       pinCode: '',
       gstin: '',
       branchCode: 'HQ',
+      posType: clientPosType || 'Restaurant',
       isactive: 'Y',
       deliveryRadiusKm: 5,
       latitude: null,
@@ -164,6 +178,7 @@ function OrganizationSettingsContent() {
               .filter(org => {
                 const search = searchTerm.toLowerCase();
                 return (org.name || '').toLowerCase().includes(search) || 
+                       (org.posType || '').toLowerCase().includes(search) ||
                        org.pinCode?.toLowerCase().includes(search) ||
                        org.email?.toLowerCase().includes(search);
               })
@@ -175,7 +190,10 @@ function OrganizationSettingsContent() {
                 >
                   <div className="card-status-pip" data-status={org.isactive}></div>
                   <div className="card-info">
-                    <span className="card-title">{org.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                      <span className="card-title">{org.name}</span>
+                      {org.posType && <span className="card-cat-badge">{org.posType}</span>}
+                    </div>
                     <span className="card-subtitle">{org.pinCode ? `PIN: ${org.pinCode}` : 'Profile Incomplete'}</span>
                   </div>
                   <FaChevronRight className="card-chevron" />
@@ -201,7 +219,14 @@ function OrganizationSettingsContent() {
                 <div className="hero-identity">
                   <div className="hero-icon-box"><FaStore /></div>
                   <div className="hero-text">
-                    <h2>{selectedOrg.id ? selectedOrg.name : "Establish New Location"}</h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h2>{selectedOrg.id ? selectedOrg.name : "Establish New Location"}</h2>
+                      {selectedOrg.posType && (
+                        <span className="hero-cat-tag">
+                          <FaTag style={{ fontSize: '10px' }} /> {selectedOrg.posType}
+                        </span>
+                      )}
+                    </div>
                     <p>{selectedOrg.id ? `Branch ID: ${selectedOrg.id.slice(0, 8)}` : "Configure your branch details below"}</p>
                   </div>
                 </div>
@@ -232,9 +257,19 @@ function OrganizationSettingsContent() {
                         type="text" 
                         value={selectedOrg.name}
                         onChange={(e) => setSelectedOrg({...selectedOrg, name: e.target.value})}
-                        placeholder="e.g. Thalassery Main"
+                        placeholder="e.g. Thalassery Main / Calicut Boutique"
                         required
                       />
+                    </div>
+                    <div className="v2-input-group">
+                      <label>Business Category / Outlet Type</label>
+                      <NiceSelect 
+                        options={POS_CATEGORY_OPTIONS}
+                        value={selectedOrg.posType || clientPosType || 'Restaurant'}
+                        onChange={(val) => setSelectedOrg({...selectedOrg, posType: val})}
+                        placeholder="Choose Category..."
+                      />
+                      <small>Determines the branch's primary business specialization</small>
                     </div>
                     <div className="v2-input-group">
                       <label>Branch Code (for Numbering) <span style={{color:'red'}}>*</span></label>
@@ -531,6 +566,7 @@ function OrganizationSettingsContent() {
 
         .card-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
         .card-title { font-size: 15px; font-weight: 700; color: #1e293b; }
+        .card-cat-badge { font-size: 10px; font-weight: 800; text-transform: uppercase; background: #fff7ed; color: #ea580c; padding: 2px 7px; border-radius: 6px; border: 1px solid #ffedd5; letter-spacing: 0.3px; }
         .card-subtitle { font-size: 12px; color: #94a3b8; font-weight: 500; }
         .card-chevron { font-size: 12px; color: #cbd5e1; transition: 0.3s; }
         .v2-branch-card.selected .card-chevron { color: #f97316; transform: translateX(4px); }
@@ -543,6 +579,7 @@ function OrganizationSettingsContent() {
         .hero-identity { display: flex; align-items: center; gap: 16px; }
         .hero-icon-box { width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #64748b; }
         .hero-text h2 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+        .hero-cat-tag { display: inline-flex; align-items: center; gap: 5px; background: #eff6ff; color: #2563eb; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 3px 9px; border-radius: 8px; border: 1px solid #dbeafe; letter-spacing: 0.5px; }
         .hero-text p { margin: 2px 0 0; font-size: 12px; color: #94a3b8; font-weight: 600; }
 
         .hero-actions { display: flex; align-items: center; gap: 16px; }
