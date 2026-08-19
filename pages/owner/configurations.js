@@ -391,6 +391,7 @@ function ConfigurationsContent() {
   });
 
   const [taxName, setTaxName] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
   const [logoSaving, setLogoSaving] = useState(false);
   const [logoMsg, setLogoMsg]       = useState('');
 
@@ -971,7 +972,7 @@ function ConfigurationsContent() {
                               </label>
                               <input
                                 type="text"
-                                placeholder="rzp_live_xxxxxxxxxxxxxx"
+                                placeholder="rzp_test_... or rzp_live_..."
                                 value={config.razorpay_key_id || ''}
                                 onChange={e => set('razorpay_key_id', e.target.value)}
                                 style={{
@@ -981,16 +982,27 @@ function ConfigurationsContent() {
                                   border: '1px solid #cbd5e1',
                                   fontSize: 13,
                                   outline: 'none',
-                                  fontFamily: 'monospace'
+                                  fontFamily: 'monospace',
+                                  color: '#0f172a',
+                                  backgroundColor: '#ffffff'
                                 }}
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                                Razorpay Key Secret <span style={{ color: '#ef4444' }}>*</span>
-                              </label>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
+                                  Razorpay Key Secret <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSecret(prev => !prev)}
+                                  style={{ fontSize: 11, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                >
+                                  {showSecret ? 'Hide Secret' : 'Show Secret'}
+                                </button>
+                              </div>
                               <input
-                                type="password"
+                                type={showSecret ? 'text' : 'password'}
                                 placeholder={config.razorpay_key_secret ? '••••••••••••••••' : 'Enter Razorpay Key Secret'}
                                 value={config.razorpay_key_secret || ''}
                                 onChange={e => set('razorpay_key_secret', e.target.value)}
@@ -1001,7 +1013,9 @@ function ConfigurationsContent() {
                                   border: '1px solid #cbd5e1',
                                   fontSize: 13,
                                   outline: 'none',
-                                  fontFamily: 'monospace'
+                                  fontFamily: 'monospace',
+                                  color: '#0f172a',
+                                  backgroundColor: '#ffffff'
                                 }}
                               />
                             </div>
