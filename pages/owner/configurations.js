@@ -346,7 +346,7 @@ function ConfigurationsContent() {
   // ─── State ─────────────────────────────────────────────────────────────────
 
   const [config, setConfig] = useState({
-    pm_online_payment: false, pm_menu_images: false, pm_credit_ledger: false,
+    pm_online_payment: false, razorpay_key_id: '', razorpay_key_secret: '', pm_menu_images: false, pm_credit_ledger: false,
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_purchase: true,
     pm_customers: false, pm_loyalty: false,
@@ -473,7 +473,10 @@ function ConfigurationsContent() {
           }
 
           setConfig({
-            pm_online_payment: !!d.onlinePaymentEnabled, pm_menu_images: !!d.menuImagesEnabled,
+            pm_online_payment: !!d.onlinePaymentEnabled,
+            razorpay_key_id: d.razorpayKeyId || '',
+            razorpay_key_secret: d.razorpayKeySecret || '',
+            pm_menu_images: !!d.menuImagesEnabled,
             pm_credit_ledger: hasModule('CREDIT_LEDGER', orgId) && !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
             pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: hasModule('INVENTORY', orgId) && !!d.inventoryEnabled,
             pm_purchase: hasModule('INVENTORY', orgId) && d.purchaseEnabled !== false,
@@ -596,7 +599,10 @@ function ConfigurationsContent() {
     setMessage(null);
     try {
       const payload = {
-        onlinePaymentEnabled: config.pm_online_payment, menuImagesEnabled: config.pm_menu_images,
+        onlinePaymentEnabled: config.pm_online_payment,
+        razorpayKeyId: config.razorpay_key_id ? config.razorpay_key_id.trim() : null,
+        razorpayKeySecret: config.razorpay_key_secret ? config.razorpay_key_secret.trim() : null,
+        menuImagesEnabled: config.pm_menu_images,
         creditEnabled: hasModule('CREDIT_LEDGER', orgId) ? config.pm_credit_ledger : false, tableManagementEnabled: config.pm_table_management,
         creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: hasModule('INVENTORY', orgId) ? config.pm_inventory : false,
@@ -922,7 +928,8 @@ function ConfigurationsContent() {
                 if (!isSubscribed || !config[m.key]) return null;
                 const hasChildren = m.children && m.children.length > 0;
                 const isCreditLedger = m.key === 'pm_credit_ledger';
-                if (!hasChildren && !isCreditLedger) return null;
+                const isOnlinePayment = m.key === 'pm_online_payment';
+                if (!hasChildren && !isCreditLedger && !isOnlinePayment) return null;
                 return (
                   <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: m.color }}>
                     <div className="subconfig-strip-label" style={{ color: m.color }}>
@@ -941,6 +948,70 @@ function ConfigurationsContent() {
                           </div>
                         </div>
                       ))}
+                      {isOnlinePayment && (
+                        <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '16px 20px', width: '100%' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                            <div className="subconfig-row-text">
+                              <strong style={{ fontSize: 14, color: '#1e293b' }}>Razorpay API Credentials (BYO Gateway)</strong>
+                              <span style={{ fontSize: 12, color: '#64748b' }}>Enter your Razorpay Key ID and Secret to receive online customer payments directly into your bank account.</span>
+                            </div>
+                            <a
+                              href="https://dashboard.razorpay.com/app/keys"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: 12, color: '#6366f1', textDecoration: 'underline', fontWeight: 600 }}
+                            >
+                              Get Keys from Razorpay Dashboard →
+                            </a>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, width: '100%' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                                Razorpay Key ID <span style={{ color: '#ef4444' }}>*</span>
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="rzp_live_xxxxxxxxxxxxxx"
+                                value={config.razorpay_key_id || ''}
+                                onChange={e => set('razorpay_key_id', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: 13,
+                                  outline: 'none',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                                Razorpay Key Secret <span style={{ color: '#ef4444' }}>*</span>
+                              </label>
+                              <input
+                                type="password"
+                                placeholder={config.razorpay_key_secret ? '••••••••••••••••' : 'Enter Razorpay Key Secret'}
+                                value={config.razorpay_key_secret || ''}
+                                onChange={e => set('razorpay_key_secret', e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  padding: '9px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid #cbd5e1',
+                                  fontSize: 13,
+                                  outline: 'none',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            </div>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 15 }}>⚡</span>
+                            <span>Direct Settlement: Funds from customer UPI/Card payments will be settled directly into your linked bank account by Razorpay (T+1 days).</span>
+                          </div>
+                        </div>
+                      )}
                       {isCreditLedger && (
                         <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default' }}>
                           <div className="subconfig-row-text">
