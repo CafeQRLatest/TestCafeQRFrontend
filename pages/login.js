@@ -13,9 +13,21 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [msgType, setMsgType] = useState('error')
+  const [landingUrl, setLandingUrl] = useState('https://cafeqr.in')
   
   // Destructure isActive from useAuth
   const { login, isAuthenticated, isActive, subscriptionStatus } = useAuth()
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname.toLowerCase();
+      if (hostname.includes('test') || hostname === 'localhost' || hostname === '127.0.0.1') {
+        setLandingUrl('https://test-cafe-qr-landing.vercel.app/');
+      } else {
+        setLandingUrl('https://cafeqr.in');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -114,7 +126,7 @@ export default function LoginPage() {
             </button>
 
             <div className="signup-link">
-              <p>Don&apos;t have an account? <Link href="/signup">Sign Up</Link></p>
+              <p>Don&apos;t have an account? <a href={landingUrl} target="_blank" rel="noopener noreferrer">Buy POS Kit & Sign Up</a></p>
             </div>
 
             <div className="copyright-footer">
