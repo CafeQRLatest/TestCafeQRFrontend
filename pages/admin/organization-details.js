@@ -96,16 +96,18 @@ function OrganizationSettingsContent() {
     const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
     if (!org) return baseUrl;
 
-    const clientSlug = user?.clientSlug || user?.slug || '';
-    const branchSlug = org.slug || org.branchCode || org.id;
+    const clientId = org.clientId || user?.clientId || '';
+    const orgId = org.id || '';
 
-    if (clientSlug && org.slug) {
-      return `${baseUrl}/${clientSlug}/${org.slug}`;
-    } else if (org.slug) {
-      return `${baseUrl}/${org.slug}`;
-    } else {
-      return `${baseUrl}/order?r=${org.clientId || user?.clientId || ''}&t=DELIVERY&orgId=${org.id || ''}`;
+    const clientSlug = user?.clientSlug || user?.slug || '';
+    const branchSlug = org.slug || '';
+
+    if (clientSlug && branchSlug) {
+      return `${baseUrl}/${clientSlug}/${branchSlug}`;
     }
+
+    // Always fallback to bulletproof guaranteed working URL with clientId & orgId
+    return `${baseUrl}/order?r=${clientId}&t=DELIVERY${orgId ? `&orgId=${orgId}` : ''}`;
   };
 
   const copyToClipboard = (url) => {
