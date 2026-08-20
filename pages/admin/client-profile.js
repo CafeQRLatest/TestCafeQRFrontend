@@ -399,42 +399,6 @@ function ClientProfileContent() {
           </div>
         </div>
 
-        {/* Live Public Delivery Storefront Bar */}
-        {formData.id && (
-          <div className="profile-store-url-card">
-            <div className="store-url-info">
-              <div className="store-url-badge">
-                <FaGlobe /> LIVE PUBLIC STOREFRONT URL
-              </div>
-              <a
-                href={getStoreUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="store-url-text"
-              >
-                {getStoreUrl()}
-              </a>
-            </div>
-            <div className="store-url-actions">
-              <button
-                type="button"
-                className="store-btn copy"
-                onClick={copyStoreUrl}
-              >
-                <FaCopy /> {copiedUrl ? "Copied!" : "Copy Store Link"}
-              </button>
-              <a
-                href={getStoreUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="store-btn visit"
-              >
-                <FaExternalLinkAlt /> Visit Store
-              </a>
-            </div>
-          </div>
-        )}
-
         {isEditing ? (
           <div className="edit-view-container single-column">
             <form onSubmit={handleSubmit} className="compact-form">
@@ -505,19 +469,6 @@ function ClientProfileContent() {
                         <input type="file" accept="image/*" onChange={handleLogoUpload} hidden />
                       </label>
                     </div>
-                  </div>
-                  <div className="field-group">
-                    <label>Store Handle (Clean URL Slug)</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '700' }}>cafeqr.in/</span>
-                      <input 
-                        value={formData.slug || ''} 
-                        onChange={e => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} 
-                        placeholder="e.g. arnos-marketing"
-                        style={{ flex: 1 }}
-                      />
-                    </div>
-                    <small style={{ fontSize: '11px', color: '#94a3b8' }}>Clean public web address for your online store and QR menus</small>
                   </div>
                   <div className="field-group">
                     <label>Brand Primary Color</label>
