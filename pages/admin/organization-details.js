@@ -160,6 +160,8 @@ function OrganizationSettingsContent() {
       pinCode: '',
       gstin: '',
       branchCode: 'HQ',
+      slug: '',
+      bannerUrl: '',
       posType: clientPosType || 'Restaurant',
       isactive: 'Y',
       deliveryRadiusKm: 5,
@@ -327,6 +329,16 @@ function OrganizationSettingsContent() {
                         required
                       />
                       <small>Short code used in Order/Invoice numbering</small>
+                    </div>
+                    <div className="v2-input-group">
+                      <label>Branch URL Slug</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.slug || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
+                        placeholder="e.g. main-outlet"
+                      />
+                      <small>Clean URL handle for customer direct ordering</small>
                     </div>
                     <div className="v2-input-group">
                       <label>GSTIN / Tax ID</label>

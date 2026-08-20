@@ -196,7 +196,9 @@ function ClientProfileContent() {
     fssaiNumber: '',
     website: '',
     currency: 'INR',
+    slug: '',
     logoUrl: '',
+    bannerUrl: '',
     brandColor: '#f97316',
     timezone: 'Asia/Kolkata',
     primaryLanguage: 'English',
@@ -225,6 +227,7 @@ function ClientProfileContent() {
         setFormData({
           id: data.id,
           name: data.name || '',
+          slug: data.slug || '',
           email: data.email || '',
           phone: data.phone || '',
           country: data.country || '',
@@ -234,6 +237,7 @@ function ClientProfileContent() {
           website: data.website || '',
           currency: data.currency || (cd ? cd.currency : 'USD'),
           logoUrl: data.logoUrl || '',
+          bannerUrl: data.bannerUrl || '',
           brandColor: data.brandColor || '#f97316',
           timezone: normalizedTz,
           primaryLanguage: data.primaryLanguage || 'English',
@@ -444,6 +448,19 @@ function ClientProfileContent() {
                         <input type="file" accept="image/*" onChange={handleLogoUpload} hidden />
                       </label>
                     </div>
+                  </div>
+                  <div className="field-group">
+                    <label>Store Handle (Clean URL Slug)</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '700' }}>cafeqr.in/</span>
+                      <input 
+                        value={formData.slug || ''} 
+                        onChange={e => handleChange('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} 
+                        placeholder="e.g. arnos-marketing"
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    <small style={{ fontSize: '11px', color: '#94a3b8' }}>Clean public web address for your online store and QR menus</small>
                   </div>
                   <div className="field-group">
                     <label>Brand Primary Color</label>
