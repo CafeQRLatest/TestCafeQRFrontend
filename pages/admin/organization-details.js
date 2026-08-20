@@ -92,21 +92,25 @@ function OrganizationSettingsContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  const [clientData, setClientData] = useState(null);
+
   const getDeliveryUrl = (org) => {
     const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
     if (!org) return baseUrl;
 
-    const clientId = org.clientId || user?.clientId || '';
-    const orgId = org.id || '';
-
-    const clientSlug = user?.clientSlug || user?.slug || '';
     const branchSlug = org.slug || '';
+    const clientSlug = clientData?.slug || user?.clientSlug || user?.slug || '';
 
     if (clientSlug && branchSlug) {
       return `${baseUrl}/${clientSlug}/${branchSlug}`;
+    } else if (clientSlug) {
+      return `${baseUrl}/${clientSlug}`;
+    } else if (branchSlug) {
+      return `${baseUrl}/${branchSlug}`;
     }
 
-    // Always fallback to bulletproof guaranteed working URL with clientId & orgId
+    const clientId = org.clientId || user?.clientId || '';
+    const orgId = org.id || '';
     return `${baseUrl}/order?r=${clientId}&t=DELIVERY${orgId ? `&orgId=${orgId}` : ''}`;
   };
 
@@ -122,7 +126,17 @@ function OrganizationSettingsContent() {
 
   useEffect(() => {
     fetchOrganizations();
+    fetchClient();
   }, []);
+
+  const fetchClient = async () => {
+    try {
+      const resp = await api.get('/api/v1/clients/me');
+      if (resp.data?.success) {
+        setClientData(resp.data.data);
+      }
+    } catch (e) { }
+  };
 
   // Centralized Toast Management
   useEffect(() => {
