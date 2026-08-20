@@ -6,7 +6,7 @@ import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
 import { resolveTimezone } from '../../utils/timezoneUtils';
-import { FaSave, FaCheckCircle, FaExclamationCircle, FaUserCircle, FaGlobe, FaIdCard, FaEdit, FaTimes, FaLock, FaPalette, FaClock, FaInstagram, FaFacebook, FaUniversity, FaImage } from 'react-icons/fa';
+import { FaSave, FaCheckCircle, FaExclamationCircle, FaUserCircle, FaGlobe, FaIdCard, FaEdit, FaTimes, FaLock, FaPalette, FaClock, FaInstagram, FaFacebook, FaUniversity, FaImage, FaCopy, FaExternalLinkAlt } from 'react-icons/fa';
 
 // ─── Comprehensive Country → Currency / Timezone mapping ───────────────
 const COUNTRY_DATA = {
@@ -210,6 +210,27 @@ function ClientProfileContent() {
     ifscCode: ''
   });
 
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  const getStoreUrl = () => {
+    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
+    if (formData.slug) {
+      return `${baseUrl}/${formData.slug}`;
+    }
+    return `${baseUrl}/order?r=${formData.id || ''}&t=DELIVERY`;
+  };
+
+  const copyStoreUrl = () => {
+    const url = getStoreUrl();
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setCopiedUrl(true);
+      setMessage("Storefront URL copied to clipboard!");
+      setMsgType("success");
+      setTimeout(() => setCopiedUrl(false), 3000);
+    }
+  };
+
   useEffect(() => {
     fetchClient();
   }, []);
@@ -377,6 +398,42 @@ function ClientProfileContent() {
              )}
           </div>
         </div>
+
+        {/* Live Public Delivery Storefront Bar */}
+        {formData.id && (
+          <div className="profile-store-url-card">
+            <div className="store-url-info">
+              <div className="store-url-badge">
+                <FaGlobe /> LIVE PUBLIC STOREFRONT URL
+              </div>
+              <a
+                href={getStoreUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="store-url-text"
+              >
+                {getStoreUrl()}
+              </a>
+            </div>
+            <div className="store-url-actions">
+              <button
+                type="button"
+                className="store-btn copy"
+                onClick={copyStoreUrl}
+              >
+                <FaCopy /> {copiedUrl ? "Copied!" : "Copy Store Link"}
+              </button>
+              <a
+                href={getStoreUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="store-btn visit"
+              >
+                <FaExternalLinkAlt /> Visit Store
+              </a>
+            </div>
+          </div>
+        )}
 
         {isEditing ? (
           <div className="edit-view-container single-column">
@@ -651,6 +708,26 @@ function ClientProfileContent() {
           display: flex; justify-content: space-between; align-items: center; 
           background: white; padding: 24px 32px; border-radius: 20px; border: 1px solid #e2e8f0; margin-bottom: 24px;
         }
+
+        .profile-store-url-card {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          border-radius: 16px; padding: 18px 24px; margin-bottom: 24px;
+          display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+          box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25); border: 1px solid #334155;
+        }
+        .store-url-info { display: flex; flex-direction: column; gap: 4px; min-width: 260px; flex: 1; }
+        .store-url-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #f97316; letter-spacing: 0.5px; }
+        .store-url-text { font-size: 14px; font-weight: 700; color: #f8fafc; text-decoration: none; word-break: break-all; }
+        .store-url-text:hover { color: #fdba74; text-decoration: underline; }
+        .store-url-actions { display: flex; align-items: center; gap: 10px; }
+        .store-btn {
+          display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 10px;
+          font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; transition: all 0.2s; border: none;
+        }
+        .store-btn.copy { background: #f97316; color: white; }
+        .store-btn.copy:hover { background: #ea580c; transform: translateY(-1px); }
+        .store-btn.visit { background: rgba(255,255,255,0.1); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.2); }
+        .store-btn.visit:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
         .business-summary { display: flex; align-items: center; gap: 20px; }
         .biz-avatar { width: 56px; height: 56px; background: #f8fafc; color: #f97316; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; border: 1px solid #f1f5f9; }
         .biz-meta h2 { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; }

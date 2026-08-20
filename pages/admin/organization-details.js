@@ -9,7 +9,7 @@ import {
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaCompass, 
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
   FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag,
-  FaImage, FaTrash, FaUpload
+  FaImage, FaTrash, FaUpload, FaGlobe, FaCopy, FaExternalLinkAlt
 } from 'react-icons/fa';
 
 /**
@@ -82,7 +82,7 @@ export default function OrganizationDetailsPage() {
 }
 
 function OrganizationSettingsContent() {
-  const { logout, posType: clientPosType } = useAuth();
+  const { logout, posType: clientPosType, user } = useAuth();
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,6 +90,33 @@ function OrganizationSettingsContent() {
   const [msgType, setMsgType] = useState('success');
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedUrl, setCopiedUrl] = useState(false);
+
+  const getDeliveryUrl = (org) => {
+    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
+    if (!org) return baseUrl;
+
+    const clientSlug = user?.clientSlug || user?.slug || '';
+    const branchSlug = org.slug || org.branchCode || org.id;
+
+    if (clientSlug && org.slug) {
+      return `${baseUrl}/${clientSlug}/${org.slug}`;
+    } else if (org.slug) {
+      return `${baseUrl}/${org.slug}`;
+    } else {
+      return `${baseUrl}/order?r=${org.clientId || user?.clientId || ''}&t=DELIVERY&orgId=${org.id || ''}`;
+    }
+  };
+
+  const copyToClipboard = (url) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      setCopiedUrl(true);
+      setMessage("Storefront URL copied to clipboard!");
+      setMsgType("success");
+      setTimeout(() => setCopiedUrl(false), 3000);
+    }
+  };
 
   useEffect(() => {
     fetchOrganizations();
@@ -288,6 +315,42 @@ function OrganizationSettingsContent() {
                    </button>
                 </div>
               </div>
+
+              {/* Live Public Storefront Link Bar */}
+              {selectedOrg.id && (
+                <div className="v2-store-link-card">
+                  <div className="store-link-info">
+                    <div className="store-link-badge">
+                      <FaGlobe /> LIVE DELIVERY STOREFRONT URL
+                    </div>
+                    <a
+                      href={getDeliveryUrl(selectedOrg)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="store-link-url"
+                    >
+                      {getDeliveryUrl(selectedOrg)}
+                    </a>
+                  </div>
+                  <div className="store-link-actions">
+                    <button
+                      type="button"
+                      className="store-action-btn copy"
+                      onClick={() => copyToClipboard(getDeliveryUrl(selectedOrg))}
+                    >
+                      <FaCopy /> {copiedUrl ? "Copied!" : "Copy Link"}
+                    </button>
+                    <a
+                      href={getDeliveryUrl(selectedOrg)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="store-action-btn visit"
+                    >
+                      <FaExternalLinkAlt /> Visit Store
+                    </a>
+                  </div>
+                </div>
+              )}
 
               {/* Grouped Information Cards */}
               <div className="v2-detail-grid">
@@ -697,6 +760,26 @@ function OrganizationSettingsContent() {
           background: white; border-radius: 20px; padding: 24px; border: 1px solid #edf2f7;
           display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
         }
+
+        .v2-store-link-card {
+          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          border-radius: 16px; padding: 18px 24px; margin-bottom: 20px;
+          display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+          box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25); border: 1px solid #334155;
+        }
+        .store-link-info { display: flex; flex-direction: column; gap: 4px; min-width: 260px; flex: 1; }
+        .store-link-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #f97316; letter-spacing: 0.5px; }
+        .store-link-url { font-size: 14px; font-weight: 700; color: #f8fafc; text-decoration: none; word-break: break-all; }
+        .store-link-url:hover { color: #fdba74; text-decoration: underline; }
+        .store-link-actions { display: flex; align-items: center; gap: 10px; }
+        .store-action-btn {
+          display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 10px;
+          font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; transition: all 0.2s; border: none;
+        }
+        .store-action-btn.copy { background: #f97316; color: white; }
+        .store-action-btn.copy:hover { background: #ea580c; transform: translateY(-1px); }
+        .store-action-btn.visit { background: rgba(255,255,255,0.1); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.2); }
+        .store-action-btn.visit:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
 
         .hero-identity { display: flex; align-items: center; gap: 16px; }
         .hero-icon-box { width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #64748b; }
