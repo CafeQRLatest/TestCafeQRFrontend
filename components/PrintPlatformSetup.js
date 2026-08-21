@@ -1612,7 +1612,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                           alert('Pairing status: ' + err.message);
                         }
                       }}>
-                        <FaPrint style={{marginRight: '8px'}} /> Pair WebUSB Printer
+                        <FaPrint style={{ marginRight: '8px' }} /> Pair WebUSB Printer
                       </button>
                     </Field>
                   )}
