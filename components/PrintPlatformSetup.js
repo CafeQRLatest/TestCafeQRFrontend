@@ -268,7 +268,10 @@ const syncPrintConfigToLocalStorage = (config) => {
   if (typeof window === 'undefined' || !config) return;
 
   // 1. Basic flags
-  localStorage.setItem('PRINTER_MODE', 'winspool');
+  const existingMode = localStorage.getItem('PRINTER_MODE');
+  if (!existingMode || (existingMode !== 'webusb' && existingMode !== 'bt-android' && existingMode !== 'bt-serial')) {
+    localStorage.setItem('PRINTER_MODE', 'winspool');
+  }
   localStorage.setItem('PRINTER_READY', '1');
   localStorage.setItem('PRINT_WIN_URL', 'http://127.0.0.1:3333/printRaw');
   localStorage.setItem('PRINT_WIN_LIST_URL', 'http://127.0.0.1:3333/printers');
@@ -1543,7 +1546,8 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                       options={[
                         { value: 'WINDOWS_QUEUE', label: 'Windows queue (USB/Bluetooth/LAN)' },
                         { value: 'NETWORK', label: 'Direct LAN/Wi-Fi TCP' },
-                        { value: 'BLUETOOTH_COM', label: 'Bluetooth COM' }
+                        { value: 'BLUETOOTH_COM', label: 'Bluetooth COM' },
+                        { value: 'WEBUSB', label: 'Direct WebUSB (Chrome OS/Mac)' }
                       ]}
                     />
                   </Field>
@@ -1595,6 +1599,22 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                       </Field>
                       <Field label="Baud rate"><input type="number" value={profile.baudRate || 9600} onChange={(event) => updateProfile(profile.id, { baudRate: Number(event.target.value) })} /></Field>
                     </>
+                  )}
+                  {profile.connectionType === 'WEBUSB' && (
+                    <Field label="USB Pairing">
+                      <button className="secondary" type="button" onClick={async () => {
+                        try {
+                          const device = await navigator.usb.requestDevice({ filters: [] });
+                          alert(`✓ USB Printer (${device.productName || 'USB Printer'}) paired successfully!`);
+                          window.localStorage.setItem('PRINTER_MODE', 'webusb');
+                          window.localStorage.setItem('PRINTER_READY', '1');
+                        } catch (err) {
+                          alert('Pairing status: ' + err.message);
+                        }
+                      }}>
+                        <FaPrint style={{marginRight: '8px'}} /> Pair WebUSB Printer
+                      </button>
+                    </Field>
                   )}
                   <Field label="Paper">
                     <NiceSelect
