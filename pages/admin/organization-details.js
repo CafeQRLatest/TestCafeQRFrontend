@@ -396,7 +396,7 @@ function OrganizationSettingsContent() {
                         onChange={(val) => setSelectedOrg({...selectedOrg, posType: val})}
                         placeholder="Choose Category..."
                       />
-                      <small>Determines the branch's primary business specialization</small>
+                      <small>Determines the branch&apos;s primary business specialization</small>
                     </div>
                     <div className="v2-input-group">
                       <label>Branch Code (for Numbering) <span style={{color:'red'}}>*</span></label>
