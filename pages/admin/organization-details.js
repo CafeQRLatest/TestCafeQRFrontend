@@ -95,13 +95,21 @@ function OrganizationSettingsContent() {
   const [clientData, setClientData] = useState(null);
 
   const getDeliveryUrl = (org) => {
-    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
+    let defaultBaseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
+    if (typeof window !== 'undefined' && !window.location.hostname.includes('test')) {
+      defaultBaseUrl = 'https://cafeqr-delivery-website.vercel.app';
+    }
+    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || defaultBaseUrl;
+
     if (!org) return baseUrl;
 
     const branchSlug = org.slug || '';
     const clientSlug = clientData?.slug || user?.clientSlug || user?.slug || '';
 
     if (clientSlug && branchSlug) {
+      if (clientSlug === branchSlug) {
+        return `${baseUrl}/${clientSlug}`;
+      }
       return `${baseUrl}/${clientSlug}/${branchSlug}`;
     } else if (clientSlug) {
       return `${baseUrl}/${clientSlug}`;
