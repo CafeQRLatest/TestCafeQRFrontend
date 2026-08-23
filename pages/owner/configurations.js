@@ -11,26 +11,19 @@ import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
-import {
-  FaSave, FaCheckCircle, FaExclamationCircle,
-  FaBolt, FaReceipt, FaCalculator, FaPrint,
-  FaSearch, FaCreditCard, FaCamera, FaBook, FaChair, FaShoppingCart,
-  FaQrcode, FaBoxes, FaIndustry, FaUsers,
-  FaTags, FaUtensils, FaTruck, FaUserFriends,
-  FaPlus, FaTimes, FaBuilding, FaToggleOn, FaToggleOff, FaInfoCircle,
-  FaLock, FaClock
-} from 'react-icons/fa';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
+// No unnecessary icon imports needed - clean iconless enterprise design
 // ═════════════════════════════════════════════════════════════════════════════
 // TABS
 // ═════════════════════════════════════════════════════════════════════════════
 
 const TABS = [
-  { key: 'modules',  label: 'Configuration',    icon: <FaBolt />,       mobileLabel: 'Config' },
-  { key: 'tax',      label: 'Tax Rules',        icon: <FaReceipt />,    mobileLabel: 'Tax' },
-  { key: 'roundoff', label: 'Round-off',        icon: <FaCalculator />, mobileLabel: 'Round-off' },
-  { key: 'print',    label: 'Templates & Paper', icon: <FaPrint />,     mobileLabel: 'Templates' },
-  { key: 'hardware', label: 'Hardware',         icon: <FaPrint />,      mobileLabel: 'Hardware' },
+  { key: 'modules',  label: 'Configuration',    mobileLabel: 'Config' },
+  { key: 'tax',      label: 'Tax Rules',        mobileLabel: 'Tax' },
+  { key: 'roundoff', label: 'Round-off',        mobileLabel: 'Round-off' },
+  { key: 'print',    label: 'Templates & Paper', mobileLabel: 'Templates' },
+  { key: 'hardware', label: 'Hardware',         mobileLabel: 'Hardware' },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -38,19 +31,19 @@ const TABS = [
 // ═════════════════════════════════════════════════════════════════════════════
 
 const MODULES = [
-  { key: 'pm_online_payment',   icon: <FaCreditCard />,  title: 'Online Payment',    desc: 'Allow Razorpay on customer app',            color: '#6366f1' },
-  { key: 'pm_menu_images',      icon: <FaCamera />,      title: 'Menu Images',       desc: 'Show product photos in menu',               color: '#ec4899' },
-  { key: 'pm_credit_ledger',    icon: <FaBook />,        title: 'Credit Ledger',     desc: 'Manage customer tabs & credit',             color: '#14b8a6' },
-  { key: 'pm_table_management', icon: <FaChair />,       title: 'Table Management',  desc: 'Manage floor plan & tables',                color: '#f59e0b' },
-  { key: 'pm_qr_ordering',      icon: <FaQrcode />,      title: 'QR Ordering',       desc: 'QR codes for customer self-ordering',       color: '#8b5cf6' },
-  { key: 'pm_inventory',        icon: <FaBoxes />,       title: 'Inventory',         desc: 'Stock tracking & management',               color: '#0ea5e9' },
-  { key: 'pm_purchase',         icon: <FaShoppingCart />,title: 'Purchase Orders',   desc: 'Vendor order & purchasing management',      color: '#ef4444' },
-  { key: 'pm_customers',        icon: <FaUsers />,       title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
-  { key: 'pm_loyalty',          icon: <FaTags />,        title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#ef4444' },
-  { key: 'pm_discount',         icon: <FaTags />,        title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f59e0b' },
-  { key: 'pm_send_to_kitchen',  icon: <FaUtensils />,    title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#22c55e' },
-  { key: 'pm_online_delivery',  icon: <FaTruck />,       title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#06b6d4' },
-  { key: 'pm_offline_sync',     icon: <FaClock />,       title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
+  { key: 'pm_online_payment',   title: 'Online Payment',    desc: 'Allow Razorpay on customer app',            color: '#ea580c' },
+  { key: 'pm_menu_images',      title: 'Menu Images',       desc: 'Show product photos in menu',               color: '#f97316' },
+  { key: 'pm_credit_ledger',    title: 'Credit Ledger',     desc: 'Manage customer tabs & credit',             color: '#f97316' },
+  { key: 'pm_table_management', title: 'Table Management',  desc: 'Manage floor plan & tables',                color: '#f97316' },
+  { key: 'pm_qr_ordering',      title: 'QR Ordering',       desc: 'QR codes for customer self-ordering',       color: '#f97316' },
+  { key: 'pm_inventory',        title: 'Inventory',         desc: 'Stock tracking & management',               color: '#f97316' },
+  { key: 'pm_purchase',         title: 'Purchase Orders',   desc: 'Vendor order & purchasing management',      color: '#f97316' },
+  { key: 'pm_customers',        title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
+  { key: 'pm_loyalty',          title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#f97316' },
+  { key: 'pm_discount',         title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f97316' },
+  { key: 'pm_send_to_kitchen',  title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#f97316' },
+  { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
+  { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
 ];
 
 const MODULE_SUBSCRIPTIONS = {
@@ -850,7 +843,6 @@ function ConfigurationsContent() {
               className={`segmented-tab ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.key)}
             >
-              <span className="tab-icon">{tab.icon}</span>
               <span className="tab-label desktop-only">{tab.label}</span>
               <span className="tab-label mobile-only">{tab.mobileLabel}</span>
             </button>
@@ -886,19 +878,9 @@ function ConfigurationsContent() {
                         }
                         toggle(m.key);
                       }}>
-                        <div className="box-icon" style={
-                          !isSubscribed
-                            ? { background: '#f1f5f9', color: '#cbd5e1' }
-                            : config[m.key]
-                              ? { background: `linear-gradient(135deg, ${m.color}, ${m.color}dd)`, color: 'white' }
-                              : { background: `${m.color}18`, color: '#94a3b8' }
-                        }>
-                          {m.icon}
-                        </div>
                         <div className="box-content">
                           <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
                             {m.title}
-                            {!isSubscribed && <FaLock style={{ marginLeft: 6, color: '#94a3b8', fontSize: 12 }} />}
                             <InfoTooltip 
                               id={`tip-${m.key}`} 
                               text={m.desc} 
@@ -906,6 +888,7 @@ function ConfigurationsContent() {
                               setActiveTooltip={setActiveTooltip} 
                             />
                           </h3>
+                          <p>{m.desc}</p>
                         </div>
                         {isSubscribed ? (
                           <div className={`toggle-switch ${config[m.key] ? 'on' : ''}`}>
@@ -913,7 +896,7 @@ function ConfigurationsContent() {
                           </div>
                         ) : (
                           <div className="lock-badge">
-                            Locked
+                            LOCKED
                           </div>
                         )}
                       </div>
@@ -932,10 +915,9 @@ function ConfigurationsContent() {
                 const isOnlinePayment = m.key === 'pm_online_payment';
                 if (!hasChildren && !isCreditLedger && !isOnlinePayment) return null;
                 return (
-                  <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: m.color }}>
-                    <div className="subconfig-strip-label" style={{ color: m.color }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 4, fontSize: 9, background: `${m.color}18`, color: m.color, marginRight: 6 }}>{m.icon}</span>
-                      {m.title} Options
+                  <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: '#f97316' }}>
+                    <div className="subconfig-strip-label" style={{ color: '#ea580c' }}>
+                      {m.title.toUpperCase()} OPTIONS
                     </div>
                     <div className="subconfig-strip-body">
                       {hasChildren && m.children.map(child => (
@@ -950,24 +932,24 @@ function ConfigurationsContent() {
                         </div>
                       ))}
                       {isOnlinePayment && (
-                        <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '16px 20px', width: '100%' }}>
+                        <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '18px 20px', width: '100%' }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                             <div className="subconfig-row-text">
-                              <strong style={{ fontSize: 14, color: '#1e293b' }}>Razorpay API Credentials (BYO Gateway)</strong>
-                              <span style={{ fontSize: 12, color: '#64748b' }}>Enter your Razorpay Key ID and Secret to receive online customer payments directly into your bank account.</span>
+                              <strong style={{ fontSize: 14, color: '#0f172a', fontWeight: 800 }}>Razorpay API Credentials (BYO Gateway)</strong>
+                              <span style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Enter your Razorpay Key ID and Secret to receive online customer payments directly into your bank account.</span>
                             </div>
                             <a
                               href="https://dashboard.razorpay.com/app/keys"
                               target="_blank"
                               rel="noopener noreferrer"
-                              style={{ fontSize: 12, color: '#6366f1', textDecoration: 'underline', fontWeight: 600 }}
+                              style={{ fontSize: 12, color: '#f97316', textDecoration: 'underline', fontWeight: 700 }}
                             >
                               Get Keys from Razorpay Dashboard →
                             </a>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, width: '100%' }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                                 Razorpay Key ID <span style={{ color: '#ef4444' }}>*</span>
                               </label>
                               <input
@@ -977,52 +959,64 @@ function ConfigurationsContent() {
                                 onChange={e => set('razorpay_key_id', e.target.value)}
                                 style={{
                                   width: '100%',
-                                  padding: '9px 12px',
-                                  borderRadius: 8,
-                                  border: '1px solid #cbd5e1',
+                                  padding: '10px 14px',
+                                  borderRadius: 10,
+                                  border: '1.5px solid #e2e8f0',
                                   fontSize: 13,
                                   outline: 'none',
                                   fontFamily: 'monospace',
                                   color: '#0f172a',
-                                  backgroundColor: '#ffffff'
+                                  backgroundColor: '#fafbfc'
                                 }}
                               />
                             </div>
                             <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
-                                  Razorpay Key Secret <span style={{ color: '#ef4444' }}>*</span>
-                                </label>
+                              <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
+                                Razorpay Key Secret <span style={{ color: '#ef4444' }}>*</span>
+                              </label>
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+                                <input
+                                  type={showSecret ? 'text' : 'password'}
+                                  placeholder={config.razorpay_key_secret ? '••••••••••••••••' : 'Enter Razorpay Key Secret'}
+                                  value={config.razorpay_key_secret || ''}
+                                  onChange={e => set('razorpay_key_secret', e.target.value)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '10px 42px 10px 14px',
+                                    borderRadius: 10,
+                                    border: '1.5px solid #e2e8f0',
+                                    fontSize: 13,
+                                    outline: 'none',
+                                    fontFamily: 'monospace',
+                                    color: '#0f172a',
+                                    backgroundColor: '#fafbfc'
+                                  }}
+                                />
                                 <button
                                   type="button"
                                   onClick={() => setShowSecret(prev => !prev)}
-                                  style={{ fontSize: 11, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                  title={showSecret ? 'Hide Secret' : 'Show Secret'}
+                                  aria-label={showSecret ? 'Hide Secret' : 'Show Secret'}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    backgroundColor: '#fff7ed',
+                                    border: '1px solid #ffedd5',
+                                    borderRadius: 7,
+                                    cursor: 'pointer',
+                                    padding: '6px 8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}
                                 >
-                                  {showSecret ? 'Hide Secret' : 'Show Secret'}
+                                  {showSecret ? <FaEyeSlash style={{ fontSize: 14, color: '#ea580c' }} /> : <FaEye style={{ fontSize: 14, color: '#f97316' }} />}
                                 </button>
                               </div>
-                              <input
-                                type={showSecret ? 'text' : 'password'}
-                                placeholder={config.razorpay_key_secret ? '••••••••••••••••' : 'Enter Razorpay Key Secret'}
-                                value={config.razorpay_key_secret || ''}
-                                onChange={e => set('razorpay_key_secret', e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '9px 12px',
-                                  borderRadius: 8,
-                                  border: '1px solid #cbd5e1',
-                                  fontSize: 13,
-                                  outline: 'none',
-                                  fontFamily: 'monospace',
-                                  color: '#0f172a',
-                                  backgroundColor: '#ffffff'
-                                }}
-                              />
                             </div>
                           </div>
-                          <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 15 }}>⚡</span>
-                            <span>Direct Settlement: Funds from customer UPI/Card payments will be settled directly into your linked bank account by Razorpay (T+1 days).</span>
+                          <div style={{ background: '#fff7ed', padding: '12px 16px', borderRadius: 10, border: '1px solid #ffedd5', fontSize: 12, color: '#c2410c', fontWeight: 600 }}>
+                            Direct Settlement: Funds from customer UPI/Card payments will be settled directly into your linked bank account by Razorpay (T+1 days).
                           </div>
                         </div>
                       )}
@@ -1081,8 +1075,7 @@ function ConfigurationsContent() {
                           {/* Tax Logic Toggles */}
                           <div className="tax-logic-toggles" style={{ marginTop: 0, marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                               <div className="form-row toggle-row styled-toggle-card" onClick={() => toggle('tax_prices_include')}>
-                                  <div className="row-icon-small"><FaReceipt /></div>
-                                  <div className="row-info" style={{ marginLeft: '12px' }}>
+                                  <div className="row-info" style={{ marginLeft: 0 }}>
                                       <label style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '15px' }}>
                                         Prices Include {config.tax_label_global}
                                         <InfoTooltip id="tip_tax_prices_include" text="Inclusive pricing: Menu price already includes the tax amount. Exclusive pricing: Tax is added on top of menu price." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
@@ -1105,13 +1098,11 @@ function ConfigurationsContent() {
                               </label>
                               <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>Used on bills and reports globally (e.g. Tax, VAT, GST).</span>
                               <div className="input-with-prefix" style={{ position: 'relative', display: 'flex', alignItems: 'center', maxWidth: '300px', width: '100%' }}>
-                                  <span className="input-prefix-icon" style={{ position: 'absolute', left: '16px', color: '#94a3b8', display: 'flex', alignItems: 'center' }}><FaTags /></span>
                                   <input 
                                       value={config.tax_label_global} 
                                       onChange={e => set('tax_label_global', e.target.value)} 
                                       className="form-input" 
                                       placeholder="e.g. Tax, VAT" 
-                                      style={{ paddingLeft: '44px' }}
                                   />
                               </div>
                           </div>
@@ -1137,7 +1128,7 @@ function ConfigurationsContent() {
                                       />
                                   </div>
                                   <button type="button" className="btn-secondary" onClick={() => setShowAddRuleModal(true)}>
-                                      <FaPlus /> Add / Manage Rules
+                                      Add / Manage Rules
                                   </button>
                               </div>
                           </div>
@@ -1151,7 +1142,7 @@ function ConfigurationsContent() {
                 {config.tax_enabled && (
                   <div className="tax-side-col">
                       <div className="simulator-card orange-theme">
-                          <div className="sim-title" style={{ color: '#ea580c' }}><FaCalculator /> Real-time Simulation</div>
+                          <div className="sim-title" style={{ color: '#ea580c' }}>Real-time Simulation</div>
                           <p className="sim-desc" style={{ color: '#c2410c' }}>See how ₹100 is computed with your current settings.</p>
                           
                           {(() => {
@@ -1218,7 +1209,6 @@ function ConfigurationsContent() {
 
               <div className="form-card">
                   <div className="form-row toggle-row banner-row" onClick={() => toggle('ro_enabled')}>
-                    <div className="row-icon"><FaCalculator /></div>
                     <div className="row-info">
                        <label style={{ display: 'inline-flex', alignItems: 'center' }}>
                          Enable Round-off
@@ -1308,7 +1298,6 @@ function ConfigurationsContent() {
               <div className="template-configuration-section form-card full-width">
                 <div className="template-section-heading">
                   <div className="pt-section-title">
-                    <FaPrint style={{ color: '#f97316' }} />
                     Print Template Configuration
                   </div>
                   <span className="group-desc">Thermal receipts, KOTs, regular invoices, and receipt logo settings are saved together.</span>
@@ -1318,17 +1307,16 @@ function ConfigurationsContent() {
                   <div className="print-editor-controls">
                     <div className="template-doc-selector">
                       {[
-                        ['receipt', <FaReceipt key="receipt" />, 'Final Bill Receipt'],
-                        ['kot', <FaUtensils key="kot" />, 'KOT'],
-                        ['regular', <FaPrint key="regular" />, 'Regular A4 Invoice'],
-                      ].map(([key, icon, label]) => (
+                        ['receipt', 'Final Bill Receipt'],
+                        ['kot', 'KOT'],
+                        ['regular', 'Regular A4 Invoice'],
+                      ].map(([key, label]) => (
                         <button
                           type="button"
                           key={key}
                           className={activeTemplateDoc === key ? 'active' : ''}
                           onClick={() => setActiveTemplateDoc(key)}
                         >
-                          {icon}
                           <span>{label}</span>
                         </button>
                       ))}
@@ -1338,7 +1326,7 @@ function ConfigurationsContent() {
                       'receiptTemplate',
                       receiptTemplate,
                       'Final bill receipt',
-                      <FaReceipt />,
+                      null,
                       'Thermal customer bill layout, content, and paper settings.'
                     )}
 
@@ -1346,13 +1334,13 @@ function ConfigurationsContent() {
                       'kotTemplate',
                       kotTemplate,
                       'Kitchen order ticket',
-                      <FaUtensils />,
+                      null,
                       'Thermal kitchen ticket layout, content, and paper settings.'
                     )}
 
                     {activeTemplateDoc === 'regular' && (
                     <div className="template-group">
-                      <div className="template-group-title"><FaPrint /> Regular tax invoice</div>
+                      <div className="template-group-title">Regular tax invoice</div>
                       <div className="template-grid-fields">
                         <div className="input-group">
                           <label className="group-lbl">Paper</label>
@@ -1461,9 +1449,8 @@ function ConfigurationsContent() {
                     )}
 
                     <div className="template-group">
-                      <div className="template-group-title"><FaCamera /> Receipt logo and footer message</div>
+                      <div className="template-group-title">Receipt logo and footer message</div>
                       <div className="logo-upload-row">
-                        <div className="logo-icon-box"><FaCamera /></div>
                         <div className="logo-upload-copy">
                           <input type="file" accept="image/*" onChange={handleLogoFile} disabled={logoSaving} style={{ display: 'none' }} id="logo-input" />
                           <label htmlFor="logo-input" className="btn-secondary">Choose Image File</label>
@@ -1472,7 +1459,7 @@ function ConfigurationsContent() {
                         {config.print_logo_bitmap && <button type="button" onClick={clearLogo} className="logo-clear-btn">Clear</button>}
                       </div>
                       {logoMsg && <div className={`template-message ${logoMsg.startsWith('✗') ? 'error' : 'success'}`}>{logoMsg}</div>}
-                      {config.print_logo_bitmap && !logoMsg && <div className="template-message success"><FaCheckCircle /> Thermal logo ready</div>}
+                      {config.print_logo_bitmap && !logoMsg && <div className="template-message success">Thermal logo ready</div>}
 
                       <div className="input-group">
                         <label className="group-lbl">Bill footer message</label>
@@ -1518,7 +1505,7 @@ function ConfigurationsContent() {
               <div className="modal-card" onClick={e => e.stopPropagation()}>
                   <div className="modal-header">
                       <h3 style={{ textTransform: 'capitalize' }}>Manage {config.tax_label_global} Rules</h3>
-                      <button type="button" className="close-btn" onClick={() => setShowAddRuleModal(false)}><FaTimes /></button>
+                      <button type="button" className="close-btn" onClick={() => setShowAddRuleModal(false)}>✕</button>
                   </div>
                   <div className="modal-body">
                       {/* Add New Rule Section */}
@@ -1535,7 +1522,7 @@ function ConfigurationsContent() {
                           </div>
                       </div>
                       <button type="button" className="btn-primary" onClick={addTaxRate} style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '13.5px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'none' }}>
-                          <FaPlus /> Add Rule
+                          Add Rule
                       </button>
 
                       <div className="divider-line" style={{ margin: '12px 0' }} />
@@ -1560,7 +1547,7 @@ function ConfigurationsContent() {
                                           className="modal-rule-delete" 
                                           onClick={(e) => { e.stopPropagation(); removeTaxRate(r.id); }}
                                       >
-                                          <FaTimes />
+                                          ✕
                                       </button>
                                   </div>
                               ))
@@ -1581,12 +1568,10 @@ function ConfigurationsContent() {
            <div className="action-footer-inner">
              {message && (
                <div className={`status-msg ${msgType}`}>
-                 {msgType === 'success' ? <FaCheckCircle /> : <FaExclamationCircle />}
                  {message}
                </div>
              )}
              <button className="btn-primary" onClick={save} disabled={saving}>
-                {saving ? <div className="spinner-small" /> : <FaSave />}
                 {saving ? 'Saving System Core...' : 'Save Configuration'}
              </button>
            </div>
@@ -1668,7 +1653,13 @@ function ConfigurationsContent() {
            min-height: 68px;
            height: 68px;
         }
-        .module-wrapper:hover { border-color: #cbd5e1; box-shadow: 0 12px 28px rgba(0,0,0,0.05); transform: translateY(-2px); }
+        .module-wrapper:hover,
+        .module-wrapper:focus-within {
+           border-color: #cbd5e1;
+           box-shadow: 0 12px 28px rgba(0,0,0,0.05);
+           transform: translateY(-2px);
+           z-index: 50;
+        }
         .module-wrapper.is-active {
            border-color: #fed7aa; 
            box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
@@ -2762,17 +2753,32 @@ function ConfigurationsContent() {
           justify-content: center;
           margin-left: 6px;
           vertical-align: middle;
+          z-index: 10;
+        }
+        :global(.custom-tooltip-wrapper:hover) {
+          z-index: 1000;
         }
         :global(.custom-tooltip-icon) {
-          color: #94a3b8;
-          font-size: 13.5px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #f1f5f9;
+          color: #64748b;
+          font-size: 11px;
+          font-weight: 700;
+          font-family: Georgia, serif;
+          font-style: italic;
           cursor: pointer;
           transition: all 0.2s ease;
         }
         :global(.custom-tooltip-icon:hover),
         :global(.custom-tooltip-icon.active) {
-          color: #f97316;
-          transform: scale(1.15);
+          background: #ffedd5;
+          color: #ea580c;
+          transform: scale(1.1);
         }
         :global(.custom-tooltip-box) {
           position: absolute;
@@ -2787,11 +2793,12 @@ function ConfigurationsContent() {
           font-size: 11.5px;
           font-weight: 600;
           line-height: 1.45;
-          box-shadow: 0 10px 20px rgba(234, 88, 12, 0.3), 0 4px 6px rgba(0, 0, 0, 0.05);
-          z-index: 1000;
+          box-shadow: 0 12px 24px rgba(234, 88, 12, 0.35), 0 4px 6px rgba(0, 0, 0, 0.08);
+          z-index: 99999 !important;
           white-space: normal;
           text-align: left;
           animation: tooltip-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          pointer-events: none;
         }
         :global(.custom-tooltip-arrow) {
           position: absolute;
@@ -3033,7 +3040,7 @@ const InfoTooltip = ({ id, text, activeTooltip, setActiveTooltip }) => {
         setActiveTooltip(isOpen ? null : id);
       }}
     >
-      <FaInfoCircle className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`} />
+      <span className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`}>i</span>
       {isOpen && (
         <span ref={ref} className="custom-tooltip-box" style={coords} onClick={(e) => e.stopPropagation()}>
           {text}

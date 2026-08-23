@@ -213,7 +213,14 @@ function ClientProfileContent() {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   const getStoreUrl = () => {
-    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || 'https://test-cafe-qr-delivery-website.vercel.app';
+    let baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL;
+    if (!baseUrl) {
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        baseUrl = 'http://localhost:3002';
+      } else {
+        baseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
+      }
+    }
     if (formData.slug) {
       return `${baseUrl}/${formData.slug}`;
     }

@@ -1614,6 +1614,8 @@ function SalesContent() {
           creditCustomerId: payload.creditCustomerId,
           discountAmount: payload.discountAmount,
           roundOffAmount: 0,
+          redeemPoints: payload.redeemPoints,
+          loyaltyCustomerId: payload.loyaltyCustomerId,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
         }
         : {

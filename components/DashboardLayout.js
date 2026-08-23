@@ -750,7 +750,7 @@ const MENU_CONFIG = {
 
   "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
   "Customers": { name: "Customers", icon: <FaIdBadge /> },
-  "Loyalty": { name: "Loyalty", icon: <FaCrown /> },
+  "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
   "Analytics": { name: "Analytics", icon: <FaChartBar /> },
   "Sales_Insight": { name: "Sales", icon: <FaChartLine /> },
@@ -1025,7 +1025,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
     "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
     "Customers": { name: "Customers", icon: <FaIdBadge /> },
-    "Loyalty": { name: "Loyalty", icon: <FaCrown /> },
+    "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
     "Analytics": { name: "Analytics", icon: <FaChartBar /> },
     "Sales_Insight": { name: "Sales", icon: <FaChartLine /> },

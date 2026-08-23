@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore } from 'react-icons/fa';
+import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins } from 'react-icons/fa';
+import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
-import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
+import { isDiscountModuleEnabled, isLoyaltyModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import { fetchSalesPaymentTypes } from '../services/paymentApi';
+import { fetchCustomerLoyalty, fetchLoyaltyPrograms } from '../services/loyaltyApi';
 import { cartKeyFor } from './CounterSale/domain/cart';
 import {
   THEMES,
@@ -41,6 +43,7 @@ const getMethodIcon = (val, ptType) => {
 
 export default function PaymentDialog({ 
   order, 
+  customer = null,
   loading = false, 
   config = null, 
   creditCustomers = [], 
@@ -74,6 +77,168 @@ export default function PaymentDialog({
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
   const [paymentTypes, setPaymentTypes] = useState([]);
+
+  // ─── Loyalty Points State & Fetching ──────────────────────────────────────
+  const loyaltyEnabled = config?.loyaltyEnabled !== false && config?.pm_loyalty !== false;
+  const [customerLoyalty, setCustomerLoyalty] = useState(null);
+  const [loyaltyProgram, setLoyaltyProgram] = useState(null);
+  const [redeemPoints, setRedeemPoints] = useState(0);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
+
+  // Extract selected customer info from order or customer prop
+  const customerInfo = useMemo(() => {
+    const id =
+      order?.customerId ||
+      order?.customer_id ||
+      order?.customer?.id ||
+      order?.customers?.[0]?.id ||
+      order?.selectedCustomerId ||
+      customer?.selectedCustomerId ||
+      customer?.selectedCreditCustomer?.linkedCustomerId ||
+      customer?.selectedCreditCustomer?.id ||
+      customer?.selectedCustomers?.[0]?.id ||
+      customer?.id ||
+      creditCustomerId ||
+      null;
+
+    const phone =
+      order?.customerPhone ||
+      order?.customer_phone ||
+      order?.customer?.phone ||
+      order?.customers?.[0]?.phone ||
+      customer?.customerPhone ||
+      customer?.phone ||
+      customer?.selectedCustomers?.[0]?.phone ||
+      null;
+
+    const name =
+      order?.customerName ||
+      order?.customer_name ||
+      order?.customer?.name ||
+      order?.customers?.[0]?.name ||
+      customer?.customerName ||
+      customer?.name ||
+      customer?.selectedCustomers?.[0]?.name ||
+      null;
+
+    return { id, phone, name };
+  }, [order, customer, creditCustomerId]);
+
+  const hasAttachedCustomer = useMemo(() => {
+    return Boolean(customerInfo.id || customerInfo.phone || customerInfo.name);
+  }, [customerInfo]);
+
+  // Lookup existing DB customer by phone/name if id is missing or temp
+  useEffect(() => {
+    const { id, phone, name } = customerInfo;
+    if (id && !String(id).startsWith('temp-')) {
+      setResolvedCustomerId(id);
+      return;
+    }
+
+    if (phone || name) {
+      let active = true;
+      api.get('/api/v1/purchasing/customers')
+        .then(res => {
+          if (!active) return;
+          const list = res.data?.data || res.data || [];
+          const arr = Array.isArray(list) ? list : [];
+          let found = null;
+          if (phone) {
+            found = arr.find(c => c.phone && String(c.phone).trim() === String(phone).trim());
+          }
+          if (!found && name) {
+            found = arr.find(c => c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim());
+          }
+          if (found?.id) {
+            setResolvedCustomerId(found.id);
+          }
+        })
+        .catch(err => console.error(err));
+      return () => { active = false; };
+    }
+  }, [customerInfo]);
+
+  const activeCustomerId = useMemo(() => {
+    if (resolvedCustomerId) return resolvedCustomerId;
+    if (customerInfo.id && !String(customerInfo.id).startsWith('temp-')) return customerInfo.id;
+    return null;
+  }, [resolvedCustomerId, customerInfo]);
+
+  const [loyaltySecondaryMethod, setLoyaltySecondaryMethod] = useState('CASH');
+
+  useEffect(() => {
+    if (!loyaltyEnabled || !activeCustomerId) {
+      setCustomerLoyalty(null);
+      setLoyaltyProgram(null);
+      setRedeemPoints(0);
+      return;
+    }
+
+    let active = true;
+    setLoyaltyLoading(true);
+
+    Promise.all([
+      fetchCustomerLoyalty(activeCustomerId).catch(() => null),
+      fetchLoyaltyPrograms().catch(() => [])
+    ]).then(([custLoyalty, programs]) => {
+      if (!active) return;
+      setCustomerLoyalty(custLoyalty);
+      if (custLoyalty?.programId && Array.isArray(programs)) {
+        const prog = programs.find(p => String(p.id) === String(custLoyalty.programId)) || programs[0];
+        setLoyaltyProgram(prog);
+      } else if (Array.isArray(programs) && programs.length > 0) {
+        setLoyaltyProgram(programs[0]);
+      }
+    }).finally(() => {
+      if (active) setLoyaltyLoading(false);
+    });
+
+    return () => { active = false; };
+  }, [loyaltyEnabled, activeCustomerId]);
+
+  const redemptionRules = useMemo(() => {
+    if (!loyaltyProgram) return null;
+    const rule = loyaltyProgram.redemptionRule || loyaltyProgram.redemptionRules?.[0];
+    if (!rule) return null;
+    return {
+      pointsRequired: rule.pointsRequired || 100,
+      discountAmount: rule.discountAmount || 10,
+      minPoints: rule.minPoints || 0,
+      maxPointsPerOrder: rule.maxPointsPerOrder || null,
+      allowPartial: rule.allowPartial !== false,
+    };
+  }, [loyaltyProgram]);
+
+  const maxRedeemablePoints = useMemo(() => {
+    if (!customerLoyalty || !redemptionRules) return 0;
+    const currentPoints = customerLoyalty.currentPoints || 0;
+    if (currentPoints < redemptionRules.minPoints) return 0;
+
+    let pts = currentPoints;
+    if (redemptionRules.maxPointsPerOrder && pts > redemptionRules.maxPointsPerOrder) {
+      pts = redemptionRules.maxPointsPerOrder;
+    }
+    return pts;
+  }, [customerLoyalty, redemptionRules]);
+
+  const [inputPoints, setInputPoints] = useState('');
+  const [appliedLoyaltyPoints, setAppliedLoyaltyPoints] = useState(0);
+
+  const loyaltyDiscount = useMemo(() => {
+    if (!redemptionRules || !appliedLoyaltyPoints || appliedLoyaltyPoints <= 0) return 0;
+    const pts = Math.min(appliedLoyaltyPoints, maxRedeemablePoints);
+    const ratio = (redemptionRules.discountAmount || 0) / (redemptionRules.pointsRequired || 1);
+    return Number((pts * ratio).toFixed(dp));
+  }, [redemptionRules, appliedLoyaltyPoints, maxRedeemablePoints, dp]);
+
+  useEffect(() => {
+    if (paymentMethod === 'CREDIT') {
+      setAppliedLoyaltyPoints(0);
+      setInputPoints('');
+    }
+  }, [paymentMethod]);
 
   useEffect(() => {
     let active = true;
@@ -112,6 +277,10 @@ export default function PaymentDialog({
     mapped.push({ value: 'MIXED', label: 'Mixed / Split Payment', paymentType: 'OTHERS' });
     return mapped;
   }, [paymentTypes, creditEnabled]);
+
+  const secondaryPaymentOptions = useMemo(() => {
+    return selectOptions.filter(opt => opt.value !== 'LOYALTY' && opt.value !== 'MIXED');
+  }, [selectOptions]);
 
 
   useEffect(() => {
@@ -365,12 +534,14 @@ export default function PaymentDialog({
     }
   }, [roundOffEnabled, isCreditPayment, roundOffMode, totals, manualFinalAmount, activeBasePayable, dp]);
 
-  // Payable = clean base + round-off (whatever mode)
-  const payable = (roundOffEnabled && !isCreditPayment)
+  // Payable = clean base + round-off (whatever mode) minus loyalty discount
+  const grossPayable = (roundOffEnabled && !isCreditPayment)
     ? (roundOffMode === 'manual' && manualFinalAmount !== '' && !isNaN(Number(manualFinalAmount))
         ? Number(Number(manualFinalAmount).toFixed(dp))
         : Number((activeBasePayable + roundOff).toFixed(dp)))
     : Number(activeBasePayable.toFixed(dp));
+
+  const payable = Math.max(0, Number((grossPayable - loyaltyDiscount).toFixed(dp)));
 
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
@@ -539,6 +710,22 @@ export default function PaymentDialog({
           : 'DISABLED',
     } : null;
 
+    if (paymentMethod === 'LOYALTY') {
+      const netPayable = Math.max(0, Number((payable - loyaltyDiscount).toFixed(dp)));
+      const finalMethod = netPayable > 0 ? loyaltySecondaryMethod : 'LOYALTY';
+      onConfirm?.({
+        paymentMethod: finalMethod,
+        amountPaid: Number(netPayable.toFixed(dp)),
+        discountAmount: Number(disc.toFixed(dp)),
+        roundOffAmount: Number(finalRoundOff.toFixed(dp)),
+        redeemPoints: redeemPoints > 0 ? redeemPoints : null,
+        loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
+        creditCustomerId: finalMethod === 'CREDIT' ? (activeCustomerId || creditCustomerId) : null,
+        updatedOrder: finalOrder,
+      });
+      return;
+    }
+
     if (isCreditSelected) {
       onConfirm?.({
         paymentMethod,
@@ -546,6 +733,8 @@ export default function PaymentDialog({
         amountPaid: 0,
         discountAmount: Number(disc.toFixed(dp)),
         roundOffAmount: Number(finalRoundOff.toFixed(dp)),
+        redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
+        loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
         updatedOrder: finalOrder, // Send modified lines & totals back to host first!
       });
       return;
@@ -571,6 +760,8 @@ export default function PaymentDialog({
       paymentSplits: normalizedSplits,
       discountAmount: Number(disc.toFixed(dp)),
       roundOffAmount: Number(finalRoundOff.toFixed(dp)),
+      redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
+      loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
       updatedOrder: finalOrder, // Send modified lines & totals back to host first!
     });
   };
@@ -607,8 +798,20 @@ export default function PaymentDialog({
             </Row>
           )}
           <Row style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '2px' }}>
-            <span>Grand Total</span><strong>{money(payable)}</strong>
+            <span>Grand Total</span><strong>{money(grossPayable)}</strong>
           </Row>
+          {loyaltyDiscount > 0 && (
+            <Row style={{ color: '#ea580c', fontWeight: '800' }}>
+              <span>Loyalty Discount</span>
+              <strong>-{money(loyaltyDiscount)}</strong>
+            </Row>
+          )}
+          {loyaltyDiscount > 0 && (
+            <Row style={{ borderTop: '1px solid #fed7aa', paddingTop: '4px', marginTop: '2px', color: '#059669', fontWeight: '800' }}>
+              <span>Net Payable</span>
+              <strong>{money(payable)}</strong>
+            </Row>
+          )}
         </Breakdown>
 
         {discountsEnabled && !disableEditDiscount && (
@@ -634,6 +837,136 @@ export default function PaymentDialog({
             Round Off (Auto)
             <input type="number" step="any" value={roundOff.toFixed(dp)} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />
           </Field>
+        )}
+
+        {loyaltyEnabled && hasAttachedCustomer && !isCreditPayment && (
+          <div style={{
+            marginTop: '10px',
+            marginBottom: '12px',
+            padding: '12px 14px',
+            background: '#ffffff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+                Loyalty Points
+              </div>
+              {customerLoyalty && (
+                <span style={{ fontSize: '11px', fontWeight: '700', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px', border: '1px solid #ffedd5' }}>
+                  {customerLoyalty.currentPoints} pts Available
+                </span>
+              )}
+            </div>
+
+            {customerInfo.name || customerInfo.phone ? (
+              <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '8px' }}>
+                Customer: <strong style={{ color: '#334155' }}>{customerInfo.name || 'Guest'}</strong> {customerInfo.phone ? `(${customerInfo.phone})` : ''}
+              </div>
+            ) : null}
+
+            {loyaltyLoading && (
+              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                Loading loyalty balance...
+              </div>
+            )}
+
+            {!loyaltyLoading && activeCustomerId && customerLoyalty && redemptionRules && maxRedeemablePoints > 0 && (
+              <div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
+                  Redemption Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints} pts)
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxRedeemablePoints}
+                    value={inputPoints}
+                    onChange={(e) => setInputPoints(e.target.value)}
+                    placeholder="Enter points to redeem..."
+                    style={{
+                      flex: 1,
+                      height: '36px',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#0f172a',
+                      outline: 'none',
+                      padding: '0 10px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pts = Math.min(maxRedeemablePoints, Math.max(0, parseInt(inputPoints, 10) || 0));
+                      setAppliedLoyaltyPoints(pts);
+                    }}
+                    style={{
+                      height: '36px',
+                      padding: '0 16px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: '#ea580c',
+                      color: '#ffffff',
+                      fontSize: '12.5px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
+                    Apply
+                  </button>
+
+                  {appliedLoyaltyPoints > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedLoyaltyPoints(0);
+                        setInputPoints('');
+                      }}
+                      style={{
+                        height: '36px',
+                        padding: '0 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        color: '#64748b',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {appliedLoyaltyPoints > 0 && loyaltyDiscount > 0 && (
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    color: '#15803d',
+                    marginTop: '8px',
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    ✓ Applied {appliedLoyaltyPoints} points (−{money(loyaltyDiscount)} Off)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         <Field style={{ marginBottom: 12 }}>
@@ -729,6 +1062,7 @@ export default function PaymentDialog({
             )}
           </CreditPanel>
         )}
+
 
         {paymentMethod === 'MIXED' && (
           <SplitPanel>

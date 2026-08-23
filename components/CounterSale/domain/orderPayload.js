@@ -213,9 +213,15 @@ export function buildOrderPayload({
       paymentMethod: paymentPayload.paymentMethod,
       amountPaid: paymentPayload.amountPaid,
       roundOffAmount: paymentPayload.roundOffAmount || 0,
+      redeemPoints: paymentPayload.redeemPoints || null,
+      loyaltyAmount: paymentPayload.loyaltyAmount || null,
       ...(paymentPayload.paymentMethod === 'MIXED' ? {
         paymentSplits: paymentPayload.paymentSplits,
       } : {}),
+    } : {}),
+    ...(isSettleDirect && paymentPayload.paymentMethod === 'CREDIT' ? {
+      redeemPoints: paymentPayload.redeemPoints || null,
+      loyaltyAmount: paymentPayload.loyaltyAmount || null,
     } : {}),
     // For credit orders: include round-off so backend applies it (same as paid orders)
     ...(isCreditFinal ? {

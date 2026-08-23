@@ -282,7 +282,6 @@ export default function DocumentViewerPopup({
   
   React.useEffect(() => {
     const orderId = currentOrder?.orderId || currentOrder?.id;
-    const hasLines = currentOrder?.lines && Array.isArray(currentOrder.lines) && currentOrder.lines.length > 0;
     if (docType !== 'payment' && orderId) {
       setLoadingOrder(true);
       const isPo = (currentOrder.poNumber || currentOrder.vendorId || currentOrder.vendor_id || String(currentOrder.orderNo || '').startsWith('PO-') || currentOrder.orderType === 'PURCHASE' || currentOrder.order_type === 'PURCHASE');
@@ -290,7 +289,18 @@ export default function DocumentViewerPopup({
       api.get(endpoint)
         .then(res => {
           if (res.data?.data) {
-            setCurrentOrder(prev => ({ ...prev, ...res.data.data }));
+            const fetched = res.data.data;
+            setCurrentOrder(prev => ({ ...prev, ...fetched }));
+            if (!isPo && !fetched.invoiceNo) {
+              api.get(`/api/v1/invoices/order/${orderId}`)
+                .then(invRes => {
+                  const inv = invRes.data?.data;
+                  if (inv?.invoiceNo || inv?.invoice_no) {
+                    setCurrentOrder(prev => ({ ...prev, invoiceNo: inv.invoiceNo || inv.invoice_no, invoiceId: inv.id }));
+                  }
+                })
+                .catch(() => {});
+            }
           }
         })
         .catch(err => {
@@ -466,8 +476,12 @@ export default function DocumentViewerPopup({
   const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || docType === 'payment';
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const isOrderDoc = docType === 'order' || docType === 'SO' || docType === 'PO' || docType === 'sale' || docType === 'purchase';
+
   const HEADER = {
     order:   { subtitle: isSale ? 'Sale Order' : 'Purchase Order', title: currentOrder.orderNo || currentOrder.order_no || '—' },
+    SO:      { subtitle: 'Sale Order', title: currentOrder.orderNo || currentOrder.order_no || '—' },
+    PO:      { subtitle: 'Purchase Order', title: currentOrder.poNumber || currentOrder.orderNo || currentOrder.order_no || '—' },
     invoice: { subtitle: 'Invoice', title: currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.orderNo || currentOrder.order_no || '—' },
     payment: { subtitle: 'Payment', title: currentOrder.paymentNo || currentOrder.referenceNo || currentOrder.orderNo || currentOrder.order_no || '—' },
   };
@@ -942,11 +956,13 @@ export default function DocumentViewerPopup({
             </div>
             {/* Cell 2: Invoice No (order) or Order No (invoice) */}
             <div className="dv-cell">
-              {docType === 'order' ? (
+              {isOrderDoc ? (
                 <>
                   <span className="dv-lbl">Invoice No</span>
-                  {currentOrder.invoiceNo ? (
-                    <button className="dv-link" onClick={() => handleLinked('invoice')}>{currentOrder.invoiceNo}</button>
+                  {(currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo || currentOrder.dailyBillNo) ? (
+                    <button className="dv-link" onClick={() => handleLinked('invoice')}>
+                      {currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.billNo || currentOrder.dailyBillNo}
+                    </button>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
                       <span className="dv-nil">Not generated</span>
@@ -1401,6 +1417,15 @@ export default function DocumentViewerPopup({
               <div className="dv-trow dv-trow-muted">
                 <span>Round Off</span>
                 <span>{parseFloat(calculated.roundOff) > 0 ? '+' : ''}{currencySymbol}{fmt(calculated.roundOff)}</span>
+              </div>
+            )}
+            {(currentOrder.redeemPoints > 0 || currentOrder.redeem_points > 0 || currentOrder.loyaltyPointsRedeemed > 0 || currentOrder.loyaltyAmount > 0 || currentOrder.loyalty_amount > 0) && (
+              <div className="dv-trow" style={{ color: '#ea580c', fontWeight: '600' }}>
+                <span>Loyalty Redeemed</span>
+                <span>
+                  {currentOrder.redeemPoints || currentOrder.redeem_points || currentOrder.loyaltyPointsRedeemed} pts
+                  {(currentOrder.loyaltyAmount || currentOrder.loyalty_amount) > 0 && ` (−${currencySymbol}${fmt(currentOrder.loyaltyAmount || currentOrder.loyalty_amount)})`}
+                </span>
               </div>
             )}
             <div className="dv-trow dv-trow-grand">

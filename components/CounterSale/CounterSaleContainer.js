@@ -178,9 +178,14 @@ export default function CounterSaleContainer(props) {
               totalTaxAmount: cart.totals.total_tax,
               totalDiscountAmount: cart.totals.discount_amount,
               totalAmount: cart.totals.total_inc_tax,
+              customerId: customer.selectedCustomerId || customer.selectedCreditCustomer?.linkedCustomerId || customer.selectedCustomers?.[0]?.id || null,
+              customerName: customer.customerName || customer.selectedCustomers?.[0]?.name || null,
+              customerPhone: customer.customerPhone || customer.selectedCustomers?.[0]?.phone || null,
+              customers: customer.selectedCustomers || [],
               orderNo: '(new)',
               tableNumber: props.initialTable?.tableNumber || 'Counter',
             }}
+            customer={customer}
             loading={order.processing}
             config={bootstrap.config}
             creditCustomers={customer.creditCustomers || []}

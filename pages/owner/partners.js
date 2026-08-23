@@ -416,10 +416,6 @@ function PartnersContent() {
                       onChange={val => setSelectedCustomer({...selectedCustomer, customerCategory: val})}
                     />
                   </div>
-                  <div className="input-group">
-                    <label>Loyalty Points</label>
-                    <input type="number" value={selectedCustomer.loyaltyPoints || 0} onChange={e => setSelectedCustomer({...selectedCustomer, loyaltyPoints: parseInt(e.target.value) || 0})} />
-                  </div>
                 </div>
                 <div className="input-row" style={{ marginTop: 16 }}>
                   <div className="input-group">

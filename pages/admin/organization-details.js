@@ -9,7 +9,8 @@ import {
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaCompass, 
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
   FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag,
-  FaImage, FaTrash, FaUpload, FaGlobe, FaCopy, FaExternalLinkAlt
+  FaImage, FaTrash, FaUpload, FaGlobe, FaCopy, FaExternalLinkAlt,
+  FaInstagram, FaWhatsapp, FaTwitter, FaFacebook, FaStar
 } from 'react-icons/fa';
 
 /**
@@ -95,12 +96,16 @@ function OrganizationSettingsContent() {
   const [clientData, setClientData] = useState(null);
 
   const getDeliveryUrl = (org) => {
-    let defaultBaseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
-    if (typeof window !== 'undefined' && !window.location.hostname.includes('test')) {
-      defaultBaseUrl = 'https://cafeqr-delivery-website.vercel.app';
+    let baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL;
+    if (!baseUrl) {
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        baseUrl = 'http://localhost:3002';
+      } else if (typeof window !== 'undefined' && !window.location.hostname.includes('test')) {
+        baseUrl = 'https://cafeqr-delivery-website.vercel.app';
+      } else {
+        baseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
+      }
     }
-    const baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL || defaultBaseUrl;
-
     if (!org) return baseUrl;
 
     const branchSlug = org.slug || '';
@@ -218,7 +223,8 @@ function OrganizationSettingsContent() {
       deliveryRadiusKm: 5,
       latitude: null,
       longitude: null,
-      timezone: 'Asia/Kolkata'
+      timezone: 'Asia/Kolkata',
+      reviewsEnabled: true
     });
   };
 
@@ -521,66 +527,139 @@ function OrganizationSettingsContent() {
                   </div>
                 </section>
 
-                {/* 4. Branding & Delivery Website Hero Banner */}
+                {/* 3.5. Branch Outlet Logo */}
                 <section className="v2-data-block full">
                   <div className="block-header">
                     <FaImage className="block-icon" />
-                    <h4>Delivery Website Hero Banner</h4>
+                    <h4>Branch Outlet Logo</h4>
+                  </div>
+                  <div className="block-content dual">
+                    <div className="v2-input-group" style={{ flex: 1 }}>
+                      <label>Logo Image URL / Data</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.logoUrl || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, logoUrl: e.target.value})}
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </div>
+                    <div className="v2-input-group" style={{ flex: 0.5 }}>
+                      <label>Upload Logo File</label>
+                      <label className="v2-upload-btn" style={{ display: 'inline-flex', alignItems: 'center', justify: 'center', gap: '6px', padding: '9px 16px', background: '#fff3eb', border: '1px solid #fdba74', borderRadius: '8px', color: '#ea580c', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const webpBase64 = await compressImageToWebP(file, 400, 400, 0.85);
+                              if (webpBase64) {
+                                setSelectedOrg(prev => ({ ...prev, logoUrl: webpBase64 }));
+                                setMessage("Branch logo updated!");
+                                setMsgType("success");
+                              }
+                            } catch (err) {
+                              setMessage("Failed to compress image.");
+                              setMsgType("error");
+                            }
+                          }}
+                        />
+                        <FaUpload /> Select Logo Image
+                      </label>
+                    </div>
+                  </div>
+                  {selectedOrg.logoUrl && (
+                    <div style={{ marginTop: '10px', padding: '10px', background: '#fafafa', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <img src={selectedOrg.logoUrl} alt="Logo Preview" style={{ width: '44px', height: '44px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fff' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>Branch Logo Preview</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedOrg({...selectedOrg, logoUrl: ''})}
+                        style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <FaTrash /> Remove
+                      </button>
+                    </div>
+                  )}
+                </section>
+
+                {/* 4. Social & Online Presence */}
+                <section className="v2-data-block full">
+                  <div className="block-header">
+                    <FaInstagram className="block-icon" />
+                    <h4>Social & Online Presence</h4>
+                  </div>
+                  <div className="block-content dual">
+                    <div className="v2-input-group">
+                      <label>Instagram Page URL</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.instagramUrl || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, instagramUrl: e.target.value})}
+                        placeholder="https://instagram.com/yourbranch"
+                      />
+                    </div>
+                    <div className="v2-input-group">
+                      <label>WhatsApp Business Number</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.whatsappNumber || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, whatsappNumber: e.target.value})}
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                  </div>
+                  <div className="block-content dual" style={{ marginTop: '0px' }}>
+                    <div className="v2-input-group">
+                      <label>Twitter / X Profile URL</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.twitterUrl || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, twitterUrl: e.target.value})}
+                        placeholder="https://x.com/yourbranch"
+                      />
+                    </div>
+                    <div className="v2-input-group">
+                      <label>Facebook Page URL</label>
+                      <input 
+                        type="text" 
+                        value={selectedOrg.facebookUrl || ''}
+                        onChange={(e) => setSelectedOrg({...selectedOrg, facebookUrl: e.target.value})}
+                        placeholder="https://facebook.com/yourbranch"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4.5. Customer Ratings & Reviews */}
+                <section className="v2-data-block full">
+                  <div className="block-header">
+                    <FaStar className="block-icon" style={{ color: '#f59e0b' }} />
+                    <h4>Customer Ratings & Reviews</h4>
                   </div>
                   <div className="block-content">
-                    <div className="banner-uploader-container">
-                      <div className="banner-preview-box">
-                        {selectedOrg.bannerUrl ? (
-                          <div className="banner-image-wrapper">
-                            <img src={selectedOrg.bannerUrl} alt="Hero Banner Preview" className="banner-preview-img" />
-                            <button
-                              type="button"
-                              className="remove-banner-btn"
-                              onClick={() => setSelectedOrg({...selectedOrg, bannerUrl: ''})}
-                              title="Remove Banner"
-                            >
-                              <FaTrash /> Remove
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="banner-placeholder-box">
-                            <FaImage className="banner-ph-icon" />
-                            <p className="banner-ph-title">No Custom Hero Banner Uploaded</p>
-                            <p className="banner-ph-sub">Your delivery site currently displays the category default gradient & watermark.</p>
-                          </div>
-                        )}
+                    <div className="review-toggle-card">
+                      <div className="review-toggle-text">
+                        <span className="review-toggle-title">Enable Customer Reviews & Ratings</span>
+                        <span className="review-toggle-desc">
+                          Allow customers to submit reviews and view branch ratings on the storefront.
+                        </span>
                       </div>
-
-                      <div className="banner-control-panel">
-                        <label className="banner-upload-label">
-                          <input 
-                            type="file" 
-                            accept="image/*"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              try {
-                                const webpBase64 = await compressImageToWebP(file, 1200, 450, 0.82);
-                                if (webpBase64) {
-                                  setSelectedOrg(prev => ({ ...prev, bannerUrl: webpBase64 }));
-                                  setMessage("Hero banner optimized (WebP ~50KB) and ready to save!");
-                                  setMsgType("success");
-                                }
-                              } catch (err) {
-                                console.error("Compression failed:", err);
-                                setMessage("Failed to process image. Please try another file.");
-                                setMsgType("error");
-                              }
-                            }}
-                          />
-                          <FaUpload /> {selectedOrg.bannerUrl ? "Change Hero Banner" : "Upload Hero Banner"}
-                        </label>
-                        <div className="banner-hints">
-                          <p><strong>Recommended Aspect Ratio:</strong> 16:6 widescreen landscape (e.g. 1200 × 450 px).</p>
-                          <p><strong>Ultra-Fast WebP Compression:</strong> Images are automatically resized and converted to lightweight WebP format to save space and load instantly on mobile.</p>
-                        </div>
-                      </div>
+                      <label className="switch-slide-control">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedOrg.reviewsEnabled !== false}
+                          onChange={(e) => setSelectedOrg({ ...selectedOrg, reviewsEnabled: e.target.checked })}
+                        />
+                        <span className="switch-slide-track">
+                          <span className="switch-slide-thumb"></span>
+                        </span>
+                        <span className={`switch-slide-badge ${selectedOrg.reviewsEnabled !== false ? 'on' : 'off'}`}>
+                          {selectedOrg.reviewsEnabled !== false ? 'ON' : 'OFF'}
+                        </span>
+                      </label>
                     </div>
                   </div>
                 </section>
@@ -786,24 +865,24 @@ function OrganizationSettingsContent() {
         }
 
         .v2-store-link-card {
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          background: #fff7ed;
           border-radius: 16px; padding: 18px 24px; margin-bottom: 20px;
           display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-          box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25); border: 1px solid #334155;
+          box-shadow: 0 4px 15px rgba(249, 115, 22, 0.08); border: 1px solid #fed7aa;
         }
         .store-link-info { display: flex; flex-direction: column; gap: 4px; min-width: 260px; flex: 1; }
-        .store-link-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #f97316; letter-spacing: 0.5px; }
-        .store-link-url { font-size: 14px; font-weight: 700; color: #f8fafc; text-decoration: none; word-break: break-all; }
-        .store-link-url:hover { color: #fdba74; text-decoration: underline; }
+        .store-link-badge { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; color: #ea580c; letter-spacing: 0.5px; }
+        .store-link-url { font-size: 14px; font-weight: 800; color: #0f172a; text-decoration: none; word-break: break-all; }
+        .store-link-url:hover { color: #ea580c; text-decoration: underline; }
         .store-link-actions { display: flex; align-items: center; gap: 10px; }
         .store-action-btn {
           display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 10px;
           font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; transition: all 0.2s; border: none;
         }
-        .store-action-btn.copy { background: #f97316; color: white; }
+        .store-action-btn.copy { background: #f97316; color: white; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25); }
         .store-action-btn.copy:hover { background: #ea580c; transform: translateY(-1px); }
-        .store-action-btn.visit { background: rgba(255,255,255,0.1); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.2); }
-        .store-action-btn.visit:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
+        .store-action-btn.visit { background: #ffffff; color: #c2410c; border: 1px solid #fdba74; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        .store-action-btn.visit:hover { background: #ffedd5; color: #9a3412; transform: translateY(-1px); }
 
         .hero-identity { display: flex; align-items: center; gap: 16px; }
         .hero-icon-box { width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #64748b; }
@@ -921,6 +1000,99 @@ function OrganizationSettingsContent() {
         .empty-state-sidebar :global(svg) { font-size: 24px; opacity: 0.5; }
 
         .loading-state-premium { height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #64748b; }
+
+        .review-toggle-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 20px;
+          background: #ffffff;
+          border: 1px solid #e5e7eb;
+          border-radius: 14px;
+          gap: 16px;
+        }
+
+        .review-toggle-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .review-toggle-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: #111827;
+        }
+
+        .review-toggle-desc {
+          font-size: 12px;
+          color: #6b7280;
+          font-weight: 500;
+        }
+
+        .switch-slide-control {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          user-select: none;
+          flex-shrink: 0;
+        }
+
+        .switch-slide-control input {
+          display: none;
+        }
+
+        .switch-slide-track {
+          width: 56px;
+          height: 30px;
+          background-color: #cbd5e1;
+          border-radius: 9999px;
+          position: relative;
+          transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .switch-slide-control input:checked + .switch-slide-track {
+          background-color: #f97316;
+        }
+
+        .switch-slide-thumb {
+          width: 24px;
+          height: 24px;
+          background-color: #ffffff;
+          border-radius: 50%;
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        }
+
+        .switch-slide-control input:checked + .switch-slide-track .switch-slide-thumb {
+          transform: translateX(26px);
+        }
+
+        .switch-slide-badge {
+          font-size: 11px;
+          font-weight: 900;
+          letter-spacing: 0.5px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          text-transform: uppercase;
+          transition: all 0.2s ease;
+        }
+
+        .switch-slide-badge.on {
+          background: #ffedd5;
+          color: #ea580c;
+          border: 1px solid #fed7aa;
+        }
+
+        .switch-slide-badge.off {
+          background: #f1f5f9;
+          color: #64748b;
+          border: 1px solid #e2e8f0;
+        }
 
         @media (max-width: 1024px) {
           .v2-layout-container { grid-template-columns: 1fr; }
