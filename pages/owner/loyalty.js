@@ -435,6 +435,8 @@ function ProgramsTab() {
   const [modalProg, setModalProg] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -459,6 +461,17 @@ function ProgramsTab() {
       (p) => p.name?.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q)
     );
   }, [programs, search]);
+
+  const totalPages = Math.ceil(filteredPrograms.length / pageSize) || 1;
+
+  const paginatedPrograms = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPrograms.slice(start, start + pageSize);
+  }, [filteredPrograms, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   function openCreate() {
     setModalProg(null);
@@ -588,7 +601,7 @@ function ProgramsTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredPrograms.map((p) => {
+              {paginatedPrograms.map((p) => {
                 const isActive = (p.isActive ?? p.active ?? true) !== false;
                 const isDefault = Boolean(p.isDefault ?? p.default ?? false);
                 const earn = p.earnRule;
