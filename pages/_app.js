@@ -8,6 +8,7 @@ import SubscriptionGate from '../components/SubscriptionGate';
 import GlobalUI from '../components/GlobalUI';
 import PwaLifecycle from '../components/PwaLifecycle';
 import PushNotificationBridge from '../components/PushNotificationBridge';
+import AppUpdateBridge from '../components/AppUpdateBridge';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function App({ Component, pageProps }) {
         <PwaLifecycle />
         <GlobalUI />
         <PushNotificationBridge />
+        <AppUpdateBridge />
       </NotificationProvider>
     </AuthProvider>
   );
