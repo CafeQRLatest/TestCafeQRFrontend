@@ -8,6 +8,9 @@ import SubscriptionGate from '../components/SubscriptionGate';
 import GlobalUI from '../components/GlobalUI';
 import PwaLifecycle from '../components/PwaLifecycle';
 import PushNotificationBridge from '../components/PushNotificationBridge';
+import AppUpdateBridge from '../components/AppUpdateBridge';
+import InAppReviewBridge from '../components/InAppReviewBridge';
+import GoogleBusinessReviewBridge from '../components/GoogleBusinessReviewBridge';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -41,6 +44,9 @@ export default function App({ Component, pageProps }) {
         <PwaLifecycle />
         <GlobalUI />
         <PushNotificationBridge />
+        <AppUpdateBridge />
+        <InAppReviewBridge />
+        <GoogleBusinessReviewBridge />
       </NotificationProvider>
     </AuthProvider>
   );
