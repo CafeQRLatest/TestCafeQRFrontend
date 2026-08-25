@@ -74,7 +74,7 @@ function PartnersContent() {
       setActiveTab(initialTab);
 
       const [custRes, vendRes, plRes] = await Promise.all([
-        shouldLoadCustomers ? api.get('/api/v1/purchasing/customers') : Promise.resolve(null),
+        shouldLoadCustomers ? api.get('/api/v1/credit/customers') : Promise.resolve(null),
         shouldLoadVendors ? api.get('/api/v1/purchasing/vendors') : Promise.resolve(null),
         api.get('/api/v1/purchasing/pricelists'),
       ]);
@@ -96,7 +96,7 @@ function PartnersContent() {
     setSaving(true);
     try {
       const isNew = !selectedCustomer.id;
-      const url = isNew ? '/api/v1/purchasing/customers' : `/api/v1/purchasing/customers/${selectedCustomer.id}`;
+      const url = isNew ? '/api/v1/credit/customers' : `/api/v1/credit/customers/${selectedCustomer.id}`;
       const resp = await (isNew ? api.post(url, selectedCustomer) : api.put(url, selectedCustomer));
       if (resp.data.success) {
         notify('success', isNew ? 'Customer created!' : 'Customer updated!');
@@ -116,7 +116,7 @@ function PartnersContent() {
       message: `Are you sure you want to delete "${name}"?`,
       onConfirm: async () => {
         try {
-          await api.delete(`/api/v1/purchasing/customers/${id}`);
+          await api.delete(`/api/v1/credit/customers/${id}`);
           notify('success', 'Customer deleted');
           fetchAll();
         } catch (err) {
