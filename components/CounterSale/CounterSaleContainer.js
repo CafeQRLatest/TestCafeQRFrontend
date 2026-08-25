@@ -7,6 +7,7 @@ import ProductCatalog from './components/ProductCatalog';
 import CartSidebar from './components/CartSidebar';
 import DiscountDialog from './components/DiscountDialog';
 import VariablePriceModal from './components/VariablePriceModal';
+import useBarcodeScanner from './hooks/useBarcodeScanner';
 import * as S from './CounterSale.styles';
 
 // Import sub-modals from parent directory
@@ -30,6 +31,15 @@ export default function CounterSaleContainer(props) {
   } = state;
 
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+
+  useBarcodeScanner({
+    products: bootstrap.products,
+    addToCart: cart.addToCart,
+    notify: ui.notify,
+    search: catalog.search,
+    setSearch: catalog.setSearch,
+    isEnabled: !order.showSettleDialog && !ui.selectedProductForPopup
+  });
 
   if (bootstrap.loading) return null;
 
