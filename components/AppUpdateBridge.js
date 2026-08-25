@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { AppUpdate, AppUpdateAvailability } from '@capawesome/capacitor-app-update';
 
 export default function AppUpdateBridge() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -8,10 +7,11 @@ export default function AppUpdateBridge() {
 
   useEffect(() => {
     // Only run on native Android / iOS devices
-    if (!Capacitor.isNativePlatform()) return;
+    if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
 
     const checkAppUpdate = async () => {
       try {
+        const { AppUpdate, AppUpdateAvailability } = await import('@capawesome/capacitor-app-update');
         const info = await AppUpdate.getAppUpdateInfo();
         console.log('[AppUpdateBridge] App update info:', info);
 

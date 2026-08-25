@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { InAppReview } from '@capawesome/capacitor-app-review';
 
 export default function InAppReviewBridge() {
   useEffect(() => {
     // Only execute on native mobile devices (Android / iOS)
-    if (!Capacitor.isNativePlatform()) return;
+    if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
 
     const trackActiveDaysAndPromptReview = async () => {
       try {
+        const { InAppReview } = await import('@capawesome/capacitor-app-review');
         const todayStr = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
         
         // 1. Retrieve unique active days from localStorage
