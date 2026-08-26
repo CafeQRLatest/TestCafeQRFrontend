@@ -253,7 +253,7 @@ export async function printBarcodeLabel({
   // Strategy 1: Silent Raw ESC/POS Thermal Print via CafeQR Print Hub
   if (typeof window !== 'undefined') {
     const printWinUrl = localStorage.getItem('PRINT_WIN_URL') || 'http://127.0.0.1:3333/printRaw';
-    const printerName = localStorage.getItem('PRINT_WIN_PRINTER_NAME') || '';
+    const printerName = localStorage.getItem('PRINT_WIN_PRINTER_NAME_LABEL') || localStorage.getItem('PRINT_WIN_PRINTER_NAME') || '';
 
     try {
       const escPosBase64 = canvasToEscPosBase64(canvas);

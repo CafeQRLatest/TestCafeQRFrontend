@@ -134,12 +134,15 @@ const DEFAULT_CONFIG = {
     billOutput: 'THERMAL',
     kotOutput: 'THERMAL',
     invoiceOutput: 'REGULAR',
+    labelOutput: 'THERMAL',
     billProfileIds: [],
     kotProfileIds: [],
     invoiceProfileIds: [],
+    labelProfileIds: [],
     billMode: 'MIRROR',
     kotMode: 'MIRROR',
     invoiceMode: 'MIRROR',
+    labelMode: 'MIRROR',
     preferCloudPrint: false,
   },
   kotTemplate: DEFAULT_KOT_TEMPLATE,
@@ -259,7 +262,7 @@ const profileDefaults = (format = 'THERMAL') => ({
   autoCut: format === 'THERMAL',
   feedLines: format === 'THERMAL' ? 3 : 0,
   enabled: true,
-  documents: format === 'REGULAR' ? ['BILL', 'INVOICE', 'KOT'] : ['BILL', 'INVOICE', 'KOT'],
+  documents: format === 'REGULAR' ? ['BILL', 'INVOICE', 'KOT', 'LABEL'] : ['BILL', 'INVOICE', 'KOT', 'LABEL'],
   templateOverrides: {},
 });
 
@@ -304,9 +307,10 @@ const syncPrintConfigToLocalStorage = (config) => {
       .filter(Boolean);
   };
 
-  // 2. Map default bill, KOT, and invoice printer names
+  // 2. Map default bill, KOT, invoice, and label printer names
   let billPrinters = getPrinterNamesForDoc(defaults.billProfileIds);
   let kotPrinters = getPrinterNamesForDoc(defaults.kotProfileIds);
+  let labelPrinters = getPrinterNamesForDoc(defaults.labelProfileIds);
 
   const supportsDoc = (profile, docType) => {
     const documents = Array.isArray(profile?.documents) ? profile.documents : [];
@@ -324,11 +328,18 @@ const syncPrintConfigToLocalStorage = (config) => {
       .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName && supportsDoc(p, 'KOT'))
       .map((p) => p.windowsPrinterName);
   }
+  if (!labelPrinters.length) {
+    labelPrinters = profiles
+      .filter((p) => p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName && supportsDoc(p, 'LABEL'))
+      .map((p) => p.windowsPrinterName);
+  }
 
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_BILL', JSON.stringify(billPrinters));
   localStorage.setItem('PRINT_WIN_PRINTER_NAMES_KOT', JSON.stringify(kotPrinters));
+  localStorage.setItem('PRINT_WIN_PRINTER_NAMES_LABEL', JSON.stringify(labelPrinters));
   localStorage.setItem('PRINT_WIN_PRINTER_NAME', billPrinters[0] || '');
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_KOT', kotPrinters[0] || '');
+  localStorage.setItem('PRINT_WIN_PRINTER_NAME_LABEL', labelPrinters[0] || '');
 
   // 3. Map Routing
   const routes = Array.isArray(config.routes) ? config.routes : [];
@@ -449,6 +460,14 @@ const DOCUMENT_DEFAULTS = [
     profileKey: 'invoiceProfileIds',
     outputKey: 'invoiceOutput',
     modeKey: 'invoiceMode',
+  },
+  {
+    type: 'LABEL',
+    title: 'Label printers',
+    description: 'Barcode sticker labels print to every selected profile.',
+    profileKey: 'labelProfileIds',
+    outputKey: 'labelOutput',
+    modeKey: 'labelMode',
   },
 ];
 
@@ -1673,7 +1692,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                   <Field label="Copies"><input type="number" min="1" max="10" value={profile.copies || 1} onChange={(event) => updateProfile(profile.id, { copies: Number(event.target.value) })} /></Field>
                 </div>
                 <div className="document-toggles">
-                  {['KOT', 'BILL', 'INVOICE'].map((documentType) => (
+                  {['KOT', 'BILL', 'INVOICE', 'LABEL'].map((documentType) => (
                     <label className="check" key={documentType}>
                       <input
                         type="checkbox"
