@@ -63,6 +63,8 @@ export function findProductByBarcode(products, rawBarcode) {
   const barcode = String(rawBarcode || '').trim().toLowerCase();
   if (!barcode) return null;
 
+  const strippedBarcode = barcode.replace(/^0+/, '');
+
   return products.find(p => {
     if (p.isActive === false || p.isactive === 'N') return false;
     if (
@@ -75,7 +77,22 @@ export function findProductByBarcode(products, rawBarcode) {
     }
     const pBarcode = String(p.barcode || '').trim().toLowerCase();
     const pCode = String(p.productCode || '').trim().toLowerCase();
-    return pBarcode === barcode || pCode === barcode;
+    if (!pBarcode && !pCode) return false;
+
+    // 1. Direct exact match
+    if (pBarcode === barcode || pCode === barcode) return true;
+
+    // 2. Match ignoring leading zeros (EAN-13 vs UPC-A: 0123456789012 vs 123456789012)
+    const strippedPBarcode = pBarcode.replace(/^0+/, '');
+    if (strippedBarcode && strippedPBarcode && strippedBarcode === strippedPBarcode) return true;
+
+    // 3. EAN-13 / UPC 12-to-13 digit prefix/checksum tolerance
+    if (pBarcode && barcode) {
+      if (barcode.length === 13 && pBarcode.length === 12 && (barcode.startsWith(pBarcode) || barcode.endsWith(pBarcode))) return true;
+      if (barcode.length === 12 && pBarcode.length === 13 && (pBarcode.startsWith(barcode) || pBarcode.endsWith(barcode))) return true;
+    }
+
+    return false;
   }) || null;
 }
 

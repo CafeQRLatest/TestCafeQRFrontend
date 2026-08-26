@@ -58,6 +58,25 @@ export default function ProductManagementPopup({
     }
   };
 
+  const handleAutoGenerateBarcode = () => {
+    const prefix = '890';
+    let body = '';
+    for (let i = 0; i < 9; i++) {
+      body += Math.floor(Math.random() * 10);
+    }
+    const full12 = prefix + body;
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const digit = parseInt(full12[i], 10);
+      sum += (i % 2 === 0) ? digit : digit * 3;
+    }
+    const checksum = (10 - (sum % 10)) % 10;
+    const validEan13 = full12 + checksum;
+
+    setSelectedProduct(prev => ({ ...prev, barcode: validEan13 }));
+    notify('success', `Generated GS1 EAN-13 barcode: ${validEan13}`);
+  };
+
   // Dropdown options data state
   const [categories, setCategories] = useState(propCategories || []);
   const [uoms, setUoms] = useState(propUoms || []);
@@ -574,8 +593,32 @@ export default function ProductManagementPopup({
                             </button>
                           </div>
                         )}
+                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                       <input 
+                         value={selectedProduct.barcode || ''} 
+                         onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} 
+                         placeholder="e.g. 8901491361026" 
+                         style={{ flex: 1 }}
+                       />
+                       <button
+                         type="button"
+                         onClick={handleAutoGenerateBarcode}
+                         title="Auto-generate a valid GS1 EAN-13 barcode with correct checksum"
+                         style={{
+                           background: '#f59e0b',
+                           color: 'white',
+                           border: 'none',
+                           borderRadius: '6px',
+                           padding: '8px 10px',
+                           fontSize: '11px',
+                           fontWeight: 700,
+                           cursor: 'pointer',
+                           whiteSpace: 'nowrap'
+                         }}
+                       >
+                         ⚡ Auto
+                       </button>
                      </div>
-                     <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
                   </div>
                </div>
              </div>
