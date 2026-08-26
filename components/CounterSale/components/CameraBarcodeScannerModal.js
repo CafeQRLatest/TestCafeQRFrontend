@@ -37,6 +37,11 @@ export default function CameraBarcodeScannerModal({
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    // Stop html5-qrcode fallback scanner if running
+    if (html5QrCodeRef.current) {
+      html5QrCodeRef.current.stop().catch(() => {});
+      html5QrCodeRef.current = null;
+    }
     setScanning(false);
   }, []);
 
@@ -91,59 +96,104 @@ export default function CameraBarcodeScannerModal({
     }
   }, [products, addToCart, notify, stopCamera, onClose]);
 
+  const html5QrCodeRef = useRef(null);
+  const scannerContainerId = 'camera-scanner-qr-reader';
+
   const startCamera = useCallback(async () => {
     setError(null);
     setLastScanned(null);
     lastScannedRef.current = null;
 
-    try {
-      const constraints = {
-        video: {
-          facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        audio: false
-      };
+    // Strategy 1: Use native BarcodeDetector if available (Android Chrome/WebView)
+    if ('BarcodeDetector' in window) {
+      try {
+        const constraints = {
+          video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        setScanning(true);
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      setScanning(true);
-
-      // Use native BarcodeDetector if available (Chrome 83+, Android WebView 83+)
-      if ('BarcodeDetector' in window) {
         const detector = new window.BarcodeDetector({
           formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code']
         });
-
         scanIntervalRef.current = setInterval(async () => {
           if (!videoRef.current || videoRef.current.readyState !== 4) return;
           try {
             const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              handleBarcodeDetected(barcodes[0].rawValue);
-            }
-          } catch (e) {
-            // Ignore per-frame detection errors
-          }
-        }, 250); // Scan 4 times per second
-      } else {
-        setError('Your device does not support the BarcodeDetector API. Please use a USB/Bluetooth scanner or type the barcode manually.');
+            if (barcodes.length > 0) handleBarcodeDetected(barcodes[0].rawValue);
+          } catch (e) { /* ignore per-frame errors */ }
+        }, 250);
+      } catch (err) {
+        console.error('[CameraScanner] Native camera error:', err);
+        setError(err.name === 'NotAllowedError'
+          ? 'Camera permission denied. Please allow camera access and try again.'
+          : `Camera error: ${err.message}`);
       }
+      return;
+    }
+
+    // Strategy 2: Fallback — Use html5-qrcode library (loaded from CDN once)
+    try {
+      // Dynamically load the html5-qrcode script from CDN if not already loaded
+      if (!window.Html5Qrcode) {
+        await new Promise((resolve, reject) => {
+          // Check if script tag already exists
+          if (document.getElementById('html5-qrcode-cdn')) {
+            // Script tag exists but not loaded yet, wait for it
+            const existing = document.getElementById('html5-qrcode-cdn');
+            existing.addEventListener('load', resolve);
+            existing.addEventListener('error', reject);
+            return;
+          }
+          const script = document.createElement('script');
+          script.id = 'html5-qrcode-cdn';
+          script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Failed to load barcode scanner library'));
+          document.head.appendChild(script);
+        });
+      }
+
+      if (!window.Html5Qrcode) {
+        setError('Failed to initialize barcode scanner library.');
+        return;
+      }
+
+      setScanning(true);
+
+      // Wait for the container div to be rendered
+      await new Promise(r => setTimeout(r, 100));
+
+      const html5QrCode = new window.Html5Qrcode(scannerContainerId);
+      html5QrCodeRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode },
+        {
+          fps: 10,
+          qrbox: { width: 280, height: 150 },
+          aspectRatio: 1.333,
+          disableFlip: false,
+        },
+        (decodedText) => {
+          handleBarcodeDetected(decodedText);
+        },
+        () => { /* ignore scan failures — camera is still scanning */ }
+      );
     } catch (err) {
-      console.error('[CameraScanner] Camera access error:', err);
-      if (err.name === 'NotAllowedError') {
-        setError('Camera permission denied. Please allow camera access in your device settings and try again.');
-      } else if (err.name === 'NotFoundError') {
+      console.error('[CameraScanner] html5-qrcode error:', err);
+      if (String(err).includes('NotAllowed') || err?.name === 'NotAllowedError') {
+        setError('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (String(err).includes('NotFound') || err?.name === 'NotFoundError') {
         setError('No camera found on this device.');
       } else {
-        setError(`Camera error: ${err.message}`);
+        setError(`Camera error: ${typeof err === 'string' ? err : err?.message || 'Unknown error'}`);
       }
     }
   }, [facingMode, handleBarcodeDetected]);
@@ -192,16 +242,28 @@ export default function CameraBarcodeScannerModal({
 
           {/* Camera Viewport */}
           <div className="camera-scanner-viewport">
+            {/* Native BarcodeDetector uses this video element */}
             <video
               ref={videoRef}
               className="camera-scanner-video"
               playsInline
               muted
               autoPlay
+              style={{ display: ('BarcodeDetector' in (typeof window !== 'undefined' ? window : {})) ? 'block' : 'none' }}
             />
 
-            {/* Scanning Overlay Crosshair */}
-            {scanning && (
+            {/* html5-qrcode fallback renders its own camera inside this div */}
+            <div
+              id={scannerContainerId}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: ('BarcodeDetector' in (typeof window !== 'undefined' ? window : {})) ? 'none' : 'block',
+              }}
+            />
+
+            {/* Scanning Overlay Crosshair (only for native mode) */}
+            {scanning && ('BarcodeDetector' in (typeof window !== 'undefined' ? window : {})) && (
               <div className="camera-scanner-crosshair">
                 <div className="crosshair-corner tl" />
                 <div className="crosshair-corner tr" />
