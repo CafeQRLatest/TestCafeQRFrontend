@@ -8,7 +8,10 @@ export default function InAppReviewBridge() {
 
     const trackActiveDaysAndPromptReview = async () => {
       try {
-        const { InAppReview } = await import('@capawesome/capacitor-app-review');
+        const pkgName = '@capawesome/capacitor-app-review';
+        const mod = await import(/* webpackIgnore: true */ pkgName);
+        const InAppReview = mod?.InAppReview;
+        if (!InAppReview) return;
         const todayStr = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
         
         // 1. Retrieve unique active days from localStorage
