@@ -1,7 +1,7 @@
 /**
  * Utility for generating and printing thermal barcode sticker labels.
  * Uses JsBarcode (loaded via CDN dynamically if missing) and offscreen canvas
- * to render crisp 203 DPI thermal label images and trigger print via iframe.
+ * to render crisp 203 DPI thermal label images and trigger print via ESC/POS raw spooler or iframe fallback.
  */
 
 function loadJsBarcode() {
@@ -43,6 +43,60 @@ function getStoredLabelConfig() {
   } catch (e) {
     return { widthMm: 50, heightMm: 25, showName: true, showPrice: true, showMrp: true, barcodeFormat: 'AUTO' };
   }
+}
+
+/**
+ * Converts a label canvas element into ESC/POS GS v 0 raster bit image Base64.
+ */
+function canvasToEscPosBase64(canvas) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  const bytesPerRow = Math.ceil(w / 8);
+  const bytes = [];
+
+  // ESC @ (Initialize printer)
+  bytes.push(0x1b, 0x40);
+  // ESC a 1 (Center alignment)
+  bytes.push(0x1b, 0x61, 0x01);
+
+  // GS v 0 0 xL xH yL yH (Raster Bit Image)
+  bytes.push(0x1d, 0x76, 0x30, 0x00);
+  bytes.push(bytesPerRow & 0xff, (bytesPerRow >> 8) & 0xff);
+  bytes.push(h & 0xff, (h >> 8) & 0xff);
+
+  for (let y = 0; y < h; y++) {
+    for (let bx = 0; bx < bytesPerRow; bx++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = bx * 8 + bit;
+        if (x < w) {
+          const idx = (y * w + x) * 4;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lum < 180) { // Black pixel
+            byte |= (0x80 >> bit);
+          }
+        }
+      }
+      bytes.push(byte);
+    }
+  }
+
+  // ESC d 3 (Feed 3 lines)
+  bytes.push(0x1b, 0x64, 0x03);
+
+  let binary = '';
+  const len = bytes.length;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 /**
@@ -176,7 +230,8 @@ export async function generateLabelCanvas({
 }
 
 /**
- * Prints barcode sticker labels via a hidden iframe.
+ * Prints barcode sticker labels.
+ * Tries local thermal print hub (ESC/POS raw) first, then falls back to browser iframe print.
  */
 export async function printBarcodeLabel({
   name = '',
@@ -193,13 +248,43 @@ export async function printBarcodeLabel({
 
   const cfg = { ...getStoredLabelConfig(), ...(config || {}) };
   const canvas = await generateLabelCanvas({ name, barcode, price, mrp, sym, config: cfg });
-  const dataUrl = canvas.toDataURL('image/png');
-
-  const widthMm = cfg.widthMm || 50;
-  const heightMm = cfg.heightMm || 25;
   const qty = Math.max(1, parseInt(quantity) || 1);
 
-  // Remove existing print iframe if any
+  // Strategy 1: Silent Raw ESC/POS Thermal Print via CafeQR Print Hub
+  if (typeof window !== 'undefined') {
+    const printWinUrl = localStorage.getItem('PRINT_WIN_URL') || 'http://127.0.0.1:3333/printRaw';
+    const printerName = localStorage.getItem('PRINT_WIN_PRINTER_NAME') || '';
+
+    try {
+      const escPosBase64 = canvasToEscPosBase64(canvas);
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+
+      let successCount = 0;
+      for (let i = 0; i < qty; i++) {
+        const resp = await fetch(printWinUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ printerName: printerName || undefined, dataBase64: escPosBase64 }),
+          signal: ctrl.signal
+        });
+        if (resp.ok) successCount++;
+      }
+      clearTimeout(t);
+      if (successCount > 0) {
+        console.log(`[BarcodeLabel] Printed ${successCount} label(s) via ESC/POS raw print hub.`);
+        return true;
+      }
+    } catch (err) {
+      console.warn('[BarcodeLabel] Thermal print hub fallback to browser dialog:', err);
+    }
+  }
+
+  // Strategy 2: Fallback to browser iframe print (for standard office inkjet/laser printers)
+  const dataUrl = canvas.toDataURL('image/png');
+  const widthMm = cfg.widthMm || 50;
+  const heightMm = cfg.heightMm || 25;
+
   const existingIframe = document.getElementById('barcode-print-iframe');
   if (existingIframe) {
     existingIframe.remove();
