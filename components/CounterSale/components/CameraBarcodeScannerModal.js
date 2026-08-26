@@ -48,7 +48,8 @@ export default function CameraBarcodeScannerModal({
 
   const handleBarcodeDetected = useCallback(async (rawValue) => {
     const code = String(rawValue || '').trim();
-    if (!code) return;
+    // Filter out false positive noise (valid product barcodes are at least 3 characters)
+    if (!code || code.length < 3) return;
 
     // Prevent duplicate scans of the same barcode within 2 seconds
     const prev = lastScannedRef.current;
@@ -180,13 +181,31 @@ export default function CameraBarcodeScannerModal({
       const html5QrCode = new window.Html5Qrcode(scannerContainerId);
       html5QrCodeRef.current = html5QrCode;
 
+      const formatsToSupport = window.Html5QrcodeSupportedFormats ? [
+        window.Html5QrcodeSupportedFormats.EAN_13,
+        window.Html5QrcodeSupportedFormats.EAN_8,
+        window.Html5QrcodeSupportedFormats.UPC_A,
+        window.Html5QrcodeSupportedFormats.UPC_E,
+        window.Html5QrcodeSupportedFormats.CODE_128,
+        window.Html5QrcodeSupportedFormats.CODE_39,
+        window.Html5QrcodeSupportedFormats.QR_CODE
+      ] : undefined;
+
       await html5QrCode.start(
         { facingMode },
         {
-          fps: 10,
-          qrbox: { width: 280, height: 150 },
-          aspectRatio: 1.333,
+          fps: 20,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const width = Math.min(viewfinderWidth * 0.85, 340);
+            const height = Math.min(viewfinderHeight * 0.45, 140);
+            return { width: Math.floor(width), height: Math.floor(height) };
+          },
+          aspectRatio: 1.777778,
           disableFlip: false,
+          formatsToSupport: formatsToSupport,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
         },
         (decodedText) => {
           handleBarcodeDetected(decodedText);
