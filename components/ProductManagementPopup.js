@@ -593,6 +593,7 @@ export default function ProductManagementPopup({
                             </button>
                           </div>
                         )}
+                     </div>
                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                        <input 
                          value={selectedProduct.barcode || ''} 
