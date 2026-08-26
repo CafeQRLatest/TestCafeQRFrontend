@@ -8,6 +8,7 @@ import CartSidebar from './components/CartSidebar';
 import DiscountDialog from './components/DiscountDialog';
 import VariablePriceModal from './components/VariablePriceModal';
 import useBarcodeScanner from './hooks/useBarcodeScanner';
+import CameraBarcodeScannerModal from './components/CameraBarcodeScannerModal';
 import * as S from './CounterSale.styles';
 
 // Import sub-modals from parent directory
@@ -31,6 +32,7 @@ export default function CounterSaleContainer(props) {
   } = state;
 
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   useBarcodeScanner({
     products: bootstrap.products,
@@ -69,6 +71,7 @@ export default function CounterSaleContainer(props) {
                       cart={cart}
                       ui={ui}
                       order={order}
+                      onOpenCameraScanner={() => setShowCameraScanner(true)}
                     />
                   </S.CsCatalogSection>
                   <CartSidebar
@@ -100,6 +103,7 @@ export default function CounterSaleContainer(props) {
                     cart={cart}
                     ui={ui}
                     order={order}
+                    onOpenCameraScanner={() => setShowCameraScanner(true)}
                   />
                   <CartSidebar
                     bootstrap={bootstrap}
@@ -207,6 +211,17 @@ export default function CounterSaleContainer(props) {
             onCreditCustomerCreated={props.onCreditCustomerCreated}
             themeColor="green"
             disableEditDiscount={true}
+          />
+        )}
+
+        {showCameraScanner && (
+          <CameraBarcodeScannerModal
+            open={showCameraScanner}
+            onClose={() => setShowCameraScanner(false)}
+            products={bootstrap.products}
+            addToCart={cart.addToCart}
+            notify={ui.notify}
+            themeColor={ui.THEME.main}
           />
         )}
       </S.CsModalContent>
