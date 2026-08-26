@@ -47,6 +47,7 @@ function getStoredLabelConfig() {
 
 /**
  * Converts a label canvas element into ESC/POS GS v 0 raster bit image Base64.
+ * Formatted for 58mm/80mm thermal printers (384 dots max for 58mm).
  */
 function canvasToEscPosBase64(canvas) {
   const ctx = canvas.getContext('2d');
@@ -88,8 +89,9 @@ function canvasToEscPosBase64(canvas) {
     }
   }
 
-  // ESC d 3 (Feed 3 lines)
-  bytes.push(0x1b, 0x64, 0x03);
+  // FF (0x0C Form Feed / Black mark gap feed) + ESC d 2
+  bytes.push(0x0c);
+  bytes.push(0x1b, 0x64, 0x02);
 
   let binary = '';
   const len = bytes.length;
@@ -116,10 +118,13 @@ export async function generateLabelCanvas({
   const widthMm = cfg.widthMm || 50;
   const heightMm = cfg.heightMm || 25;
 
-  // 203 DPI conversion: 1mm ≈ 8 pixels (203 / 25.4)
-  const pxPerMm = 8;
-  const canvasWidth = Math.round(widthMm * pxPerMm);
-  const canvasHeight = Math.round(heightMm * pxPerMm);
+  // Clamp canvas width to 384 dots max (48 bytes per row) for 58mm printer compatibility
+  // (Fits PeriPeri BT-58L / POS58 384-dot printhead buffer)
+  const maxDots = 384; 
+  let canvasWidth = Math.min(maxDots, Math.floor((widthMm * 8) / 8) * 8); 
+  if (canvasWidth < 240) canvasWidth = 384; // Default to 384 dots for crisp 58mm thermal resolution
+  let canvasHeight = Math.round((heightMm / widthMm) * canvasWidth);
+  if (isNaN(canvasHeight) || canvasHeight < 100) canvasHeight = 192;
 
   const canvas = document.createElement('canvas');
   canvas.width = canvasWidth;
@@ -131,11 +136,11 @@ export async function generateLabelCanvas({
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   ctx.fillStyle = '#000000';
 
-  let currentY = 8;
+  let currentY = 10;
 
   // 1. Draw Product Name at top
   if (cfg.showName && name) {
-    const fontSize = Math.max(12, Math.round(canvasHeight * 0.13));
+    const fontSize = Math.max(14, Math.round(canvasHeight * 0.13));
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = 'center';
     
@@ -160,7 +165,7 @@ export async function generateLabelCanvas({
     lines = lines.slice(0, 2);
     for (let l of lines) {
       ctx.fillText(l, canvasWidth / 2, currentY + fontSize);
-      currentY += fontSize + 2;
+      currentY += fontSize + 3;
     }
     currentY += 4;
   }
@@ -180,10 +185,10 @@ export async function generateLabelCanvas({
     try {
       window.JsBarcode(tempCanvas, barcode.trim(), {
         format: format,
-        width: Math.max(1, Math.floor(canvasWidth / 250)),
-        height: Math.max(30, Math.floor(canvasHeight * 0.38)),
+        width: Math.max(2, Math.floor(canvasWidth / 220)),
+        height: Math.max(36, Math.floor(canvasHeight * 0.40)),
         displayValue: true,
-        fontSize: Math.max(10, Math.round(canvasHeight * 0.11)),
+        fontSize: Math.max(12, Math.round(canvasHeight * 0.12)),
         margin: 0,
         textMargin: 2
       });
@@ -198,7 +203,7 @@ export async function generateLabelCanvas({
     } catch (err) {
       console.warn('JsBarcode render warning:', err);
       // Fallback text if format invalid
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 16px monospace';
       ctx.textAlign = 'center';
       ctx.fillText(barcode, canvasWidth / 2, currentY + 20);
       currentY += 28;
@@ -207,7 +212,7 @@ export async function generateLabelCanvas({
 
   // 3. Draw Price & MRP at bottom
   if ((cfg.showPrice && price !== null && price !== undefined) || (cfg.showMrp && mrp)) {
-    const priceFontSize = Math.max(12, Math.round(canvasHeight * 0.14));
+    const priceFontSize = Math.max(13, Math.round(canvasHeight * 0.14));
     ctx.font = `bold ${priceFontSize}px sans-serif`;
     ctx.textAlign = 'center';
 
@@ -240,6 +245,7 @@ export async function printBarcodeLabel({
   mrp = null,
   sym = '₹',
   quantity = 1,
+  targetPrinterName = null,
   config = null
 }) {
   if (!barcode) {
@@ -253,7 +259,10 @@ export async function printBarcodeLabel({
   // Strategy 1: Silent Raw ESC/POS Thermal Print via CafeQR Print Hub
   if (typeof window !== 'undefined') {
     const printWinUrl = localStorage.getItem('PRINT_WIN_URL') || 'http://127.0.0.1:3333/printRaw';
-    const printerName = localStorage.getItem('PRINT_WIN_PRINTER_NAME_LABEL') || localStorage.getItem('PRINT_WIN_PRINTER_NAME') || '';
+    const printerName = targetPrinterName 
+      || localStorage.getItem('PRINT_WIN_PRINTER_NAME_LABEL') 
+      || localStorage.getItem('PRINT_WIN_PRINTER_NAME') 
+      || '';
 
     try {
       const escPosBase64 = canvasToEscPosBase64(canvas);
@@ -272,7 +281,7 @@ export async function printBarcodeLabel({
       }
       clearTimeout(t);
       if (successCount > 0) {
-        console.log(`[BarcodeLabel] Printed ${successCount} label(s) via ESC/POS raw print hub.`);
+        console.log(`[BarcodeLabel] Printed ${successCount} label(s) via ESC/POS raw print hub to printer: ${printerName || 'default'}`);
         return true;
       }
     } catch (err) {

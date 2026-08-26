@@ -17,6 +17,7 @@ import {
   FaSlidersH,
   FaBarcode,
 } from 'react-icons/fa';
+import { printBarcodeLabel } from '../utils/barcodeLabelPrint';
 
 const DEFAULT_LABEL_TEMPLATE = {
   widthMm: 50,
@@ -1128,6 +1129,19 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         syncPrintConfigToLocalStorage(toSync);
       }
 
+      if (kind === 'LABEL') {
+        await printBarcodeLabel({
+          name: 'SAMPLE ITEM',
+          barcode: '8901491361026',
+          price: 99.00,
+          targetPrinterName: profile.windowsPrinterName,
+          quantity: 1
+        });
+        showMessage(`Saved and sent a test barcode label to ${profileDisplayLabel(profile)}.`);
+        await refreshService();
+        return;
+      }
+
       const text = kind === 'KOT'
         ? `--- TEST KOT ---\nTerminal: 1\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item\n1    Paneer Butter Masala\n2    Butter Naan\n----------------\n\n\n\n\n`
         : `--- TEST BILL ---\nCafeQR Restaurant\nDate: ${new Date().toLocaleString()}\n----------------\nQty  Item              Price\n1    Paneer Masala    180.00\n2    Butter Naan       80.00\n----------------\nTotal:                260.00\nGST 5%:                13.00\nGrand Total:          273.00\n----------------\nThank you for visiting!\n\n\n\n\n`;
@@ -1716,6 +1730,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                     <button className="secondary test" onClick={() => testProfile(profile)} disabled={!health || busy}>Save & Test</button>
                     <button className="secondary test" onClick={() => testDocType(profile, 'KOT')} disabled={!health || busy} style={{ backgroundColor: '#eff6ff', color: '#1e40af', borderColor: '#bfdbfe' }}>Test KOT</button>
                     <button className="secondary test" onClick={() => testDocType(profile, 'BILL')} disabled={!health || busy} style={{ backgroundColor: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>Test Bill</button>
+                    <button className="secondary test" onClick={() => testDocType(profile, 'LABEL')} disabled={!health || busy} style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>Test Label</button>
                   </div>
                 </div>
                 {profile.format === 'THERMAL' && (
