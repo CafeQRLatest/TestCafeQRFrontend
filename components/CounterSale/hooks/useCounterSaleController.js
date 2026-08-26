@@ -511,14 +511,17 @@ export default function useCounterSaleController({
     }
   }, [bootstrap]);
 
-  const startNewProductForPopup = useCallback(() => {
+  const startNewProductForPopup = useCallback((initialData = null) => {
+    const hasBarcode = Boolean(initialData && initialData.barcode);
     setSelectedProductForPopup({
       name: '',
       price: '',
       categoryName: activeCat !== 'ALL' ? activeCat : '',
       isActive: true,
       hasVariants: false,
-      productType: 'VEG'
+      productType: 'VEG',
+      isPackagedGood: hasBarcode,
+      ...(initialData && typeof initialData === 'object' ? initialData : {})
     });
     setPopupViewOnly(false);
   }, [activeCat]);

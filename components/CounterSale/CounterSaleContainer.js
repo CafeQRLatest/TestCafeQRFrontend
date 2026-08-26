@@ -34,12 +34,18 @@ export default function CounterSaleContainer(props) {
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
 
+  const handleUnknownBarcode = React.useCallback((scannedCode) => {
+    if (ui.notify) ui.notify('info', `Unrecognized barcode (${scannedCode}). Enter product details to save.`);
+    bootstrap.startNewProductForPopup({ barcode: scannedCode });
+  }, [bootstrap, ui]);
+
   useBarcodeScanner({
     products: bootstrap.products,
     addToCart: cart.addToCart,
     notify: ui.notify,
     search: catalog.search,
     setSearch: catalog.setSearch,
+    onUnknownBarcode: handleUnknownBarcode,
     isEnabled: !order.showSettleDialog && !ui.selectedProductForPopup
   });
 
@@ -221,6 +227,7 @@ export default function CounterSaleContainer(props) {
             products={bootstrap.products}
             addToCart={cart.addToCart}
             notify={ui.notify}
+            onUnknownBarcode={handleUnknownBarcode}
             themeColor={ui.THEME.main}
           />
         )}

@@ -34,6 +34,7 @@ export default function useBarcodeScanner({
   notify,
   search,
   setSearch,
+  onUnknownBarcode,
   isEnabled = true
 }) {
   const bufferRef = useRef('');
@@ -78,8 +79,12 @@ export default function useBarcodeScanner({
 
     // 3. Not found anywhere
     playScanBeep(false);
-    if (notify) notify('warning', `No product found for barcode: ${code}`);
-  }, [products, addToCart, notify, setSearch]);
+    if (onUnknownBarcode) {
+      onUnknownBarcode(code);
+    } else if (notify) {
+      notify('warning', `No product found for barcode: ${code}`);
+    }
+  }, [products, addToCart, notify, setSearch, onUnknownBarcode]);
 
   useEffect(() => {
     if (!isEnabled) return;

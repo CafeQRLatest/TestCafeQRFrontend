@@ -17,6 +17,7 @@ export default function CameraBarcodeScannerModal({
   products,
   addToCart,
   notify,
+  onUnknownBarcode,
   themeColor = '#10b981'
 }) {
   const videoRef = useRef(null);
@@ -90,11 +91,17 @@ export default function CameraBarcodeScannerModal({
         onClose();
       }, 600);
     } else {
-      // Not found — show inline message, keep scanning
+      // Not found — trigger scan-to-register flow if provided
       setLastScanned({ ...scanEntry, notFound: true });
-      if (notify) notify('warning', `No product found for barcode: ${code}`);
+      if (onUnknownBarcode) {
+        stopCamera();
+        onClose();
+        onUnknownBarcode(code);
+      } else if (notify) {
+        notify('warning', `No product found for barcode: ${code}`);
+      }
     }
-  }, [products, addToCart, notify, stopCamera, onClose]);
+  }, [products, addToCart, notify, stopCamera, onClose, onUnknownBarcode]);
 
   const html5QrCodeRef = useRef(null);
   const scannerContainerId = 'camera-scanner-qr-reader';
