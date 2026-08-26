@@ -14,7 +14,18 @@ import {
   FaSync,
   FaTrash,
   FaTimes,
+  FaSlidersH,
+  FaBarcode,
 } from 'react-icons/fa';
+
+const DEFAULT_LABEL_TEMPLATE = {
+  widthMm: 50,
+  heightMm: 25,
+  showName: true,
+  showPrice: true,
+  showMrp: true,
+  barcodeFormat: 'AUTO',
+};
 import { invalidatePrintTemplateCache } from '../utils/printTemplateSync';
 import api from '../utils/api';
 import {
@@ -134,6 +145,7 @@ const DEFAULT_CONFIG = {
   kotTemplate: DEFAULT_KOT_TEMPLATE,
   receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
   thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
+  labelTemplate: DEFAULT_LABEL_TEMPLATE,
   regularTemplate: {
     paperPreset: 'A4',
     widthMm: 210,
@@ -378,6 +390,14 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_RIGHT_MARGIN_DOTS', String(receiptTemplate.rightMarginDots ?? 0));
   localStorage.setItem('PRINT_GUARD_COLS', String(receiptTemplate.guardCols ?? 0));
   localStorage.setItem('PRINT_SAFE_COLS', String(receiptTemplate.safeCols ?? 0));
+
+  const labelTemplate = config.labelTemplate || DEFAULT_LABEL_TEMPLATE;
+  localStorage.setItem('PRINT_LABEL_WIDTH_MM', String(labelTemplate.widthMm || 50));
+  localStorage.setItem('PRINT_LABEL_HEIGHT_MM', String(labelTemplate.heightMm || 25));
+  localStorage.setItem('PRINT_LABEL_SHOW_NAME', labelTemplate.showName !== false ? '1' : '0');
+  localStorage.setItem('PRINT_LABEL_SHOW_PRICE', labelTemplate.showPrice !== false ? '1' : '0');
+  localStorage.setItem('PRINT_LABEL_SHOW_MRP', labelTemplate.showMrp !== false ? '1' : '0');
+  localStorage.setItem('PRINT_LABEL_FORMAT', labelTemplate.barcodeFormat || 'AUTO');
 
   console.log('[print-sync] Local storage synced for loopback mode:', {
     billPrinters,
@@ -1304,6 +1324,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
     ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
     ['routing', 'Routing', <FaRoute key="routing" />],
+    ['templates', 'Templates & Paper', <FaSlidersH key="templates" />],
     ['android', 'Android', <FaAndroid key="android" />],
   ];
 
@@ -1846,6 +1867,97 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
             {confirmModal.message}
           </div>
         </CafeQRPopup>
+      )}
+
+      {tab === 'templates' && (
+        <section className="surface">
+          <header>
+            <div>
+              <h3>Barcode Sticker Label Template</h3>
+              <p>Customize standard label dimensions, barcode formats, and visible text elements for thermal sticker printers (e.g. PeriPeri BT-58L, HOIN HL58).</p>
+            </div>
+          </header>
+          <div className="surface-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="form-grid compact">
+              <Field label="Label Width (mm)">
+                <input
+                  type="number"
+                  min="20"
+                  max="100"
+                  value={printConfig.labelTemplate?.widthMm || 50}
+                  onChange={(e) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), widthMm: Number(e.target.value) || 50 }
+                  }))}
+                />
+              </Field>
+              <Field label="Label Height (mm)">
+                <input
+                  type="number"
+                  min="15"
+                  max="100"
+                  value={printConfig.labelTemplate?.heightMm || 25}
+                  onChange={(e) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), heightMm: Number(e.target.value) || 25 }
+                  }))}
+                />
+              </Field>
+              <Field label="Barcode Format">
+                <NiceSelect
+                  value={printConfig.labelTemplate?.barcodeFormat || 'AUTO'}
+                  onChange={(val) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), barcodeFormat: val }
+                  }))}
+                  options={[
+                    { value: 'AUTO', label: 'Auto Detect (EAN-13 / Code128)' },
+                    { value: 'EAN13', label: 'EAN-13 (13 Digits)' },
+                    { value: 'EAN8', label: 'EAN-8 (8 Digits)' },
+                    { value: 'CODE128', label: 'Code 128 (Alphanumeric)' },
+                    { value: 'UPC', label: 'UPC-A (12 Digits)' },
+                  ]}
+                />
+              </Field>
+            </div>
+
+            <div className="document-toggles compact-toggles" style={{ marginTop: '10px' }}>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={printConfig.labelTemplate?.showName !== false}
+                  onChange={(e) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showName: e.target.checked }
+                  }))}
+                />
+                <span>Show Product Name</span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={printConfig.labelTemplate?.showPrice !== false}
+                  onChange={(e) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showPrice: e.target.checked }
+                  }))}
+                />
+                <span>Show Price</span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={printConfig.labelTemplate?.showMrp !== false}
+                  onChange={(e) => setPrintConfig(prev => ({
+                    ...prev,
+                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showMrp: e.target.checked }
+                  }))}
+                />
+                <span>Show MRP</span>
+              </label>
+            </div>
+          </div>
+        </section>
       )}
 
       <style jsx global>{`

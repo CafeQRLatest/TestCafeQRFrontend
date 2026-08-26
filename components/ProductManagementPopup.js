@@ -3,11 +3,12 @@ import { useNotification } from '../context/NotificationContext';
 import NiceSelect from './NiceSelect';
 import CafeQRPopup from './CafeQRPopup';
 import api from '../utils/api';
+import { printBarcodeLabel } from '../utils/barcodeLabelPrint';
 import { 
   FaBoxOpen, FaUtensils, FaCheckCircle, 
   FaTimes, FaCamera, FaLayerGroup, FaClock,
   FaWeightHanging, FaBarcode, FaUtensilSpoon, FaCogs, FaSlidersH,
-  FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave
+  FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave, FaPrint
 } from 'react-icons/fa';
 
 export default function ProductManagementPopup({
@@ -31,6 +32,31 @@ export default function ProductManagementPopup({
   const [inventoryEnabled, setInventoryEnabled] = useState(true);
   const [purchasingEnabled, setPurchasingEnabled] = useState(true);
   const [taxEnabled, setTaxEnabled] = useState(true);
+  const [labelCopies, setLabelCopies] = useState(1);
+  const [printingLabel, setPrintingLabel] = useState(false);
+
+  const handlePrintLabel = async () => {
+    if (!selectedProduct?.barcode) {
+      notify('error', 'Please enter a barcode before printing a label.');
+      return;
+    }
+    setPrintingLabel(true);
+    try {
+      await printBarcodeLabel({
+        name: selectedProduct.name || 'Product',
+        barcode: selectedProduct.barcode,
+        price: selectedProduct.price,
+        mrp: selectedProduct.mrp,
+        sym: config?.currencySymbol || '₹',
+        quantity: labelCopies
+      });
+      notify('success', `Sent ${labelCopies} barcode label(s) to printer!`);
+    } catch (err) {
+      notify('error', 'Failed to print barcode label: ' + err.message);
+    } finally {
+      setPrintingLabel(false);
+    }
+  };
 
   // Dropdown options data state
   const [categories, setCategories] = useState(propCategories || []);
@@ -512,7 +538,43 @@ export default function ProductManagementPopup({
                       />
                   </div>
                   <div className="input-group">
-                     <label>Barcode</label>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ margin: 0 }}>Barcode</label>
+                        {selectedProduct.barcode && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>Qty:</label>
+                            <input 
+                              type="number" 
+                              min="1" 
+                              max="100" 
+                              value={labelCopies} 
+                              onChange={e => setLabelCopies(Math.max(1, parseInt(e.target.value) || 1))}
+                              style={{ width: '42px', padding: '2px 4px', fontSize: '11px', textAlign: 'center', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handlePrintLabel}
+                              disabled={printingLabel}
+                              style={{
+                                background: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '3px 8px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <FaPrint style={{ fontSize: '10px' }} />
+                              {printingLabel ? 'Printing...' : 'Print Label'}
+                            </button>
+                          </div>
+                        )}
+                     </div>
                      <input value={selectedProduct.barcode || ''} onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} placeholder="e.g. 1234567890" />
                   </div>
                </div>
