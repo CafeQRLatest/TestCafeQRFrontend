@@ -329,7 +329,11 @@ export default function useCounterSaleController({
     let customerSelections = [];
 
     try {
-      if (customersEnabled) {
+      // When payment mode is CREDIT, no normal customer needed —
+      // the credit customer is already in paymentPayload.creditCustomerId
+      const isCreditPayment = paymentPayload?.paymentMethod === 'CREDIT';
+
+      if (customersEnabled && !isCreditPayment) {
         if (isCreditSale && selectedCreditCustomer) {
           primaryCustomer = {
             id: selectedCreditCustomer.linkedCustomerId || null,

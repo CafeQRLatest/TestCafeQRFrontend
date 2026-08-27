@@ -11,7 +11,7 @@ export async function fetchConfigurations(options = {}) {
 }
 
 export async function fetchCustomers(options = {}) {
-  const { data } = await api.get('/api/v1/credit/customers', options);
+  const { data } = await api.get('/api/v1/purchasing/customers', options);
   return data.data || [];
 }
 
@@ -39,7 +39,7 @@ export async function fetchProductDetails(productId, options = {}) {
 }
 
 export async function saveCustomer(payload, options = {}) {
-  const { data } = await api.post('/api/v1/credit/customers', payload, options);
+  const { data } = await api.post('/api/v1/purchasing/customers', payload, options);
   return data.data || null;
 }
 
