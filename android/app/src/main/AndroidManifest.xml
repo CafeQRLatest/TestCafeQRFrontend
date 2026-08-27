@@ -9,6 +9,11 @@
     <!-- USB Host printing (optional capability) -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <!-- Camera for barcode scanning (optional — app works without camera too) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
     <!-- Bluetooth printing: legacy (Android 11 and below) -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />

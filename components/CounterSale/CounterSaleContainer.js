@@ -7,6 +7,8 @@ import ProductCatalog from './components/ProductCatalog';
 import CartSidebar from './components/CartSidebar';
 import DiscountDialog from './components/DiscountDialog';
 import VariablePriceModal from './components/VariablePriceModal';
+import useBarcodeScanner from './hooks/useBarcodeScanner';
+import CameraBarcodeScannerModal from './components/CameraBarcodeScannerModal';
 import * as S from './CounterSale.styles';
 
 // Import sub-modals from parent directory
@@ -30,6 +32,22 @@ export default function CounterSaleContainer(props) {
   } = state;
 
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+
+  const handleUnknownBarcode = React.useCallback((scannedCode) => {
+    if (ui.notify) ui.notify('info', `Unrecognized barcode (${scannedCode}). Enter product details to save.`);
+    bootstrap.startNewProductForPopup({ barcode: scannedCode });
+  }, [bootstrap, ui]);
+
+  useBarcodeScanner({
+    products: bootstrap.products,
+    addToCart: cart.addToCart,
+    notify: ui.notify,
+    search: catalog.search,
+    setSearch: catalog.setSearch,
+    onUnknownBarcode: handleUnknownBarcode,
+    isEnabled: !order.showSettleDialog && !ui.selectedProductForPopup
+  });
 
   if (bootstrap.loading) return null;
 
@@ -59,6 +77,7 @@ export default function CounterSaleContainer(props) {
                       cart={cart}
                       ui={ui}
                       order={order}
+                      onOpenCameraScanner={() => setShowCameraScanner(true)}
                     />
                   </S.CsCatalogSection>
                   <CartSidebar
@@ -90,6 +109,7 @@ export default function CounterSaleContainer(props) {
                     cart={cart}
                     ui={ui}
                     order={order}
+                    onOpenCameraScanner={() => setShowCameraScanner(true)}
                   />
                   <CartSidebar
                     bootstrap={bootstrap}
@@ -197,6 +217,18 @@ export default function CounterSaleContainer(props) {
             onCreditCustomerCreated={props.onCreditCustomerCreated}
             themeColor="green"
             disableEditDiscount={true}
+          />
+        )}
+
+        {showCameraScanner && (
+          <CameraBarcodeScannerModal
+            open={showCameraScanner}
+            onClose={() => setShowCameraScanner(false)}
+            products={bootstrap.products}
+            addToCart={cart.addToCart}
+            notify={ui.notify}
+            onUnknownBarcode={handleUnknownBarcode}
+            themeColor={ui.THEME.main}
           />
         )}
       </S.CsModalContent>

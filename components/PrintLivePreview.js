@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { FaPrint, FaUtensils, FaReceipt } from 'react-icons/fa';
+import { FaPrint, FaUtensils, FaReceipt, FaBarcode } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
 
 export default function PrintLivePreview({ config }) {
-  const [activePreview, setActivePreview] = useState('receipt'); // 'receipt', 'kot', 'regular'
+  const [activePreview, setActivePreview] = useState('receipt'); // 'receipt', 'kot', 'regular', 'label'
 
   const receiptTemplate = config?.receiptTemplate || config?.thermalTemplate || {};
   const kotTemplate = config?.kotTemplate || config?.thermalTemplate || {};
@@ -51,19 +51,25 @@ export default function PrintLivePreview({ config }) {
           className={`preview-tab-btn ${activePreview === 'receipt' ? 'active' : ''}`}
           onClick={() => setActivePreview('receipt')}
         >
-          <FaReceipt /> Receipt (Thermal)
+          <FaReceipt /> Receipt
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'kot' ? 'active' : ''}`}
           onClick={() => setActivePreview('kot')}
         >
-          <FaUtensils /> KOT (Thermal)
+          <FaUtensils /> KOT
+        </button>
+        <button 
+          className={`preview-tab-btn ${activePreview === 'label' ? 'active' : ''}`}
+          onClick={() => setActivePreview('label')}
+        >
+          <FaBarcode /> Label
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'regular' ? 'active' : ''}`}
           onClick={() => setActivePreview('regular')}
         >
-          <FaPrint /> Invoice (A4)
+          <FaPrint /> A4 Invoice
         </button>
       </div>
 
@@ -511,6 +517,83 @@ export default function PrintLivePreview({ config }) {
                 )}
               </div>
             )}
+
+            {activePreview === 'label' && (() => {
+              const labelTpl = config?.labelTemplate || {};
+              const showName = labelTpl.showName !== false;
+              const showPrice = labelTpl.showPrice !== false;
+              const showMrp = labelTpl.showMrp !== false;
+              const widthMm = labelTpl.widthMm || 50;
+              const heightMm = labelTpl.heightMm || 25;
+              
+              return (
+                <div className="label-view" style={{
+                  width: '100%',
+                  maxWidth: `${Math.min(300, widthMm * 5)}px`,
+                  minHeight: `${Math.max(100, heightMm * 4)}px`,
+                  background: 'white',
+                  border: '1.5px dashed #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  margin: '10px auto',
+                  color: 'black',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}>
+                  {showName && (
+                    <div style={{ fontWeight: 800, fontSize: '12px', textAlign: 'center', lineHeight: 1.2, color: '#0f172a' }}>
+                      Kurkure Masala Munch 90g
+                    </div>
+                  )}
+
+                  <div style={{ textAlign: 'center', margin: '6px 0' }}>
+                    <svg viewBox="0 0 160 50" style={{ width: '140px', height: '36px' }}>
+                      <rect x="0" y="0" width="3" height="35" fill="black" />
+                      <rect x="5" y="0" width="1" height="35" fill="black" />
+                      <rect x="8" y="0" width="2" height="35" fill="black" />
+                      <rect x="13" y="0" width="4" height="35" fill="black" />
+                      <rect x="20" y="0" width="1" height="35" fill="black" />
+                      <rect x="24" y="0" width="3" height="35" fill="black" />
+                      <rect x="30" y="0" width="2" height="35" fill="black" />
+                      <rect x="35" y="0" width="1" height="35" fill="black" />
+                      <rect x="38" y="0" width="4" height="35" fill="black" />
+                      <rect x="45" y="0" width="2" height="35" fill="black" />
+                      <rect x="50" y="0" width="1" height="35" fill="black" />
+                      <rect x="54" y="0" width="3" height="35" fill="black" />
+                      <rect x="60" y="0" width="2" height="35" fill="black" />
+                      <rect x="65" y="0" width="4" height="35" fill="black" />
+                      <rect x="72" y="0" width="1" height="35" fill="black" />
+                      <rect x="76" y="0" width="2" height="35" fill="black" />
+                      <rect x="80" y="0" width="3" height="35" fill="black" />
+                      <rect x="85" y="0" width="1" height="35" fill="black" />
+                      <rect x="88" y="0" width="4" height="35" fill="black" />
+                      <rect x="95" y="0" width="2" height="35" fill="black" />
+                      <rect x="100" y="0" width="1" height="35" fill="black" />
+                      <rect x="104" y="0" width="3" height="35" fill="black" />
+                      <rect x="110" y="0" width="2" height="35" fill="black" />
+                      <rect x="115" y="0" width="4" height="35" fill="black" />
+                      <rect x="122" y="0" width="1" height="35" fill="black" />
+                      <rect x="126" y="0" width="3" height="35" fill="black" />
+                      <rect x="132" y="0" width="2" height="35" fill="black" />
+                      <rect x="137" y="0" width="1" height="35" fill="black" />
+                      <rect x="140" y="0" width="4" height="35" fill="black" />
+                      <rect x="148" y="0" width="2" height="35" fill="black" />
+                      <text x="80" y="47" textAnchor="middle" fontSize="10" fontFamily="monospace" fontWeight="bold">8901491361026</text>
+                    </svg>
+                  </div>
+
+                  {(showPrice || showMrp) && (
+                    <div style={{ fontWeight: 700, fontSize: '11px', textAlign: 'center', color: '#0f172a' }}>
+                      {showMrp && showPrice ? 'MRP: ₹30.00  PRICE: ₹25.00' : showPrice ? 'PRICE: ₹25.00' : 'MRP: ₹30.00'}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {activePreview !== 'regular' && <div className="paper-edge-bottom"></div>}

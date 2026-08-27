@@ -11,7 +11,11 @@ export default function AppUpdateBridge() {
 
     const checkAppUpdate = async () => {
       try {
-        const { AppUpdate, AppUpdateAvailability } = await import('@capawesome/capacitor-app-update');
+        const pkgName = '@capawesome/capacitor-app-update';
+        const mod = await import(/* webpackIgnore: true */ pkgName);
+        const AppUpdate = mod?.AppUpdate;
+        const AppUpdateAvailability = mod?.AppUpdateAvailability;
+        if (!AppUpdate || !AppUpdateAvailability) return;
         const info = await AppUpdate.getAppUpdateInfo();
         console.log('[AppUpdateBridge] App update info:', info);
 

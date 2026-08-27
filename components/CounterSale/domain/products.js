@@ -18,7 +18,10 @@ export function filterAndSearchProducts({ products, activeCat, dietFilter, searc
     }
 
     const matchesCategory = activeCat === 'ALL' || p.categoryName === activeCat;
-    const matchesSearch = !term || String(p.name || '').toLowerCase().includes(term);
+    const nameMatch = String(p.name || '').toLowerCase().includes(term);
+    const codeMatch = String(p.productCode || '').toLowerCase().includes(term);
+    const barcodeMatch = String(p.barcode || '').toLowerCase().includes(term);
+    const matchesSearch = !term || nameMatch || codeMatch || barcodeMatch;
     const matchesDiet = dietFilter === 'VEG' ? isVegProduct(p) : true;
     const matchesTrending = dietFilter === 'TRENDING'
       ? (Array.isArray(trendingProductIds) && trendingProductIds.length 
@@ -47,9 +50,50 @@ export function getStandardMatches(products, search) {
       ) {
         return false;
       }
-      return String(p.name || '').toLowerCase().includes(normalizedTerm);
+      const nameMatch = String(p.name || '').toLowerCase().includes(normalizedTerm);
+      const codeMatch = String(p.productCode || '').toLowerCase().includes(normalizedTerm);
+      const barcodeMatch = String(p.barcode || '').toLowerCase() === normalizedTerm;
+      return nameMatch || codeMatch || barcodeMatch;
     })
     .slice(0, 12);
+}
+
+export function findProductByBarcode(products, rawBarcode) {
+  if (!Array.isArray(products)) return null;
+  const barcode = String(rawBarcode || '').trim().toLowerCase();
+  if (!barcode) return null;
+
+  const strippedBarcode = barcode.replace(/^0+/, '');
+
+  return products.find(p => {
+    if (p.isActive === false || p.isactive === 'N') return false;
+    if (
+      p.isIngredient === true || 
+      p.is_ingredient === true || 
+      String(p.isIngredient).toUpperCase() === 'Y' || 
+      String(p.is_ingredient).toUpperCase() === 'Y'
+    ) {
+      return false;
+    }
+    const pBarcode = String(p.barcode || '').trim().toLowerCase();
+    const pCode = String(p.productCode || '').trim().toLowerCase();
+    if (!pBarcode && !pCode) return false;
+
+    // 1. Direct exact match
+    if (pBarcode === barcode || pCode === barcode) return true;
+
+    // 2. Match ignoring leading zeros (EAN-13 vs UPC-A: 0123456789012 vs 123456789012)
+    const strippedPBarcode = pBarcode.replace(/^0+/, '');
+    if (strippedBarcode && strippedPBarcode && strippedBarcode === strippedPBarcode) return true;
+
+    // 3. EAN-13 / UPC 12-to-13 digit prefix/checksum tolerance
+    if (pBarcode && barcode) {
+      if (barcode.length === 13 && pBarcode.length === 12 && (barcode.startsWith(pBarcode) || barcode.endsWith(pBarcode))) return true;
+      if (barcode.length === 12 && pBarcode.length === 13 && (pBarcode.startsWith(barcode) || pBarcode.endsWith(barcode))) return true;
+    }
+
+    return false;
+  }) || null;
 }
 
 export function extractUniqueCategories(products) {

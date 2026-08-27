@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaPlus, FaMinus, FaSearch, FaChevronRight } from 'react-icons/fa';
+import { FaPlus, FaMinus, FaSearch, FaChevronRight, FaBarcode, FaCamera } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
 import ProductCard from './ProductCard';
 import CategoryFilter from './CategoryFilter';
@@ -10,7 +10,8 @@ export default function ProductCatalog({
   catalog,
   cart,
   ui,
-  order
+  order,
+  onOpenCameraScanner
 }) {
   const searchInputRef = React.useRef(null);
   const { config, startNewProductForPopup, categories } = bootstrap;
@@ -30,11 +31,14 @@ export default function ProductCatalog({
           <S.CsSearchIcon><FaSearch/></S.CsSearchIcon>
           <S.CsSearchInput 
             ref={searchInputRef}
-            placeholder="Search menu items..." 
+            placeholder="Search by name, code or scan barcode..." 
             value={search} 
             onChange={e => setSearch(e.target.value)}
             $themeColor={theme.main}
           />
+          <span title="USB/Bluetooth Barcode Scanner Active" style={{ position: 'absolute', right: 12, color: '#94a3b8', display: 'flex', alignItems: 'center' }}>
+            <FaBarcode size={16} />
+          </span>
           {!productListingOn && search.trim() !== '' && (
             <S.CsFloatingSuggestBox>
               {standardMatches.length > 0 ? (
@@ -83,6 +87,31 @@ export default function ProductCatalog({
             </S.CsFloatingSuggestBox>
           )}
         </S.CsSearchBar>
+
+        {onOpenCameraScanner && (
+          <button
+            type="button"
+            onClick={onOpenCameraScanner}
+            title="Scan barcode with camera"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 10,
+              border: '1.5px solid #e2e8f0',
+              background: 'white',
+              color: theme.main,
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}
+          >
+            <FaCamera size={13} /> Scan
+          </button>
+        )}
 
         <S.CsAddProductButton
           type="button" 
