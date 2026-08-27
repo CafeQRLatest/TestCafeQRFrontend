@@ -224,9 +224,9 @@ export function useExpenses() {
     setEditing(null);
     setPendingCatId(null);
     setShowForm(true);
-    const initialScope = isSuperAdmin ? (orgId || SCOPE_GLOBAL) : (orgId || '');
+    const initialScope = orgId || SCOPE_GLOBAL;
     loadCategoriesForScope(initialScope);
-  }, [isSuperAdmin, orgId, loadCategoriesForScope]);
+  }, [orgId, loadCategoriesForScope]);
 
   const openEdit = useCallback((exp) => {
     setEditing(exp);

@@ -516,7 +516,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
            backdrop-filter: blur(20px) saturate(180%);
            -webkit-backdrop-filter: blur(20px) saturate(180%);
            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-           position: sticky; top: 0; z-index: 40;
+           position: sticky; top: 0; z-index: 1001;
            padding: 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-right, 0px)) 0 max(clamp(14px, 2.6vw, 40px), env(safe-area-inset-left, 0px));
            box-shadow: 
              0 1px 3px 0 rgba(0, 0, 0, 0.02),

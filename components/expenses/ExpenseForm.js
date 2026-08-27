@@ -63,7 +63,7 @@ export default function ExpenseForm({
   onClose,
   onOpenCatMgr
 }) {
-  const { timezone, orgId } = useAuth();
+  const { timezone, orgId, orgName } = useAuth();
   const currencySymbol = useCurrencySymbol();
   const { notify } = useNotification();
 
@@ -82,7 +82,8 @@ export default function ExpenseForm({
 
   useEffect(() => {
     let active = true;
-    const orgParam = (isSuperAdmin && fBranchId && fBranchId !== SCOPE_GLOBAL) ? `&orgId=${fBranchId}` : '';
+    const targetBranch = fBranchId || orgId;
+    const orgParam = (targetBranch && targetBranch !== SCOPE_GLOBAL) ? `&orgId=${targetBranch}` : '';
     api.get(`/api/v1/payment-types?applicableFor=EXPENSES${orgParam}`)
       .then(res => {
         if (active && res?.data?.success && res?.data?.data) {
@@ -93,7 +94,7 @@ export default function ExpenseForm({
         console.error('Failed to load expense payment types:', err);
       });
     return () => { active = false; };
-  }, [fBranchId, isSuperAdmin]);
+  }, [fBranchId, orgId]);
 
   const payMethodOptions = useMemo(() => {
     if (paymentTypes.length === 0) {
@@ -150,7 +151,7 @@ export default function ExpenseForm({
       setFMethod('CASH');
       setCashAmount('');
       setOnlineAmount('');
-      setFBranchId(defaultBranchId || (isSuperAdmin ? SCOPE_GLOBAL : (orgId || '')));
+      setFBranchId(orgId || defaultBranchId || SCOPE_GLOBAL);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Intentionally runs only once on mount
@@ -190,6 +191,19 @@ export default function ExpenseForm({
     setFAmount(String(Number((cash + online).toFixed(2))));
   }, [cashAmount]);
 
+  const selectedBranchName = useMemo(() => {
+    if (editing) {
+      if (editing.scope === SCOPE_GLOBAL || !editing.orgId) return 'Organization';
+      const found = branches.find(b => b.id === editing.orgId);
+      return found ? found.name : (orgName || 'Organization');
+    }
+    if (!fBranchId || fBranchId === SCOPE_GLOBAL) {
+      return orgName || 'Organization';
+    }
+    const found = branches.find(b => b.id === fBranchId);
+    return found ? found.name : (orgName || 'Organization');
+  }, [editing, fBranchId, branches, orgName]);
+
   // ── Validation + payload assembly ───────────────────────────────────────────
   const handleSave = useCallback(() => {
     if (!fAmount || parseFloat(fAmount) <= 0) {
@@ -200,12 +214,11 @@ export default function ExpenseForm({
       notify('error', 'Select a category');
       return;
     }
-    if (isSuperAdmin && (!fBranchId || fBranchId === SCOPE_ALL)) {
-      notify('error', 'Select an organization or branch');
-      return;
-    }
 
-    const scopeValue  = isSuperAdmin ? fBranchId : (orgId || SCOPE_GLOBAL);
+    const scopeValue = editing
+      ? (editing.scope === SCOPE_GLOBAL || !editing.orgId ? SCOPE_GLOBAL : editing.orgId)
+      : (fBranchId || orgId || SCOPE_GLOBAL);
+
     const scopePayload = scopeValue === SCOPE_GLOBAL
       ? { scope: 'GLOBAL', branchId: null }
       : { scope: 'BRANCH', branchId: scopeValue };
@@ -234,12 +247,7 @@ export default function ExpenseForm({
     };
 
     onSubmit(payload);
-  }, [fAmount, fCatId, fBranchId, fDate, fTime, fDesc, fMethod, isSuperAdmin, orgId, notify, onSubmit, cashAmount, onlineAmount]);
-
-  const expenseScopeOptions = [
-    { value: SCOPE_GLOBAL, label: 'Organization' },
-    ...branches.map(b => ({ value: b.id, label: b.name }))
-  ];
+  }, [fAmount, fCatId, editing, fBranchId, orgId, fDate, fTime, fDesc, fMethod, notify, onSubmit, cashAmount, onlineAmount]);
 
   return (
     <CafeQRPopup
@@ -267,20 +275,32 @@ export default function ExpenseForm({
         />
       </div>
 
-      {/* Scope selector — super-admin only */}
-      {isSuperAdmin && (
-        <div className={styles['mdl-field']}>
-          <label className={styles['mdl-lbl']}>
-            Expense Scope <span className={styles.req}>*</span>
-          </label>
-          <NiceSelect
-            value={fBranchId}
-            onChange={handleBranchChange}
-            options={expenseScopeOptions}
-            placeholder="Select scope…"
-          />
-        </div>
-      )}
+      {/* Expense Scope / Branch — read-only display based on active branch selector */}
+      <div className={styles['mdl-field']}>
+        <label className={styles['mdl-lbl']}>
+          Expense Scope <span className={styles.req}>*</span>
+        </label>
+        <input
+          type="text"
+          className={styles['amt-input']}
+          style={{
+            background: '#f8fafc',
+            color: '#475569',
+            borderColor: '#e2e8f0',
+            cursor: 'not-allowed',
+            fontWeight: 600,
+            fontSize: '13px',
+            height: '42px',
+            padding: '0 12px',
+            borderRadius: '10px',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+          value={selectedBranchName}
+          disabled
+          readOnly
+        />
+      </div>
 
       {/* Category with inline "+ New" shortcut */}
       <div className={styles['mdl-field']}>
