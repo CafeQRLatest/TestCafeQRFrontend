@@ -201,6 +201,8 @@ export default function CounterSaleContainer(props) {
               customerId: customer.selectedCustomerId || customer.selectedCreditCustomer?.linkedCustomerId || customer.selectedCustomers?.[0]?.id || null,
               customerName: customer.customerName || customer.selectedCustomers?.[0]?.name || null,
               customerPhone: customer.customerPhone || customer.selectedCustomers?.[0]?.phone || null,
+              loyaltyPoints: customer.selectedCustomer?.loyaltyPoints ?? customer.selectedCustomer?.loyalty_points ?? customer.selectedCustomers?.[0]?.loyaltyPoints ?? null,
+              customer: customer.selectedCustomer || null,
               customers: customer.selectedCustomers || [],
               orderNo: '(new)',
               tableNumber: props.initialTable?.tableNumber || 'Counter',

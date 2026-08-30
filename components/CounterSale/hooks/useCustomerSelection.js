@@ -13,6 +13,7 @@ export default function useCustomerSelection({
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAge, setCustomerAge] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [selectedCreditCustomerId, setSelectedCreditCustomerId] = useState('');
@@ -31,6 +32,7 @@ export default function useCustomerSelection({
       const next = !prev;
       if (next) {
         setSelectedCustomerId(null);
+        setSelectedCustomer(null);
         setSelectedCustomers([]);
         setShowCustomerDropdown(false);
       } else {
@@ -46,6 +48,7 @@ export default function useCustomerSelection({
     if (cust?.id) {
       prefetchCustomerLoyalty(cust.id);
     }
+    setSelectedCustomer(cust);
 
     if (config?.allowMultipleCustomersPerOrder) {
       setSelectedCustomers(prev => {
@@ -69,6 +72,7 @@ export default function useCustomerSelection({
 
     if (id === selectedCustomerId) {
       setSelectedCustomerId(null);
+      setSelectedCustomer(null);
       setCustomerName('');
       setCustomerPhone('');
     } else {
@@ -171,6 +175,8 @@ export default function useCustomerSelection({
     setCustomerAge,
     selectedCustomerId,
     setSelectedCustomerId,
+    selectedCustomer,
+    setSelectedCustomer,
     selectedCustomers,
     setSelectedCustomers,
     showCustomerDropdown,

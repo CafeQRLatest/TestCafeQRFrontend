@@ -129,7 +129,18 @@ export default function PaymentDialog({
       customer?.selectedCustomers?.[0]?.name ||
       null;
 
-    return { id, phone, name };
+    const loyaltyPoints =
+      order?.loyaltyPoints ??
+      order?.loyalty_points ??
+      order?.customer?.loyaltyPoints ??
+      order?.customer?.loyalty_points ??
+      customer?.selectedCustomer?.loyaltyPoints ??
+      customer?.selectedCustomer?.loyalty_points ??
+      customer?.selectedCustomers?.[0]?.loyaltyPoints ??
+      customer?.selectedCustomers?.[0]?.loyalty_points ??
+      null;
+
+    return { id, phone, name, loyaltyPoints };
   }, [order, customer, creditCustomerId]);
 
   const hasAttachedCustomer = useMemo(() => {
@@ -212,9 +223,16 @@ export default function PaymentDialog({
   }, [fetchLoyaltyData]);
 
   const redemptionRules = useMemo(() => {
-    if (!loyaltyProgram) return null;
+    const defaultRule = {
+      pointsRequired: 100,
+      discountAmount: 10,
+      minPoints: 0,
+      maxPointsPerOrder: null,
+      allowPartial: true,
+    };
+    if (!loyaltyProgram) return defaultRule;
     const rule = loyaltyProgram.redemptionRule || loyaltyProgram.redemptionRules?.[0];
-    if (!rule) return null;
+    if (!rule) return defaultRule;
     return {
       pointsRequired: rule.pointsRequired || 100,
       discountAmount: rule.discountAmount || 10,
@@ -224,17 +242,27 @@ export default function PaymentDialog({
     };
   }, [loyaltyProgram]);
 
-  const maxRedeemablePoints = useMemo(() => {
-    if (!customerLoyalty || !redemptionRules) return 0;
-    const currentPoints = customerLoyalty.currentPoints || 0;
-    if (currentPoints < redemptionRules.minPoints) return 0;
-
-    let pts = currentPoints;
-    if (redemptionRules.maxPointsPerOrder && pts > redemptionRules.maxPointsPerOrder) {
-      pts = redemptionRules.maxPointsPerOrder;
+  const currentPoints = useMemo(() => {
+    if (customerLoyalty?.currentPoints !== undefined && customerLoyalty?.currentPoints !== null) {
+      return customerLoyalty.currentPoints;
     }
-    return pts;
-  }, [customerLoyalty, redemptionRules]);
+    if (customerInfo?.loyaltyPoints !== undefined && customerInfo?.loyaltyPoints !== null) {
+      return Number(customerInfo.loyaltyPoints) || 0;
+    }
+    return 0;
+  }, [customerLoyalty, customerInfo]);
+
+  const maxRedeemablePoints = useMemo(() => {
+    const pts = currentPoints || 0;
+    if (!redemptionRules || pts <= 0) return 0;
+    if (pts < redemptionRules.minPoints) return 0;
+
+    let maxPts = pts;
+    if (redemptionRules.maxPointsPerOrder && maxPts > redemptionRules.maxPointsPerOrder) {
+      maxPts = redemptionRules.maxPointsPerOrder;
+    }
+    return maxPts;
+  }, [currentPoints, redemptionRules]);
 
   const [inputPoints, setInputPoints] = useState('');
   const [appliedLoyaltyPoints, setAppliedLoyaltyPoints] = useState(0);
@@ -876,11 +904,9 @@ export default function PaymentDialog({
                 Loyalty Points
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {customerLoyalty && (
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px', border: '1px solid #ffedd5' }}>
-                    {customerLoyalty.currentPoints ?? 0} pts Available
-                  </span>
-                )}
+                <span style={{ fontSize: '11px', fontWeight: '700', color: currentPoints > 0 ? '#ea580c' : '#64748b', background: currentPoints > 0 ? '#fff7ed' : '#f1f5f9', padding: '2px 8px', borderRadius: '6px', border: currentPoints > 0 ? '1px solid #ffedd5' : '1px solid #e2e8f0' }}>
+                  {currentPoints} pts Available
+                </span>
                 <button
                   type="button"
                   title="Refresh points"
@@ -939,7 +965,13 @@ export default function PaymentDialog({
               </div>
             )}
 
-            {!loyaltyLoading && activeCustomerId && customerLoyalty && redemptionRules && maxRedeemablePoints > 0 && (
+            {!loyaltyLoading && !loyaltyFetchError && currentPoints <= 0 && (
+              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                No points available to redeem.
+              </div>
+            )}
+
+            {!loyaltyLoading && maxRedeemablePoints > 0 && (
               <div>
                 <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
                   Redemption Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints} pts)
