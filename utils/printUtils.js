@@ -828,7 +828,19 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine(isInclusiveMode ? "Items Total:" : "Gross Total:", fmtRate(itemsGrossTotal), W), layout));
     }
 
-    if (totalReduction > 0.01) lines.push(withMargins(kvLine("Discount:", "-" + fmtRate(totalReduction), W), layout));
+    const loyaltyAmt = pickNumber(order, ["loyalty_amount", "loyaltyAmount"], pickNumber(bill, ["loyalty_amount", "loyaltyAmount"], 0));
+    const redeemPts = pickNumber(order, ["redeem_points", "redeemPoints", "loyalty_points_redeemed", "loyaltyPointsRedeemed"], pickNumber(bill, ["redeem_points", "redeemPoints"], 0));
+    const generalDisc = Math.max(0, totalReduction - loyaltyAmt);
+
+    if (generalDisc > 0.01) {
+      lines.push(withMargins(kvLine("Discount:", "-" + fmtRate(generalDisc), W), layout));
+    }
+    if (loyaltyAmt > 0.01) {
+      const ptsSuffix = redeemPts > 0 ? ` (${redeemPts} pts):` : ":";
+      lines.push(withMargins(kvLine(`Loyalty Disc${ptsSuffix}`, "-" + fmtRate(loyaltyAmt), W), layout));
+    } else if (totalReduction > 0.01 && generalDisc <= 0.01) {
+      lines.push(withMargins(kvLine("Discount:", "-" + fmtRate(totalReduction), W), layout));
+    }
     if (shouldShowSubtotal) {
       lines.push(withMargins(kvLine("Subtotal:", fmtRate(subtotalTaxable), W), layout));
     }

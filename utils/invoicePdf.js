@@ -8,6 +8,7 @@ import Cookies from 'js-cookie';
 import { Capacitor } from '@capacitor/core';
 import api from './api';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
+import { isLoyaltyModuleEnabled } from './moduleVisibility';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -79,18 +80,62 @@ function formatDate(dateStr) {
   }
 }
 
-function customerLabel(order) {
-  let name = '';
-  let phone = '';
-  if (Array.isArray(order?.customers) && order.customers.length > 0) {
-    name = order.customers.map(c => c.name || 'Guest').join(', ');
-    phone = order.customers.map(c => c.phone || '').filter(Boolean).join(', ');
-  } else {
-    name = order?.customerName || order?.customer_name || '';
-    phone = order?.customerPhone || order?.customer_phone || '';
+function extractCustomerData(order, extraCust = null, extraLoyalty = null) {
+  let cust = extraCust;
+  if (!cust) {
+    if (Array.isArray(order?.customers) && order.customers.length > 0) {
+      cust = order.customers[0];
+    } else if (order?.customer && typeof order.customer === 'object') {
+      cust = order.customer;
+    } else if (order?.creditCustomer && typeof order.creditCustomer === 'object') {
+      cust = order.creditCustomer;
+    }
   }
-  if (name && phone) return `${name} (${phone})`;
-  return name || phone || null;
+
+  let name = cust?.name || order?.customerName || order?.customer_name || '';
+  let phone = cust?.phone || cust?.phoneNumber || order?.customerPhone || order?.customer_phone || '';
+  let email = cust?.email || order?.customerEmail || order?.customer_email || '';
+  let address = cust?.address || order?.customerAddress || order?.customer_address || '';
+  let gstin = cust?.gstin || cust?.gstNumber || cust?.gst_number || order?.customerGstin || order?.customer_gstin || '';
+  let loyaltyPoints = extraLoyalty?.currentPoints ?? extraLoyalty?.points ?? cust?.loyaltyPoints ?? cust?.points ?? cust?.loyalty_points ?? order?.customerLoyaltyPoints ?? order?.customer_loyalty_points ?? null;
+
+  if (order?.description) {
+    const desc = String(order.description);
+    if (!name) {
+      const m = desc.match(/(?:Cust|Customer|name):\s*([^|,\n]+)/i);
+      if (m) name = m[1].trim();
+    }
+    if (!phone) {
+      const m = desc.match(/(?:Phone|ph|mobile):\s*([^|,\n]+)/i);
+      if (m) phone = m[1].trim();
+    }
+    if (!email) {
+      const m = desc.match(/(?:Email):\s*([^|,\n]+)/i);
+      if (m) email = m[1].trim();
+    }
+    if (!address) {
+      const m = desc.match(/(?:Addr|Address):\s*([^|,\n]+)/i);
+      if (m) address = m[1].trim();
+    }
+  }
+
+  const isGuest = !name || ['walk-in guest', 'walk-in', 'guest', 'walk in'].includes(name.toLowerCase().trim());
+  return {
+    isGuest: isGuest && !phone && !email,
+    name: isGuest ? '' : name,
+    phone: phone || '',
+    email: email || '',
+    address: address || '',
+    gstin: gstin || '',
+    loyaltyPoints: loyaltyPoints
+  };
+}
+
+function customerLabel(order) {
+  const c = extractCustomerData(order);
+  if (c.isGuest) return null;
+  if (c.name && c.phone) return `${c.name} (${c.phone})`;
+  return c.name || c.phone || c.email || null;
 }
 
 function fulfillmentLabel(order) {
@@ -137,30 +182,38 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   } catch { /* use order only */ }
 
   const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || getCookie('orgId');
+  const custId = order.customerId || order.customer_id || (Array.isArray(order.customers) && order.customers[0]?.id) || order.creditCustomerId || order.credit_customer_id || invoiceData?.customerId;
+  const loyaltyCustId = order.loyaltyCustomerId || order.loyalty_customer_id || custId;
 
-  // 2. Fetch configuration and branch/client details concurrently
+  // 2. Fetch configuration, branch/client, customer, and loyalty details concurrently
   let cfg = configOverride;
   let branchData = null;
   let clientData = null;
+  let fetchedCustomer = null;
+  let fetchedLoyalty = null;
 
   try {
     const configPromise = cfg
       ? Promise.resolve({ data: { data: cfg } })
       : api.get(branchId ? `/api/v1/configurations/branch/${branchId}/effective` : '/api/v1/configurations').catch(() => null);
 
-    const [configRes, branchRes, clientRes] = await Promise.all([
+    const [configRes, branchRes, clientRes, custRes, loyRes] = await Promise.allSettled([
       configPromise,
       branchId ? api.get(`/api/v1/organizations/${branchId}`).catch(() => null) : Promise.resolve(null),
-      api.get('/api/v1/clients/me').catch(() => null)
+      api.get('/api/v1/clients/me').catch(() => null),
+      custId ? api.get(`/api/v1/customers/${custId}`).catch(() => null) : Promise.resolve(null),
+      loyaltyCustId ? api.get(`/api/v1/loyalty/customers/${loyaltyCustId}`).catch(() => null) : Promise.resolve(null)
     ]);
 
-    if (!cfg) {
-      cfg = configRes?.data?.data || {};
+    if (!cfg && configRes.status === 'fulfilled') {
+      cfg = configRes.value?.data?.data || {};
     }
-    branchData = branchRes?.data?.data || null;
-    clientData = clientRes?.data?.data || null;
+    if (branchRes.status === 'fulfilled') branchData = branchRes.value?.data?.data || null;
+    if (clientRes.status === 'fulfilled') clientData = clientRes.value?.data?.data || null;
+    if (custRes.status === 'fulfilled') fetchedCustomer = custRes.value?.data?.data || null;
+    if (loyRes.status === 'fulfilled') fetchedLoyalty = loyRes.value?.data?.data || null;
   } catch (err) {
-    console.warn('Failed to load configuration/org/client details:', err);
+    console.warn('Failed to load configuration/org/client/loyalty details:', err);
   }
 
   // 3. Initialize jsPDF dynamically based on templates configuration
@@ -348,59 +401,119 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   y = Math.max(48, headerY + 6);
 
-  // ── Meta band card ────────────────────────────────────────────────────────────
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margin, y, W - (margin * 2), 26, 2, 2, 'F');
+  // Extract customer data & loyalty details
+  const customerData = extractCustomerData(order, fetchedCustomer, fetchedLoyalty);
+  const loyaltyAmount = Number(order?.loyaltyAmount || order?.loyalty_amount || invoiceData?.loyaltyAmount || invoiceData?.loyalty_amount || 0);
+  const redeemPoints = Number(order?.redeemPoints || order?.redeem_points || order?.loyaltyPointsRedeemed || order?.loyalty_points_redeemed || 0);
 
-  // Left orange accent bar (drawn with rounded corners on the left)
+  // ── Meta band card ────────────────────────────────────────────────────────────
+  const hasCustDetails = !customerData.isGuest && (customerData.name || customerData.phone || customerData.email || customerData.address);
+  const metaCardH = 28;
+
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, y, W - (margin * 2), metaCardH, 2, 2, 'F');
+
+  // Left orange accent bar
   doc.setFillColor(...ORANGE);
-  doc.roundedRect(margin, y, 6, 26, 2, 2, 'F');
+  doc.roundedRect(margin, y, 4, metaCardH, 2, 2, 'F');
 
   // Mask the right-side rounded corners of the orange bar
   doc.setFillColor(248, 250, 252);
-  doc.rect(margin + 1.2, y, 4.8, 26, 'F');
+  doc.rect(margin + 1, y, 3, metaCardH, 'F');
 
   // Draw the card border on top
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.3);
-  doc.roundedRect(margin, y, W - (margin * 2), 26, 2, 2, 'S');
+  doc.roundedRect(margin, y, W - (margin * 2), metaCardH, 2, 2, 'S');
+
+  // Divider between Left (Invoice meta) and Right (Customer / Bill To)
+  const dividerX = margin + 86;
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(dividerX, y + 3, dividerX, y + metaCardH - 3);
 
   const col1x = margin + 6;
-  const col2x = margin + 66;
-  const col3x = margin + 126;
-  const metaY = y + 5.5;
+  const col2x = margin + 46;
+  const metaY = y + 5;
 
   const metaField = (label, value, x, baseY) => {
     if (!value) return;
-    doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...TEXT_MUTED);
     doc.text(label, x, baseY);
     doc.setFont('Roboto', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
-    doc.text(String(value), x, baseY + 4.5);
+    doc.text(String(value), x, baseY + 4);
   };
   const metaFieldLight = (label, value, x, baseY) => {
     if (!value) return;
-    doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...TEXT_MUTED);
     doc.text(label, x, baseY);
     doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
-    doc.text(String(value), x, baseY + 4.5);
+    doc.text(String(value), x, baseY + 4);
   };
 
+  // Left Section: Invoice / Order Meta (Balanced 2-row layout)
   metaField('INVOICE NO', invoiceNo || '—', col1x, metaY);
   metaField('ORDER NO', orderNo, col2x, metaY);
-  metaFieldLight('DATE', formatDate(orderDate), col3x, metaY);
 
-  const metaY2 = metaY + 11.5;
-  const displayCustomer = (!customer || ['walk-in guest', 'walk-in', 'guest', 'walk in'].includes(customer.toLowerCase().trim())) ? '—' : customer;
-  metaFieldLight('CUSTOMER', displayCustomer, col1x, metaY2);
+  const metaY2 = metaY + 11;
+  metaFieldLight('DATE', formatDate(orderDate), col1x, metaY2);
+  
   const shouldShowType = !clientData?.posType || String(clientData.posType).trim().toUpperCase() !== 'OTHERS';
-  metaFieldLight('TYPE', shouldShowType ? fulfillment : null, col2x, metaY2);
-  if (paymentRef && !isMixed) {
-    metaFieldLight('REF NO', paymentRef, col3x, metaY2);
-  } else {
-    metaFieldLight('PAYMENT', payMethod || '—', col3x, metaY2);
+  const isMeaningfulRef = paymentRef && !isMixed && paymentRef.trim().toUpperCase() !== String(payMethod).trim().toUpperCase() && paymentRef.trim().toUpperCase() !== 'CASH';
+  const payLabel = isMeaningfulRef ? `${payMethod || '—'} (${paymentRef})` : (payMethod || '—');
+  
+  metaFieldLight(shouldShowType ? 'TYPE' : 'PAYMENT', shouldShowType ? fulfillment : payLabel, col2x, metaY2);
+
+  // Right Section: Bill To / Customer Details
+  const custX = dividerX + 6;
+  let custY = y + 5;
+
+  doc.setFont('Roboto', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...TEXT_MUTED);
+  doc.text('BILL TO / CUSTOMER', custX, custY);
+  
+  if (shouldShowType && payMethod) {
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.text(`Payment: ${payLabel}`, W - margin - 4, custY, { align: 'right' });
   }
 
-  y += 34;
+  custY += 4.5;
+
+  if (hasCustDetails) {
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(9); doc.setTextColor(...DARK);
+    doc.text(customerData.name || 'Customer', custX, custY);
+    custY += 4.2;
+
+    const contactParts = [];
+    if (customerData.phone) contactParts.push(`Ph: ${customerData.phone}`);
+    if (customerData.email) contactParts.push(`Email: ${customerData.email}`);
+    if (contactParts.length > 0) {
+      doc.setFont('Roboto', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID);
+      doc.text(contactParts.join('   •   '), custX, custY);
+      custY += 3.8;
+    }
+
+    const extraBadges = [];
+    if (customerData.address) {
+      extraBadges.push(customerData.address.length > 28 ? customerData.address.slice(0, 28) + '…' : customerData.address);
+    }
+    const isLoyaltyOn = isLoyaltyModuleEnabled(cfg) || cfg?.loyaltyEnabled === true;
+    if (isLoyaltyOn && customerData.loyaltyPoints !== null && customerData.loyaltyPoints !== undefined) {
+      extraBadges.push(`Loyalty Points: ${customerData.loyaltyPoints} pts`);
+    }
+    if (customerData.gstin) {
+      extraBadges.push(`GSTIN: ${customerData.gstin}`);
+    }
+
+    if (extraBadges.length > 0) {
+      doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...ORANGE);
+      doc.text(extraBadges.join('   •   '), custX, custY);
+    }
+  } else {
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID);
+    doc.text('Walk-in Guest', custX, custY + 2);
+  }
+
+  y += metaCardH + 7;
 
   // ── Items table ──────────────────────────────────────────────────────────────
   const tableColumns = [
@@ -504,7 +617,21 @@ export async function downloadInvoicePdf(order, configOverride = null) {
 
   const totalRows = [];
   if (gross > 0 && Math.abs(gross - displaySubtotal) > 0.01) totalRows.push(['Gross Total', money(gross, sym)]);
-  if (discount > 0) totalRows.push([`Discount`, `-${money(discount, sym)}`]);
+  
+  // Total discount breakdown (manual discount + loyalty discount)
+  const isLoyaltyActive = isLoyaltyModuleEnabled(cfg) || cfg?.loyaltyEnabled === true;
+  const generalDiscount = isLoyaltyActive ? Math.max(0, discount - loyaltyAmount) : discount;
+
+  if (generalDiscount > 0.01) {
+    totalRows.push(['Discount', `-${money(generalDiscount, sym)}`]);
+  }
+  if (isLoyaltyActive && loyaltyAmount > 0.01) {
+    const ptsLabel = redeemPoints > 0 ? ` (${redeemPoints} pts)` : '';
+    totalRows.push([`Loyalty Discount${ptsLabel}`, `-${money(loyaltyAmount, sym)}`]);
+  } else if (discount > 0.01 && generalDiscount <= 0.01) {
+    totalRows.push(['Discount', `-${money(discount, sym)}`]);
+  }
+
   totalRows.push(['Subtotal', money(displaySubtotal, sym)]);
   totalRows.push(['Tax Amount', money(taxTotal, sym)]);
   if (Math.abs(roundOff) > 0.001) {
@@ -560,8 +687,6 @@ export async function downloadInvoicePdf(order, configOverride = null) {
     doc.text(money(amtDueVal, sym), bX + bW - 2, rowY, { align: 'right' });
   }
 
-  y = rowY + 10;
-
   // ── Payment info ──────────────────────────────────────────────────────────────
   if (isMixed && splits.length > 0) {
     doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
@@ -594,6 +719,7 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   }
 
   // ── Bottom divider ────────────────────────────────────────────────────────────
+  y = Math.max(rowY + 8, y + 4);
   doc.setDrawColor(...ORANGE);
   doc.setLineWidth(0.4);
   if (typeof y === 'number' && !isNaN(y)) {
