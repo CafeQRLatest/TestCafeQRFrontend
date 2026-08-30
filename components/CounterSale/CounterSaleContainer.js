@@ -208,6 +208,7 @@ export default function CounterSaleContainer(props) {
               tableNumber: props.initialTable?.tableNumber || 'Counter',
             }}
             customer={customer}
+            allCustomers={bootstrap.allCustomers || []}
             loading={order.processing}
             config={bootstrap.config}
             creditCustomers={customer.creditCustomers || []}

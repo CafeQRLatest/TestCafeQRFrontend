@@ -20,12 +20,35 @@ export default function useCustomerSelection({
   const [isCreditSale, setIsCreditSale] = useState(false);
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
-  // Prefetch customer loyalty points as soon as customer is selected
+  // Prefetch customer loyalty points as soon as customer is selected or typed
   useEffect(() => {
     if (selectedCustomerId) {
       prefetchCustomerLoyalty(selectedCustomerId);
     }
   }, [selectedCustomerId]);
+
+  // Auto-match typed phone/name against allCustomers for 0ms loyalty prefetch
+  useEffect(() => {
+    if (!customersEnabled || selectedCustomerId) return;
+    const cleanPhone = String(customerPhone || '').trim();
+    const cleanName = String(customerName || '').trim();
+    if (!cleanPhone && !cleanName) return;
+
+    if (Array.isArray(allCustomers) && allCustomers.length > 0) {
+      let match = null;
+      if (cleanPhone.length >= 6) {
+        match = allCustomers.find(c => c.phone && String(c.phone).trim() === cleanPhone);
+      }
+      if (!match && cleanName.length >= 2 && !cleanPhone) {
+        match = allCustomers.find(c => c.name && String(c.name).trim().toLowerCase() === cleanName.toLowerCase());
+      }
+      if (match?.id) {
+        setSelectedCustomerId(match.id);
+        setSelectedCustomer(match);
+        prefetchCustomerLoyalty(match.id);
+      }
+    }
+  }, [customerPhone, customerName, allCustomers, selectedCustomerId, customersEnabled]);
 
   const toggleCreditSale = useCallback(() => {
     setIsCreditSale(prev => {

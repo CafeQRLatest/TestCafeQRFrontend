@@ -8,8 +8,8 @@ const customerLoyaltyCache = new Map(); // customerId -> { data, expiry }
 const CACHE_TTL_PROGRAMS = 5 * 60 * 1000; // 5 mins
 const CACHE_TTL_CUSTOMER = 2 * 60 * 1000; // 2 mins
 
-// Helper to retry a function with delay
-async function withRetry(fn, retries = 2, delayMs = 1000) {
+// Helper to retry a function with short delay for interactive UI
+async function withRetry(fn, retries = 2, delayMs = 150) {
   let lastError;
   for (let i = 0; i <= retries; i++) {
     try {

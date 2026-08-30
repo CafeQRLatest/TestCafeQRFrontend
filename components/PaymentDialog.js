@@ -44,6 +44,7 @@ const getMethodIcon = (val, ptType) => {
 export default function PaymentDialog({ 
   order, 
   customer = null,
+  allCustomers = [],
   loading = false, 
   config = null, 
   creditCustomers = [], 
@@ -77,6 +78,7 @@ export default function PaymentDialog({
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
   const [paymentTypes, setPaymentTypes] = useState([]);
+  const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
 
   // ─── Loyalty Points State & Fetching ──────────────────────────────────────
   const loyaltyEnabled = config?.loyaltyEnabled !== false && config?.pm_loyalty !== false;
@@ -85,23 +87,16 @@ export default function PaymentDialog({
   const [redeemPoints, setRedeemPoints] = useState(0);
   const [loyaltyLoading, setLoyaltyLoading] = useState(false);
   const [loyaltyFetchError, setLoyaltyFetchError] = useState(null);
-  const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
 
   // Extract selected customer info from order or customer prop (handles POS & Kitchen/Table orders)
   const customerInfo = useMemo(() => {
     const id =
       order?.customerId ||
       order?.customer_id ||
-      order?.loyaltyCustomerId ||
-      order?.loyalty_customer_id ||
       order?.customer?.id ||
-      order?.customer?.customerId ||
       order?.customers?.[0]?.id ||
-      order?.customers?.[0]?.customerId ||
-      order?.selectedCustomerId ||
       customer?.selectedCustomerId ||
-      customer?.selectedCreditCustomer?.linkedCustomerId ||
-      customer?.selectedCreditCustomer?.id ||
+      customer?.selectedCustomer?.id ||
       customer?.selectedCustomers?.[0]?.id ||
       customer?.id ||
       creditCustomerId ||
@@ -112,7 +107,6 @@ export default function PaymentDialog({
       order?.customer_phone ||
       order?.customer?.phone ||
       order?.customers?.[0]?.phone ||
-      order?.customer?.customerPhone ||
       customer?.customerPhone ||
       customer?.phone ||
       customer?.selectedCustomers?.[0]?.phone ||
@@ -123,13 +117,14 @@ export default function PaymentDialog({
       order?.customer_name ||
       order?.customer?.name ||
       order?.customers?.[0]?.name ||
-      order?.customer?.customerName ||
       customer?.customerName ||
       customer?.name ||
       customer?.selectedCustomers?.[0]?.name ||
       null;
 
     const loyaltyPoints =
+      order?.customerLoyaltyPoints ??
+      order?.customer_loyalty_points ??
       order?.loyaltyPoints ??
       order?.loyalty_points ??
       order?.customer?.loyaltyPoints ??
@@ -147,12 +142,30 @@ export default function PaymentDialog({
     return Boolean(customerInfo.id || customerInfo.phone || customerInfo.name);
   }, [customerInfo]);
 
-  // Lookup existing DB customer by phone/name if id is missing or temp
+  // Lookup existing DB customer by phone/name (checks in-memory first for 0ms lookup)
   useEffect(() => {
     const { id, phone, name } = customerInfo;
     if (id && !String(id).startsWith('temp-')) {
       setResolvedCustomerId(id);
       return;
+    }
+
+    const inMemList = (Array.isArray(allCustomers) && allCustomers.length > 0)
+      ? allCustomers
+      : (Array.isArray(customer?.allCustomers) && customer.allCustomers.length > 0 ? customer.allCustomers : []);
+
+    if (inMemList.length > 0 && (phone || name)) {
+      let found = null;
+      if (phone) {
+        found = inMemList.find(c => c.phone && String(c.phone).trim() === String(phone).trim());
+      }
+      if (!found && name) {
+        found = inMemList.find(c => c.name && c.name.toLowerCase().trim() === name.toLowerCase().trim());
+      }
+      if (found?.id) {
+        setResolvedCustomerId(found.id);
+        return;
+      }
     }
 
     if (phone || name) {
@@ -176,7 +189,7 @@ export default function PaymentDialog({
         .catch(err => console.error(err));
       return () => { active = false; };
     }
-  }, [customerInfo]);
+  }, [customerInfo, allCustomers, customer]);
 
   const activeCustomerId = useMemo(() => {
     if (resolvedCustomerId) return resolvedCustomerId;
