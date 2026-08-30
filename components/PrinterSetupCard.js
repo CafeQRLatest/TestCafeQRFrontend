@@ -122,10 +122,15 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
     address: readLocal('BT_PRINTER_ADDR_KOT'),
     name: readLocal('BT_PRINTER_NAME_HINT_KOT'),
   }));
+  const [androidLabelPrinter, setAndroidLabelPrinter] = useState(() => ({
+    address: readLocal('BT_PRINTER_ADDR_LABEL'),
+    name: readLocal('BT_PRINTER_NAME_HINT_LABEL'),
+  }));
   const WIN_HELPER_URL = '/desktop/Windows/CafeQR-PrintHub-Win.zip';
 
   const [billPrinterMode, setBillPrinterMode] = useState(() => localStorage.getItem('ANDROID_BILL_MODE') || 'bluetooth');
   const [kotPrinterMode, setKotPrinterMode] = useState(() => localStorage.getItem('ANDROID_KOT_MODE') || 'bluetooth');
+  const [labelPrinterMode, setLabelPrinterMode] = useState(() => localStorage.getItem('ANDROID_LABEL_MODE') || 'bluetooth');
 
   const [billPrinterIp, setBillPrinterIp] = useState(() => localStorage.getItem('PRINTER_IP') || '');
   const [billPrinterPort, setBillPrinterPort] = useState(() => localStorage.getItem('PRINTER_PORT') || '9100');
@@ -133,11 +138,18 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   const [kotPrinterIp, setKotPrinterIp] = useState(() => localStorage.getItem('PRINTER_IP_KOT') || '');
   const [kotPrinterPort, setKotPrinterPort] = useState(() => localStorage.getItem('PRINTER_PORT_KOT') || '9100');
 
+  const [labelPrinterIp, setLabelPrinterIp] = useState(() => localStorage.getItem('PRINTER_IP_LABEL') || '');
+  const [labelPrinterPort, setLabelPrinterPort] = useState(() => localStorage.getItem('PRINTER_PORT_LABEL') || '9100');
+
   const saveAndroidLanSettings = (kind) => {
     if (kind === 'bill') {
       localStorage.setItem('ANDROID_BILL_MODE', 'lan');
       localStorage.setItem('PRINTER_IP', billPrinterIp.trim());
       localStorage.setItem('PRINTER_PORT', billPrinterPort.trim());
+    } else if (kind === 'label') {
+      localStorage.setItem('ANDROID_LABEL_MODE', 'lan');
+      localStorage.setItem('PRINTER_IP_LABEL', labelPrinterIp.trim());
+      localStorage.setItem('PRINTER_PORT_LABEL', labelPrinterPort.trim());
     } else {
       localStorage.setItem('ANDROID_KOT_MODE', 'lan');
       localStorage.setItem('PRINTER_IP_KOT', kotPrinterIp.trim());
@@ -147,13 +159,16 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
     localStorage.setItem('PRINTER_READY', '1');
     localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
     publishPrintStationChange();
-    setMsg(`✓ Android LAN settings saved for ${kind === 'kot' ? 'KOT' : 'Bill'}`);
+    setMsg(`✓ Android LAN settings saved for ${kind === 'label' ? 'Label' : kind === 'kot' ? 'KOT' : 'Bill'}`);
   };
 
   const switchAndroidPrinterMode = (kind, mode) => {
     if (kind === 'bill') {
       setBillPrinterMode(mode);
       localStorage.setItem('ANDROID_BILL_MODE', mode);
+    } else if (kind === 'label') {
+      setLabelPrinterMode(mode);
+      localStorage.setItem('ANDROID_LABEL_MODE', mode);
     } else {
       setKotPrinterMode(mode);
       localStorage.setItem('ANDROID_KOT_MODE', mode);
@@ -197,6 +212,10 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
       address: localStorage.getItem('BT_PRINTER_ADDR_KOT') || '',
       name: localStorage.getItem('BT_PRINTER_NAME_HINT_KOT') || '',
     });
+    setAndroidLabelPrinter({
+      address: localStorage.getItem('BT_PRINTER_ADDR_LABEL') || '',
+      name: localStorage.getItem('BT_PRINTER_NAME_HINT_LABEL') || '',
+    });
   };
 
   const enableAndroidPrintStation = () => {
@@ -232,7 +251,7 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   };
 
   const pairAndroidPrinter = async (kind) => {
-    const label = kind === 'kot' ? 'KOT' : 'Final/Bill';
+    const label = kind === 'kot' ? 'KOT' : kind === 'label' ? 'Label' : 'Final/Bill';
     try {
       const DevicePrinter = await getDevicePrinter();
       const pick = await DevicePrinter.pickPrinter();
@@ -249,6 +268,10 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
         localStorage.setItem('BT_PRINTER_ADDR_KOT', address);
         if (name) localStorage.setItem('BT_PRINTER_NAME_HINT_KOT', name);
         writeJson('BT_PRINTER_ADDRS_KOT', [address]);
+      } else if (kind === 'label') {
+        localStorage.setItem('BT_PRINTER_ADDR_LABEL', address);
+        if (name) localStorage.setItem('BT_PRINTER_NAME_HINT_LABEL', name);
+        writeJson('BT_PRINTER_ADDRS_LABEL', [address]);
       } else {
         localStorage.setItem('BT_PRINTER_ADDR', address);
         if (name) localStorage.setItem('BT_PRINTER_NAME_HINT', name);
@@ -503,6 +526,22 @@ function saveNetworkPrinters() {
       setMsg(`✓ KOT test via ${res?.via || 'unknown'}`);
     } catch (e) {
       setMsg(`✗ KOT test failed: ${e?.message || String(e)}`);
+    }
+  };
+
+  const testLabelPrinter = async () => {
+    try {
+      const { printBarcodeLabel } = await import('../utils/barcodeLabelPrint');
+      await printBarcodeLabel({
+        name: 'Test Barcode Sticker',
+        barcode: '8901206464516',
+        price: 199.00,
+        mrp: 250.00,
+        quantity: 1
+      });
+      setMsg('✓ Label test sent to Bluetooth printer');
+    } catch (e) {
+      setMsg(`✗ Label test failed: ${e?.message || String(e)}`);
     }
   };
 
@@ -835,6 +874,72 @@ function saveNetworkPrinters() {
                       </button>
                       <button onClick={testKotPrinter} className="btn-outline">
                         <FaPlus /> Test Print
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="android-printer-panel">
+                <div className="android-printer-head">
+                  <FaPrint className="android-printer-icon" />
+                  <div>
+                    <h5>Label / Barcode Printer</h5>
+                    <div className="mode-toggle-group">
+                      <button 
+                        className={`mode-btn ${labelPrinterMode === 'bluetooth' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('label', 'bluetooth')}
+                      >
+                        Bluetooth
+                      </button>
+                      <button 
+                        className={`mode-btn ${labelPrinterMode === 'lan' ? 'active' : ''}`}
+                        onClick={() => switchAndroidPrinterMode('label', 'lan')}
+                      >
+                        LAN / Network
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {labelPrinterMode === 'bluetooth' ? (
+                  <>
+                    <p className="status-text">
+                      {androidLabelPrinter.address ? (androidLabelPrinter.name || androidLabelPrinter.address) : 'No Bluetooth label printer paired'}
+                    </p>
+                    <div className="android-action-row">
+                      <button onClick={() => pairAndroidPrinter('label')} className="btn-secondary">
+                        <FaBluetooth /> Pair Printer
+                      </button>
+                      <button onClick={testLabelPrinter} className="btn-outline">
+                        <FaPrint /> Test Label
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="lan-input-section">
+                    <div className="lan-input-row">
+                      <input 
+                        type="text" 
+                        value={labelPrinterIp} 
+                        onChange={(e) => setLabelPrinterIp(e.target.value)} 
+                        placeholder="Printer IP (e.g. 192.168.1.102)"
+                        className="form-input"
+                      />
+                      <input 
+                        type="number" 
+                        value={labelPrinterPort} 
+                        onChange={(e) => setLabelPrinterPort(e.target.value)} 
+                        placeholder="Port (9100)"
+                        className="form-input port"
+                      />
+                    </div>
+                    <div className="android-action-row">
+                      <button onClick={() => saveAndroidLanSettings('label')} className="btn-secondary">
+                        Save LAN Config
+                      </button>
+                      <button onClick={testLabelPrinter} className="btn-outline">
+                        <FaPrint /> Test Label
                       </button>
                     </div>
                   </div>

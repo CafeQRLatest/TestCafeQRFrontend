@@ -256,6 +256,58 @@ export async function printBarcodeLabel({
   const canvas = await generateLabelCanvas({ name, barcode, price, mrp, sym, config: cfg });
   const qty = Math.max(1, parseInt(quantity) || 1);
 
+  // Strategy 0: Android Native Bluetooth / LAN Printing (Capacitor APK/AAB)
+  if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform() && window.Capacitor.getPlatform() === 'android') {
+    try {
+      const DevicePrinter = window.Capacitor.Plugins?.DevicePrinter;
+      if (DevicePrinter) {
+        const escPosBase64 = canvasToEscPosBase64(canvas);
+        const mode = localStorage.getItem('ANDROID_LABEL_MODE') || 'bluetooth';
+
+        if (mode === 'lan') {
+          const host = (localStorage.getItem('PRINTER_IP_LABEL') || localStorage.getItem('PRINTER_IP') || '').trim();
+          const port = Number(localStorage.getItem('PRINTER_PORT_LABEL') || localStorage.getItem('PRINTER_PORT') || 9100);
+          if (host) {
+            for (let i = 0; i < qty; i++) {
+              await DevicePrinter.printTcpRaw({ base64: escPosBase64, host, port });
+            }
+            console.log(`[BarcodeLabel] Printed ${qty} label(s) via Android TCP/LAN to ${host}:${port}`);
+            return true;
+          }
+        }
+
+        let address = targetPrinterName || localStorage.getItem('BT_PRINTER_ADDR_LABEL') || localStorage.getItem('BT_PRINTER_ADDR');
+        let nameHint = localStorage.getItem('BT_PRINTER_NAME_HINT_LABEL') || localStorage.getItem('BT_PRINTER_NAME_HINT') || undefined;
+
+        if (!address) {
+          try {
+            await DevicePrinter.ensurePermissions();
+            const pick = await DevicePrinter.pickPrinter();
+            address = pick?.address || '';
+            if (address) {
+              try { await DevicePrinter.pairDevice({ address }); } catch (e) {}
+              localStorage.setItem('BT_PRINTER_ADDR_LABEL', address);
+              if (pick?.name) {
+                nameHint = pick.name;
+                localStorage.setItem('BT_PRINTER_NAME_HINT_LABEL', pick.name);
+              }
+            }
+          } catch (pickErr) {
+            console.warn('[BarcodeLabel] DevicePrinter pick error:', pickErr);
+          }
+        }
+
+        for (let i = 0; i < qty; i++) {
+          await DevicePrinter.printRaw({ base64: escPosBase64, address, nameContains: nameHint });
+        }
+        console.log(`[BarcodeLabel] Printed ${qty} label(s) via Android Bluetooth to ${address || 'default'}`);
+        return true;
+      }
+    } catch (err) {
+      console.warn('[BarcodeLabel] Android Bluetooth label printing error:', err);
+    }
+  }
+
   // Strategy 1: Silent Raw ESC/POS Thermal Print via CafeQR Print Hub
   if (typeof window !== 'undefined') {
     const printWinUrl = localStorage.getItem('PRINT_WIN_URL') || 'http://127.0.0.1:3333/printRaw';
