@@ -46,7 +46,7 @@ export default function CounterSaleContainer(props) {
     search: catalog.search,
     setSearch: catalog.setSearch,
     onUnknownBarcode: handleUnknownBarcode,
-    isEnabled: !order.showSettleDialog && !ui.selectedProductForPopup
+    isEnabled: bootstrap.config?.barcodeScannerEnabled === true && !order.showSettleDialog && !ui.selectedProductForPopup
   });
 
   if (bootstrap.loading) return null;
