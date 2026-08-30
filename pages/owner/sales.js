@@ -1531,6 +1531,41 @@ function SalesContent() {
       }
       return;
     }
+    // If delivery order is already paid online, auto-settle without PaymentDialog
+    const isPrePaid = (() => {
+      const ps = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
+      const ref = String(order?.reference || '').toUpperCase();
+      return ps === 'PAID' && (ref.startsWith('RAZORPAY:') || ref === 'ONLINE');
+    })();
+
+    if (isPrePaid) {
+      setActionBusy('settle');
+      try {
+        const localBillPrint = localPrintWillHandleKind('bill');
+        await api.post(`/api/v1/orders/${order.id}/settle`, {
+          paymentMethod: 'ONLINE',
+          amountPaid: Number(order.grandTotal || order.grand_total || 0),
+          ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+        });
+        const settledOrder = { ...order, orderStatus: 'COMPLETED', paymentStatus: 'PAID' };
+        setFloorOrders((current) => current.map((item) =>
+          item.id === settledOrder.id ? { ...item, ...settledOrder } : item
+        ));
+        showToast('Order auto-settled (pre-paid online)');
+        publishAccountingRefresh('order-settled', settledOrder);
+        if (localPrintWillHandleKind('bill')) {
+          await handlePrintOrder(settledOrder, 'bill');
+        }
+        refreshSalesState();
+      } catch (e) {
+        console.error('Auto-settle failed', e);
+        showToast(e.response?.data?.message || 'Auto-settle failed', 'error');
+      } finally {
+        setActionBusy('');
+      }
+      setPopoverTable(null);
+      return;
+    }
 
     setPaymentOrder(order);
     setPopoverTable(null);

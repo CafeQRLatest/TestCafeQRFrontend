@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import NiceSelect from '../../components/NiceSelect';
 import api from '../../utils/api';
+import { encryptOrgId } from '../../utils/tokenEncryption';
 import { 
   FaSave, FaCheckCircle, FaExclamationCircle, FaPlus, FaStore, 
   FaEnvelope, FaPhone, FaMapMarkerAlt, FaCompass, 
@@ -123,7 +124,7 @@ function OrganizationSettingsContent() {
     }
 
     const clientId = org.clientId || user?.clientId || '';
-    const orgId = org.id || '';
+    const orgId = org.id ? encryptOrgId(org.id) : '';
     return `${baseUrl}/order?r=${clientId}&t=DELIVERY${orgId ? `&orgId=${orgId}` : ''}`;
   };
 

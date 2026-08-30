@@ -674,10 +674,10 @@ export default function OrdersPage() {
                       $hoverBg="#dcfce7"
                       $hoverBorder="#86efac"
                       $hoverFg="#166534"
-                      onClick={() => setPaymentOrder(order)}
+                      onClick={() => isOrderPrePaidOnline(order) ? autoSettleOnlinePaid(order) : setPaymentOrder(order)}
                       style={{ width: '100%' }}
                     >
-                      Complete
+                      {isOrderPrePaidOnline(order) ? '✓ Settle (Paid Online)' : 'Complete'}
                     </CardActionBtn>
                   )}
                   <CardActionGrid>
@@ -1411,6 +1411,36 @@ export default function OrdersPage() {
     } finally {
       setActionBusy(null);
     }
+  };
+
+  // Auto-settle a delivery order that was already paid online (Razorpay)
+  const autoSettleOnlinePaid = async (order) => {
+    if (!order?.id) return;
+    if (actionBusy) return;
+    setActionBusy(order.id);
+    stopDeliveryAlarm(order.id);
+    try {
+      await api.post(`/api/v1/orders/${order.id}/settle`, {
+        paymentMethod: 'ONLINE',
+        amountPaid: Number(order.grandTotal || order.grand_total || 0),
+        skipAutoPrintKinds: ['bill'],
+      });
+      notify('success', 'Order auto-settled (pre-paid online)');
+      await requestLiveRefresh({ background: true, forceTableFetch: true });
+      if (activeSegment === 'completed') {
+        fetchHistoryOrders(historyPage.number || 0);
+      }
+    } catch (e) {
+      notify('error', 'Auto-settle failed: ' + (e.response?.data?.message || e.message));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  const isOrderPrePaidOnline = (order) => {
+    const ps = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
+    const ref = String(order?.reference || '').toUpperCase();
+    return ps === 'PAID' && (ref.startsWith('RAZORPAY:') || ref === 'ONLINE');
   };
 
   const handleConfirmPayment = async (settlementPayload) => {
@@ -2467,10 +2497,15 @@ export default function OrdersPage() {
                   <div className="detail-actions">
                     <div className="actions-row-primary">
                       <ActionBtn $variant="success" style={{ width: '100%' }} onClick={() => {
-                        setPaymentOrder(selectedTableOrder);
-                        setSelectedTableOrder(null);
+                        if (isOrderPrePaidOnline(selectedTableOrder)) {
+                          autoSettleOnlinePaid(selectedTableOrder);
+                          setSelectedTableOrder(null);
+                        } else {
+                          setPaymentOrder(selectedTableOrder);
+                          setSelectedTableOrder(null);
+                        }
                       }}>
-                        <FaCheckCircle /> Complete Order
+                        <FaCheckCircle /> {isOrderPrePaidOnline(selectedTableOrder) ? 'Settle (Paid Online)' : 'Complete Order'}
                       </ActionBtn>
                     </div>
                     
