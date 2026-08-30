@@ -11,6 +11,7 @@ import {
 import {
   getOfflineReasonFromError,
   isKnownOffline,
+  isOfflineSyncConfigEnabled,
   markConnectionLost,
   markConnectionOnline,
 } from './networkState';
@@ -327,7 +328,11 @@ api.interceptors.response.use(
       markConnectionLost(offlineReason);
     }
 
-    if (isKnownOffline() && isProbablyOfflineError(error) && originalRequest) {
+    // Only attempt offline cache/queue fallback when offline sync is explicitly enabled.
+    // This prevents orders from being silently queued into IndexedDB when the backend
+    // is simply slow or busy (e.g. Render cold start) and the user has offline mode OFF.
+    const offlineSyncEnabled = isOfflineSyncConfigEnabled();
+    if (offlineSyncEnabled && isKnownOffline() && isProbablyOfflineError(error) && originalRequest) {
       const cached = await getCachedApiResponse(originalRequest).catch(() => null);
       if (cached) {
         return {

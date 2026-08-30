@@ -1,3 +1,5 @@
+import { isOfflineSyncConfigEnabled } from './networkState';
+
 const DB_NAME = 'cafeqr-offline';
 const DB_VERSION = 2;
 
@@ -6,6 +8,7 @@ const QUEUE_STORE = 'syncQueue';
 const META_STORE = 'syncMetadata';
 const ENTITY_STORE = 'entities';
 const PRINT_JOB_STORE = 'printJobs';
+
 
 const isBrowser = () => typeof window !== 'undefined' && typeof indexedDB !== 'undefined';
 
@@ -403,9 +406,17 @@ function buildQueuedOrder(record) {
 }
 
 export async function enqueueOfflineMutation(config) {
+  // Final safeguard: never queue offline mutations when offline sync is disabled.
+  // This is a defense-in-depth check — callers should also guard, but this
+  // ensures no offline order can ever be written when the feature is OFF.
+  if (!isOfflineSyncConfigEnabled()) {
+    return null;
+  }
+
   if (!isOfflineQueueableMutation(config)) {
     return null;
   }
+
 
   const path = normalizePath(config);
   const payload = parsePayload(config.data);

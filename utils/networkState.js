@@ -53,6 +53,11 @@ export const getOfflineReasonFromError = (error) => {
 export const markConnectionLost = (reason = 'network-error') => {
   if (!isBrowser()) return;
 
+  // Never transition to offline state when offline sync is disabled.
+  // This prevents server timeouts on busy backends (e.g. Render cold starts)
+  // from accidentally routing orders into the offline IndexedDB queue.
+  if (!isOfflineSyncConfigEnabled()) return;
+
   connectionLost = true;
   lastReason = reason;
   emitNetworkState();
@@ -73,10 +78,13 @@ export const isOfflineSyncConfigEnabled = () => {
     const saved = window.localStorage.getItem('cafeqr_offline_config');
     if (saved) {
       const parsed = JSON.parse(saved);
-      return parsed?.autoSyncEnabled !== false;
+      return parsed?.autoSyncEnabled === true;
     }
   } catch (e) {}
-  return true;
+  // Default to false — offline sync must be explicitly enabled via backend
+  // configurations. This prevents orders from being silently queued offline
+  // before the config API response has been received.
+  return false;
 };
 
 export const isKnownOffline = () => {

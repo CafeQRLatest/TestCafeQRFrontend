@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { filterCustomers } from '../domain/customers';
+import { prefetchCustomerLoyalty } from '../../../services/loyaltyApi';
 
 export default function useCustomerSelection({
   allCustomers,
@@ -18,6 +19,13 @@ export default function useCustomerSelection({
   const [isCreditSale, setIsCreditSale] = useState(false);
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
+  // Prefetch customer loyalty points as soon as customer is selected
+  useEffect(() => {
+    if (selectedCustomerId) {
+      prefetchCustomerLoyalty(selectedCustomerId);
+    }
+  }, [selectedCustomerId]);
+
   const toggleCreditSale = useCallback(() => {
     setIsCreditSale(prev => {
       const next = !prev;
@@ -34,6 +42,10 @@ export default function useCustomerSelection({
 
   const selectCustomer = useCallback((cust) => {
     if (!customersEnabled) return;
+
+    if (cust?.id) {
+      prefetchCustomerLoyalty(cust.id);
+    }
 
     if (config?.allowMultipleCustomersPerOrder) {
       setSelectedCustomers(prev => {

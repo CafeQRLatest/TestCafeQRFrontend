@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins } from 'react-icons/fa';
+import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isDiscountModuleEnabled, isLoyaltyModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import { fetchSalesPaymentTypes } from '../services/paymentApi';
-import { fetchCustomerLoyalty, fetchLoyaltyPrograms } from '../services/loyaltyApi';
+import { fetchCustomerLoyalty, fetchLoyaltyPrograms, invalidateCustomerLoyalty } from '../services/loyaltyApi';
 import { cartKeyFor } from './CounterSale/domain/cart';
 import {
   THEMES,
@@ -84,15 +84,20 @@ export default function PaymentDialog({
   const [loyaltyProgram, setLoyaltyProgram] = useState(null);
   const [redeemPoints, setRedeemPoints] = useState(0);
   const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyFetchError, setLoyaltyFetchError] = useState(null);
   const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
 
-  // Extract selected customer info from order or customer prop
+  // Extract selected customer info from order or customer prop (handles POS & Kitchen/Table orders)
   const customerInfo = useMemo(() => {
     const id =
       order?.customerId ||
       order?.customer_id ||
+      order?.loyaltyCustomerId ||
+      order?.loyalty_customer_id ||
       order?.customer?.id ||
+      order?.customer?.customerId ||
       order?.customers?.[0]?.id ||
+      order?.customers?.[0]?.customerId ||
       order?.selectedCustomerId ||
       customer?.selectedCustomerId ||
       customer?.selectedCreditCustomer?.linkedCustomerId ||
@@ -107,6 +112,7 @@ export default function PaymentDialog({
       order?.customer_phone ||
       order?.customer?.phone ||
       order?.customers?.[0]?.phone ||
+      order?.customer?.customerPhone ||
       customer?.customerPhone ||
       customer?.phone ||
       customer?.selectedCustomers?.[0]?.phone ||
@@ -117,6 +123,7 @@ export default function PaymentDialog({
       order?.customer_name ||
       order?.customer?.name ||
       order?.customers?.[0]?.name ||
+      order?.customer?.customerName ||
       customer?.customerName ||
       customer?.name ||
       customer?.selectedCustomers?.[0]?.name ||
@@ -168,22 +175,23 @@ export default function PaymentDialog({
 
   const [loyaltySecondaryMethod, setLoyaltySecondaryMethod] = useState('CASH');
 
-  useEffect(() => {
+  const fetchLoyaltyData = useCallback(async (forceFresh = false) => {
     if (!loyaltyEnabled || !activeCustomerId) {
       setCustomerLoyalty(null);
       setLoyaltyProgram(null);
       setRedeemPoints(0);
+      setLoyaltyFetchError(null);
       return;
     }
 
-    let active = true;
     setLoyaltyLoading(true);
+    setLoyaltyFetchError(null);
 
-    Promise.all([
-      fetchCustomerLoyalty(activeCustomerId).catch(() => null),
-      fetchLoyaltyPrograms().catch(() => [])
-    ]).then(([custLoyalty, programs]) => {
-      if (!active) return;
+    try {
+      const [custLoyalty, programs] = await Promise.all([
+        fetchCustomerLoyalty(activeCustomerId, forceFresh),
+        fetchLoyaltyPrograms(forceFresh)
+      ]);
       setCustomerLoyalty(custLoyalty);
       if (custLoyalty?.programId && Array.isArray(programs)) {
         const prog = programs.find(p => String(p.id) === String(custLoyalty.programId)) || programs[0];
@@ -191,12 +199,17 @@ export default function PaymentDialog({
       } else if (Array.isArray(programs) && programs.length > 0) {
         setLoyaltyProgram(programs[0]);
       }
-    }).finally(() => {
-      if (active) setLoyaltyLoading(false);
-    });
-
-    return () => { active = false; };
+    } catch (err) {
+      console.warn('[PaymentDialog] Loyalty fetch error:', err);
+      setLoyaltyFetchError('Server busy. Click refresh to retry.');
+    } finally {
+      setLoyaltyLoading(false);
+    }
   }, [loyaltyEnabled, activeCustomerId]);
+
+  useEffect(() => {
+    fetchLoyaltyData(false);
+  }, [fetchLoyaltyData]);
 
   const redemptionRules = useMemo(() => {
     if (!loyaltyProgram) return null;
@@ -713,6 +726,9 @@ export default function PaymentDialog({
     if (paymentMethod === 'LOYALTY') {
       const netPayable = Math.max(0, Number((payable - loyaltyDiscount).toFixed(dp)));
       const finalMethod = netPayable > 0 ? loyaltySecondaryMethod : 'LOYALTY';
+      if (activeCustomerId) {
+        invalidateCustomerLoyalty(activeCustomerId);
+      }
       onConfirm?.({
         paymentMethod: finalMethod,
         amountPaid: Number(netPayable.toFixed(dp)),
@@ -727,6 +743,9 @@ export default function PaymentDialog({
     }
 
     if (isCreditSelected) {
+      if (activeCustomerId) {
+        invalidateCustomerLoyalty(activeCustomerId);
+      }
       onConfirm?.({
         paymentMethod,
         creditCustomerId,
@@ -752,6 +771,9 @@ export default function PaymentDialog({
     const nonCashAmount = normalizedSplits
       .filter((split) => split.paymentMethod !== 'CASH')
       .reduce((sum, split) => sum + split.amount, 0);
+    if (activeCustomerId) {
+      invalidateCustomerLoyalty(activeCustomerId);
+    }
     onConfirm?.({
       paymentMethod,
       amountPaid: Number(payable.toFixed(dp)),
@@ -853,11 +875,34 @@ export default function PaymentDialog({
               <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
                 Loyalty Points
               </div>
-              {customerLoyalty && (
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px', border: '1px solid #ffedd5' }}>
-                  {customerLoyalty.currentPoints} pts Available
-                </span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {customerLoyalty && (
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#ea580c', background: '#fff7ed', padding: '2px 8px', borderRadius: '6px', border: '1px solid #ffedd5' }}>
+                    {customerLoyalty.currentPoints ?? 0} pts Available
+                  </span>
+                )}
+                <button
+                  type="button"
+                  title="Refresh points"
+                  onClick={() => fetchLoyaltyData(true)}
+                  disabled={loyaltyLoading}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: loyaltyLoading ? '#94a3b8' : '#64748b',
+                    cursor: loyaltyLoading ? 'not-allowed' : 'pointer',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    transition: 'transform 0.3s ease',
+                    transform: loyaltyLoading ? 'rotate(180deg)' : 'none',
+                  }}
+                >
+                  <FaSyncAlt style={{ animation: loyaltyLoading ? 'spin 1s linear infinite' : 'none' }} />
+                </button>
+              </div>
             </div>
 
             {customerInfo.name || customerInfo.phone ? (
@@ -867,8 +912,30 @@ export default function PaymentDialog({
             ) : null}
 
             {loyaltyLoading && (
-              <div style={{ fontSize: '11.5px', color: '#64748b' }}>
-                Loading loyalty balance...
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <FaSyncAlt className="animate-spin" style={{ fontSize: '10px' }} /> Loading loyalty balance...
+              </div>
+            )}
+
+            {loyaltyFetchError && !loyaltyLoading && (
+              <div style={{ fontSize: '11.5px', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>{loyaltyFetchError}</span>
+                <button
+                  type="button"
+                  onClick={() => fetchLoyaltyData(true)}
+                  style={{
+                    background: '#fee2e2',
+                    border: '1px solid #fca5a5',
+                    color: '#991b1b',
+                    borderRadius: '4px',
+                    padding: '2px 6px',
+                    fontSize: '10.5px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  Retry
+                </button>
               </div>
             )}
 
