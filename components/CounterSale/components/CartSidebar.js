@@ -178,6 +178,7 @@ export default function CartSidebar({
     customersEnabled,
     config,
     selectedCustomerId,
+    selectedCustomer: customer.selectedCustomer,
     customerName,
     customerPhone,
     customerAge,

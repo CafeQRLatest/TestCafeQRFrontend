@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { filterCustomers } from '../domain/customers';
-import { prefetchCustomerLoyalty } from '../../../services/loyaltyApi';
+import { fetchCustomerLoyalty, fetchLoyaltyPrograms, prefetchCustomerLoyalty } from '../../../services/loyaltyApi';
+import { isLoyaltyModuleEnabled } from '../../../utils/moduleVisibility';
 
 export default function useCustomerSelection({
   allCustomers,
@@ -20,14 +21,29 @@ export default function useCustomerSelection({
   const [isCreditSale, setIsCreditSale] = useState(false);
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
 
-  // Prefetch customer loyalty points as soon as customer is selected or typed
-  useEffect(() => {
-    if (selectedCustomerId) {
-      prefetchCustomerLoyalty(selectedCustomerId);
-    }
-  }, [selectedCustomerId]);
+  const loyaltyActive = Boolean(isLoyaltyModuleEnabled(config) || config?.loyaltyEnabled === true);
 
-  // Auto-match typed phone/name against allCustomers for 0ms loyalty prefetch
+  // Fetch live loyalty points immediately when customer is selected or typed (only if loyalty is enabled)
+  useEffect(() => {
+    if (!loyaltyActive || !selectedCustomerId) return;
+    let active = true;
+
+    fetchCustomerLoyalty(selectedCustomerId, true)
+      .then(loyData => {
+        if (!active || !loyData) return;
+        setSelectedCustomer(prev => {
+          if (!prev) return { id: selectedCustomerId, name: customerName, phone: customerPhone, loyaltyPoints: loyData.currentPoints, customerLoyalty: loyData };
+          return { ...prev, loyaltyPoints: loyData.currentPoints, customerLoyalty: loyData };
+        });
+      })
+      .catch(() => {});
+
+    fetchLoyaltyPrograms().catch(() => {});
+
+    return () => { active = false; };
+  }, [selectedCustomerId, loyaltyActive]);
+
+  // Auto-match typed phone/name against allCustomers for instant loyalty loading
   useEffect(() => {
     if (!customersEnabled || selectedCustomerId) return;
     const cleanPhone = String(customerPhone || '').trim();
@@ -45,7 +61,6 @@ export default function useCustomerSelection({
       if (match?.id) {
         setSelectedCustomerId(match.id);
         setSelectedCustomer(match);
-        prefetchCustomerLoyalty(match.id);
       }
     }
   }, [customerPhone, customerName, allCustomers, selectedCustomerId, customersEnabled]);
