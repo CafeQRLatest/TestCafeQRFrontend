@@ -772,7 +772,14 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     if (showTableLabel && orderType && shouldShowType) lines.push(withMargins(`Order Type: ${orderType}`, layout));
 
     const customerText = customerDisplay(order);
-    if (showCustomerDetails && customerText) lines.push(withMargins(`Customer: ${customerText}`, layout));
+    if (showCustomerDetails && customerText) {
+      lines.push(withMargins(`Customer: ${customerText}`, layout));
+      const custPts = pickOptionalNumber(order, ["customerLoyaltyPoints", "customer_loyalty_points", "loyaltyPoints", "loyalty_points"])
+        ?? (Array.isArray(order?.customers) && order.customers[0]?.loyaltyPoints);
+      if (custPts !== null && custPts !== undefined) {
+        lines.push(withMargins(`Loyalty Points: ${custPts} pts`, layout));
+      }
+    }
 
     const receiptRemarks = extractOrderRemarks(order);
     if (showRemarks && receiptRemarks) {
