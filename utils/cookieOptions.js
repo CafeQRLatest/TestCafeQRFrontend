@@ -1,7 +1,11 @@
-export const getFrontendCookieOptions = (overrides = {}) => ({
-  expires: 7,
-  secure: typeof window !== 'undefined' && window.location.protocol === 'https:',
-  sameSite: 'strict',
-  path: '/',
-  ...overrides,
-});
+export const getFrontendCookieOptions = (overrides = {}) => {
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  return {
+    expires: 7,
+    secure: isHttps,
+    sameSite: isHttps ? 'none' : 'lax',
+    path: '/',
+    ...overrides,
+  };
+};
+

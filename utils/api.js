@@ -17,16 +17,20 @@ import {
 import { getFrontendCookieOptions } from './cookieOptions';
 
 export const getApiUrl = () => {
-  let envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-  // Strip any accidental trailing /api or / to avoid double /api/api/v1/ endpoints
-  envUrl = envUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
-  if (typeof window !== 'undefined' && window.location) {
-    const hostname = window.location.hostname;
-    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' && envUrl.includes('localhost:8080')) {
-      return envUrl.replace('localhost:8080', `${hostname}:8080`);
+  let envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!envUrl) {
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname;
+      if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)) {
+          return `http://${hostname}:8080`;
+        }
+        return 'https://pos.cafeqr.in';
+      }
     }
+    envUrl = 'http://localhost:8080';
   }
-  return envUrl;
+  return envUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
 };
 
 const api = axios.create({

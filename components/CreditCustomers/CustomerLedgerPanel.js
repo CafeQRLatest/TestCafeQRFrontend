@@ -132,7 +132,7 @@ export default function CustomerLedgerPanel({
                       </span>
                     </td>
                     <td>
-                      {formatTzDate(order.date, timezone || 'Asia/Kolkata', 'dd-MMM-yyyy hh:mm a')}
+                      {formatTzDate(order.date || order.orderDate || order.createdAt, timezone || 'Asia/Kolkata')}
                     </td>
                     <td className="r rpt-amt">{money(order.total)}</td>
                     <td className={`r rpt-amt ${Number(order.amountDue || 0) > 0 ? 'text-danger' : 'text-success'}`}>
@@ -185,7 +185,7 @@ export default function CustomerLedgerPanel({
                       </span>
                     </td>
                     <td>
-                      {formatTzDate(payment.transactionDate, timezone || 'Asia/Kolkata', 'dd-MMM-yyyy hh:mm a')}
+                      {formatTzDate(payment.transactionDate || payment.paymentDate || payment.date || payment.createdAt, timezone || 'Asia/Kolkata')}
                     </td>
                     <td className="r rpt-amt text-success">
                       -{money(payment.amount)}

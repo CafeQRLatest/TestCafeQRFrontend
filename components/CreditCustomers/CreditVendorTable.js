@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FaBook, FaCheck, FaEye, FaPause, FaWallet, FaFileAlt } from 'react-icons/fa';
 import PageSizeSelect from './PageSizeSelect';
+import { formatTzDate } from '../../utils/timezoneUtils';
 
 export default function CreditVendorTable({
   vendors = [],
@@ -356,7 +357,7 @@ export default function CreditVendorTable({
                                             {pay.referenceNo || pay.receiptNo || pay.id || 'VPAY-DETAIL'}
                                           </span>
                                         </td>
-                                         <td>{pay.transactionDate ? new Date(pay.transactionDate).toLocaleDateString() : (pay.createdAt ? new Date(pay.createdAt).toLocaleDateString() : '—')}</td>
+                                         <td>{formatTzDate(pay.transactionDate || pay.paymentDate || pay.date || pay.createdAt, timezone)}</td>
                                         <td><strong>{pay.paymentMethod || 'CASH'}</strong></td>
                                         <td className="r rpt-amt text-success">
                                           {money(pay.amount ?? pay.amountPaid ?? 0)}

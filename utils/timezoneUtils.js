@@ -197,7 +197,7 @@ export function formatTzDate(value, profileTz, options = {}) {
 
     const tz = resolveTimezone(profileTz);
     const locale = options.locale || 'en-IN';
-    const format = options.format || 'datetime';
+    const format = typeof options === 'string' ? options : (options.format || 'datetime');
 
     let dtfOptions = { timeZone: tz };
 
