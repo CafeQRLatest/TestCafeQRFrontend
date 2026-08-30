@@ -40,14 +40,7 @@ export default function CustomerSelector({
         </div>
         {!config?.allowMultipleCustomersPerOrder && selectedCustomerId ? (
           <S.CsCustomerChip style={{ padding: '6px 12px', fontSize: '12px', width: '100%', justifyContent: 'space-between', borderRadius: '8px' }}>
-            <span>
-              {customerName} {customerPhone ? `(${customerPhone})` : ''}
-              {pts !== undefined && pts !== null && (
-                <span style={{ marginLeft: '6px', color: '#ea580c', fontWeight: 700, fontSize: '11px' }}>
-                  ({pts} pts)
-                </span>
-              )}
-            </span>
+            <span>{customerName} {customerPhone ? `(${customerPhone})` : ''}</span>
             <S.CsRemoveChip onClick={() => removeCustomer(selectedCustomerId)} style={{ display: 'flex', alignItems: 'center' }}><FaTimes size={10}/></S.CsRemoveChip>
           </S.CsCustomerChip>
         ) : (
