@@ -1,13 +1,14 @@
 export function filterCustomers({ allCustomers, customerName, customerPhone, customersEnabled }) {
   if (!customersEnabled || !Array.isArray(allCustomers)) return [];
-  if (!customerPhone && !customerName) return [];
   
-  const lowerName = String(customerName || '').toLowerCase();
-  const phoneVal = String(customerPhone || '');
+  const lowerName = String(customerName || '').trim().toLowerCase();
+  const phoneVal = String(customerPhone || '').trim();
   
+  if (!lowerName && !phoneVal) return [];
+
   return allCustomers.filter(c => {
-    const matchesPhone = c.phone && String(c.phone).includes(phoneVal);
-    const matchesName = c.name && String(c.name).toLowerCase().includes(lowerName);
+    const matchesPhone = phoneVal.length > 0 ? (c.phone && String(c.phone).includes(phoneVal)) : false;
+    const matchesName = lowerName.length > 0 ? (c.name && String(c.name).toLowerCase().includes(lowerName)) : false;
     return matchesPhone || matchesName;
-  }).slice(0, 5);
+  }).slice(0, 8);
 }

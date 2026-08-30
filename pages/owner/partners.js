@@ -172,13 +172,21 @@ function PartnersContent() {
     openingBalance: 0, creditLimit: 0, pricelistId: null, isActive: 'Y'
   });
 
+  const isPartnerActive = (p) => {
+    if (!p) return false;
+    if (p.status) return String(p.status).toUpperCase() === 'ACTIVE';
+    if (p.isactive !== undefined && p.isactive !== null) return String(p.isactive).toUpperCase() === 'Y' || p.isactive === true;
+    if (p.isActive !== undefined && p.isActive !== null) return String(p.isActive).toUpperCase() === 'Y' || p.isActive === true;
+    return true;
+  };
+
   const filteredCustomers = customers.filter(c =>
-    (!statusFilter || (statusFilter === 'ACTIVE' ? c.isActive === 'Y' : c.isActive !== 'Y')) &&
+    (!statusFilter || (statusFilter === 'ACTIVE' ? isPartnerActive(c) : !isPartnerActive(c))) &&
     (c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || c.phone?.includes(searchTerm) || c.email?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredVendors = vendors.filter(v =>
-    (!statusFilter || (statusFilter === 'ACTIVE' ? v.isActive === 'Y' : v.isActive !== 'Y')) &&
+    (!statusFilter || (statusFilter === 'ACTIVE' ? isPartnerActive(v) : !isPartnerActive(v))) &&
     (v.name?.toLowerCase().includes(searchTerm.toLowerCase()) || v.phone?.includes(searchTerm) || v.gstin?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -255,9 +263,9 @@ function PartnersContent() {
                         <td className="code-cell">{sym}{parseFloat(c.creditLimit || 0).toLocaleString()}</td>
                         <td className="code-cell">{sym}{parseFloat(c.openingBalance || 0).toLocaleString()}</td>
                         <td>
-                          <span className={`status-pill ${c.isActive === 'Y' ? 'active' : 'inactive'}`}>
+                          <span className={`status-pill ${isPartnerActive(c) ? 'active' : 'inactive'}`}>
                             <span className="status-dot"></span>
-                            {c.isActive === 'Y' ? 'Active' : 'Inactive'}
+                            {isPartnerActive(c) ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td onClick={e => e.stopPropagation()} className="row-actions">
@@ -322,9 +330,9 @@ function PartnersContent() {
                         <td className="code-cell">{sym}{parseFloat(v.creditLimit || 0).toLocaleString()}</td>
                         <td className="code-cell">{sym}{parseFloat(v.openingBalance || 0).toLocaleString()}</td>
                         <td>
-                          <span className={`status-pill ${v.isActive === 'Y' ? 'active' : 'inactive'}`}>
+                          <span className={`status-pill ${isPartnerActive(v) ? 'active' : 'inactive'}`}>
                             <span className="status-dot"></span>
-                            {v.isActive === 'Y' ? 'Active' : 'Inactive'}
+                            {isPartnerActive(v) ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td onClick={e => e.stopPropagation()} className="row-actions">
@@ -352,7 +360,7 @@ function PartnersContent() {
                     <div className="card-avatar vendor">{(v.name || '?')[0].toUpperCase()}</div>
                     <div className="card-info">
                       <span className="card-name">{v.name}</span>
-                      <span className="card-sub">{v.contactPerson || 'No contact'} • {v.phone || ''}</span>
+                      <span className="card-sub">{v.contactPerson || v.phone || 'No contact'}</span>
                     </div>
                     <div className="card-action"><FaChevronRight /></div>
                   </div>
@@ -378,25 +386,25 @@ function PartnersContent() {
           >
             <div className="drawer-form">
               <div className="erp-section">
-                <div className="section-title"><FaUsers /> Contact Information</div>
+                <div className="section-title"><FaUser /> Customer Information</div>
                 <div className="input-row">
                   <div className="input-group">
-                    <label>Full Name *</label>
-                    <input value={selectedCustomer.name} onChange={e => setSelectedCustomer({...selectedCustomer, name: e.target.value})} placeholder="Customer name" />
+                    <label>Customer Name *</label>
+                    <input value={selectedCustomer.name} onChange={e => setSelectedCustomer({...selectedCustomer, name: e.target.value})} placeholder="Full name" />
                   </div>
                   <div className="input-group">
-                    <label>Phone</label>
+                    <label>Phone Number</label>
                     <input value={selectedCustomer.phone || ''} onChange={e => setSelectedCustomer({...selectedCustomer, phone: e.target.value})} placeholder="+91 9876543210" />
                   </div>
                 </div>
                 <div className="input-row" style={{ marginTop: 16 }}>
                   <div className="input-group">
                     <label>Email</label>
-                    <input type="email" value={selectedCustomer.email || ''} onChange={e => setSelectedCustomer({...selectedCustomer, email: e.target.value})} placeholder="email@example.com" />
+                    <input type="email" value={selectedCustomer.email || ''} onChange={e => setSelectedCustomer({...selectedCustomer, email: e.target.value})} placeholder="customer@example.com" />
                   </div>
                   <div className="input-group">
-                    <label>GST Number</label>
-                    <input value={selectedCustomer.gstNumber || ''} onChange={e => setSelectedCustomer({...selectedCustomer, gstNumber: e.target.value})} placeholder="22AAAAA0000A1Z5" />
+                    <label>GSTIN</label>
+                    <input value={selectedCustomer.gstin || ''} onChange={e => setSelectedCustomer({...selectedCustomer, gstin: e.target.value})} placeholder="22AAAAA0000A1Z5" />
                   </div>
                 </div>
                 <div className="input-group" style={{ marginTop: 16 }}>
@@ -440,7 +448,15 @@ function PartnersContent() {
                     <label>Status</label>
                     <div className="control-row">
                       <label>Active</label>
-                      <div className={`erp-switch ${selectedCustomer.isActive === 'Y' ? 'active' : ''}`} onClick={() => setSelectedCustomer({...selectedCustomer, isActive: selectedCustomer.isActive === 'Y' ? 'N' : 'Y'})}>
+                      <div className={`erp-switch ${isPartnerActive(selectedCustomer) ? 'active' : ''}`} onClick={() => {
+                        const next = isPartnerActive(selectedCustomer) ? 'N' : 'Y';
+                        setSelectedCustomer({
+                          ...selectedCustomer,
+                          isActive: next,
+                          isactive: next,
+                          status: next === 'Y' ? 'ACTIVE' : 'INACTIVE'
+                        });
+                      }}>
                         <div className="switch-knob"></div>
                       </div>
                     </div>
@@ -522,7 +538,15 @@ function PartnersContent() {
                     <label>Status</label>
                     <div className="control-row">
                       <label>Active</label>
-                      <div className={`erp-switch ${selectedVendor.isActive === 'Y' ? 'active' : ''}`} onClick={() => setSelectedVendor({...selectedVendor, isActive: selectedVendor.isActive === 'Y' ? 'N' : 'Y'})}>
+                      <div className={`erp-switch ${isPartnerActive(selectedVendor) ? 'active' : ''}`} onClick={() => {
+                        const next = isPartnerActive(selectedVendor) ? 'N' : 'Y';
+                        setSelectedVendor({
+                          ...selectedVendor,
+                          isActive: next,
+                          isactive: next,
+                          status: next === 'Y' ? 'ACTIVE' : 'INACTIVE'
+                        });
+                      }}>
                         <div className="switch-knob"></div>
                       </div>
                     </div>
