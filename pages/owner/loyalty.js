@@ -988,7 +988,7 @@ function CustomerLoyaltyTab() {
           {/* PO History-Style Table */}
           <div className="po-table-wrap">
             {filteredTransactions.length === 0 ? (
-              <div className="empty-ledger">No transactions found for filter "{filterType}".</div>
+              <div className="empty-ledger">No transactions found for filter &quot;{filterType}&quot;.</div>
             ) : (
               <>
                 <table className="po-table">

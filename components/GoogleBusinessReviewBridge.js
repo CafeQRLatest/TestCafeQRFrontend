@@ -83,7 +83,7 @@ export default function GoogleBusinessReviewBridge() {
 
         <h3>Help Cafe QR Grow!</h3>
         <p>
-          You've been using <strong>Cafe QR POS</strong> for over 2 weeks! Would you take 10 seconds to review us on our <strong>Google Business Profile</strong>?
+          You&apos;ve been using <strong>Cafe QR POS</strong> for over 2 weeks! Would you take 10 seconds to review us on our <strong>Google Business Profile</strong>?
         </p>
 
         <div className="gb-action-buttons">
