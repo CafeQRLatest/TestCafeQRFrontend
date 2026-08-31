@@ -2,8 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { FaPrint, FaUtensils, FaReceipt, FaBarcode } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
 
-export default function PrintLivePreview({ config }) {
-  const [activePreview, setActivePreview] = useState('receipt'); // 'receipt', 'kot', 'regular', 'label'
+export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
+  const [internalPreview, setInternalPreview] = useState('receipt'); // 'receipt', 'kot', 'regular', 'label'
+  const activePreview = activeDoc || internalPreview;
+
+  const handleTabChange = (key) => {
+    setInternalPreview(key);
+    if (onDocChange) onDocChange(key);
+  };
 
   const receiptTemplate = config?.receiptTemplate || config?.thermalTemplate || {};
   const kotTemplate = config?.kotTemplate || config?.thermalTemplate || {};
@@ -49,25 +55,25 @@ export default function PrintLivePreview({ config }) {
       <div className="preview-tabs">
         <button 
           className={`preview-tab-btn ${activePreview === 'receipt' ? 'active' : ''}`}
-          onClick={() => setActivePreview('receipt')}
+          onClick={() => handleTabChange('receipt')}
         >
           <FaReceipt /> Receipt
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'kot' ? 'active' : ''}`}
-          onClick={() => setActivePreview('kot')}
+          onClick={() => handleTabChange('kot')}
         >
           <FaUtensils /> KOT
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'label' ? 'active' : ''}`}
-          onClick={() => setActivePreview('label')}
+          onClick={() => handleTabChange('label')}
         >
           <FaBarcode /> Label
         </button>
         <button 
           className={`preview-tab-btn ${activePreview === 'regular' ? 'active' : ''}`}
-          onClick={() => setActivePreview('regular')}
+          onClick={() => handleTabChange('regular')}
         >
           <FaPrint /> A4 Invoice
         </button>

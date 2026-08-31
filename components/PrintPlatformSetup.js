@@ -1357,7 +1357,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     ['profiles', 'Printer Profiles', <FaPrint key="profiles" />],
     ['assignments', 'Default Printers', <FaCheckCircle key="assignments" />],
     ['routing', 'Routing', <FaRoute key="routing" />],
-    ['templates', 'Templates & Paper', <FaSlidersH key="templates" />],
     ['android', 'Android', <FaAndroid key="android" />],
   ];
 
@@ -1903,96 +1902,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         </CafeQRPopup>
       )}
 
-      {tab === 'templates' && (
-        <section className="surface">
-          <header>
-            <div>
-              <h3>Barcode Sticker Label Template</h3>
-              <p>Customize standard label dimensions, barcode formats, and visible text elements for thermal sticker printers (e.g. PeriPeri BT-58L, HOIN HL58).</p>
-            </div>
-          </header>
-          <div className="surface-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div className="form-grid compact">
-              <Field label="Label Width (mm)">
-                <input
-                  type="number"
-                  min="20"
-                  max="100"
-                  value={printConfig.labelTemplate?.widthMm || 50}
-                  onChange={(e) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), widthMm: Number(e.target.value) || 50 }
-                  }))}
-                />
-              </Field>
-              <Field label="Label Height (mm)">
-                <input
-                  type="number"
-                  min="15"
-                  max="100"
-                  value={printConfig.labelTemplate?.heightMm || 25}
-                  onChange={(e) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), heightMm: Number(e.target.value) || 25 }
-                  }))}
-                />
-              </Field>
-              <Field label="Barcode Format">
-                <NiceSelect
-                  value={printConfig.labelTemplate?.barcodeFormat || 'AUTO'}
-                  onChange={(val) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), barcodeFormat: val }
-                  }))}
-                  options={[
-                    { value: 'AUTO', label: 'Auto Detect (EAN-13 / Code128)' },
-                    { value: 'EAN13', label: 'EAN-13 (13 Digits)' },
-                    { value: 'EAN8', label: 'EAN-8 (8 Digits)' },
-                    { value: 'CODE128', label: 'Code 128 (Alphanumeric)' },
-                    { value: 'UPC', label: 'UPC-A (12 Digits)' },
-                  ]}
-                />
-              </Field>
-            </div>
 
-            <div className="document-toggles compact-toggles" style={{ marginTop: '10px' }}>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={printConfig.labelTemplate?.showName !== false}
-                  onChange={(e) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showName: e.target.checked }
-                  }))}
-                />
-                <span>Show Product Name</span>
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={printConfig.labelTemplate?.showPrice !== false}
-                  onChange={(e) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showPrice: e.target.checked }
-                  }))}
-                />
-                <span>Show Price</span>
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={printConfig.labelTemplate?.showMrp !== false}
-                  onChange={(e) => setPrintConfig(prev => ({
-                    ...prev,
-                    labelTemplate: { ...(prev.labelTemplate || DEFAULT_LABEL_TEMPLATE), showMrp: e.target.checked }
-                  }))}
-                />
-                <span>Show MRP</span>
-              </label>
-            </div>
-          </div>
-        </section>
-      )}
 
       <style jsx global>{`
         .print-platform { display: flex; flex-direction: column; gap: 16px; min-width: 0; color: #172033; }

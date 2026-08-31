@@ -210,8 +210,17 @@ const mergeReceiptTemplate = (template) => {
   };
 };
 
-const mergeRegularTemplate = (template) => ({
-  ...DEFAULT_REGULAR_TEMPLATE,
+const DEFAULT_LABEL_TEMPLATE = {
+  widthMm: 50,
+  heightMm: 25,
+  barcodeFormat: 'AUTO',
+  showName: true,
+  showPrice: true,
+  showMrp: true,
+};
+
+const mergeLabelTemplate = (template) => ({
+  ...DEFAULT_LABEL_TEMPLATE,
   ...(template || {}),
 });
 
@@ -391,6 +400,7 @@ function ConfigurationsContent() {
     receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
     thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
     regularTemplate: DEFAULT_REGULAR_TEMPLATE,
+    labelTemplate: DEFAULT_LABEL_TEMPLATE,
   });
 
   const [taxName, setTaxName] = useState('');
@@ -462,6 +472,7 @@ function ConfigurationsContent() {
           let receipt = DEFAULT_RECEIPT_TEMPLATE;
           let thermal = DEFAULT_THERMAL_TEMPLATE;
           let regular = DEFAULT_REGULAR_TEMPLATE;
+          let label = DEFAULT_LABEL_TEMPLATE;
           if (printResp?.data?.success && printResp?.data?.data) {
             const pc = stripPrintMeta(printResp.data.data);
             setPrintConfigRaw(pc);
@@ -471,6 +482,9 @@ function ConfigurationsContent() {
             thermal = mergeThermalTemplate(pc.thermalTemplate || buildThermalCompatibilityTemplate(kot, receipt));
             if (pc.regularTemplate) {
               regular = mergeRegularTemplate(pc.regularTemplate);
+            }
+            if (pc.labelTemplate) {
+              label = mergeLabelTemplate(pc.labelTemplate);
             }
           } else {
             setPrintConfigRaw(null);
@@ -522,6 +536,7 @@ function ConfigurationsContent() {
             receiptTemplate: receipt,
             thermalTemplate: thermal,
             regularTemplate: regular,
+            labelTemplate: label,
           });
         }
       } catch (err) {
@@ -541,7 +556,9 @@ function ConfigurationsContent() {
         ? DEFAULT_KOT_TEMPLATE
         : kind === 'receiptTemplate'
           ? DEFAULT_RECEIPT_TEMPLATE
-          : DEFAULT_THERMAL_TEMPLATE;
+          : kind === 'labelTemplate'
+            ? DEFAULT_LABEL_TEMPLATE
+            : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -558,7 +575,9 @@ function ConfigurationsContent() {
         ? DEFAULT_KOT_TEMPLATE
         : kind === 'receiptTemplate'
           ? DEFAULT_RECEIPT_TEMPLATE
-          : DEFAULT_THERMAL_TEMPLATE;
+          : kind === 'labelTemplate'
+            ? DEFAULT_LABEL_TEMPLATE
+            : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -656,6 +675,10 @@ function ConfigurationsContent() {
           ...(existingPrintSettings.regularTemplate || {}),
           ...(config.regularTemplate || {}),
         }),
+        labelTemplate: mergeLabelTemplate({
+          ...(existingPrintSettings.labelTemplate || {}),
+          ...(config.labelTemplate || {}),
+        }),
       };
 
       const [generalResp, printResp] = await Promise.all([
@@ -700,6 +723,7 @@ function ConfigurationsContent() {
   const kotTemplate = mergeKotTemplate(config.kotTemplate || config.thermalTemplate);
   const receiptTemplate = mergeReceiptTemplate(config.receiptTemplate || config.thermalTemplate);
   const regularTemplate = mergeRegularTemplate(config.regularTemplate);
+  const labelTemplate = mergeLabelTemplate(config.labelTemplate || printConfigRaw?.labelTemplate);
 
   const renderThermalTemplateEditor = (kind, template, title, icon, copy) => {
     const visibilityOptions = [
@@ -1321,6 +1345,7 @@ function ConfigurationsContent() {
                       {[
                         ['receipt', 'Final Bill Receipt'],
                         ['kot', 'KOT'],
+                        ['label', 'Barcode Sticker Label'],
                         ['regular', 'Regular A4 Invoice'],
                       ].map(([key, label]) => (
                         <button
@@ -1348,6 +1373,80 @@ function ConfigurationsContent() {
                       'Kitchen order ticket',
                       null,
                       'Thermal kitchen ticket layout, content, and paper settings.'
+                    )}
+
+                    {activeTemplateDoc === 'label' && (
+                      <div className="template-group">
+                        <div className="template-group-title">
+                          <FaBarcode style={{ color: '#ea580c', marginRight: '6px' }} /> Barcode Sticker Label Template
+                        </div>
+                        <span className="group-desc">
+                          Customize standard label dimensions, barcode formats, and visible text elements for thermal sticker printers (e.g. PeriPeri BT-58L, HOIN HL58).
+                        </span>
+
+                        <div className="template-grid-fields">
+                          <div className="input-group">
+                            <label className="group-lbl">Label Width (mm)</label>
+                            <input
+                              type="number"
+                              min="20"
+                              max="100"
+                              className="form-input"
+                              value={labelTemplate.widthMm || 50}
+                              onChange={(e) => setTemplate('labelTemplate', 'widthMm', Number(e.target.value) || 50)}
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label className="group-lbl">Label Height (mm)</label>
+                            <input
+                              type="number"
+                              min="15"
+                              max="100"
+                              className="form-input"
+                              value={labelTemplate.heightMm || 25}
+                              onChange={(e) => setTemplate('labelTemplate', 'heightMm', Number(e.target.value) || 25)}
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label className="group-lbl">Barcode Format</label>
+                            <NiceSelect
+                              value={labelTemplate.barcodeFormat || 'AUTO'}
+                              onChange={(val) => setTemplate('labelTemplate', 'barcodeFormat', val)}
+                              options={[
+                                { value: 'AUTO', label: 'Auto Detect (EAN-13 / Code128)' },
+                                { value: 'EAN13', label: 'EAN-13 (13 Digits)' },
+                                { value: 'EAN8', label: 'EAN-8 (8 Digits)' },
+                                { value: 'CODE128', label: 'Code 128 (Alphanumeric)' },
+                                { value: 'UPC', label: 'UPC-A (12 Digits)' },
+                              ]}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="template-checkbox-grid" style={{ marginTop: '12px' }}>
+                          {[
+                            ['showName', 'Show Product Name'],
+                            ['showPrice', 'Show Price'],
+                            ['showMrp', 'Show MRP'],
+                          ].map(([key, label]) => {
+                            const isChecked = labelTemplate[key] !== false;
+                            return (
+                              <button
+                                type="button"
+                                key={key}
+                                className={`template-check ${isChecked ? 'checked' : ''}`}
+                                onClick={() => setTemplate('labelTemplate', key, !isChecked)}
+                                aria-pressed={isChecked}
+                              >
+                                <span>{label}</span>
+                                <div className={`toggle-switch small ${isChecked ? 'on' : ''}`}>
+                                  <div className="toggle-thumb" />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
 
                     {activeTemplateDoc === 'regular' && (
@@ -1482,7 +1581,7 @@ function ConfigurationsContent() {
                   </div>
 
                   <div className="print-preview-panel">
-                    <PrintLivePreview config={config} />
+                    <PrintLivePreview config={config} activeDoc={activeTemplateDoc} onDocChange={setActiveTemplateDoc} />
                   </div>
                 </div>
               </div>
