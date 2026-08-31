@@ -1422,16 +1422,39 @@ function SalesContent() {
     const printedKind = printKind;
     setPrintOrder(null);
 
+    const isTakeawayOrder = printedOrder && (
+      String(printedOrder.fulfillmentType || printedOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY' ||
+      String(printedOrder.orderType || printedOrder.order_type || '').toUpperCase() === 'TAKEAWAY' ||
+      printedOrder.tableNumber === 'COUNTER'
+    );
+    const shouldChainedPrintKot = config?.takeawayAutoPrintKotOnSettle && printedKind === 'bill' && isTakeawayOrder && !printedOrder?._chainedKotDone;
+
     if (printedOrder && !printedOrder.offline) {
       markCloudPrintJobPrinted(printedOrder, printedKind)
         .catch((error) => {
           console.warn('Unable to mark cloud print job printed:', error?.message || error);
         })
-        .finally(loadOfflineOrderState);
+        .finally(() => {
+          loadOfflineOrderState();
+          if (shouldChainedPrintKot) {
+            setTimeout(() => {
+              setPrintOrder({ ...printedOrder, _chainedKotDone: true });
+              setPrintKind('kot');
+              showToast('Bill printed — now printing Takeaway KOT...');
+            }, 300);
+          }
+        });
     } else {
       loadOfflineOrderState();
+      if (shouldChainedPrintKot) {
+        setTimeout(() => {
+          setPrintOrder({ ...printedOrder, _chainedKotDone: true });
+          setPrintKind('kot');
+          showToast('Bill printed — now printing Takeaway KOT...');
+        }, 300);
+      }
     }
-  }, [loadOfflineOrderState, printKind, printOrder]);
+  }, [config?.takeawayAutoPrintKotOnSettle, loadOfflineOrderState, printKind, printOrder, showToast]);
 
   const handleOpenTableOrder = (table) => {
     const tableState = resolveTableOrderState(table, getActiveOrderForTable(table));

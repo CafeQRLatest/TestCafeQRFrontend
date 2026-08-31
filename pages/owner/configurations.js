@@ -41,7 +41,16 @@ const MODULES = [
   { key: 'pm_customers',        title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
   { key: 'pm_loyalty',          title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#f97316' },
   { key: 'pm_discount',         title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f97316' },
-  { key: 'pm_send_to_kitchen',  title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#f97316' },
+  { 
+    key: 'pm_send_to_kitchen',  
+    title: 'Send to Kitchen',   
+    desc: 'Forward orders to kitchen display',         
+    color: '#f97316',
+    children: [
+      { key: 'pm_takeaway_auto_kot', title: 'Auto-Print KOT on Takeaway Settlement', desc: 'When completing/settling a Takeaway order, automatically print Final Bill first, followed by KOT.' },
+      { key: 'pm_takeaway_hide_kitchen', title: 'Hide Kitchen Mode for Takeaway POS', desc: 'Force Takeaway orders directly to Settle mode and hide the Kitchen mode toggle button.' }
+    ]
+  },
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
   { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
   { key: 'pm_barcode_scanner',  title: 'Barcode Scanner Module', desc: 'Enable barcode scanning & label printing in POS', color: '#f97316' },
@@ -344,7 +353,7 @@ function ConfigurationsContent() {
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_purchase: true,
     pm_customers: false, pm_loyalty: false,
-    pm_send_to_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_allow_multi_customer: false,
+    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
     credit_allocation_mode: 'OLDEST_FIRST',
     
@@ -477,6 +486,7 @@ function ConfigurationsContent() {
             pm_purchase: hasModule('INVENTORY', orgId) && d.purchaseEnabled !== false,
             pm_customers: hasModule('CRM', orgId) && !!d.customersEnabled,
             pm_loyalty: hasModule('CRM', orgId) && !!d.loyaltyEnabled, pm_send_to_kitchen: hasModule('KOT', orgId) && d.sendToKitchenEnabled !== false,
+            pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
@@ -604,6 +614,7 @@ function ConfigurationsContent() {
         purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
         productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
+        takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
         onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: config.pm_barcode_scanner, allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
 
