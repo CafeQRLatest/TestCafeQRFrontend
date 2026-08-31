@@ -15,7 +15,8 @@ export default function FeatureGate({ module, children, fallback }) {
     CREDIT_LEDGER: 'Credit Ledger (Udhaar)',
     TABLE_QR: 'Table QR Ordering',
     MENU_IMAGES: 'Menu Images & Rich UI',
-    ONLINE_DELIVERY: 'Online Delivery (Direct)'
+    ONLINE_DELIVERY: 'Online Delivery (Direct)',
+    BARCODE_SCANNER: 'Barcode Scanner Module'
   };
 
   const friendlyName = moduleNamesFriendly[module] || module;

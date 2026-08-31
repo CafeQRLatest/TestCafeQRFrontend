@@ -63,6 +63,7 @@ const MODULE_SUBSCRIPTIONS = {
   pm_credit_ledger: 'CREDIT_LEDGER',
   pm_customers: 'CRM',
   pm_loyalty: 'CRM',
+  pm_barcode_scanner: 'BARCODE_SCANNER',
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -506,7 +507,7 @@ function ConfigurationsContent() {
             pm_customers: hasModule('CRM', orgId) && !!d.customersEnabled,
             pm_loyalty: hasModule('CRM', orgId) && !!d.loyaltyEnabled, pm_send_to_kitchen: hasModule('KOT', orgId) && d.sendToKitchenEnabled !== false,
             pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
-            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_allow_multi_customer: false,
+            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: hasModule('BARCODE_SCANNER', orgId) && !!d.barcodeScannerEnabled, pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
@@ -639,7 +640,7 @@ function ConfigurationsContent() {
         productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
         takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
-        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: config.pm_barcode_scanner, allowMultipleCustomersPerOrder: false,
+        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: hasModule('BARCODE_SCANNER', orgId) ? config.pm_barcode_scanner : false, allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
 
         taxEnabled: config.tax_enabled,
