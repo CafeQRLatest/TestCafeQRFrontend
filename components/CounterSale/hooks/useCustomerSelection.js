@@ -125,6 +125,19 @@ export default function useCustomerSelection({
     }
   }, [customersEnabled]);
 
+  const clearCustomerSelection = useCallback(() => {
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAge('');
+    setSelectedCustomerId(null);
+    setSelectedCustomer(null);
+    setSelectedCustomers([]);
+    setShowCustomerDropdown(false);
+    setSelectedCreditCustomerId('');
+    setIsCreditSale(false);
+    setShowNewCreditCustomer(false);
+  }, []);
+
   const handleCreditCustomerCreated = useCallback((customer, setCreditCustomers, onCreditCustomerCreated) => {
     if (!customer?.id) return;
     if (typeof setCreditCustomers === 'function') {
@@ -234,6 +247,7 @@ export default function useCustomerSelection({
     selectedCreditCustomer,
     creditCustomerOptions,
     getCreditLimitWarning,
-    getCustomerSelectionsList
+    getCustomerSelectionsList,
+    clearCustomerSelection
   };
 }

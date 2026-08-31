@@ -149,7 +149,8 @@ export default function useCounterSaleController({
     selectedCreditCustomer,
     creditCustomerOptions,
     getCreditLimitWarning,
-    getCustomerSelectionsList
+    getCustomerSelectionsList,
+    clearCustomerSelection
   } = customerHook;
 
   // 5. Discounts State Manager
@@ -434,7 +435,8 @@ export default function useCounterSaleController({
         onOrderCreated,
         onBack,
         rememberTrending,
-        notify
+        notify,
+        clearCustomerSelection
       });
     } catch (err) {
       notify('error', 'Failed to place order: ' + (err.response?.data?.message || err.message));
