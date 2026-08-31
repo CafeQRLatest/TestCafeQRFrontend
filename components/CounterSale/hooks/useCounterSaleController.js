@@ -194,16 +194,29 @@ export default function useCounterSaleController({
     return 'settle';
   });
 
-  const modeInitializedRef = useRef(false);
-  useEffect(() => {
-    if (config && !modeInitializedRef.current) {
-      setOrderMode(isKitchenModuleEnabled(config) ? 'kitchen' : 'settle');
-      modeInitializedRef.current = true;
-    }
-  }, [config]);
+  const isTakeawayOrder = String(
+    initialTable?.orderType || 
+    initialTable?.order_type || 
+    initialTable?.fulfillmentType || 
+    initialTable?.fulfillment_type || 
+    router?.query?.mode || 
+    ''
+  ).toUpperCase() === 'TAKEAWAY';
 
-  const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY';
-  const hideKitchenForTakeaway = isTakeawayOrder && config?.takeawayHideKitchenMode === true;
+  const hideKitchenForTakeaway = isTakeawayOrder && (
+    config?.takeawayHideKitchenMode === true || 
+    config?.takeawayHideKitchenMode === 'true' || 
+    config?.takeaway_hide_kitchen === true
+  );
+
+  useEffect(() => {
+    if (hideKitchenForTakeaway) {
+      setOrderMode('settle');
+    } else if (config) {
+      setOrderMode(isKitchenModuleEnabled(config) ? 'kitchen' : 'settle');
+    }
+  }, [config, hideKitchenForTakeaway]);
+
   const activeOrderMode = hideKitchenForTakeaway ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
 
   const THEME = activeOrderMode === 'kitchen'
