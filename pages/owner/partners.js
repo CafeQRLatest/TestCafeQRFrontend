@@ -8,7 +8,7 @@ import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
 import { isCustomersModuleEnabled, isFeatureEnabled } from '../../utils/moduleVisibility';
 import {
-  FaUserFriends, FaUsers, FaTruck, FaPlus, FaSearch, FaChevronRight,
+  FaUserFriends, FaUsers, FaUser, FaTruck, FaPlus, FaSearch, FaChevronRight,
   FaTimes, FaFileInvoice, FaTrash
 } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
