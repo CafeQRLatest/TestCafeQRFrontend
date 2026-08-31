@@ -210,6 +210,11 @@ const mergeReceiptTemplate = (template) => {
   };
 };
 
+const mergeRegularTemplate = (template) => ({
+  ...DEFAULT_REGULAR_TEMPLATE,
+  ...(template || {}),
+});
+
 const DEFAULT_LABEL_TEMPLATE = {
   widthMm: 50,
   heightMm: 25,
