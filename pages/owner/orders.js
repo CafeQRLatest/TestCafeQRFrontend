@@ -1078,12 +1078,16 @@ export default function OrdersPage() {
 
   const filteredQueuedOrders = useMemo(() => {
     return historyQueuedOrders.filter(order => {
+      const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
       if (historyFilters.status) {
-        const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
         const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
         if (historyFilters.status === 'COMPLETED' || historyFilters.status === 'PAID') {
           if (orderStatus !== 'COMPLETED' && orderStatus !== 'PAID' && paymentStatus !== 'PAID') return false;
         } else if (orderStatus !== historyFilters.status) {
+          return false;
+        }
+      } else {
+        if (orderStatus !== 'COMPLETED' && orderStatus !== 'CANCELLED' && orderStatus !== 'PAID' && orderStatus !== 'VOID') {
           return false;
         }
       }
