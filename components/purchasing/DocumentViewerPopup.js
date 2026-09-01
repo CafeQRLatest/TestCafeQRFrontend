@@ -435,6 +435,12 @@ export default function DocumentViewerPopup({
         phone: currentOrder.customerPhone || currentOrder.customer_phone 
       };
     }
+    if (currentOrder.creditCustomerName || currentOrder.credit_customer_name || currentOrder.creditCustomer) {
+      return {
+        name: currentOrder.creditCustomerName || currentOrder.credit_customer_name || currentOrder.creditCustomer?.name,
+        phone: currentOrder.creditCustomerPhone || currentOrder.credit_customer_phone || currentOrder.creditCustomer?.phone
+      };
+    }
     return null;
   }, [currentOrder]);
 
@@ -554,7 +560,7 @@ export default function DocumentViewerPopup({
 
         {/* ── supplier/customer · warehouse/table · method/terminal ── */}
         <div className="dv-row3">
-          {(!isSale || config?.customersEnabled) && (
+          {(!isSale || config?.customersEnabled || Boolean(primaryCustomer || currentOrder?.isCredit || currentOrder?.is_credit || currentOrder?.creditCustomerId || currentOrder?.credit_customer_id)) && (
             <div className="dv-cell">
               <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
               <span className="dv-val">{isSale ? (primaryCustomer?.name || '—') : (vendor?.name || '—')}</span>

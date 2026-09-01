@@ -243,7 +243,7 @@ function histFulfillmentLabel(order) {
 function histCustomerLabel(order) {
   const customers = Array.isArray(order?.customers) ? order.customers : [];
   if (customers.length) return customers.map(c => c.name || 'Guest').join(', ');
-  return order?.customerName || order?.customerPhone || '\u2014';
+  return order?.customerName || order?.creditCustomerName || order?.customerPhone || order?.creditCustomerPhone || '\u2014';
 }
 
 function toDateTimeInputValue(date) {
