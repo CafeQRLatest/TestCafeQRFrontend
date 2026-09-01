@@ -372,7 +372,7 @@ export const ModalBackdrop = styled.div`
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(4px);
-  z-index: 1500;
+  z-index: 100005;
   display: flex;
   align-items: center;
   justify-content: center;

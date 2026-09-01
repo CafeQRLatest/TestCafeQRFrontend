@@ -8,7 +8,7 @@ import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
 import { isCustomersModuleEnabled, isFeatureEnabled } from '../../utils/moduleVisibility';
 import {
-  FaUserFriends, FaUsers, FaTruck, FaPlus, FaSearch, FaChevronRight,
+  FaUserFriends, FaUsers, FaUser, FaTruck, FaPlus, FaSearch, FaChevronRight,
   FaTimes, FaFileInvoice, FaTrash
 } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
@@ -74,7 +74,7 @@ function PartnersContent() {
       setActiveTab(initialTab);
 
       const [custRes, vendRes, plRes] = await Promise.all([
-        shouldLoadCustomers ? api.get('/api/v1/credit/customers') : Promise.resolve(null),
+        shouldLoadCustomers ? api.get('/api/v1/purchasing/customers') : Promise.resolve(null),
         shouldLoadVendors ? api.get('/api/v1/purchasing/vendors') : Promise.resolve(null),
         api.get('/api/v1/purchasing/pricelists'),
       ]);
@@ -96,8 +96,14 @@ function PartnersContent() {
     setSaving(true);
     try {
       const isNew = !selectedCustomer.id;
-      const url = isNew ? '/api/v1/credit/customers' : `/api/v1/credit/customers/${selectedCustomer.id}`;
-      const resp = await (isNew ? api.post(url, selectedCustomer) : api.put(url, selectedCustomer));
+      const url = isNew ? '/api/v1/purchasing/customers' : `/api/v1/purchasing/customers/${selectedCustomer.id}`;
+      const payload = {
+        ...selectedCustomer,
+        gstNumber: selectedCustomer.gstNumber || selectedCustomer.gstin || '',
+        phone: selectedCustomer.phone ? String(selectedCustomer.phone).trim().replaceAll(/[\s()\-]/g, '') : null,
+        isactive: selectedCustomer.isactive || selectedCustomer.isActive || 'Y'
+      };
+      const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
         notify('success', isNew ? 'Customer created!' : 'Customer updated!');
         fetchAll();
@@ -116,7 +122,7 @@ function PartnersContent() {
       message: `Are you sure you want to delete "${name}"?`,
       onConfirm: async () => {
         try {
-          await api.delete(`/api/v1/credit/customers/${id}`);
+          await api.delete(`/api/v1/purchasing/customers/${id}`);
           notify('success', 'Customer deleted');
           fetchAll();
         } catch (err) {
@@ -164,7 +170,7 @@ function PartnersContent() {
 
   const startNewCustomer = () => setSelectedCustomer({
     name: '', phone: '', email: '', address: '', gstNumber: '', customerCategory: 'REGULAR',
-    loyaltyPoints: 0, creditLimit: 0, openingBalance: 0, pricelistId: null, isActive: 'Y'
+    loyaltyPoints: 0, pricelistId: null, isActive: 'Y'
   });
 
   const startNewVendor = () => setSelectedVendor({
@@ -243,8 +249,7 @@ function PartnersContent() {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Category</th>
-                      <th>Credit Limit</th>
-                      <th>Balance</th>
+                      <th>Address</th>
                       <th>Status</th>
                       <th className="text-right">Actions</th>
                     </tr>
@@ -260,8 +265,7 @@ function PartnersContent() {
                             {(c.customerCategory || 'REGULAR').toLowerCase()}
                           </span>
                         </td>
-                        <td className="code-cell">{sym}{parseFloat(c.creditLimit || 0).toLocaleString()}</td>
-                        <td className="code-cell">{sym}{parseFloat(c.openingBalance || 0).toLocaleString()}</td>
+                        <td style={{ maxWidth: 200 }} className="truncate" title={c.address || ''}>{c.address || '—'}</td>
                         <td>
                           <span className={`status-pill ${isPartnerActive(c) ? 'active' : 'inactive'}`}>
                             <span className="status-dot"></span>
@@ -276,7 +280,7 @@ function PartnersContent() {
                     ))}
                     {filteredCustomers.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="empty-state">
+                        <td colSpan={7} className="empty-state">
                           <div className="empty-icon"><FaUsers /></div>
                           <div className="empty-msg">No customers found</div>
                           <div className="empty-sub">Create your first customer to get started.</div>
@@ -404,7 +408,7 @@ function PartnersContent() {
                   </div>
                   <div className="input-group">
                     <label>GSTIN</label>
-                    <input value={selectedCustomer.gstin || ''} onChange={e => setSelectedCustomer({...selectedCustomer, gstin: e.target.value})} placeholder="22AAAAA0000A1Z5" />
+                    <input value={selectedCustomer.gstNumber || selectedCustomer.gstin || ''} onChange={e => setSelectedCustomer({...selectedCustomer, gstNumber: e.target.value, gstin: e.target.value})} placeholder="22AAAAA0000A1Z5" />
                   </div>
                 </div>
                 <div className="input-group" style={{ marginTop: 16 }}>
@@ -414,7 +418,7 @@ function PartnersContent() {
               </div>
 
               <div className="erp-section">
-                <div className="section-title"><FaFileInvoice /> Financial Details</div>
+                <div className="section-title"><FaFileInvoice /> Financial & Category Details</div>
                 <div className="input-row">
                   <div className="input-group">
                     <label>Category</label>
@@ -424,18 +428,6 @@ function PartnersContent() {
                       onChange={val => setSelectedCustomer({...selectedCustomer, customerCategory: val})}
                     />
                   </div>
-                </div>
-                <div className="input-row" style={{ marginTop: 16 }}>
-                  <div className="input-group">
-                    <label>Credit Limit</label>
-                    <input type="number" value={selectedCustomer.creditLimit || 0} onChange={e => setSelectedCustomer({...selectedCustomer, creditLimit: parseFloat(e.target.value) || 0})} />
-                  </div>
-                  <div className="input-group">
-                    <label>Opening Balance</label>
-                    <input type="number" value={selectedCustomer.openingBalance || 0} onChange={e => setSelectedCustomer({...selectedCustomer, openingBalance: parseFloat(e.target.value) || 0})} />
-                  </div>
-                </div>
-                <div className="input-row" style={{ marginTop: 16 }}>
                   <div className="input-group">
                     <label>Sale Price List</label>
                     <NiceSelect
@@ -444,6 +436,8 @@ function PartnersContent() {
                       onChange={val => setSelectedCustomer({...selectedCustomer, pricelistId: val || null})}
                     />
                   </div>
+                </div>
+                <div className="input-row" style={{ marginTop: 16 }}>
                   <div className="input-group">
                     <label>Status</label>
                     <div className="control-row">

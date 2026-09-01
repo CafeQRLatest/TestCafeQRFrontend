@@ -5,7 +5,7 @@ import api from '../utils/api';
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 1800;
+  z-index: 100005;
   background: rgba(15, 23, 42, 0.52);
   backdrop-filter: blur(6px);
   display: flex;

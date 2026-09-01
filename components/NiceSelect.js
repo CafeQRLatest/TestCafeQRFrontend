@@ -51,7 +51,7 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
     }
   }, [open]);
 
-  // Click outside to close
+  // Click outside / escape to close
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -60,8 +60,17 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const keyHandler = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handler, true);
+    document.addEventListener("touchstart", handler, true);
+    window.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler, true);
+      document.removeEventListener("touchstart", handler, true);
+      window.removeEventListener("keydown", keyHandler);
+    };
   }, [open]);
 
   const dropdownWidth = Math.max(coords.width, 240);
