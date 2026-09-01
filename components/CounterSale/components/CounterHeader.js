@@ -12,7 +12,7 @@ export default function CounterHeader({
   router
 }) {
   const { productListingOn, handleToggleProductListing } = catalog;
-  const { mode: orderMode, setMode: setOrderMode, activeOrderMode, kitchenEnabled, orderDateTime, setOrderDateTime, setIsDateTimeManuallyEdited } = order;
+  const { mode: orderMode, setMode: setOrderMode, activeOrderMode, kitchenEnabled, hideKitchenForTakeaway, orderDateTime, setOrderDateTime, setIsDateTimeManuallyEdited } = order;
   const { zoomLevel, handleZoom, THEME: theme } = ui;
 
   return (
@@ -32,7 +32,7 @@ export default function CounterHeader({
         </S.CsTitleGroup>
       </S.CsHeaderLeft>
 
-      {kitchenEnabled && (
+      {kitchenEnabled && !hideKitchenForTakeaway && (
         <S.CsHeaderModeSwitch>
           <S.CsModeToggleBtn
             $active={activeOrderMode === 'kitchen'}

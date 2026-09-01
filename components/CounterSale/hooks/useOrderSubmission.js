@@ -96,7 +96,8 @@ export default function useOrderSubmission({ timezone }) {
     onOrderCreated,
     onBack,
     rememberTrending,
-    notify
+    notify,
+    clearCustomerSelection
   }) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -311,12 +312,13 @@ export default function useOrderSubmission({ timezone }) {
         rememberTrending(cart);
       }
 
-      if (kind !== 'settle') {
-        setCart([]);
-        if (typeof setOrderNote === 'function') setOrderNote('');
-        if (config?.tableManagementEnabled) {
-          if (onBack) onBack();
-        }
+      // Always clear cart, order notes, and customer selection after successful order creation
+      setCart([]);
+      if (typeof setOrderNote === 'function') setOrderNote('');
+      if (typeof clearCustomerSelection === 'function') clearCustomerSelection();
+
+      if (kind !== 'settle' && config?.tableManagementEnabled) {
+        if (onBack) onBack();
       }
     } catch (err) {
       if (err?.code === 'OFFLINE_CACHE_MISS') {

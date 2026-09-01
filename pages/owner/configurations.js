@@ -11,7 +11,7 @@ import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
-import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
 // ═════════════════════════════════════════════════════════════════════════════
@@ -41,9 +41,19 @@ const MODULES = [
   { key: 'pm_customers',        title: 'Customers',         desc: 'Customer directory & profiles',             color: '#f97316' },
   { key: 'pm_loyalty',          title: 'Loyalty',           desc: 'Points & rewards program',                  color: '#f97316' },
   { key: 'pm_discount',         title: 'Enable Discounts',  desc: 'Allow order and item discounts',            color: '#f97316' },
-  { key: 'pm_send_to_kitchen',  title: 'Send to Kitchen',   desc: 'Forward orders to kitchen display',         color: '#f97316' },
+  { 
+    key: 'pm_send_to_kitchen',  
+    title: 'Send to Kitchen',   
+    desc: 'Forward orders to kitchen display',         
+    color: '#f97316',
+    children: [
+      { key: 'pm_takeaway_auto_kot', title: 'Auto-Print KOT on Takeaway Settlement', desc: 'When completing/settling a Takeaway order, automatically print Final Bill first, followed by KOT.' },
+      { key: 'pm_takeaway_hide_kitchen', title: 'Hide Kitchen Mode for Takeaway POS', desc: 'Force Takeaway orders directly to Settle mode and hide the Kitchen mode toggle button.' }
+    ]
+  },
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
   { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
+  { key: 'pm_barcode_scanner',  title: 'Barcode Scanner Module', desc: 'Enable barcode scanning & label printing in POS', color: '#f97316' },
 ];
 
 const MODULE_SUBSCRIPTIONS = {
@@ -53,6 +63,7 @@ const MODULE_SUBSCRIPTIONS = {
   pm_credit_ledger: 'CREDIT_LEDGER',
   pm_customers: 'CRM',
   pm_loyalty: 'CRM',
+  pm_barcode_scanner: 'BARCODE_SCANNER',
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -205,6 +216,20 @@ const mergeRegularTemplate = (template) => ({
   ...(template || {}),
 });
 
+const DEFAULT_LABEL_TEMPLATE = {
+  widthMm: 50,
+  heightMm: 25,
+  barcodeFormat: 'AUTO',
+  showName: true,
+  showPrice: true,
+  showMrp: true,
+};
+
+const mergeLabelTemplate = (template) => ({
+  ...DEFAULT_LABEL_TEMPLATE,
+  ...(template || {}),
+});
+
 const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
   const kot = mergeKotTemplate(kotInput);
   const receipt = mergeReceiptTemplate(receiptInput);
@@ -343,7 +368,7 @@ function ConfigurationsContent() {
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_purchase: true,
     pm_customers: false, pm_loyalty: false,
-    pm_send_to_kitchen: false, pm_online_delivery: false, pm_allow_multi_customer: false,
+    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
     credit_allocation_mode: 'OLDEST_FIRST',
     
@@ -381,6 +406,7 @@ function ConfigurationsContent() {
     receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
     thermalTemplate: DEFAULT_THERMAL_TEMPLATE,
     regularTemplate: DEFAULT_REGULAR_TEMPLATE,
+    labelTemplate: DEFAULT_LABEL_TEMPLATE,
   });
 
   const [taxName, setTaxName] = useState('');
@@ -452,6 +478,7 @@ function ConfigurationsContent() {
           let receipt = DEFAULT_RECEIPT_TEMPLATE;
           let thermal = DEFAULT_THERMAL_TEMPLATE;
           let regular = DEFAULT_REGULAR_TEMPLATE;
+          let label = DEFAULT_LABEL_TEMPLATE;
           if (printResp?.data?.success && printResp?.data?.data) {
             const pc = stripPrintMeta(printResp.data.data);
             setPrintConfigRaw(pc);
@@ -461,6 +488,9 @@ function ConfigurationsContent() {
             thermal = mergeThermalTemplate(pc.thermalTemplate || buildThermalCompatibilityTemplate(kot, receipt));
             if (pc.regularTemplate) {
               regular = mergeRegularTemplate(pc.regularTemplate);
+            }
+            if (pc.labelTemplate) {
+              label = mergeLabelTemplate(pc.labelTemplate);
             }
           } else {
             setPrintConfigRaw(null);
@@ -476,7 +506,8 @@ function ConfigurationsContent() {
             pm_purchase: hasModule('INVENTORY', orgId) && d.purchaseEnabled !== false,
             pm_customers: hasModule('CRM', orgId) && !!d.customersEnabled,
             pm_loyalty: hasModule('CRM', orgId) && !!d.loyaltyEnabled, pm_send_to_kitchen: hasModule('KOT', orgId) && d.sendToKitchenEnabled !== false,
-            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_allow_multi_customer: false,
+            pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
+            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: hasModule('BARCODE_SCANNER', orgId) && !!d.barcodeScannerEnabled, pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
@@ -511,6 +542,7 @@ function ConfigurationsContent() {
             receiptTemplate: receipt,
             thermalTemplate: thermal,
             regularTemplate: regular,
+            labelTemplate: label,
           });
         }
       } catch (err) {
@@ -530,7 +562,9 @@ function ConfigurationsContent() {
         ? DEFAULT_KOT_TEMPLATE
         : kind === 'receiptTemplate'
           ? DEFAULT_RECEIPT_TEMPLATE
-          : DEFAULT_THERMAL_TEMPLATE;
+          : kind === 'labelTemplate'
+            ? DEFAULT_LABEL_TEMPLATE
+            : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -547,7 +581,9 @@ function ConfigurationsContent() {
         ? DEFAULT_KOT_TEMPLATE
         : kind === 'receiptTemplate'
           ? DEFAULT_RECEIPT_TEMPLATE
-          : DEFAULT_THERMAL_TEMPLATE;
+          : kind === 'labelTemplate'
+            ? DEFAULT_LABEL_TEMPLATE
+            : DEFAULT_THERMAL_TEMPLATE;
     setConfig((previous) => ({
       ...previous,
       [kind]: {
@@ -603,7 +639,8 @@ function ConfigurationsContent() {
         purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
         productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
-        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, allowMultipleCustomersPerOrder: false,
+        takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
+        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: hasModule('BARCODE_SCANNER', orgId) ? config.pm_barcode_scanner : false, allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
 
         taxEnabled: config.tax_enabled,
@@ -643,6 +680,10 @@ function ConfigurationsContent() {
         regularTemplate: mergeRegularTemplate({
           ...(existingPrintSettings.regularTemplate || {}),
           ...(config.regularTemplate || {}),
+        }),
+        labelTemplate: mergeLabelTemplate({
+          ...(existingPrintSettings.labelTemplate || {}),
+          ...(config.labelTemplate || {}),
         }),
       };
 
@@ -688,6 +729,7 @@ function ConfigurationsContent() {
   const kotTemplate = mergeKotTemplate(config.kotTemplate || config.thermalTemplate);
   const receiptTemplate = mergeReceiptTemplate(config.receiptTemplate || config.thermalTemplate);
   const regularTemplate = mergeRegularTemplate(config.regularTemplate);
+  const labelTemplate = mergeLabelTemplate(config.labelTemplate || printConfigRaw?.labelTemplate);
 
   const renderThermalTemplateEditor = (kind, template, title, icon, copy) => {
     const visibilityOptions = [
@@ -1309,6 +1351,7 @@ function ConfigurationsContent() {
                       {[
                         ['receipt', 'Final Bill Receipt'],
                         ['kot', 'KOT'],
+                        ['label', 'Barcode Sticker Label'],
                         ['regular', 'Regular A4 Invoice'],
                       ].map(([key, label]) => (
                         <button
@@ -1336,6 +1379,80 @@ function ConfigurationsContent() {
                       'Kitchen order ticket',
                       null,
                       'Thermal kitchen ticket layout, content, and paper settings.'
+                    )}
+
+                    {activeTemplateDoc === 'label' && (
+                      <div className="template-group">
+                        <div className="template-group-title">
+                          <FaBarcode style={{ color: '#ea580c', marginRight: '6px' }} /> Barcode Sticker Label Template
+                        </div>
+                        <span className="group-desc">
+                          Customize standard label dimensions, barcode formats, and visible text elements for thermal sticker printers (e.g. PeriPeri BT-58L, HOIN HL58).
+                        </span>
+
+                        <div className="template-grid-fields">
+                          <div className="input-group">
+                            <label className="group-lbl">Label Width (mm)</label>
+                            <input
+                              type="number"
+                              min="20"
+                              max="100"
+                              className="form-input"
+                              value={labelTemplate.widthMm || 50}
+                              onChange={(e) => setTemplate('labelTemplate', 'widthMm', Number(e.target.value) || 50)}
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label className="group-lbl">Label Height (mm)</label>
+                            <input
+                              type="number"
+                              min="15"
+                              max="100"
+                              className="form-input"
+                              value={labelTemplate.heightMm || 25}
+                              onChange={(e) => setTemplate('labelTemplate', 'heightMm', Number(e.target.value) || 25)}
+                            />
+                          </div>
+                          <div className="input-group">
+                            <label className="group-lbl">Barcode Format</label>
+                            <NiceSelect
+                              value={labelTemplate.barcodeFormat || 'AUTO'}
+                              onChange={(val) => setTemplate('labelTemplate', 'barcodeFormat', val)}
+                              options={[
+                                { value: 'AUTO', label: 'Auto Detect (EAN-13 / Code128)' },
+                                { value: 'EAN13', label: 'EAN-13 (13 Digits)' },
+                                { value: 'EAN8', label: 'EAN-8 (8 Digits)' },
+                                { value: 'CODE128', label: 'Code 128 (Alphanumeric)' },
+                                { value: 'UPC', label: 'UPC-A (12 Digits)' },
+                              ]}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="template-checkbox-grid" style={{ marginTop: '12px' }}>
+                          {[
+                            ['showName', 'Show Product Name'],
+                            ['showPrice', 'Show Price'],
+                            ['showMrp', 'Show MRP'],
+                          ].map(([key, label]) => {
+                            const isChecked = labelTemplate[key] !== false;
+                            return (
+                              <button
+                                type="button"
+                                key={key}
+                                className={`template-check ${isChecked ? 'checked' : ''}`}
+                                onClick={() => setTemplate('labelTemplate', key, !isChecked)}
+                                aria-pressed={isChecked}
+                              >
+                                <span>{label}</span>
+                                <div className={`toggle-switch small ${isChecked ? 'on' : ''}`}>
+                                  <div className="toggle-thumb" />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
 
                     {activeTemplateDoc === 'regular' && (
@@ -1470,7 +1587,7 @@ function ConfigurationsContent() {
                   </div>
 
                   <div className="print-preview-panel">
-                    <PrintLivePreview config={config} />
+                    <PrintLivePreview config={config} activeDoc={activeTemplateDoc} onDocChange={setActiveTemplateDoc} />
                   </div>
                 </div>
               </div>

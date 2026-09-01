@@ -32,6 +32,7 @@ export default function ProductManagementPopup({
   const [inventoryEnabled, setInventoryEnabled] = useState(true);
   const [purchasingEnabled, setPurchasingEnabled] = useState(true);
   const [taxEnabled, setTaxEnabled] = useState(true);
+  const [barcodeEnabled, setBarcodeEnabled] = useState(() => config?.barcodeScannerEnabled === true);
   const [labelCopies, setLabelCopies] = useState(1);
   const [printingLabel, setPrintingLabel] = useState(false);
 
@@ -130,6 +131,9 @@ export default function ProductManagementPopup({
 
   useEffect(() => {
     let active = true;
+    if (config?.barcodeScannerEnabled !== undefined) {
+      setBarcodeEnabled(config.barcodeScannerEnabled === true);
+    }
     (async () => {
       try {
         const resp = await api.get('/api/v1/configurations');
@@ -137,6 +141,7 @@ export default function ProductManagementPopup({
           setInventoryEnabled(resp.data.data.inventoryEnabled !== false);
           setPurchasingEnabled(resp.data.data.purchaseEnabled !== false && resp.data.data.purchasingEnabled !== false);
           setTaxEnabled(resp.data.data.taxEnabled !== false);
+          setBarcodeEnabled(resp.data.data.barcodeScannerEnabled === true);
           if (resp.data.data.purchaseEnabled === false || resp.data.data.purchasingEnabled === false) {
             setPricingView('sales');
           }
@@ -146,7 +151,7 @@ export default function ProductManagementPopup({
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [config]);
 
   // Conversion/Normalizer utilities
   const toNumber = (value, fallback = 0) => {
@@ -548,7 +553,7 @@ export default function ProductManagementPopup({
                   </div>
                </div>
                <div className="input-row" style={{ marginTop: '16px' }}>
-                  <div className="input-group">
+                  <div className="input-group" style={{ flex: barcodeEnabled ? undefined : 1 }}>
                      <label>Unit (UOM)</label>
                       <NiceSelect 
                         options={uomOptions.map(u => ({ value: u.id, label: u.name }))}
@@ -556,71 +561,73 @@ export default function ProductManagementPopup({
                         onChange={val => setSelectedProduct({...selectedProduct, uom: uomOptions.find(u => u.id === val)})}
                       />
                   </div>
-                  <div className="input-group">
-                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <label style={{ margin: 0 }}>Barcode</label>
-                        {selectedProduct.barcode && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <label style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>Qty:</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              max="100" 
-                              value={labelCopies} 
-                              onChange={e => setLabelCopies(Math.max(1, parseInt(e.target.value) || 1))}
-                              style={{ width: '42px', padding: '2px 4px', fontSize: '11px', textAlign: 'center', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                            />
-                            <button
-                              type="button"
-                              onClick={handlePrintLabel}
-                              disabled={printingLabel}
-                              style={{
-                                background: '#10b981',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                padding: '3px 8px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                            >
-                              <FaPrint style={{ fontSize: '10px' }} />
-                              {printingLabel ? 'Printing...' : 'Print Label'}
-                            </button>
-                          </div>
-                        )}
-                     </div>
-                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                       <input 
-                         value={selectedProduct.barcode || ''} 
-                         onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} 
-                         placeholder="e.g. 8901491361026" 
-                         style={{ flex: 1 }}
-                       />
-                       <button
-                         type="button"
-                         onClick={handleAutoGenerateBarcode}
-                         title="Auto-generate a valid GS1 EAN-13 barcode with correct checksum"
-                         style={{
-                           background: '#f59e0b',
-                           color: 'white',
-                           border: 'none',
-                           borderRadius: '6px',
-                           padding: '8px 10px',
-                           fontSize: '11px',
-                           fontWeight: 700,
-                           cursor: 'pointer',
-                           whiteSpace: 'nowrap'
-                         }}
-                       >
-                         ⚡ Auto
-                       </button>
-                     </div>
-                  </div>
+                  {barcodeEnabled && (
+                    <div className="input-group">
+                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <label style={{ margin: 0 }}>Barcode</label>
+                          {selectedProduct.barcode && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>Qty:</label>
+                              <input 
+                                type="number" 
+                                min="1" 
+                                max="100" 
+                                value={labelCopies} 
+                                onChange={e => setLabelCopies(Math.max(1, parseInt(e.target.value) || 1))}
+                                style={{ width: '42px', padding: '2px 4px', fontSize: '11px', textAlign: 'center', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={handlePrintLabel}
+                                disabled={printingLabel}
+                                style={{
+                                  background: '#10b981',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '3px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <FaPrint style={{ fontSize: '10px' }} />
+                                {printingLabel ? 'Printing...' : 'Print Label'}
+                              </button>
+                            </div>
+                          )}
+                       </div>
+                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                         <input 
+                           value={selectedProduct.barcode || ''} 
+                           onChange={e => setSelectedProduct({...selectedProduct, barcode: e.target.value})} 
+                           placeholder="e.g. 8901491361026" 
+                           style={{ flex: 1 }}
+                         />
+                         <button
+                           type="button"
+                           onClick={handleAutoGenerateBarcode}
+                           title="Auto-generate a valid GS1 EAN-13 barcode with correct checksum"
+                           style={{
+                             background: '#f59e0b',
+                             color: 'white',
+                             border: 'none',
+                             borderRadius: '6px',
+                             padding: '8px 10px',
+                             fontSize: '11px',
+                             fontWeight: 700,
+                             cursor: 'pointer',
+                             whiteSpace: 'nowrap'
+                           }}
+                         >
+                           ⚡ Auto
+                         </button>
+                       </div>
+                    </div>
+                  )}
                </div>
              </div>
 

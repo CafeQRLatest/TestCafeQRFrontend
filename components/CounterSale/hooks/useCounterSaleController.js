@@ -149,7 +149,8 @@ export default function useCounterSaleController({
     selectedCreditCustomer,
     creditCustomerOptions,
     getCreditLimitWarning,
-    getCustomerSelectionsList
+    getCustomerSelectionsList,
+    clearCustomerSelection
   } = customerHook;
 
   // 5. Discounts State Manager
@@ -202,7 +203,9 @@ export default function useCounterSaleController({
     }
   }, [config]);
 
-  const activeOrderMode = kitchenEnabled ? orderMode : 'settle';
+  const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY';
+  const hideKitchenForTakeaway = isTakeawayOrder && config?.takeawayHideKitchenMode === true;
+  const activeOrderMode = hideKitchenForTakeaway ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
 
   const THEME = activeOrderMode === 'kitchen'
     ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
@@ -432,7 +435,8 @@ export default function useCounterSaleController({
         onOrderCreated,
         onBack,
         rememberTrending,
-        notify
+        notify,
+        clearCustomerSelection
       });
     } catch (err) {
       notify('error', 'Failed to place order: ' + (err.response?.data?.message || err.message));
@@ -661,7 +665,8 @@ export default function useCounterSaleController({
       setIsDateTimeManuallyEdited,
       handleCompleteSettle,
       handlePlaceOrder,
-      kitchenEnabled
+      kitchenEnabled,
+      hideKitchenForTakeaway
     },
     ui: {
       zoomLevel,
