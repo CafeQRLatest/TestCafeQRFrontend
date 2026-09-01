@@ -20,8 +20,10 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
   const kotFooter = kotTemplate.footer ?? kotTemplate.kotFooter;
   const receiptTitleFont = receiptTemplate.titleFontSize || 'DOUBLE';
   const receiptBodyFont = receiptTemplate.fontSize || 'NORMAL';
+  const receiptDbFont = receiptTemplate.dailyBillNoFontSize || 'NORMAL';
   const kotTitleFont = kotTemplate.titleFontSize || kotTemplate.kotTitleFontSize || 'DOUBLE';
   const kotBodyFont = kotTemplate.fontSize || kotTemplate.kotFontSize || 'NORMAL';
+  const kotDbFont = kotTemplate.dailyBillNoFontSize || kotTemplate.kotDailyBillNoFontSize || 'NORMAL';
   const activeThermalTemplate = activePreview === 'kot' ? kotTemplate : receiptTemplate;
   const paperWidthMm = Number(activeThermalTemplate.widthMm || 58);
   const paperMaxWidth = `${Math.max(230, Math.min(360, Math.round((paperWidthMm / 80) * 310)))}px`;
@@ -127,9 +129,6 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>Invoice: INV-2026-0842</div>
                   <div>Bill No: B-941</div>
-                  {receiptTemplate.showDailyBillNo !== false && (
-                    <div className="highlight-line">Daily Bill No: #042</div>
-                  )}
                   {receiptTemplate.showTableLabel !== false && (
                     <div className="highlight-line">Order Type: Dine in (Table 5)</div>
                   )}
@@ -144,6 +143,15 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     </div>
                   )}
                 </div>
+
+                {receiptTemplate.showDailyBillNo !== false && (
+                  <>
+                    <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
+                    <div className={`text-left highlight-line ${getFontClass(receiptDbFont)}`}>
+                      Daily Bill No: #042
+                    </div>
+                  </>
+                )}
 
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
@@ -304,9 +312,6 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 <div className="order-meta text-left font-small">
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>KOT Ref: KOT-842A</div>
-                  {kotTemplate.showDailyBillNo !== false && (
-                    <div>Daily Bill No: #042</div>
-                  )}
                   <div>Attended by: Cashier Sam</div>
                   {kotTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
@@ -321,6 +326,15 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <div className="special-instructions text-left font-small">
                       <div className="inst-label">Instructions:</div>
                       <div className="inst-content">Make Paneer Butter Masala extra spicy. Naan should be crisp.</div>
+                    </div>
+                    <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
+                  </>
+                )}
+
+                {kotTemplate.showDailyBillNo !== false && (
+                  <>
+                    <div className={`text-left highlight-line ${getFontClass(kotDbFont)}`}>
+                      Daily Bill No: #042
                     </div>
                     <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                   </>
