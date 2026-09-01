@@ -16,8 +16,8 @@ import {
 
 const Overlay = styled.div`
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
-  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -33,6 +33,7 @@ const Overlay = styled.div`
 
 const Card = styled.div`
   width: min(456px, 100%);
+  max-height: calc(100vh - 40px);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
   background: white;
@@ -43,6 +44,7 @@ const Card = styled.div`
 
   @media (max-width: 640px) {
     width: 100%;
+    max-height: calc(100vh - env(safe-area-inset-top, 0px));
     max-height: calc(100dvh - env(safe-area-inset-top, 0px));
     border-radius: 24px 24px 0 0;
     padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));

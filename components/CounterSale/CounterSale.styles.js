@@ -158,6 +158,7 @@ export const CsCartSection = styled.aside`
     right: 0;
     bottom: 0;
     width: 100%;
+    max-height: min(82vh, 680px);
     max-height: min(82dvh, 680px);
     border-left: 0;
     border-top: 1px solid #e2e8f0;
@@ -169,6 +170,7 @@ export const CsCartSection = styled.aside`
   }
 
   @media (max-width: 520px) {
+    max-height: calc(82vh - env(safe-area-inset-bottom, 0px));
     max-height: calc(82dvh - env(safe-area-inset-bottom, 0px));
     border-radius: 20px 20px 0 0;
   }
@@ -1120,6 +1122,7 @@ export const CsDiscountBtn = styled.button`
 
 export const CsModalBackdrop = styled.div`
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(4px);
@@ -1335,6 +1338,7 @@ export const CsMobileCartBackdrop = styled.div`
   @media (max-width: 900px) {
     display: block;
     position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
     inset: 0;
     background: rgba(15, 23, 42, 0.38);
     z-index: 1000;
