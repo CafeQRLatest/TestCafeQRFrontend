@@ -217,11 +217,16 @@ export default function PaymentDialog({
         fetchLoyaltyPrograms(forceFresh)
       ]);
       setCustomerLoyalty(custLoyalty);
-      if (custLoyalty?.programId && Array.isArray(programs)) {
-        const prog = programs.find(p => String(p.id) === String(custLoyalty.programId)) || programs[0];
-        setLoyaltyProgram(prog);
-      } else if (Array.isArray(programs) && programs.length > 0) {
-        setLoyaltyProgram(programs[0]);
+      // Strict resolution: only use the active default program (branch-level precedence over client-wide)
+      if (Array.isArray(programs)) {
+        const branchDefaultProg = programs.find(p =>
+          !p.isClientWide && (p.isDefault || p.default) && (p.isActive ?? p.active ?? true) !== false
+        );
+        const clientDefaultProg = programs.find(p =>
+          p.isClientWide && (p.isDefault || p.default) && (p.isActive ?? p.active ?? true) !== false
+        );
+        const activeDefaultProg = branchDefaultProg || clientDefaultProg || null;
+        setLoyaltyProgram(activeDefaultProg);
       }
     } catch (err) {
       console.warn('[PaymentDialog] Loyalty fetch error:', err);
@@ -236,16 +241,9 @@ export default function PaymentDialog({
   }, [fetchLoyaltyData]);
 
   const redemptionRules = useMemo(() => {
-    const defaultRule = {
-      pointsRequired: 100,
-      discountAmount: 10,
-      minPoints: 0,
-      maxPointsPerOrder: null,
-      allowPartial: true,
-    };
-    if (!loyaltyProgram) return defaultRule;
+    if (!loyaltyProgram) return null;
     const rule = loyaltyProgram.redemptionRule || loyaltyProgram.redemptionRules?.[0];
-    if (!rule) return defaultRule;
+    if (!rule) return null;
     return {
       pointsRequired: rule.pointsRequired || 100,
       discountAmount: rule.discountAmount || 10,
@@ -978,13 +976,25 @@ export default function PaymentDialog({
               </div>
             )}
 
-            {!loyaltyLoading && !loyaltyFetchError && currentPoints <= 0 && (
+            {!loyaltyLoading && !loyaltyFetchError && !loyaltyProgram && (
+              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                No active default loyalty programme is available.
+              </div>
+            )}
+
+            {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints <= 0 && (
               <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
                 No points available to redeem.
               </div>
             )}
 
-            {!loyaltyLoading && maxRedeemablePoints > 0 && (
+            {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints > 0 && maxRedeemablePoints <= 0 && (
+              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                {redemptionRules?.minPoints ? `Minimum ${redemptionRules.minPoints} points required to redeem.` : 'No redeemable points.'}
+              </div>
+            )}
+
+            {!loyaltyLoading && maxRedeemablePoints > 0 && redemptionRules && (
               <div>
                 <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
                   Redemption Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints} pts)

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import ModuleGate from '../../components/ModuleGate';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import {
   fetchLoyaltyPrograms,
@@ -36,6 +37,7 @@ const EMPTY_PROGRAM = {
   description: '',
   isActive: true,
   isDefault: false,
+  isClientWide: false,
   priority: 10,
   spendAmount: 100,
   earnPoints: 1,
@@ -77,6 +79,11 @@ function formatDate(iso) {
 // ─── Minimal Standard Program Card Component ─────────────────────────────────
 
 function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
+  const { userRole } = useAuth();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
+  const isClientWide = Boolean(prog.isClientWide ?? prog.is_client_wide);
+  const canModify = !isClientWide || isSuperAdmin;
+
   const earn = prog.earnRule;
   const redeem = prog.redemptionRule;
 
@@ -88,16 +95,17 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
           {prog.isDefault && <span className="badge-default">Default</span>}
           <button
             type="button"
-            className={`status-chip ${prog.isActive ? 'active' : 'inactive'}`}
-            onClick={() => onToggleActive && onToggleActive(prog)}
-            title="Click to toggle status"
+            className={`status-chip ${prog.isActive ? 'active' : 'inactive'} ${!canModify ? 'disabled' : ''}`}
+            onClick={() => canModify && onToggleActive && onToggleActive(prog)}
+            title={canModify ? 'Click to toggle status' : 'Client-wide program: Only Super Admin can modify'}
+            style={!canModify ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
           >
             {prog.isActive ? 'Active' : 'Inactive'}
           </button>
         </div>
 
         <div className="card-actions">
-          {!prog.isDefault && onSetDefault && (
+          {!prog.isDefault && prog.isActive && canModify && onSetDefault && (
             <button
               type="button"
               className="btn-default-colorful"
@@ -111,9 +119,9 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
             type="button"
             className="icon-btn-edit"
             onClick={() => onEdit(prog)}
-            title="Edit Program"
+            title={canModify ? 'Edit Program' : 'View Program Details (Read-Only)'}
           >
-            <FaEdit />
+            {canModify ? <FaEdit /> : <FaInfoCircle />}
           </button>
         </div>
       </div>
@@ -143,6 +151,13 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
 // ─── Program Modal Component ──────────────────────────────────────────────────
 
 function ProgramModal({ prog, onClose, onSaved }) {
+  const { userRole, orgName } = useAuth();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
+
+  const isClientWideProgram = Boolean(prog?.isClientWide ?? prog?.is_client_wide);
+  // Non-super-admins cannot edit client-level programs
+  const isReadOnly = Boolean(prog?.id) && isClientWideProgram && !isSuperAdmin;
+
   const [form, setForm] = useState(
     prog
       ? {
@@ -150,6 +165,7 @@ function ProgramModal({ prog, onClose, onSaved }) {
           description: prog.description || '',
           isActive: (prog.isActive ?? prog.active ?? true) !== false,
           isDefault: Boolean(prog.isDefault ?? prog.default ?? false),
+          isClientWide: Boolean(prog.isClientWide ?? prog.is_client_wide ?? false),
           priority: prog.priority ?? 10,
           spendAmount: prog.earnRule?.spendAmount ?? 100,
           earnPoints: prog.earnRule?.earnPoints ?? 1,
@@ -197,6 +213,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
       setError('Redemption rule values must be greater than 0.');
       return;
     }
+    const finalIsActive = Boolean(form.isActive);
+    const finalIsDefault = finalIsActive ? Boolean(form.isDefault) : false;
 
     setSaving(true);
     setError('');
@@ -204,8 +222,9 @@ function ProgramModal({ prog, onClose, onSaved }) {
       const payload = {
         name: form.name.trim(),
         description: form.description.trim(),
-        isActive: form.isActive,
-        isDefault: form.isDefault,
+        isActive: finalIsActive,
+        isDefault: finalIsDefault,
+        isClientWide: form.isClientWide,
         priority: parseInt(form.priority) || 10,
         spendAmount: parseFloat(form.spendAmount),
         earnPoints: parseInt(form.earnPoints),
@@ -248,6 +267,25 @@ function ProgramModal({ prog, onClose, onSaved }) {
         </div>
 
         <form onSubmit={handleSave} className="modal-body">
+          {isReadOnly && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              background: '#f5f3ff',
+              border: '1px solid #ddd6fe',
+              borderRadius: '8px',
+              color: '#6d28d9',
+              fontSize: '13px',
+              fontWeight: '600'
+            }}>
+              <FaInfoCircle style={{ fontSize: '16px', flexShrink: 0 }} />
+              <span>This is a client-level program. Only Super Admin can edit or modify client-wide loyalty programs.</span>
+            </div>
+          )}
+
           {/* General Section */}
           <div className="form-section">
             <span className="section-tag">1. BASIC DETAILS</span>
@@ -259,6 +297,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 required
+                readOnly={isReadOnly}
+                disabled={isReadOnly}
               />
             </div>
             <div className="form-group">
@@ -268,38 +308,57 @@ function ProgramModal({ prog, onClose, onSaved }) {
                 placeholder="Short summary for customers and staff..."
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                readOnly={isReadOnly}
+                disabled={isReadOnly}
               />
             </div>
             <div className="form-row">
-              <div className="form-group">
-                <label>Priority Rank</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="999"
-                  value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                />
-                <span className="field-hint">Higher priority takes precedence</span>
-              </div>
               <div className="form-group toggle-group">
                 <label>Default Program?</label>
                 <div
-                  className={`toggle-switch ${form.isDefault ? 'on' : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, isDefault: !f.isDefault }))}
+                  className={`toggle-switch ${form.isDefault ? 'on' : ''} ${(!form.isActive || isReadOnly) ? 'disabled' : ''}`}
+                  onClick={() => {
+                    if (!form.isActive || isReadOnly) return;
+                    setForm((f) => ({ ...f, isDefault: !f.isDefault }));
+                  }}
+                  title={isReadOnly ? 'Only Super Admin can modify client-wide programs' : (!form.isActive ? 'Only active programs can be set as default' : '')}
                 >
                   <div className="toggle-handle" />
                 </div>
+                {!form.isActive && <span className="field-hint" style={{ color: '#ef4444' }}>Only active programs can be default</span>}
               </div>
               <div className="form-group toggle-group">
                 <label>Active Status</label>
                 <div
-                  className={`toggle-switch ${form.isActive ? 'on' : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, isActive: !f.isActive }))}
+                  className={`toggle-switch ${form.isActive ? 'on' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                  onClick={() => {
+                    if (isReadOnly) return;
+                    const nextActive = !form.isActive;
+                    setForm((f) => ({
+                      ...f,
+                      isActive: nextActive,
+                      isDefault: nextActive ? f.isDefault : false
+                    }));
+                  }}
                 >
                   <div className="toggle-handle" />
                 </div>
               </div>
+              {isSuperAdmin && (
+                <div className="form-group toggle-group">
+                  <label>Apply to All Branches?</label>
+                  <div
+                    className={`toggle-switch ${form.isClientWide ? 'on' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                    onClick={() => {
+                      if (isReadOnly) return;
+                      setForm((f) => ({ ...f, isClientWide: !f.isClientWide }));
+                    }}
+                  >
+                    <div className="toggle-handle" />
+                  </div>
+                  <span className="field-hint">{form.isClientWide ? 'Client-wide (all branches)' : (prog?.branchName || orgName ? `Branch: ${prog?.branchName || orgName}` : 'This branch only')}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -317,6 +376,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                       min="1"
                       value={form.spendAmount}
                       onChange={(e) => setForm((f) => ({ ...f, spendAmount: e.target.value }))}
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
                     />
                   </div>
                 </div>
@@ -330,6 +391,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                       min="1"
                       value={form.earnPoints}
                       onChange={(e) => setForm((f) => ({ ...f, earnPoints: e.target.value }))}
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
                     />
                   </div>
                 </div>
@@ -351,6 +414,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                       min="1"
                       value={form.pointsRequired}
                       onChange={(e) => setForm((f) => ({ ...f, pointsRequired: e.target.value }))}
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
                     />
                   </div>
                 </div>
@@ -364,6 +429,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                       min="1"
                       value={form.discountAmount}
                       onChange={(e) => setForm((f) => ({ ...f, discountAmount: e.target.value }))}
+                      disabled={isReadOnly}
+                      readOnly={isReadOnly}
                     />
                   </div>
                 </div>
@@ -377,6 +444,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                     min="0"
                     value={form.minPoints}
                     onChange={(e) => setForm((f) => ({ ...f, minPoints: e.target.value }))}
+                    disabled={isReadOnly}
+                    readOnly={isReadOnly}
                   />
                 </div>
                 <div className="form-group">
@@ -386,6 +455,8 @@ function ProgramModal({ prog, onClose, onSaved }) {
                     min="0"
                     placeholder="Unlimited"
                     value={form.maxPointsPerOrder ?? ''}
+                    disabled={isReadOnly}
+                    readOnly={isReadOnly}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
@@ -415,11 +486,13 @@ function ProgramModal({ prog, onClose, onSaved }) {
 
           <div className="modal-footer">
             <button type="button" className="btn-cancel" onClick={onClose}>
-              Cancel
+              {isReadOnly ? 'Close' : 'Cancel'}
             </button>
-            <button type="submit" className="btn-submit" disabled={saving}>
-              {saving ? 'Saving...' : prog?.id ? 'Update Program' : 'Create Program'}
-            </button>
+            {!isReadOnly && (
+              <button type="submit" className="btn-submit" disabled={saving}>
+                {saving ? 'Saving...' : prog?.id ? 'Update Program' : 'Create Program'}
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -430,6 +503,9 @@ function ProgramModal({ prog, onClose, onSaved }) {
 // ─── Programs Tab View ────────────────────────────────────────────────────────
 
 function ProgramsTab() {
+  const { userRole, orgName } = useAuth();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
+
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalProg, setModalProg] = useState(null);
@@ -489,15 +565,21 @@ function ProgramsTab() {
   }
 
   async function handleToggleActive(p) {
+    const isClientWide = Boolean(p.isClientWide ?? p.is_client_wide);
+    if (isClientWide && !isSuperAdmin) {
+      alert('Only Super Admin can activate/deactivate client-wide loyalty programs.');
+      return;
+    }
     const currentActive = (p.isActive ?? p.active ?? false);
-    const currentDefault = Boolean(p.isDefault ?? p.default ?? false);
+    const newActive = !currentActive;
     try {
       const payload = {
         id: p.id,
         name: p.name,
         description: p.description,
-        isActive: !currentActive,
-        isDefault: currentDefault,
+        isActive: newActive,
+        isDefault: newActive ? Boolean(p.isDefault ?? p.default ?? false) : false,
+        isClientWide: isClientWide,
         priority: p.priority ?? 10,
         spendAmount: p.earnRule?.spendAmount ?? 100,
         earnPoints: p.earnRule?.earnPoints ?? 1,
@@ -515,14 +597,24 @@ function ProgramsTab() {
   }
 
   async function handleSetDefault(p) {
-    const currentActive = (p.isActive ?? p.active ?? true);
+    const isClientWide = Boolean(p.isClientWide ?? p.is_client_wide);
+    if (isClientWide && !isSuperAdmin) {
+      alert('Only Super Admin can set client-wide loyalty programs as default.');
+      return;
+    }
+    const isActive = (p.isActive ?? p.active ?? true);
+    if (!isActive) {
+      alert('Cannot set an inactive program as default. Please activate it first.');
+      return;
+    }
     try {
       const payload = {
         id: p.id,
         name: p.name,
         description: p.description,
-        isActive: currentActive,
+        isActive: isActive,
         isDefault: true,
+        isClientWide: Boolean(p.isClientWide ?? p.is_client_wide ?? false),
         priority: p.priority ?? 10,
         spendAmount: p.earnRule?.spendAmount ?? 100,
         earnPoints: p.earnRule?.earnPoints ?? 1,
@@ -592,9 +684,9 @@ function ProgramsTab() {
               <tr>
                 <th>PROGRAM NAME</th>
                 <th>DESCRIPTION</th>
+                <th>BRANCH</th>
                 <th>EARN RULE</th>
                 <th>REDEMPTION RULE</th>
-                <th>PRIORITY</th>
                 <th>STATUS</th>
                 <th>DEFAULT</th>
                 <th style={{ textAlign: 'right' }}>ACTIONS</th>
@@ -604,6 +696,8 @@ function ProgramsTab() {
               {paginatedPrograms.map((p) => {
                 const isActive = (p.isActive ?? p.active ?? true) !== false;
                 const isDefault = Boolean(p.isDefault ?? p.default ?? false);
+                const isClientWide = Boolean(p.isClientWide ?? p.is_client_wide);
+                const displayBranchName = isClientWide ? 'All Branches' : (p.branchName || orgName || 'This Branch');
                 const earn = p.earnRule;
                 const redeem = p.redemptionRule;
                 return (
@@ -615,6 +709,17 @@ function ProgramsTab() {
                       <span style={{ fontSize: '12.5px', color: p.description ? '#475569' : '#94a3b8' }}>
                         {p.description || '—'}
                       </span>
+                    </td>
+                    <td>
+                      {isClientWide ? (
+                        <span className="status-badge-po" style={{ color: '#7c3aed', backgroundColor: '#f5f3ff', borderColor: '#ddd6fe', fontSize: '11px' }}>
+                          All Branches
+                        </span>
+                      ) : (
+                        <span className="status-badge-po" style={{ color: '#0369a1', backgroundColor: '#f0f9ff', borderColor: '#bae6fd', fontSize: '11px' }}>
+                          {displayBranchName}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' }}>
@@ -630,9 +735,6 @@ function ProgramsTab() {
                           Min {redeem.minPoints} pts
                         </span>
                       )}
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: '700', fontSize: '12px', color: '#475569' }}>{p.priority ?? 10}</span>
                     </td>
                     <td>
                       {isActive ? (
@@ -655,14 +757,26 @@ function ProgramsTab() {
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        className="action-btn-po"
-                        onClick={() => openEdit(p)}
-                        title="Edit Program"
-                      >
-                        <FaEdit /> Edit
-                      </button>
+                      {Boolean(p.isClientWide ?? p.is_client_wide) && !isSuperAdmin ? (
+                        <button
+                          type="button"
+                          className="action-btn-po"
+                          onClick={() => openEdit(p)}
+                          title="View Program Details (Client-Wide: Super Admin only can edit)"
+                          style={{ color: '#6d28d9', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff' }}
+                        >
+                          <FaInfoCircle /> View
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="action-btn-po"
+                          onClick={() => openEdit(p)}
+                          title="Edit Program"
+                        >
+                          <FaEdit /> Edit
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -962,10 +1076,11 @@ function CustomerLoyaltyTab() {
               </div>
               <div>
                 <div className="strip-name">{account.customerName || 'Customer'}</div>
-                <div className="strip-sub">
-                  {account.customerPhone && <span>{account.customerPhone}</span>}
-                  <span className="strip-program">Program: {account.programName || 'Default'}</span>
-                </div>
+                {account.customerPhone && (
+                  <div className="strip-sub">
+                    <span>{account.customerPhone}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -996,6 +1111,7 @@ function CustomerLoyaltyTab() {
                     <tr>
                       <th>DATE & TIME</th>
                       <th>DOCUMENT NO</th>
+                      <th>PROGRAM</th>
                       <th>TYPE</th>
                       <th>POINTS</th>
                       <th>BALANCE AFTER</th>
@@ -1020,6 +1136,11 @@ function CustomerLoyaltyTab() {
                             ) : (
                               <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
                             )}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', color: t.programName ? '#475569' : '#94a3b8' }}>
+                              {t.programName || '—'}
+                            </span>
                           </td>
                           <td>
                             <span
