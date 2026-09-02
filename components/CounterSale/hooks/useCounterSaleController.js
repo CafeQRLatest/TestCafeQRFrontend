@@ -203,7 +203,7 @@ export default function useCounterSaleController({
     }
   }, [config]);
 
-  const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY';
+  const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY' || (initialTable?.tableNumber === 'COUNTER' && initialTable?.orderType !== 'DELIVERY');
   const isDineInOrder = !isTakeawayOrder && initialTable?.orderType !== 'DELIVERY';
   const hideKitchenForTakeaway = isTakeawayOrder && config?.takeawayHideKitchenMode === true;
   const hideKitchenForDineIn = isDineInOrder && config?.dineInHideKitchenMode === true;
