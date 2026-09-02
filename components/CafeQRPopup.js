@@ -78,6 +78,7 @@ export default function CafeQRPopup({
       <style jsx>{`
         .cafeqr-popup-overlay {
           position: fixed;
+          top: 0; right: 0; bottom: 0; left: 0;
           inset: 0;
           background: rgba(15, 23, 42, 0.4);
           backdrop-filter: blur(4px);
@@ -95,6 +96,7 @@ export default function CafeQRPopup({
           border-radius: 16px;
           display: flex;
           flex-direction: column;
+          max-height: 90vh;
           max-height: 90dvh;
           overflow: hidden;
           box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
@@ -257,6 +259,7 @@ export default function CafeQRPopup({
             width: calc(100% - 16px) !important;
             max-width: calc(100% - 16px) !important;
             margin: auto !important;
+            max-height: 90vh;
             max-height: 90dvh;
             border-radius: 16px;
           }

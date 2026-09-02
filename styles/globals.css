@@ -38,6 +38,7 @@ body {
 }
 
 #__next {
+  min-height: 100vh;
   min-height: 100dvh;
   min-width: 320px;
 }
@@ -81,6 +82,7 @@ h1, h2, h3, h4, .outfit-font {
 
 .premium-mesh-bg {
   position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
   inset: 0;
   z-index: -1;
   background: 
@@ -149,6 +151,7 @@ h1, h2, h3, h4, .outfit-font {
 .overview-container,
 .report-container,
 .wm {
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
@@ -241,6 +244,7 @@ h1, h2, h3, h4, .outfit-font {
 .success-glass-card,
 .cafeqr-popup-content {
   width: min(100%, var(--modal-max-width, 640px));
+  max-height: calc(100vh - 32px - var(--cq-safe-top) - var(--cq-safe-bottom));
   max-height: calc(100dvh - 32px - var(--cq-safe-top) - var(--cq-safe-bottom));
 }
 
@@ -440,12 +444,14 @@ h1, h2, h3, h4, .outfit-font {
   .cafeqr-popup-content {
     width: 100% !important;
     max-width: none !important;
+    max-height: calc(100vh - var(--cq-safe-top)) !important;
     max-height: calc(100dvh - var(--cq-safe-top)) !important;
     border-radius: 22px 22px 0 0 !important;
   }
 
   .modal-body,
   .cafeqr-popup-body {
+    max-height: calc(100vh - 150px - var(--cq-safe-top) - var(--cq-safe-bottom));
     max-height: calc(100dvh - 150px - var(--cq-safe-top) - var(--cq-safe-bottom));
     overflow-y: auto;
   }
@@ -469,6 +475,7 @@ h1, h2, h3, h4, .outfit-font {
   }
 
   .page-wrapper {
+    min-height: 100vh !important;
     min-height: 100dvh !important;
     padding: 12px !important;
   }
