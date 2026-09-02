@@ -204,8 +204,10 @@ export default function useCounterSaleController({
   }, [config]);
 
   const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY';
+  const isDineInOrder = !isTakeawayOrder && initialTable?.orderType !== 'DELIVERY';
   const hideKitchenForTakeaway = isTakeawayOrder && config?.takeawayHideKitchenMode === true;
-  const activeOrderMode = hideKitchenForTakeaway ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
+  const hideKitchenForDineIn = isDineInOrder && config?.dineInHideKitchenMode === true;
+  const activeOrderMode = (hideKitchenForTakeaway || hideKitchenForDineIn) ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
 
   const THEME = activeOrderMode === 'kitchen'
     ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
@@ -666,7 +668,8 @@ export default function useCounterSaleController({
       handleCompleteSettle,
       handlePlaceOrder,
       kitchenEnabled,
-      hideKitchenForTakeaway
+      hideKitchenForTakeaway,
+      hideKitchenForDineIn
     },
     ui: {
       zoomLevel,

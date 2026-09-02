@@ -1427,7 +1427,18 @@ function SalesContent() {
       String(printedOrder.orderType || printedOrder.order_type || '').toUpperCase() === 'TAKEAWAY' ||
       printedOrder.tableNumber === 'COUNTER'
     );
-    const shouldChainedPrintKot = config?.takeawayAutoPrintKotOnSettle && printedKind === 'bill' && isTakeawayOrder && !printedOrder?._chainedKotDone;
+    
+    const isDineInOrder = printedOrder && !isTakeawayOrder && (
+      String(printedOrder.fulfillmentType || printedOrder.fulfillment_type || '').toUpperCase() === 'DINE_IN' ||
+      (printedOrder.tableNumber && printedOrder.tableNumber !== 'COUNTER')
+    );
+
+    const shouldChainedPrintKot = (
+      (config?.takeawayAutoPrintKotOnSettle && isTakeawayOrder) ||
+      (config?.dineInAutoPrintKotOnSettle && isDineInOrder)
+    ) && printedKind === 'bill' && !printedOrder?._chainedKotDone;
+
+    const orderTypeLabel = isTakeawayOrder ? 'Takeaway' : 'Dine-In';
 
     if (printedOrder && !printedOrder.offline) {
       markCloudPrintJobPrinted(printedOrder, printedKind)
@@ -1440,7 +1451,7 @@ function SalesContent() {
             setTimeout(() => {
               setPrintOrder({ ...printedOrder, _chainedKotDone: true });
               setPrintKind('kot');
-              showToast('Bill printed — now printing Takeaway KOT...');
+              showToast(`Bill printed — now printing ${orderTypeLabel} KOT...`);
             }, 300);
           }
         });
@@ -1450,11 +1461,11 @@ function SalesContent() {
         setTimeout(() => {
           setPrintOrder({ ...printedOrder, _chainedKotDone: true });
           setPrintKind('kot');
-          showToast('Bill printed — now printing Takeaway KOT...');
+          showToast(`Bill printed — now printing ${orderTypeLabel} KOT...`);
         }, 300);
       }
     }
-  }, [config?.takeawayAutoPrintKotOnSettle, loadOfflineOrderState, printKind, printOrder, showToast]);
+  }, [config?.takeawayAutoPrintKotOnSettle, config?.dineInAutoPrintKotOnSettle, loadOfflineOrderState, printKind, printOrder, showToast]);
 
   const handleOpenTableOrder = (table) => {
     const tableState = resolveTableOrderState(table, getActiveOrderForTable(table));
