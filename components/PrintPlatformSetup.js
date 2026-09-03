@@ -355,12 +355,14 @@ const syncPrintConfigToLocalStorage = (config) => {
       categories: Array.isArray(r.categories) ? r.categories : [],
       printerNames: printerNames,
       netPrinterIds: [],
+      profileIds: Array.isArray(r.profileIds) ? r.profileIds : [],
     };
   });
 
-  const routingEnabled = legacyRoutes.some(r => r.enabled && r.categories.length > 0 && r.printerNames.length > 0);
+  const routingEnabled = legacyRoutes.some(r => r.enabled && r.categories.length > 0 && (r.printerNames.length > 0 || r.profileIds.length > 0));
   localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0');
   localStorage.setItem('PRINT_KOT_ROUTES_V1', JSON.stringify(legacyRoutes));
+  localStorage.setItem('PRINT_PROFILES', JSON.stringify(profiles));
 
   // 4. Map paper settings
   const thermalProfile = profiles.find(p => p.format === 'THERMAL') || {};

@@ -470,6 +470,9 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
       const routes = readJson('PRINT_KOT_ROUTES_V1', []).filter((r) => r && r.enabled);
       const allOrderItems = rawItemsFromOrder(normalizedOrder);
+      const allProfiles = readJson('PRINT_PROFILES', []);
+      const profileMap = new Map(allProfiles.map(p => [p.id, p]));
+      const matchedItemIds = new Set();
 
       if (!routes.length) {
         const text = buildKotText(normalizedOrder, restaurantProfile);
@@ -518,6 +521,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         const subset = allOrderItems.filter((oi) => catSet.has(norm(getItemCategoryName(oi))));
         if (!subset.length) continue;
 
+        subset.forEach(oi => matchedItemIds.add(oi.id || oi.productId || oi.name));
+
         const routedOrder = {
           ...normalizedOrder,
           lines: subset,
@@ -525,7 +530,70 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         };
         const text = buildKotText(routedOrder, restaurantProfile);
 
-        if (onAndroidPWA) {
+        const routeProfiles = (r.profileIds || []).map(id => profileMap.get(id)).filter(Boolean);
+        const routeWinPrinterNames = routeProfiles.filter(p => p.connectionType === 'WINDOWS_QUEUE').map(p => p.windowsPrinterName).filter(Boolean);
+        const routeIpPrinters = routeProfiles.filter(p => p.connectionType === 'NETWORK').map(p => ({ ip: p.host, port: Number(p.port || 9100) })).filter(p => p.ip);
+        const routeBtPrinters = routeProfiles.filter(p => p.connectionType === 'BLUETOOTH_COM' || p.connectionType === 'BLUETOOTH').map(p => p.btAddress || p.macAddress || p.comPort).filter(Boolean);
+
+        const routeNet = getRouteNetworkTargets(r);
+        if (routeNet.targets.length) routeNet.targets.forEach(t => routeIpPrinters.push(t));
+        if (Array.isArray(r.printerNames)) r.printerNames.forEach(n => routeWinPrinterNames.push(n));
+
+        const uniqWin = [...new Set(routeWinPrinterNames)];
+        const uniqBt = [...new Set(routeBtPrinters)];
+        let printedRoute = false;
+
+        for (const t of routeIpPrinters) {
+          await printUniversal({
+            text,
+            relayUrl: routeNet.relayUrl || (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
+            ip: t.ip,
+            port: t.port,
+            codepage: 0,
+            allowPrompt: false,
+            allowSystemDialog: false,
+            scale,
+            jobKind: 'kot',
+            outputFormat: nativeOutput,
+            document: { ...baseDocument, order: routedOrder },
+            ...getPrintJobMeta(routedOrder, 'kot', `route-net-${r.id || r.name || t.ip}`),
+          });
+          printedRoute = true;
+        }
+
+        if (uniqWin.length) {
+          await printUniversal({
+            text,
+            codepage: 0,
+            allowPrompt: false,
+            allowSystemDialog,
+            scale,
+            jobKind: 'kot',
+            outputFormat: nativeOutput,
+            document: { ...baseDocument, order: routedOrder },
+            winPrinterNames: uniqWin,
+            ...getPrintJobMeta(routedOrder, 'kot', `route-win-${r.id || r.name || uniqWin.join('-')}`),
+          });
+          printedRoute = true;
+        }
+
+        if (uniqBt.length) {
+          await printUniversal({
+            text,
+            codepage: 0,
+            allowPrompt: false,
+            allowSystemDialog,
+            scale,
+            jobKind: 'kot',
+            outputFormat: nativeOutput,
+            document: { ...baseDocument, order: routedOrder },
+            btAddresses: uniqBt,
+            ...getPrintJobMeta(routedOrder, 'kot', `route-bt-${r.id || r.name || uniqBt.join('-')}`),
+          });
+          printedRoute = true;
+        }
+
+        if (!printedRoute && onAndroidPWA) {
           try {
             await printUniversal({
               text,
@@ -540,36 +608,13 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           } catch (e) {
             console.error(e);
           }
-          continue;
-        }
-
-        const routeNet = getRouteNetworkTargets(r);
-        const routeWinPrinterNames = Array.isArray(r.printerNames) ? r.printerNames : [];
-        let printedRoute = false;
-
-        if (routeNet.relayUrl && routeNet.targets.length) {
-          for (const t of routeNet.targets) {
-            await printUniversal({
-              text,
-              relayUrl: routeNet.relayUrl,
-              ip: t.ip,
-              port: t.port,
-              codepage: 0,
-              allowPrompt: false,
-              allowSystemDialog: false,
-              scale,
-              jobKind: 'kot',
-              outputFormat: nativeOutput,
-              document: { ...baseDocument, order: routedOrder },
-              ...getPrintJobMeta(routedOrder, 'kot', `route-net-${r.id || r.name || t.ip}`),
-            });
-            printedRoute = true;
-          }
-        }
-
-        if (routeWinPrinterNames.length) {
+          printedRoute = true;
+        } else if (!printedRoute) {
           await printUniversal({
             text,
+            relayUrl: (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
+            ip: (typeof window !== 'undefined' && localStorage.getItem('PRINTER_IP')) || undefined,
+            port: Number((typeof window !== 'undefined' && localStorage.getItem('PRINTER_PORT')) || 9100),
             codepage: 0,
             allowPrompt: false,
             allowSystemDialog,
@@ -577,26 +622,49 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             jobKind: 'kot',
             outputFormat: nativeOutput,
             document: { ...baseDocument, order: routedOrder },
-            winPrinterNames: routeWinPrinterNames,
-            ...getPrintJobMeta(routedOrder, 'kot', `route-win-${r.id || r.name || routeWinPrinterNames.join('-')}`),
+            ...getPrintJobMeta(routedOrder, 'kot', `route-default-${r.id || r.name || 'fallback'}`),
           });
-          printedRoute = true;
         }
+      }
 
-        if (!printedRoute) {
+      const unroutedItems = allOrderItems.filter(oi => !matchedItemIds.has(oi.id || oi.productId || oi.name));
+      if (unroutedItems.length > 0) {
+        const fallbackOrder = {
+          ...normalizedOrder,
+          lines: unroutedItems,
+          items: toLegacyItemsFromOrderItems(unroutedItems),
+        };
+        const text = buildKotText(fallbackOrder, restaurantProfile);
+
+        if (onAndroidPWA) {
+          try {
+            await printUniversal({
+              text,
+              allowPrompt: true,
+              allowSystemDialog: true,
+              scale,
+              jobKind: 'kot',
+              outputFormat: nativeOutput,
+              document: { ...baseDocument, order: fallbackOrder },
+              ...getPrintJobMeta(fallbackOrder, 'kot', 'fallback-android'),
+            });
+          } catch (e) {
+            console.error(e);
+          }
+        } else {
           await printUniversal({
             text,
             relayUrl: (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
             ip: (typeof window !== 'undefined' && localStorage.getItem('PRINTER_IP')) || undefined,
             port: Number((typeof window !== 'undefined' && localStorage.getItem('PRINTER_PORT')) || 9100),
-            codepage: 0,
-            allowPrompt: true,
+            allowPrompt: false,
             allowSystemDialog,
             scale,
+            codepage: 0,
             jobKind: 'kot',
             outputFormat: nativeOutput,
-            document: { ...baseDocument, order: routedOrder },
-            ...getPrintJobMeta(routedOrder, 'kot', `route-default-${r.id || r.name || 'fallback'}`),
+            document: { ...baseDocument, order: fallbackOrder },
+            ...getPrintJobMeta(fallbackOrder, 'kot', 'fallback-main'),
           });
         }
       }
