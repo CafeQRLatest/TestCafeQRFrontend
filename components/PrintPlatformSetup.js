@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
 import {
   FaAndroid,
+  FaBluetooth,
   FaCheckCircle,
   FaCircle,
   FaDownload,
@@ -17,6 +18,7 @@ import {
   FaSlidersH,
   FaBarcode,
 } from 'react-icons/fa';
+import { Capacitor } from '@capacitor/core';
 import { printBarcodeLabel } from '../utils/barcodeLabelPrint';
 
 const DEFAULT_LABEL_TEMPLATE = {
@@ -56,6 +58,12 @@ import CafeQRPopup from './CafeQRPopup';
 const newId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const SELECTED_TERMINAL_KEY = 'CAFEQR_PRINT_SELECTED_TERMINAL';
 const PRODUCTION_APP_URL = 'https://app.cafeqr.in';
+
+const isNativeAndroid = () => {
+  try {
+    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+  } catch { return false; }
+};
 
 const DEFAULT_THERMAL_LAYOUT = {
   preset: '58MM',
@@ -253,6 +261,8 @@ const profileDefaults = (format = 'THERMAL') => ({
   port: 9100,
   comPort: '',
   baudRate: 9600,
+  btAddress: '',
+  btNameHint: '',
   paperPreset: format === 'REGULAR' ? 'A4' : '58MM',
   widthMm: format === 'REGULAR' ? 210 : 58,
   heightMm: format === 'REGULAR' ? 297 : 0,
@@ -476,12 +486,14 @@ const DOCUMENT_DEFAULTS = [
 
 const profileDestination = (profile) => {
   if (profile.connectionType === 'NETWORK') return `${profile.host || 'No host'}:${profile.port || 9100}`;
+  if (profile.connectionType === 'BLUETOOTH') return profile.btNameHint || profile.btAddress || 'Not paired';
   if (profile.connectionType === 'BLUETOOTH_COM') return profile.comPort || 'No COM port';
   return profile.windowsPrinterName || 'No Windows queue selected';
 };
 
 const profileTransportLabel = (profile) => {
   if (profile.connectionType === 'NETWORK') return 'Direct network';
+  if (profile.connectionType === 'BLUETOOTH') return 'Android Bluetooth';
   if (profile.connectionType === 'BLUETOOTH_COM') return 'Bluetooth COM';
   return 'Windows queue';
 };
@@ -1601,7 +1613,8 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                       options={[
                         { value: 'WINDOWS_QUEUE', label: 'Windows queue (USB/Bluetooth/LAN)' },
                         { value: 'NETWORK', label: 'Direct LAN/Wi-Fi TCP' },
-                        { value: 'BLUETOOTH_COM', label: 'Bluetooth COM' },
+                        { value: 'BLUETOOTH', label: 'Bluetooth (Android)' },
+                        { value: 'BLUETOOTH_COM', label: 'Bluetooth COM (Windows)' },
                         { value: 'WEBUSB', label: 'Direct WebUSB (Chrome OS/Mac)' }
                       ]}
                     />
@@ -1653,6 +1666,55 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                         />
                       </Field>
                       <Field label="Baud rate"><input type="number" value={profile.baudRate || 9600} onChange={(event) => updateProfile(profile.id, { baudRate: Number(event.target.value) })} /></Field>
+                    </>
+                  )}
+                  {profile.connectionType === 'BLUETOOTH' && (
+                    <>
+                      <Field label="Bluetooth MAC Address">
+                        <input
+                          value={profile.btAddress || ''}
+                          onChange={(event) => updateProfile(profile.id, { btAddress: event.target.value.trim() })}
+                          placeholder="00:11:22:33:44:55"
+                        />
+                      </Field>
+                      {profile.btNameHint && (
+                        <Field label="Paired Device">
+                          <span className="profile-destination" style={{ padding: '10px 0', fontSize: '13px', fontWeight: 700, color: '#059669' }}>
+                            ✓ {profile.btNameHint}
+                          </span>
+                        </Field>
+                      )}
+                      {isNativeAndroid() && (
+                        <Field label="Pair Device">
+                          <button className="secondary" type="button" onClick={async () => {
+                            try {
+                              const DevicePrinter = window.Capacitor?.Plugins?.DevicePrinter;
+                              if (!DevicePrinter) throw new Error('Open this page inside the CafeQR Android app.');
+                              await DevicePrinter.ensurePermissions();
+                              const pick = await DevicePrinter.pickPrinter();
+                              const address = pick?.address;
+                              if (!address) throw new Error('No printer selected');
+                              await DevicePrinter.pairDevice({ address });
+                              updateProfile(profile.id, {
+                                btAddress: address,
+                                btNameHint: pick?.name || '',
+                              });
+                              showMessage(`✓ Paired: ${pick?.name || address}`);
+                            } catch (err) {
+                              showMessage(`✗ Pairing failed: ${err?.message || String(err)}`);
+                            }
+                          }}>
+                            <FaBluetooth style={{ marginRight: '6px' }} /> Pair Android Bluetooth
+                          </button>
+                        </Field>
+                      )}
+                      {!isNativeAndroid() && (
+                        <Field label="">
+                          <span style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
+                            Open this page on the CafeQR Android app to use the Bluetooth scanner, or manually enter the MAC address above.
+                          </span>
+                        </Field>
+                      )}
                     </>
                   )}
                   {profile.connectionType === 'WEBUSB' && (

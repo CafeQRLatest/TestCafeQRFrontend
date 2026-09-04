@@ -89,75 +89,7 @@ export default function OrderTypeSelectorModal({
 
   const showTablePicker = activeType === 'TABLE';
 
-  if (!isTableConfigOn) {
-    return (
-      <div style={S.overlay}>
-        {/* ── Header bar ── */}
-        <div style={S.header}>
-          <div style={S.headerLeft}>
-            <span style={S.titleIndicator} />
-            <span style={S.title}>Sale Order</span>
-            <span style={S.divider}>·</span>
-            <span style={S.sub}>Select order type</span>
-          </div>
-          <div style={S.headerRight}>
-            {onHistoryClick && (
-              <button className="sales-hist-btn-responsive" style={S.salesHistBtn} onClick={onHistoryClick}>
-                <FaHistory size={11} />
-                <span className="sales-history-btn-label">Sales History</span>
-              </button>
-            )}
-          </div>
-        </div>
 
-        {/* Centered cards container */}
-        <div style={S.centerContainer}>
-          {orderTypes.map(type => {
-            const isHov = hoveredCard === type.key;
-            return (
-              <button
-                key={type.key}
-                style={{
-                  ...S.centerCard,
-                  borderColor: isHov ? type.accent : '#e2e8f0',
-                  transform: isHov ? 'translateY(-6px)' : 'translateY(0)',
-                  boxShadow: isHov
-                    ? `0 12px 20px -8px ${type.accent}44, 0 4px 12px rgba(0,0,0,0.05)`
-                    : '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-                }}
-                onClick={() => onSelect({ orderType: type.key, table: null })}
-                onMouseEnter={() => setHoveredCard(type.key)}
-                onMouseLeave={() => setHoveredCard(null)}
-              >
-                <span style={{ ...S.centerCardIcon, color: type.accent }}>{type.icon}</span>
-                <span style={S.centerCardLabel}>{type.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <style jsx global>{`
-          @keyframes _ots_in {
-            from { opacity:0; transform:translateY(16px) }
-            to   { opacity:1; transform:translateY(0) }
-          }
-          @media (max-width: 520px) {
-            .sales-history-btn-label {
-              display: none !important;
-            }
-            .sales-hist-btn-responsive {
-              padding: 8px !important;
-              width: 30px !important;
-              height: 30px !important;
-              border-radius: 50% !important;
-              justify-content: center !important;
-              gap: 0 !important;
-            }
-          }
-        `}</style>
-      </div>
-    );
-  }
 
   const handleTypeClick = (type) => {
     if (type.key === 'TABLE') {
@@ -357,43 +289,7 @@ const S = {
     fontFamily: "'Plus Jakarta Sans', sans-serif",
   },
 
-  /* Centered cards (if table config off) */
-  centerContainer: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    padding: 20,
-    background: '#f8fafc',
-  },
-  centerCard: {
-    width: 150,
-    height: 150,
-    borderRadius: 20,
-    border: '1px solid #e2e8f0',
-    background: 'white',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    cursor: 'pointer',
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    fontFamily: 'inherit',
-    outline: 'none',
-  },
-  centerCardIcon: {
-    fontSize: 36,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerCardLabel: {
-    fontSize: 14,
-    fontWeight: 800,
-    color: '#334155',
-  },
+
 
   /* Header */
   header: {

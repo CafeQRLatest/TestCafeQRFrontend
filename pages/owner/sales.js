@@ -1938,7 +1938,7 @@ function SalesContent() {
     }
     : undefined;
 
-  if (!isMounted) {
+  if (!isMounted || (!isSalesBranchMissing && !config)) {
     return (
       <DashboardLayout title="Sales">
         <PageContainer style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
