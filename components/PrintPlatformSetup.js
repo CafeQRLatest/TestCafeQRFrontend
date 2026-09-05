@@ -153,6 +153,8 @@ const DEFAULT_CONFIG = {
     invoiceMode: 'MIRROR',
     labelMode: 'MIRROR',
     preferCloudPrint: false,
+    printMasterKot: false,
+    masterKotProfileIds: [],
   },
   kotTemplate: DEFAULT_KOT_TEMPLATE,
   receiptTemplate: DEFAULT_RECEIPT_TEMPLATE,
@@ -1908,7 +1910,45 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
       {tab === 'routing' && (
         <section className="surface">
-          <header><div><h3>Print Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div><button className="secondary" onClick={addRoute}><FaPlus /> Add route</button></header>
+          <header>
+            <div>
+              <h3>Master KOT</h3>
+              <p>Optionally print a consolidated Master KOT of the entire order before routing items to specific kitchen stations.</p>
+            </div>
+          </header>
+          <div className="form-grid">
+            <Field label="Print Consolidated Master KOT">
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={printConfig.defaults?.printMasterKot || false}
+                  onChange={(e) =>
+                    setPrintConfig((prev) => ({
+                      ...prev,
+                      defaults: { ...prev.defaults, printMasterKot: e.target.checked },
+                    }))
+                  }
+                />
+                Enable Master KOT
+              </label>
+            </Field>
+            {printConfig.defaults?.printMasterKot && (
+              <TagSelector
+                label="Master KOT Printers"
+                values={printConfig.profiles.map((p) => p.id)}
+                labels={Object.fromEntries(printConfig.profiles.map((p) => [p.id, p.name]))}
+                selected={printConfig.defaults?.masterKotProfileIds || []}
+                onChange={(values) =>
+                  setPrintConfig((prev) => ({
+                    ...prev,
+                    defaults: { ...prev.defaults, masterKotProfileIds: values },
+                  }))
+                }
+              />
+            )}
+          </div>
+          <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid #dfe5ee' }} />
+          <header><div><h3>Kitchen Routing</h3><p>Route by document, category, order type, priority, and mirror or failover behavior.</p></div><button className="secondary" onClick={addRoute}><FaPlus /> Add route</button></header>
           <div className="route-list">
             {printConfig.routes.map((route) => (
               <div className={`route ${routeConflicts.has(route.id) ? 'conflict' : ''}`} key={route.id}>
