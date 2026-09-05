@@ -175,6 +175,39 @@ export async function printKotByStation(
     return results;
   }
 
+  // --- Print Consolidated Master KOT (if enabled) ---
+  if (cfg.printMasterKot && cfg.masterKotPrinters && cfg.masterKotPrinters.length > 0) {
+    const masterOrder: KotOrder = {
+      ...order,
+      restaurant_name: `${order.restaurant_name || ''} [MASTER KOT]`.trim(),
+    };
+    const text = buildKotText(masterOrder, restaurantProfile);
+
+    const winPrinterNames: string[] = [];
+    const btAddresses: string[] = [];
+    for (const p of cfg.masterKotPrinters) {
+      if (p.type === 'winspool') winPrinterNames.push(p.printerName);
+      if (p.type === 'android-bt') btAddresses.push(p.address);
+    }
+
+    try {
+      await printUniversal({
+        text,
+        jobKind: 'kot',
+        orderId: order.id ? String(order.id) : undefined,
+        orderNo: order.order_no,
+        offlineOperationId: opts?.offlineOperationId,
+        jobId: opts?.jobId ? `${opts.jobId}-master` : undefined,
+        winPrinterNames: winPrinterNames.length ? winPrinterNames : undefined,
+        btAddresses: btAddresses.length ? btAddresses : undefined,
+        printTarget: 'master-kot',
+      });
+      results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'sent' });
+    } catch (err: any) {
+      results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'failed', error: err?.message || String(err) });
+    }
+  }
+
   const buckets = groupItemsByStation(lines, cfg, opts?.categoryNameMap);
 
   for (const bucket of buckets) {

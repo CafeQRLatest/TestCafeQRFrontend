@@ -502,6 +502,54 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         return true;
       }
 
+      // --- Print Consolidated Master KOT (if enabled) ---
+      const masterKotEnabled = typeof window !== 'undefined' && localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
+      if (masterKotEnabled) {
+        const masterKotPrinters = readJson('PRINT_MASTER_KOT_PRINTERS', []);
+        
+        const masterOrder = {
+          ...normalizedOrder,
+          restaurant_name: `${restaurantProfile?.name || normalizedOrder.restaurant_name || ''} [MASTER KOT]`.trim(),
+        };
+        const text = buildKotText(masterOrder, restaurantProfile);
+
+        if (masterKotPrinters.length > 0) {
+          if (onAndroidPWA) {
+            try {
+              await printUniversal({
+                text,
+                allowPrompt: true,
+                allowSystemDialog: true,
+                scale,
+                jobKind: 'kot',
+                outputFormat: nativeOutput,
+                document: { ...baseDocument, order: masterOrder },
+                ...getPrintJobMeta(masterOrder, 'kot', 'master-kot'),
+              });
+            } catch (e) {
+              console.warn('[print] master kot android fail:', e);
+            }
+          } else {
+            try {
+              await printUniversal({
+                text,
+                codepage: 0,
+                allowPrompt: false,
+                allowSystemDialog,
+                scale,
+                jobKind: 'kot',
+                outputFormat: nativeOutput,
+                document: { ...baseDocument, order: masterOrder },
+                winPrinterNames: masterKotPrinters,
+                ...getPrintJobMeta(masterOrder, 'kot', 'master-kot-win'),
+              });
+            } catch (e) {
+              console.warn('[print] master kot win fail:', e);
+            }
+          }
+        }
+      }
+
       for (const r of routes) {
         const cats = Array.isArray(r.categories) ? r.categories : [];
         const norm = (s) => String(s || '').trim().toUpperCase();

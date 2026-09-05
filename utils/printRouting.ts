@@ -20,6 +20,8 @@ export type PrintRoutingConfig = {
   billPrinters: PrinterTarget[];        // 1+ printers for final bill
   kotDefaultPrinters: PrinterTarget[]; // fallback KOT printer (unmatched categories)
   stations: KitchenStation[];          // category-routed stations
+  printMasterKot?: boolean;            // whether to print a consolidated KOT
+  masterKotPrinters?: PrinterTarget[]; // printers for the consolidated master KOT
 };
 
 const LS_KEY = 'PRINT_ROUTING_V1';
@@ -41,7 +43,7 @@ export function savePrintRouting(cfg: PrintRoutingConfig): void {
 }
 
 function empty(): PrintRoutingConfig {
-  return { billPrinters: [], kotDefaultPrinters: [], stations: [] };
+  return { billPrinters: [], kotDefaultPrinters: [], stations: [], printMasterKot: false, masterKotPrinters: [] };
 }
 
 // ---------- DB sync helpers ----------

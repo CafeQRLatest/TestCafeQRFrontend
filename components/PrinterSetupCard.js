@@ -97,6 +97,13 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   const [routingEnabled, setRoutingEnabled] = useState(
     () => localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1'
   );
+  
+  const [masterKotEnabled, setMasterKotEnabled] = useState(
+    () => localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1'
+  );
+  const [masterKotPrinters, setMasterKotPrinters] = useState(
+    () => uniq(readJson('PRINT_MASTER_KOT_PRINTERS', []))
+  );
 
   const [routes, setRoutes] = useState(() => {
     const raw = readJson('PRINT_KOT_ROUTES_V1', []);
@@ -478,6 +485,8 @@ function saveNetworkPrinters() {
 
     // routing
     localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0');
+    localStorage.setItem('PRINT_MASTER_KOT_ENABLED', masterKotEnabled ? '1' : '0');
+    writeJson('PRINT_MASTER_KOT_PRINTERS', masterKotPrinters);
     writeJson('PRINT_KOT_ROUTES_V1', routes);
 
     setMsg(bill.length ? `Saved ${bill.length} bill printer(s) and ${kot.length} KOT printer(s).` : 'Pick at least one bill printer first.');
@@ -976,7 +985,34 @@ function saveNetworkPrinters() {
              </div>
 
              {routingEnabled && (
-               <div className="routes-editor">
+                <div className="routing-toggle-banner" style={{ marginTop: '16px', background: '#fdf2f8', borderColor: '#fbcfe8' }}>
+                  <label className="checkbox-wrap large">
+                    <input type="checkbox" checked={masterKotEnabled} onChange={(e) => setMasterKotEnabled(e.target.checked)} />
+                    <div className="check-info">
+                      <strong>Print Consolidated Master KOT</strong>
+                      <span>Print a single full checklist of the entire order for the waiter/counter</span>
+                    </div>
+                  </label>
+                  
+                  {masterKotEnabled && (
+                    <div className="route-config-grid" style={{ marginTop: '12px' }}>
+                       <div className="selector-box">
+                          <label className="sub-lbl">Master KOT Printer(s)</label>
+                          <div className="tag-cloud">
+                             {(printers.length ? printers : ['No printers found']).map(p => (
+                               <div key={p} className={`route-tag ${masterKotPrinters.includes(p) ? 'active' : ''}`} onClick={() => toggleMultiSelect(p, masterKotPrinters, setMasterKotPrinters)}>
+                                 {p}
+                               </div>
+                             ))}
+                          </div>
+                       </div>
+                    </div>
+                  )}
+                </div>
+             )}
+
+             {routingEnabled && (
+               <div className="routes-editor" style={{ marginTop: '24px' }}>
                   <div className="list-header" style={{marginBottom:'16px'}}>
                      <span className="group-lbl">Execution Routes</span>
                      <button onClick={addRoute} className="btn-secondary sm"><FaPlus /> Add Route</button>
@@ -1023,7 +1059,13 @@ function saveNetworkPrinters() {
              )}
 
              <div className="action-row-end" style={{marginTop:'12px'}}>
-                <button onClick={() => { writeJson('PRINT_KOT_ROUTES_V1', routes); localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0'); setMsg('✓ Routing Map Saved'); }} className="btn-primary">Save Routing Map</button>
+                <button onClick={() => { 
+                  writeJson('PRINT_KOT_ROUTES_V1', routes); 
+                  localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0'); 
+                  localStorage.setItem('PRINT_MASTER_KOT_ENABLED', masterKotEnabled ? '1' : '0');
+                  writeJson('PRINT_MASTER_KOT_PRINTERS', masterKotPrinters);
+                  setMsg('✓ Routing Map Saved'); 
+                }} className="btn-primary">Save Routing Map</button>
              </div>
           </div>
         )}
