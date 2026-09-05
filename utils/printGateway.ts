@@ -449,11 +449,14 @@ async function printUniversalNow(opts: Options) {
       await DevicePrinter.ensurePermissions();
 
       if (opts.ip) {
-        await DevicePrinter.printTcpRaw({
-          base64,
-          host: opts.ip,
-          port: opts.port ?? 9100
-        });
+        await Promise.race([
+          DevicePrinter.printTcpRaw({
+            base64,
+            host: opts.ip,
+            port: opts.port ?? 9100
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Android TCP socket timed out')), 2500))
+        ]);
         return { via: 'android-pos' as const };
       }
 
@@ -468,11 +471,14 @@ async function printUniversalNow(opts: Options) {
         const savedPort = Number(window.localStorage.getItem(netPortKey) || 9100);
 
         if (savedIp) {
-          await DevicePrinter.printTcpRaw({
-            base64,
-            host: savedIp,
-            port: savedPort
-          });
+          await Promise.race([
+            DevicePrinter.printTcpRaw({
+              base64,
+              host: savedIp,
+              port: savedPort
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Android TCP socket timed out')), 2500))
+          ]);
           return { via: 'android-pos' as const };
         }
       }
@@ -508,7 +514,10 @@ async function printUniversalNow(opts: Options) {
       }
 
       for (const address of targets) {
-        await DevicePrinter.printRaw({ base64, address, nameContains: nameHint });
+        await Promise.race([
+          DevicePrinter.printRaw({ base64, address, nameContains: nameHint }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Android Bluetooth connection timed out')), 3500))
+        ]);
       }
 
       return { via: 'android-pos' as const };
