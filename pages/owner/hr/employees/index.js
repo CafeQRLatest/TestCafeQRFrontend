@@ -15,6 +15,8 @@ export default function EmployeeMaster() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  
   const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
   const [isDesigModalOpen, setIsDesigModalOpen] = useState(false);
 
@@ -40,14 +42,29 @@ export default function EmployeeMaster() {
     }
   };
 
+  const handleOpenCreate = () => {
+    setEditingEmployee(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (emp) => {
+    setEditingEmployee(emp);
+    setIsModalOpen(true);
+  };
+
   const handleSaveEmployee = async (formData) => {
     try {
-      await hrService.createEmployee(formData);
+      if (editingEmployee) {
+        await hrService.updateEmployee(editingEmployee.id, formData);
+      } else {
+        await hrService.createEmployee(formData);
+      }
       setIsModalOpen(false);
+      setEditingEmployee(null);
       fetchData(); // Refresh list
     } catch (error) {
-      console.error('Failed to create employee:', error);
-      alert('Failed to create employee');
+      console.error('Failed to save employee:', error);
+      alert('Failed to save employee: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -70,6 +87,7 @@ export default function EmployeeMaster() {
       fetchData();
     } catch (error) {
       console.error('Failed to delete employee:', error);
+      alert('Failed to delete employee: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -105,7 +123,7 @@ export default function EmployeeMaster() {
             <button className="btn-secondary" onClick={() => setIsDesigModalOpen(true)}>
               Designations
             </button>
-            <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
+            <button className="btn-primary" onClick={handleOpenCreate}>
               <FaPlus /> Add Employee
             </button>
           </div>
@@ -195,7 +213,7 @@ export default function EmployeeMaster() {
                       </td>
                       <td>
                         <div className="action-buttons">
-                          <button className="icon-btn edit" onClick={() => handleToggleStatus(emp)} title="Toggle Status"><FaEdit /></button>
+                          <button className="icon-btn edit" onClick={() => handleOpenEdit(emp)} title="Edit Employee"><FaEdit /></button>
                           <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp.id)} title="Delete Employee"><FaTrash /></button>
                         </div>
                       </td>
@@ -210,8 +228,9 @@ export default function EmployeeMaster() {
 
       <EmployeeCreationModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setEditingEmployee(null); }}
         onSave={handleSaveEmployee}
+        employeeToEdit={editingEmployee}
         departments={departments}
         designations={designations}
       />

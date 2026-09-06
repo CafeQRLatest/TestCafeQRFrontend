@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaTimes, FaSave, FaUser, FaEnvelope, FaPhone, FaMoneyBillWave, FaBuilding } from 'react-icons/fa';
 
-export default function EmployeeCreationModal({ isOpen, onClose, onSave, departments = [], designations = [] }) {
+export default function EmployeeCreationModal({ isOpen, onClose, onSave, employeeToEdit = null, departments = [], designations = [] }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -15,8 +15,47 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, departm
     bankAccountNumber: '',
     bankRoutingNumber: '',
     taxId: '',
-    nationalId: ''
+    nationalId: '',
+    isActive: true
   });
+
+  useEffect(() => {
+    if (employeeToEdit) {
+      setFormData({
+        firstName: employeeToEdit.firstName || '',
+        lastName: employeeToEdit.lastName || '',
+        email: employeeToEdit.email || '',
+        phone: employeeToEdit.phoneNumber || employeeToEdit.phone || '',
+        departmentId: employeeToEdit.department ? employeeToEdit.department.id : (employeeToEdit.departmentId || ''),
+        designationId: employeeToEdit.designation ? employeeToEdit.designation.id : (employeeToEdit.designationId || ''),
+        employmentType: employeeToEdit.employmentType || 'FULL_TIME',
+        baseSalary: employeeToEdit.baseSalary !== undefined && employeeToEdit.baseSalary !== null ? employeeToEdit.baseSalary : '',
+        hourlyRate: employeeToEdit.hourlyRate !== undefined && employeeToEdit.hourlyRate !== null ? employeeToEdit.hourlyRate : '',
+        bankAccountNumber: employeeToEdit.bankAccountNumber || '',
+        bankRoutingNumber: employeeToEdit.bankRoutingNumber || '',
+        taxId: employeeToEdit.taxId || '',
+        nationalId: employeeToEdit.nationalId || '',
+        isActive: employeeToEdit.isActive !== undefined ? employeeToEdit.isActive : true
+      });
+    } else {
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        departmentId: '',
+        designationId: '',
+        employmentType: 'FULL_TIME',
+        baseSalary: '',
+        hourlyRate: '',
+        bankAccountNumber: '',
+        bankRoutingNumber: '',
+        taxId: '',
+        nationalId: '',
+        isActive: true
+      });
+    }
+  }, [employeeToEdit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -28,7 +67,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, departm
     e.preventDefault();
     
     // Clean up empty strings to null for UUID fields so backend doesn't crash
-    const payload = { ...formData, isActive: true };
+    const payload = { ...formData };
     if (!payload.departmentId) payload.departmentId = null;
     if (!payload.designationId) payload.designationId = null;
     
@@ -39,7 +78,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, departm
     <div className="modal-overlay">
       <div className="modal-container glass-panel">
         <div className="modal-header">
-          <h2>Create New Employee</h2>
+          <h2>{employeeToEdit ? 'Edit Employee' : 'Create New Employee'}</h2>
           <button className="close-btn" onClick={onClose}><FaTimes /></button>
         </div>
         

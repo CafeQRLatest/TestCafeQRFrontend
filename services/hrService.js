@@ -18,6 +18,10 @@ export const hrService = {
     return await api.put(`/api/v1/hr/employees/${id}`, data);
   },
 
+  deleteEmployee: async (id) => {
+    return await api.delete(`/api/v1/hr/employees/${id}`);
+  },
+
   // ---- Departments ----
   getAllDepartments: async () => {
     return await api.get('/api/v1/hr/departments');
