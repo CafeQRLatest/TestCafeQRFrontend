@@ -86,10 +86,13 @@ export default function SalaryComponents() {
   };
 
   const handleToggleStatus = async (comp) => {
+    const currentActiveStatus = comp.isActive !== undefined ? comp.isActive : (comp.active !== undefined ? comp.active : false);
+    const nextStatus = !currentActiveStatus;
     try {
       await hrService.updateComponent(comp.id, {
         ...comp,
-        isActive: !comp.isActive
+        isActive: nextStatus,
+        active: nextStatus
       });
       fetchData();
     } catch (error) {
@@ -143,36 +146,39 @@ export default function SalaryComponents() {
                   <td colSpan="7" className="empty-state">No salary components defined.</td>
                 </tr>
               ) : (
-                components.map(comp => (
-                  <tr key={comp.id}>
-                    <td className="font-bold flex items-center gap-3">
-                      <div className={`icon-box ${comp.type.toLowerCase()}`}><FaCogs /></div>
-                      {comp.name}
-                    </td>
-                    <td><span className={`type-badge ${comp.type.toLowerCase()}`}>{comp.type}</span></td>
-                    <td>{comp.amountType}</td>
-                    <td className="font-bold">
-                      {comp.amountType === 'FIXED' ? `$${comp.defaultAmount?.toFixed(2)}` : `${comp.percentage}% of Gross`}
-                    </td>
-                    <td>{comp.isTaxApplicable ? "Yes" : "No"}</td>
-                    <td>
-                      <span 
-                        className={comp.isActive ? "status-badge approved cursor-pointer" : "status-badge rejected cursor-pointer"}
-                        onClick={() => handleToggleStatus(comp)}
-                        title="Click to toggle Active / Inactive status"
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {comp.isActive ? "ACTIVE" : "INACTIVE"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
-                        <button className="icon-btn edit" onClick={() => handleOpenEdit(comp)} title="Edit Rule"><FaEdit /></button>
-                        <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp.id)} title="Delete Rule"><FaTrash /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                components.map(comp => {
+                  const isCompActive = comp.isActive !== undefined ? comp.isActive : (comp.active !== undefined ? comp.active : false);
+                  return (
+                    <tr key={comp.id}>
+                      <td className="font-bold flex items-center gap-3">
+                        <div className={`icon-box ${comp.type.toLowerCase()}`}><FaCogs /></div>
+                        {comp.name}
+                      </td>
+                      <td><span className={`type-badge ${comp.type.toLowerCase()}`}>{comp.type}</span></td>
+                      <td>{comp.amountType}</td>
+                      <td className="font-bold">
+                        {comp.amountType === 'FIXED' ? `$${comp.defaultAmount?.toFixed(2)}` : `${comp.percentage}% of Gross`}
+                      </td>
+                      <td>{comp.isTaxApplicable ? "Yes" : "No"}</td>
+                      <td>
+                        <span 
+                          className={isCompActive ? "status-badge approved cursor-pointer" : "status-badge rejected cursor-pointer"}
+                          onClick={() => handleToggleStatus(comp)}
+                          title="Click to toggle Active / Inactive status"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {isCompActive ? "ACTIVE" : "INACTIVE"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
+                          <button className="icon-btn edit" onClick={() => handleOpenEdit(comp)} title="Edit Rule"><FaEdit /></button>
+                          <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp.id)} title="Delete Rule"><FaTrash /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
