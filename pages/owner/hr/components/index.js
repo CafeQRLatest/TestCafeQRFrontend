@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import { FaPlus, FaCogs, FaEdit } from 'react-icons/fa';
+import { FaPlus, FaCogs, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryComponents() {
   const [components, setComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(null);
   
-  // Create Form
+  // Create / Edit Form state
   const [name, setName] = useState('');
   const [type, setType] = useState('EARNING');
   const [amountType, setAmountType] = useState('FIXED');
@@ -33,24 +34,78 @@ export default function SalaryComponents() {
     }
   };
 
-  const handleCreateComponent = async (e) => {
+  const handleOpenCreate = () => {
+    setEditingComponent(null);
+    setName('');
+    setType('EARNING');
+    setAmountType('FIXED');
+    setDefaultAmount('');
+    setPercentage('');
+    setIsTaxApplicable(false);
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (comp) => {
+    setEditingComponent(comp);
+    setName(comp.name || '');
+    setType(comp.type || 'EARNING');
+    setAmountType(comp.amountType || 'FIXED');
+    setDefaultAmount(comp.defaultAmount !== undefined && comp.defaultAmount !== null ? comp.defaultAmount : '');
+    setPercentage(comp.percentage !== undefined && comp.percentage !== null ? comp.percentage : '');
+    setIsTaxApplicable(!!comp.isTaxApplicable);
+    setShowModal(true);
+  };
+
+  const handleSaveComponent = async (e) => {
     e.preventDefault();
     if (!name) return;
     
+    const payload = {
+      name,
+      type,
+      amountType,
+      defaultAmount: amountType === 'FIXED' ? parseFloat(defaultAmount) : null,
+      percentage: amountType === 'PERCENTAGE' ? parseFloat(percentage) : null,
+      isTaxApplicable,
+      isActive: editingComponent ? editingComponent.isActive : true
+    };
+
     try {
-      await hrService.createComponent({
-        name,
-        type,
-        amountType,
-        defaultAmount: amountType === 'FIXED' ? parseFloat(defaultAmount) : null,
-        percentage: amountType === 'PERCENTAGE' ? parseFloat(percentage) : null,
-        isTaxApplicable,
-        isActive: true
-      });
+      if (editingComponent) {
+        await hrService.updateComponent(editingComponent.id, payload);
+      } else {
+        await hrService.createComponent(payload);
+      }
       setShowModal(false);
+      setEditingComponent(null);
       fetchData();
     } catch (error) {
-      alert("Error creating component.");
+      console.error("Error saving component", error);
+      alert("Error saving component: " + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleToggleStatus = async (comp) => {
+    try {
+      await hrService.updateComponent(comp.id, {
+        ...comp,
+        isActive: !comp.isActive
+      });
+      fetchData();
+    } catch (error) {
+      console.error("Error toggling status", error);
+      alert("Failed to update status");
+    }
+  };
+
+  const handleDeleteComponent = async (id) => {
+    if (!confirm("Are you sure you want to delete this salary component?")) return;
+    try {
+      await hrService.deleteComponent(id);
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting component", error);
+      alert("Failed to delete component");
     }
   };
 
@@ -61,7 +116,7 @@ export default function SalaryComponents() {
       </Head>
 
       <div className="flex justify-end mb-6">
-        <button className="btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn-primary" onClick={handleOpenCreate}>
           <FaPlus /> New Component
         </button>
       </div>
@@ -79,12 +134,13 @@ export default function SalaryComponents() {
                 <th>Default Value</th>
                 <th>Taxable?</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {components.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="empty-state">No salary components defined.</td>
+                  <td colSpan="7" className="empty-state">No salary components defined.</td>
                 </tr>
               ) : (
                 components.map(comp => (
@@ -99,7 +155,22 @@ export default function SalaryComponents() {
                       {comp.amountType === 'FIXED' ? `$${comp.defaultAmount?.toFixed(2)}` : `${comp.percentage}% of Gross`}
                     </td>
                     <td>{comp.isTaxApplicable ? "Yes" : "No"}</td>
-                    <td><span className={comp.isActive ? "status-badge approved" : "status-badge rejected"}>{comp.isActive ? "ACTIVE" : "INACTIVE"}</span></td>
+                    <td>
+                      <span 
+                        className={comp.isActive ? "status-badge approved cursor-pointer" : "status-badge rejected cursor-pointer"}
+                        onClick={() => handleToggleStatus(comp)}
+                        title="Click to toggle Active / Inactive status"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {comp.isActive ? "ACTIVE" : "INACTIVE"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
+                        <button className="icon-btn edit" onClick={() => handleOpenEdit(comp)} title="Edit Rule"><FaEdit /></button>
+                        <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp.id)} title="Delete Rule"><FaTrash /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -111,8 +182,8 @@ export default function SalaryComponents() {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel">
-            <h3>Create Salary Rule</h3>
-            <form onSubmit={handleCreateComponent}>
+            <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
+            <form onSubmit={handleSaveComponent}>
               <div className="form-group mb-4">
                 <label>Rule Name (e.g., "Health Insurance")</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} required />
@@ -152,8 +223,8 @@ export default function SalaryComponents() {
               </div>
 
               <div className="flex justify-end gap-3">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Create Rule</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowModal(false); setEditingComponent(null); }}>Cancel</button>
+                <button type="submit" className="btn-primary">{editingComponent ? 'Save Changes' : 'Create Rule'}</button>
               </div>
             </form>
           </div>
@@ -186,6 +257,10 @@ export default function SalaryComponents() {
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
         .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
+        
+        .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .icon-btn.edit { background: #e0e7ff; color: #4338ca; }
+        .icon-btn.delete { background: #fee2e2; color: #b91c1c; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
         .modal-content { width: 100%; max-width: 500px; padding: 32px; background: white; border-radius: 20px; }

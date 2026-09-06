@@ -107,5 +107,13 @@ export const hrService = {
 
   createComponent: async (data) => {
     return await api.post('/api/v1/hr/salary-components', data);
+  },
+
+  updateComponent: async (id, data) => {
+    return await api.put(`/api/v1/hr/salary-components/${id}`, data);
+  },
+
+  deleteComponent: async (id) => {
+    return await api.delete(`/api/v1/hr/salary-components/${id}`);
   }
 };
