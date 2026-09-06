@@ -14,6 +14,12 @@ export default function PayrollDashboard() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Salary Slips Modal State
+  const [selectedRun, setSelectedRun] = useState(null);
+  const [slips, setSlips] = useState([]);
+  const [isLoadingSlips, setIsLoadingSlips] = useState(false);
+  const [showSlipsModal, setShowSlipsModal] = useState(false);
+
   useEffect(() => {
     fetchPayrollRuns();
   }, []);
@@ -51,6 +57,21 @@ export default function PayrollDashboard() {
       alert('Error running payroll. Check logs.');
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleViewSlips = async (run) => {
+    setSelectedRun(run);
+    setShowSlipsModal(true);
+    try {
+      setIsLoadingSlips(true);
+      const res = await hrService.getSlipsForRun(run.id);
+      setSlips(res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch slips", error);
+      alert("Failed to fetch salary slips.");
+    } finally {
+      setIsLoadingSlips(false);
     }
   };
 
@@ -147,8 +168,8 @@ export default function PayrollDashboard() {
                       <td>{new Date(run.startDate).toLocaleDateString()} - {new Date(run.endDate).toLocaleDateString()}</td>
                       <td className="text-emerald font-bold">${run.totalAmount?.toFixed(2) || '0.00'}</td>
                       <td>
-                        <span className={`status-badge ${run.status.toLowerCase()}`}>
-                          {run.status}
+                        <span className={`status-badge ${run.status ? run.status.toLowerCase() : 'completed'}`}>
+                          {run.status || 'COMPLETED'}
                         </span>
                       </td>
                       <td>
@@ -156,7 +177,7 @@ export default function PayrollDashboard() {
                           <button 
                             className="btn-action view" 
                             title="View Slips"
-                            onClick={() => alert('Salary Slips modal would open here.')}
+                            onClick={() => handleViewSlips(run)}
                           >
                             <FaEye /> Slips
                           </button>
@@ -184,6 +205,64 @@ export default function PayrollDashboard() {
           )}
         </div>
       </div>
+
+      {/* Salary Slips Modal */}
+      {showSlipsModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-panel modal-wide">
+            <div className="modal-header-flex">
+              <div>
+                <h3>Salary Slips - {selectedRun?.name}</h3>
+                <p className="modal-sub">
+                  {selectedRun && `${new Date(selectedRun.startDate).toLocaleDateString()} - ${new Date(selectedRun.endDate).toLocaleDateString()}`}
+                </p>
+              </div>
+              <button className="btn-secondary" onClick={() => setShowSlipsModal(false)}>Close</button>
+            </div>
+
+            <div className="table-container">
+              {isLoadingSlips ? (
+                <div className="loading-state">Loading generated salary slips...</div>
+              ) : (
+                <table className="modern-table">
+                  <thead>
+                    <tr>
+                      <th>Employee Name</th>
+                      <th>Worked Hours</th>
+                      <th>Unpaid Leave Days</th>
+                      <th>Gross Pay</th>
+                      <th>Total Deductions</th>
+                      <th>Net Pay</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slips.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="empty-state">No salary slips generated for this run.</td>
+                      </tr>
+                    ) : (
+                      slips.map(slip => (
+                        <tr key={slip.id}>
+                          <td className="font-bold text-slate">{slip.employeeName}</td>
+                          <td>{slip.totalWorkedHours !== null ? `${slip.totalWorkedHours} hrs` : 'N/A'}</td>
+                          <td>{slip.totalUnpaidLeaveDays !== null ? `${slip.totalUnpaidLeaveDays} days` : '0 days'}</td>
+                          <td className="font-bold">${slip.grossPay?.toFixed(2)}</td>
+                          <td className="font-bold text-red">-${slip.totalDeductions?.toFixed(2)}</td>
+                          <td className="font-bold text-green">${slip.netPay?.toFixed(2)}</td>
+                          <td>
+                            <span className="status-badge processed">{slip.status}</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .payroll-wrapper { display: flex; flex-direction: column; gap: 32px; animation: slideUp 0.4s ease-out; }
@@ -218,6 +297,7 @@ export default function PayrollDashboard() {
         }
         .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary { padding: 8px 16px; border-radius: 10px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
 
         .section-title { font-size: 18px; color: #1e293b; margin: 0 0 -16px; padding-left: 8px; }
 
@@ -230,10 +310,13 @@ export default function PayrollDashboard() {
         .modern-table td { padding: 16px 24px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         
         .font-bold { font-weight: 700; color: #1e293b; }
+        .text-slate { color: #1e293b; }
+        .text-red { color: #dc2626; }
+        .text-green { color: #16a34a; font-size: 15px; }
 
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-        .status-badge.processed { background: #dcfce7; color: #15803d; }
-        .status-badge.pending { background: #fef3c7; color: #b45309; }
+        .status-badge.processed, .status-badge.completed, .status-badge.generated { background: #dcfce7; color: #15803d; }
+        .status-badge.pending, .status-badge.processing { background: #fef3c7; color: #b45309; }
 
         .action-buttons { display: flex; gap: 8px; }
         .btn-action {
@@ -246,6 +329,12 @@ export default function PayrollDashboard() {
         .btn-action:hover { filter: brightness(0.95); }
 
         .empty-state, .loading-state { text-align: center; padding: 40px !important; color: #64748b; font-weight: 600; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
+        .modal-content { width: 100%; max-width: 900px; padding: 32px; background: white; border-radius: 20px; max-height: 85vh; overflow-y: auto; }
+        .modal-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-header-flex h3 { margin: 0; font-size: 20px; color: #1e293b; }
+        .modal-sub { margin: 4px 0 0; color: #64748b; font-size: 13px; }
 
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
