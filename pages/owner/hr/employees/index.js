@@ -188,8 +188,8 @@ export default function EmployeeMaster() {
                         </div>
                       </td>
                       <td>
-                        {emp.department ? emp.department.name : 'N/A'}
-                        <div className="designation">{emp.designation ? emp.designation.title : ''}</div>
+                        {emp.department ? emp.department.name : (emp.departmentName || 'N/A')}
+                        <div className="designation">{(emp.designation ? (emp.designation.name || emp.designation.title) : emp.designationName) || ''}</div>
                       </td>
                       <td>
                         <span className={`badge type-${emp.employmentType.toLowerCase()}`}>

@@ -112,7 +112,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
               <label><FaBuilding className="input-icon" /> Designation</label>
               <select name="designationId" value={formData.designationId} onChange={handleChange}>
                 <option value="">Select Designation...</option>
-                {designations.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+                {designations.map(d => <option key={d.id} value={d.id}>{d.name || d.title}</option>)}
               </select>
             </div>
 
