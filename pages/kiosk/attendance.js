@@ -99,14 +99,42 @@ export default function AttendanceKiosk() {
     }, 2000);
   };
 
-  const handleManualClockIn = (e) => {
-    e.preventDefault();
+  const handlePunch = async (type) => {
     if (!selectedEmployee || !pin) {
       setStatusMsg({ text: 'Please select an employee and enter PIN', type: 'error' });
       return;
     }
-    // In production, validate PIN against employee record
-    handleClockIn(selectedEmployee, 'PIN');
+    
+    const emp = employees.find(e => e.id === selectedEmployee);
+    if (emp && emp.pinCode && emp.pinCode !== pin) {
+      setStatusMsg({ text: 'Invalid PIN entered. Please try again.', type: 'error' });
+      return;
+    }
+
+    try {
+      if (type === 'IN') {
+        await hrService.clockIn({ 
+          employeeId: selectedEmployee, 
+          punchMethod: 'PIN' 
+        });
+        setStatusMsg({ text: `Success: ${emp ? emp.firstName : ''} Clocked In!`, type: 'success' });
+      } else {
+        await hrService.clockOut({ 
+          employeeId: selectedEmployee 
+        });
+        setStatusMsg({ text: `Success: ${emp ? emp.firstName : ''} Clocked Out!`, type: 'success' });
+      }
+      
+      setPin('');
+      setSelectedEmployee('');
+      
+      setTimeout(() => {
+        setStatusMsg({ text: '', type: '' });
+      }, 5000);
+
+    } catch (error) {
+      setStatusMsg({ text: `Clock-${type.toLowerCase()} failed. Try again.`, type: 'error' });
+    }
   };
 
   const handleClockIn = async (employeeId, method) => {
@@ -200,8 +228,8 @@ export default function AttendanceKiosk() {
               )}
             </div>
           ) : (
-            <form className="pin-entry-area" onSubmit={handleManualClockIn}>
-              <h3>Manual Clock In</h3>
+            <div className="pin-entry-area">
+              <h3>Manual Punch</h3>
               
               <div className="form-group">
                 <label>Select Employee</label>
@@ -224,18 +252,21 @@ export default function AttendanceKiosk() {
                   maxLength="4"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  placeholder="â€¢ â€¢ â€¢ â€¢"
+                  placeholder="••••"
                   className="pin-input"
                   required
                 />
               </div>
 
               <div className="action-buttons">
-                <button type="submit" className="btn-primary clock-in-btn">
-                  <FaClock /> Clock In / Out
+                <button type="button" className="btn-primary clock-in-btn" onClick={() => handlePunch('IN')}>
+                  <FaClock /> Clock In
+                </button>
+                <button type="button" className="btn-secondary clock-out-btn" onClick={() => handlePunch('OUT')}>
+                  <FaClock /> Clock Out
                 </button>
               </div>
-            </form>
+            </div>
           )}
         </div>
       </div>
@@ -328,14 +359,16 @@ export default function AttendanceKiosk() {
         .pin-input { text-align: center; font-size: 32px; letter-spacing: 12px; font-weight: 800; }
         select:focus, .pin-input:focus { border-color: #f97316; background: rgba(255, 255, 255, 0.15); }
 
-        .btn-primary {
-          width: 100%; padding: 16px; border-radius: 12px; border: none;
-          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-          color: white; font-size: 18px; font-weight: 800; cursor: pointer;
-          display: flex; align-items: center; justify-content: center; gap: 12px;
-          box-shadow: 0 8px 16px rgba(249, 115, 22, 0.3); transition: transform 0.2s;
+        .action-buttons { display: flex; gap: 12px; }
+        .btn-primary, .btn-secondary {
+          flex: 1; padding: 16px; border-radius: 12px; border: none;
+          color: white; font-size: 16px; font-weight: 800; cursor: pointer;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          transition: transform 0.2s; box-shadow: 0 8px 16px rgba(0,0,0,0.2);
         }
-        .btn-primary:hover { transform: translateY(-2px); }
+        .btn-primary { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+        .btn-secondary { background: linear-gradient(135deg, #475569 0%, #334155 100%); }
+        .btn-primary:hover, .btn-secondary:hover { transform: translateY(-2px); }
 
         .status-alert {
           position: absolute; top: 120px;

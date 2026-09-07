@@ -11,7 +11,7 @@ import {
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
   FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag,
   FaImage, FaTrash, FaUpload, FaGlobe, FaCopy, FaExternalLinkAlt,
-  FaInstagram, FaWhatsapp, FaTwitter, FaFacebook, FaStar
+  FaInstagram, FaWhatsapp, FaTwitter, FaFacebook, FaStar, FaIdBadge
 } from 'react-icons/fa';
 
 /**
@@ -128,11 +128,18 @@ function OrganizationSettingsContent() {
     return `${baseUrl}/order?r=${clientId}&t=DELIVERY${orgId ? `&orgId=${orgId}` : ''}`;
   };
 
-  const copyToClipboard = (url) => {
+  const getKioskUrl = (org) => {
+    let baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!org) return `${baseUrl}/kiosk/attendance`;
+    const orgId = org.id ? encryptOrgId(org.id) : '';
+    return `${baseUrl}/kiosk/attendance?branchId=${orgId}`;
+  };
+
+  const copyToClipboard = (url, type = "Storefront URL") => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(url);
-      setCopiedUrl(true);
-      setMessage("Storefront URL copied to clipboard!");
+      setCopiedUrl(url);
+      setMessage(`${type} copied to clipboard!`);
       setMsgType("success");
       setTimeout(() => setCopiedUrl(false), 3000);
     }
@@ -349,36 +356,71 @@ function OrganizationSettingsContent() {
 
               {/* Live Public Storefront Link Bar */}
               {selectedOrg.id && (
-                <div className="v2-store-link-card">
-                  <div className="store-link-info">
-                    <div className="store-link-badge">
-                      <FaGlobe /> LIVE DELIVERY STOREFRONT URL
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                  <div className="v2-store-link-card">
+                    <div className="store-link-info">
+                      <div className="store-link-badge">
+                        <FaGlobe /> LIVE DELIVERY STOREFRONT URL
+                      </div>
+                      <a
+                        href={getDeliveryUrl(selectedOrg)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="store-link-url"
+                      >
+                        {getDeliveryUrl(selectedOrg)}
+                      </a>
                     </div>
-                    <a
-                      href={getDeliveryUrl(selectedOrg)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="store-link-url"
-                    >
-                      {getDeliveryUrl(selectedOrg)}
-                    </a>
+                    <div className="store-link-actions">
+                      <button
+                        type="button"
+                        className="store-action-btn copy"
+                        onClick={() => copyToClipboard(getDeliveryUrl(selectedOrg), "Storefront URL")}
+                      >
+                        <FaCopy /> {copiedUrl === getDeliveryUrl(selectedOrg) ? "Copied!" : "Copy Link"}
+                      </button>
+                      <a
+                        href={getDeliveryUrl(selectedOrg)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="store-action-btn visit"
+                      >
+                        <FaExternalLinkAlt /> Visit Store
+                      </a>
+                    </div>
                   </div>
-                  <div className="store-link-actions">
-                    <button
-                      type="button"
-                      className="store-action-btn copy"
-                      onClick={() => copyToClipboard(getDeliveryUrl(selectedOrg))}
-                    >
-                      <FaCopy /> {copiedUrl ? "Copied!" : "Copy Link"}
-                    </button>
-                    <a
-                      href={getDeliveryUrl(selectedOrg)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="store-action-btn visit"
-                    >
-                      <FaExternalLinkAlt /> Visit Store
-                    </a>
+
+                  <div className="v2-store-link-card">
+                    <div className="store-link-info">
+                      <div className="store-link-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
+                        <FaIdBadge /> STAFF ATTENDANCE KIOSK URL
+                      </div>
+                      <a
+                        href={getKioskUrl(selectedOrg)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="store-link-url"
+                      >
+                        {getKioskUrl(selectedOrg)}
+                      </a>
+                    </div>
+                    <div className="store-link-actions">
+                      <button
+                        type="button"
+                        className="store-action-btn copy"
+                        onClick={() => copyToClipboard(getKioskUrl(selectedOrg), "Kiosk URL")}
+                      >
+                        <FaCopy /> {copiedUrl === getKioskUrl(selectedOrg) ? "Copied!" : "Copy Link"}
+                      </button>
+                      <a
+                        href={getKioskUrl(selectedOrg)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="store-action-btn visit"
+                      >
+                        <FaExternalLinkAlt /> Open Kiosk
+                      </a>
+                    </div>
                   </div>
                 </div>
               )}

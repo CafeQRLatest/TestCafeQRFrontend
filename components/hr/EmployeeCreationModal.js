@@ -35,6 +35,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
         bankRoutingNumber: employeeToEdit.bankRoutingNumber || '',
         taxId: employeeToEdit.taxId || '',
         nationalId: employeeToEdit.nationalId || '',
+        pinCode: employeeToEdit.pinCode || '',
         isActive: employeeToEdit.isActive !== undefined ? employeeToEdit.isActive : true
       });
     } else {
@@ -46,12 +47,13 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
         departmentId: '',
         designationId: '',
         employmentType: 'FULL_TIME',
-        baseSalary: '',
+ baseSalary: '',
         hourlyRate: '',
         bankAccountNumber: '',
         bankRoutingNumber: '',
         taxId: '',
         nationalId: '',
+        pinCode: '',
         isActive: true
       });
     }
@@ -155,6 +157,18 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
             <div className="form-group">
               <label>National ID / Passport</label>
               <input type="text" name="nationalId" value={formData.nationalId} onChange={handleChange} />
+            </div>
+
+            <div className="form-group highlight-field">
+              <label>Kiosk 4-Digit PIN</label>
+              <input 
+                type="password" 
+                maxLength="4" 
+                name="pinCode" 
+                placeholder="e.g. 1234" 
+                value={formData.pinCode} 
+                onChange={handleChange} 
+              />
             </div>
           </div>
           
