@@ -41,13 +41,34 @@ export const hrService = {
   },
 
   // ---- Attendance ----
+  getAllAttendance: async (startDate, endDate) => {
+    let url = '/api/v1/hr/attendance';
+    const params = [];
+    if (startDate) params.push(`startDate=${startDate}`);
+    if (endDate) params.push(`endDate=${endDate}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    return await api.get(url);
+  },
+
   clockIn: async (data) => {
-    // data: { employeeId, punchMethod: "PIN" | "FACE_SCAN", pin: "1234" }
+    // data: { employeeId, punchMethod: "PIN" | "FACE_SCAN" }
     return await api.post('/api/v1/hr/attendance/clock-in', data);
   },
 
   clockOut: async (data) => {
     return await api.post('/api/v1/hr/attendance/clock-out', data);
+  },
+
+  createManualAttendance: async (data) => {
+    return await api.post('/api/v1/hr/attendance/manual', data);
+  },
+
+  updateAttendance: async (id, data) => {
+    return await api.put(`/api/v1/hr/attendance/${id}`, data);
+  },
+
+  deleteAttendance: async (id) => {
+    return await api.delete(`/api/v1/hr/attendance/${id}`);
   },
 
   // ---- Payroll Engine ----
