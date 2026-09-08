@@ -899,6 +899,9 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     if (!groupedMenus["OPERATIONS"].some(m => m.name === "Salary Components")) {
       groupedMenus["OPERATIONS"].push({ name: "Salary Components", url: "/owner/hr/components" });
     }
+    if (!groupedMenus["OPERATIONS"].some(m => m.name === "HR Policy Settings")) {
+      groupedMenus["OPERATIONS"].push({ name: "HR Policy Settings", url: "/owner/hr/settings" });
+    }
     if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll Processing")) {
       groupedMenus["OPERATIONS"].push({ name: "Payroll Processing", url: "/owner/hr/payroll" });
     }
