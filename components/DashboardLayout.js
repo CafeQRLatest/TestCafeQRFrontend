@@ -9,7 +9,7 @@ import {
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge,
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes,
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase, FaMoneyCheckAlt,
-  FaCalendarAlt, FaMoneyBillWave, FaCogs
+  FaCalendarAlt, FaMoneyBillWave, FaCogs, FaSlidersH
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
@@ -772,6 +772,7 @@ const MENU_CONFIG = {
   "Leaves": { name: "Leave Approvals", icon: <FaCalendarAlt />, url: "/owner/hr/leaves" },
   "Advances": { name: "Salary Advances", icon: <FaMoneyBillWave />, url: "/owner/hr/advances" },
   "Salary Components": { name: "Salary Rules", icon: <FaCogs />, url: "/owner/hr/components" },
+  "HR Policy Settings": { name: "HR Settings", icon: <FaSlidersH />, url: "/owner/hr/settings" },
   "Payroll Processing": { name: "Run Payroll", icon: <FaMoneyCheckAlt />, url: "/owner/hr/payroll" }
 };
 
@@ -813,6 +814,7 @@ const CATEGORY_MAPPING = {
   "Leaves": "OPERATIONS",
   "Advances": "OPERATIONS",
   "Salary Components": "OPERATIONS",
+  "HR Policy Settings": "OPERATIONS",
   "Payroll Processing": "OPERATIONS"
 };
 
@@ -822,7 +824,7 @@ const MENU_ORDER = [
   "Customers", "Loyalty",
   "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
-  "Payroll & HR", "Timesheets", "Leaves", "Advances", "Salary Components", "Payroll Processing"
+  "Payroll & HR", "Timesheets", "Leaves", "Advances", "Salary Components", "HR Policy Settings", "Payroll Processing"
 ];
 
 // ─── INTERNAL COMPONENTS ────────────────────────────────────────────────────────

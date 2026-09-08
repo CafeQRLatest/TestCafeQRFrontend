@@ -71,6 +71,15 @@ export const hrService = {
     return await api.delete(`/api/v1/hr/attendance/${id}`);
   },
 
+  // ---- HR Policy & Overtime Settings ----
+  getHrSettings: async () => {
+    return await api.get('/api/v1/hr/settings');
+  },
+
+  updateHrSettings: async (data) => {
+    return await api.put('/api/v1/hr/settings', data);
+  },
+
   // ---- Payroll Engine ----
   initiatePayrollRun: async (data) => {
     // data: { name: "Sep 2026", startDate, endDate }
