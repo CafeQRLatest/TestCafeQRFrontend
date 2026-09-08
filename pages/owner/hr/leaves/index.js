@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaCalendarAlt, FaCheck, FaTimes, FaPlus } from 'react-icons/fa';
 
-export default function LeaveManagement() {
+export default function LeaveManagement({ embedded = false }) {
+  const router = useRouter();
   const [leaves, setLeaves] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=leaves');
+    }
+  }, [embedded, router]);
   
   // Create Form
   const [employeeId, setEmployeeId] = useState('');
@@ -75,7 +83,7 @@ export default function LeaveManagement() {
   };
 
   return (
-    <DashboardLayout title="Leave Management" subtitle="Approve or reject employee leave requests.">
+    <DashboardLayout title="Leave Management" subtitle="Approve or reject employee leave requests." bare={embedded}>
       <Head>
         <title>Leaves | Cafe QR</title>
       </Head>

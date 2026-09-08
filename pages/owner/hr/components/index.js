@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaPlus, FaCogs, FaEdit, FaTrash } from 'react-icons/fa';
 
-export default function SalaryComponents() {
+export default function SalaryComponents({ embedded = false }) {
+  const router = useRouter();
   const [components, setComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingComponent, setEditingComponent] = useState(null);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=rules');
+    }
+  }, [embedded, router]);
   
   // Create / Edit Form state
   const [name, setName] = useState('');
@@ -113,7 +121,7 @@ export default function SalaryComponents() {
   };
 
   return (
-    <DashboardLayout title="Salary Rules Engine" subtitle="Configure earnings, deductions, taxes, and bonuses.">
+    <DashboardLayout title="Salary Rules Engine" subtitle="Configure earnings, deductions, taxes, and bonuses." bare={embedded}>
       <Head>
         <title>Salary Rules | Cafe QR</title>
       </Head>

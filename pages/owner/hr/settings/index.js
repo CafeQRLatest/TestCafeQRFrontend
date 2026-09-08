@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaSlidersH, FaSave, FaClock, FaCalculator, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 
-export default function HrSettingsDashboard() {
+export default function HrSettingsDashboard({ embedded = false }) {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     standardHoursPerDay: '8.00',
     overtimeMultiplier: '1.50',
@@ -15,6 +17,12 @@ export default function HrSettingsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=settings');
+    }
+  }, [embedded, router]);
 
   useEffect(() => {
     fetchSettings();
@@ -93,7 +101,7 @@ export default function HrSettingsDashboard() {
   const sampleTotalPay = sampleNormalPay + sampleOtPay;
 
   return (
-    <DashboardLayout title="HR & Overtime Policy" subtitle="Configure standard daily shift hours, overtime rate multipliers, and weekly thresholds">
+    <DashboardLayout title="HR & Overtime Policy" subtitle="Configure standard daily shift hours, overtime rate multipliers, and weekly thresholds" bare={embedded}>
       <Head>
         <title>HR Policy Settings | Cafe QR</title>
       </Head>

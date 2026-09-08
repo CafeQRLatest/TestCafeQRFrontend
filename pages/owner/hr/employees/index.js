@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import EmployeeCreationModal from '../../../../components/hr/EmployeeCreationModal';
@@ -7,13 +8,20 @@ import DepartmentModal from '../../../../components/hr/DepartmentModal';
 import DesignationModal from '../../../../components/hr/DesignationModal';
 import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash } from 'react-icons/fa';
 
-export default function EmployeeMaster() {
+export default function EmployeeMaster({ embedded = false }) {
+  const router = useRouter();
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=employees');
+    }
+  }, [embedded, router]);
   
   const [editingEmployee, setEditingEmployee] = useState(null);
   
@@ -97,7 +105,7 @@ export default function EmployeeMaster() {
   );
 
   return (
-    <DashboardLayout title="Employee Master" subtitle="Manage your staff, payroll details, and access." showBack={false}>
+    <DashboardLayout title="Employee Master" subtitle="Manage your staff, payroll details, and access." showBack={false} bare={embedded}>
       <Head>
         <title>Payroll & HR | Cafe QR</title>
       </Head>

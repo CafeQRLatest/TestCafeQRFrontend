@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync } from 'react-icons/fa';
 
-export default function PayrollDashboard() {
+export default function PayrollDashboard({ embedded = false }) {
+  const router = useRouter();
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -19,6 +21,12 @@ export default function PayrollDashboard() {
   const [slips, setSlips] = useState([]);
   const [isLoadingSlips, setIsLoadingSlips] = useState(false);
   const [showSlipsModal, setShowSlipsModal] = useState(false);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=payroll');
+    }
+  }, [embedded, router]);
 
   useEffect(() => {
     fetchPayrollRuns();
@@ -91,7 +99,7 @@ export default function PayrollDashboard() {
   };
 
   return (
-    <DashboardLayout title="Payroll Processing" subtitle="Calculate salaries, generate payslips, and export banking files.">
+    <DashboardLayout title="Payroll Processing" subtitle="Calculate salaries, generate payslips, and export banking files." bare={embedded}>
       <Head>
         <title>Payroll | Cafe QR</title>
       </Head>

@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle } from 'react-icons/fa';
 
-export default function TimesheetsDashboard() {
+export default function TimesheetsDashboard({ embedded = false }) {
+  const router = useRouter();
   const [timesheets, setTimesheets] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=timesheets');
+    }
+  }, [embedded, router]);
   
   // Date filters helper
   const getLocalDateStr = (d = new Date()) => {
@@ -150,7 +158,7 @@ export default function TimesheetsDashboard() {
   };
 
   return (
-    <DashboardLayout title="Timesheets & Overrides" subtitle="Manage staff attendance and manual timecard overrides">
+    <DashboardLayout title="Timesheets & Overrides" subtitle="Manage staff attendance and manual timecard overrides" bare={embedded}>
       <Head>
         <title>Timesheets | Cafe QR</title>
       </Head>

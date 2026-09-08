@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus } from 'react-icons/fa';
 
-export default function SalaryAdvances() {
+export default function SalaryAdvances({ embedded = false }) {
+  const router = useRouter();
   const [advances, setAdvances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (!embedded) {
+      router.replace('/owner/hr?tab=advances');
+    }
+  }, [embedded, router]);
   
   // Create Form
   const [employeeId, setEmployeeId] = useState('');
@@ -69,7 +77,7 @@ export default function SalaryAdvances() {
   };
 
   return (
-    <DashboardLayout title="Salary Advances & Loans" subtitle="Manage employee advances and automatic payroll deductions.">
+    <DashboardLayout title="Salary Advances & Loans" subtitle="Manage employee advances and automatic payroll deductions." bare={embedded}>
       <Head>
         <title>Advances | Cafe QR</title>
       </Head>
