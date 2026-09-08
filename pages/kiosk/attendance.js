@@ -133,7 +133,8 @@ export default function AttendanceKiosk() {
       }, 5000);
 
     } catch (error) {
-      setStatusMsg({ text: `Clock-${type.toLowerCase()} failed. Try again.`, type: 'error' });
+      const msg = error.response?.data?.message || error.message || `Clock-${type.toLowerCase()} failed. Try again.`;
+      setStatusMsg({ text: msg, type: 'error' });
     }
   };
 

@@ -9,9 +9,16 @@ export default function TimesheetsDashboard() {
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Date filters
-  const todayStr = new Date().toISOString().split('T')[0];
-  const thirtyDaysAgoStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Date filters helper
+  const getLocalDateStr = (d = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayStr = getLocalDateStr(new Date());
+  const thirtyDaysAgoStr = getLocalDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const [startDate, setStartDate] = useState(thirtyDaysAgoStr);
   const [endDate, setEndDate] = useState(todayStr);
 
@@ -60,11 +67,11 @@ export default function TimesheetsDashboard() {
   const handleOpenCreate = () => {
     setEditingRecord(null);
     const now = new Date();
-    const currentISO = now.toISOString().substring(0, 16);
+    const currentLocalISO = `${getLocalDateStr(now)}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     setFormData({
       employeeId: employees.length > 0 ? employees[0].id : '',
       attendanceDate: todayStr,
-      clockInTime: currentISO,
+      clockInTime: currentLocalISO,
       clockOutTime: '',
       status: 'PRESENT',
       punchMethod: 'MANUAL'
