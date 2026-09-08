@@ -3,13 +3,14 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import { FaCalendarAlt, FaCheck, FaTimes, FaPlus } from 'react-icons/fa';
+import { FaCalendarAlt, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function LeaveManagement({ embedded = false }) {
   const router = useRouter();
   const [leaves, setLeaves] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -17,11 +18,12 @@ export default function LeaveManagement({ embedded = false }) {
     }
   }, [embedded, router]);
   
-  // Create Form
+  // Create / Edit Form
   const [employeeId, setEmployeeId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [leaveType, setLeaveType] = useState('UNPAID');
+  const [status, setStatus] = useState('PENDING');
   const [reason, setReason] = useState('');
 
   const [employees, setEmployees] = useState([]);
@@ -46,16 +48,49 @@ export default function LeaveManagement({ embedded = false }) {
     }
   };
 
-  const handleStatusChange = async (id, status) => {
+  const handleOpenCreate = () => {
+    setEditingLeave(null);
+    setEmployeeId(employees.length > 0 ? employees[0].id : '');
+    setStartDate('');
+    setEndDate('');
+    setLeaveType('UNPAID');
+    setStatus('PENDING');
+    setReason('');
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (leave) => {
+    setEditingLeave(leave);
+    setEmployeeId(leave.employeeId || (leave.employee ? leave.employee.id : ''));
+    setStartDate(leave.startDate ? leave.startDate.substring(0, 10) : '');
+    setEndDate(leave.endDate ? leave.endDate.substring(0, 10) : '');
+    setLeaveType(leave.leaveType || 'UNPAID');
+    setStatus(leave.status || 'PENDING');
+    setReason(leave.reason || '');
+    setShowModal(true);
+  };
+
+  const handleStatusChange = async (id, newStatus) => {
     try {
-      await hrService.updateLeaveStatus(id, status);
+      await hrService.updateLeaveStatus(id, newStatus);
       fetchData();
     } catch (error) {
       alert("Failed to update status");
     }
   };
 
-  const handleCreateLeave = async (e) => {
+  const handleDeleteLeave = async (id) => {
+    if (!confirm("Are you sure you want to delete this leave request?")) return;
+    try {
+      await hrService.deleteLeaveRequest(id);
+      fetchData();
+    } catch (error) {
+      console.error("Failed to delete leave request", error);
+      alert("Failed to delete leave request");
+    }
+  };
+
+  const handleSaveLeave = async (e) => {
     e.preventDefault();
     if (!employeeId || !startDate || !endDate) return;
     
@@ -65,31 +100,39 @@ export default function LeaveManagement({ embedded = false }) {
     const diffTime = Math.abs(end - start);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
+    const payload = {
+      employeeId,
+      startDate,
+      endDate,
+      totalDays: diffDays,
+      leaveType,
+      reason,
+      status
+    };
+
     try {
-      await hrService.createLeaveRequest({
-        employeeId,
-        startDate,
-        endDate,
-        totalDays: diffDays,
-        leaveType,
-        reason,
-        status: 'PENDING'
-      });
+      if (editingLeave) {
+        await hrService.updateLeaveRequest(editingLeave.id, payload);
+      } else {
+        await hrService.createLeaveRequest(payload);
+      }
       setShowModal(false);
+      setEditingLeave(null);
       fetchData();
     } catch (error) {
-      alert("Error creating leave request.");
+      console.error("Error saving leave request", error);
+      alert("Error saving leave request: " + (error.response?.data?.message || error.message));
     }
   };
 
   return (
-    <DashboardLayout title="Leave Management" subtitle="Approve or reject employee leave requests." bare={embedded}>
+    <DashboardLayout title="Leave Management" subtitle="Approve, edit, or reject employee leave requests." bare={embedded}>
       <Head>
         <title>Leaves | Cafe QR</title>
       </Head>
 
       <div className="flex justify-end mb-6">
-        <button className="btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn-primary" onClick={handleOpenCreate}>
           <FaPlus /> New Leave Request
         </button>
       </div>
@@ -123,12 +166,24 @@ export default function LeaveManagement({ embedded = false }) {
                     <td>{leave.totalDays}</td>
                     <td><span className={`status-badge ${leave.status.toLowerCase()}`}>{leave.status}</span></td>
                     <td>
-                      {leave.status === 'PENDING' && (
-                        <div className="flex gap-2">
-                          <button onClick={() => handleStatusChange(leave.id, 'APPROVED')} className="btn-action view text-emerald-600"><FaCheck /></button>
-                          <button onClick={() => handleStatusChange(leave.id, 'REJECTED')} className="btn-action view text-red-600"><FaTimes /></button>
-                        </div>
-                      )}
+                      <div className="action-buttons">
+                        {leave.status !== 'APPROVED' && (
+                          <button onClick={() => handleStatusChange(leave.id, 'APPROVED')} className="icon-btn approve" title="Approve Request">
+                            <FaCheck />
+                          </button>
+                        )}
+                        {leave.status !== 'REJECTED' && (
+                          <button onClick={() => handleStatusChange(leave.id, 'REJECTED')} className="icon-btn reject" title="Reject Request">
+                            <FaTimes />
+                          </button>
+                        )}
+                        <button onClick={() => handleOpenEdit(leave)} className="icon-btn edit" title="Edit Request">
+                          <FaEdit />
+                        </button>
+                        <button onClick={() => handleDeleteLeave(leave.id)} className="icon-btn delete" title="Delete Request">
+                          <FaTrash />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -141,8 +196,8 @@ export default function LeaveManagement({ embedded = false }) {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel">
-            <h3>Add Leave Request</h3>
-            <form onSubmit={handleCreateLeave}>
+            <h3>{editingLeave ? 'Edit Leave Request' : 'Add Leave Request'}</h3>
+            <form onSubmit={handleSaveLeave}>
               <div className="form-group mb-4">
                 <label>Employee</label>
                 <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
@@ -162,21 +217,31 @@ export default function LeaveManagement({ embedded = false }) {
                   <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
                 </div>
               </div>
-              <div className="form-group mb-4">
-                <label>Leave Type</label>
-                <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
-                  <option value="PAID">Paid Leave</option>
-                  <option value="UNPAID">Unpaid Leave</option>
-                  <option value="SICK">Sick Leave</option>
-                </select>
+              <div className="flex gap-4 mb-4">
+                <div className="form-group flex-1">
+                  <label>Leave Type</label>
+                  <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
+                    <option value="PAID">Paid Leave</option>
+                    <option value="UNPAID">Unpaid Leave</option>
+                    <option value="SICK">Sick Leave</option>
+                  </select>
+                </div>
+                <div className="form-group flex-1">
+                  <label>Status</label>
+                  <select value={status} onChange={e => setStatus(e.target.value)}>
+                    <option value="PENDING">Pending</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
               </div>
               <div className="form-group mb-6">
                 <label>Reason</label>
                 <textarea value={reason} onChange={e => setReason(e.target.value)} rows="3" />
               </div>
               <div className="flex justify-end gap-3">
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Request</button>
+                <button type="button" className="btn-secondary" onClick={() => { setShowModal(false); setEditingLeave(null); }}>Cancel</button>
+                <button type="submit" className="btn-primary">{editingLeave ? 'Save Changes' : 'Save Request'}</button>
               </div>
             </form>
           </div>
@@ -192,7 +257,7 @@ export default function LeaveManagement({ embedded = false }) {
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
         .modern-table th { padding: 16px; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; }
+        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .font-bold { font-weight: 700; color: #1e293b; }
         
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
@@ -205,10 +270,26 @@ export default function LeaveManagement({ embedded = false }) {
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
         .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
-        .btn-action { padding: 6px; border-radius: 8px; border: none; background: #f1f5f9; cursor: pointer; }
+        
+        .action-buttons { display: flex; gap: 8px; align-items: center; }
+        .icon-btn {
+          width: 32px; height: 32px; border-radius: 8px; border: none;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: all 0.2s; font-size: 13px;
+        }
+        .icon-btn.approve { background: #dcfce7; color: #16a34a; }
+        .icon-btn.approve:hover { background: #bbf7d0; }
+        .icon-btn.reject { background: #fee2e2; color: #dc2626; }
+        .icon-btn.reject:hover { background: #fca5a5; }
+        .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
+        .icon-btn.edit:hover { background: #dbeafe; }
+        .icon-btn.delete { background: #fef2f2; color: #ef4444; }
+        .icon-btn.delete:hover { background: #fee2e2; }
+
+        .empty-state, .loading-state { text-align: center; padding: 40px !important; color: #64748b; font-weight: 600; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
-        .modal-content { width: 100%; max-width: 500px; padding: 32px; background: white; }
+        .modal-content { width: 100%; max-width: 500px; padding: 32px; background: white; border-radius: 20px; }
         .modal-content h3 { margin: 0 0 24px; font-size: 20px; }
         
         .form-group label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #475569; }
@@ -223,3 +304,4 @@ export default function LeaveManagement({ embedded = false }) {
     </DashboardLayout>
   );
 }
+

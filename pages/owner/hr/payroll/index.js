@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync } from 'react-icons/fa';
+import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint } from 'react-icons/fa';
 
 export default function PayrollDashboard({ embedded = false }) {
   const router = useRouter();
@@ -21,6 +21,9 @@ export default function PayrollDashboard({ embedded = false }) {
   const [slips, setSlips] = useState([]);
   const [isLoadingSlips, setIsLoadingSlips] = useState(false);
   const [showSlipsModal, setShowSlipsModal] = useState(false);
+  
+  // Printable Payslip State
+  const [selectedSlipForPrint, setSelectedSlipForPrint] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -95,6 +98,17 @@ export default function PayrollDashboard({ embedded = false }) {
     } catch (error) {
       console.error("Failed to sync accounting", error);
       alert("Failed to sync with accounting.");
+    }
+  };
+
+  const handleDeleteRun = async (runId) => {
+    if (!confirm("Are you sure you want to delete this payroll run and all its generated payslips?")) return;
+    try {
+      await hrService.deletePayrollRun(runId);
+      fetchPayrollRuns();
+    } catch (error) {
+      console.error("Failed to delete payroll run", error);
+      alert("Failed to delete payroll run.");
     }
   };
 
@@ -203,6 +217,13 @@ export default function PayrollDashboard({ embedded = false }) {
                           >
                             <FaSync /> Sync
                           </button>
+                          <button 
+                            className="btn-action delete" 
+                            title="Delete Payroll Run"
+                            onClick={() => handleDeleteRun(run.id)}
+                          >
+                            <FaTrash /> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -242,12 +263,13 @@ export default function PayrollDashboard({ embedded = false }) {
                       <th>Total Deductions</th>
                       <th>Net Pay</th>
                       <th>Status</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {slips.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="empty-state">No salary slips generated for this run.</td>
+                        <td colSpan="8" className="empty-state">No salary slips generated for this run.</td>
                       </tr>
                     ) : (
                       slips.map(slip => (
@@ -261,12 +283,124 @@ export default function PayrollDashboard({ embedded = false }) {
                           <td>
                             <span className="status-badge processed">{slip.status}</span>
                           </td>
+                          <td>
+                            <button
+                              className="btn-action view"
+                              title="Print Official Payslip"
+                              onClick={() => setSelectedSlipForPrint(slip)}
+                            >
+                              <FaPrint /> Print
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Printable Payslip Modal */}
+      {selectedSlipForPrint && (
+        <div className="modal-overlay payslip-modal-overlay">
+          <div className="modal-content glass-panel payslip-printable-container">
+            <div className="no-print modal-header-flex" style={{ marginBottom: '16px' }}>
+              <h3>Official Employee Payslip</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-primary" onClick={() => window.print()} style={{ height: '38px', padding: '8px 16px' }}>
+                  <FaPrint /> Print Payslip
+                </button>
+                <button className="btn-secondary" onClick={() => setSelectedSlipForPrint(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Slip Content */}
+            <div id="printable-payslip" className="payslip-card">
+              <div className="payslip-header">
+                <div className="company-info">
+                  <h2>CAFE QR RESTAURANT</h2>
+                  <p>Official Payroll Statement & Employee Payslip</p>
+                </div>
+                <div className="pay-period-box">
+                  <span className="label">PAY PERIOD</span>
+                  <span className="value">
+                    {selectedRun ? `${new Date(selectedRun.startDate).toLocaleDateString()} - ${new Date(selectedRun.endDate).toLocaleDateString()}` : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              <hr className="divider" />
+
+              <div className="emp-details-grid">
+                <div>
+                  <span className="meta-label">EMPLOYEE NAME</span>
+                  <div className="meta-value">{selectedSlipForPrint.employeeName}</div>
+                </div>
+                <div>
+                  <span className="meta-label">EMPLOYEE ID</span>
+                  <div className="meta-value">{selectedSlipForPrint.employeeId ? selectedSlipForPrint.employeeId.substring(0,8).toUpperCase() : 'N/A'}</div>
+                </div>
+                <div>
+                  <span className="meta-label">WORKED HOURS</span>
+                  <div className="meta-value">{selectedSlipForPrint.totalWorkedHours ?? '—'} hrs</div>
+                </div>
+                <div>
+                  <span className="meta-label">UNPAID LEAVES</span>
+                  <div className="meta-value">{selectedSlipForPrint.totalUnpaidLeaveDays ?? 0} days</div>
+                </div>
+              </div>
+
+              <div className="pay-breakdown-tables">
+                <div className="breakdown-box">
+                  <h4>EARNINGS</h4>
+                  <table className="mini-table">
+                    <tbody>
+                      <tr>
+                        <td>Gross Pay (Base & Overtime)</td>
+                        <td className="amount font-bold">${selectedSlipForPrint.grossPay?.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="breakdown-box">
+                  <h4>DEDUCTIONS</h4>
+                  <table className="mini-table">
+                    <tbody>
+                      <tr>
+                        <td>Total Deductions & Advances</td>
+                        <td className="amount font-bold text-red">-${selectedSlipForPrint.totalDeductions?.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="net-pay-banner">
+                <div>
+                  <span className="net-label">NET TAKE-HOME PAY</span>
+                  <div className="net-amount">${selectedSlipForPrint.netPay?.toFixed(2)}</div>
+                </div>
+                <div className="pay-status">
+                  STATUS: <strong>{selectedSlipForPrint.status || 'PAID'}</strong>
+                </div>
+              </div>
+
+              <div className="signature-section">
+                <div className="sig-block">
+                  <div className="sig-line"></div>
+                  <span>Employer / Manager Signature</span>
+                </div>
+                <div className="sig-block">
+                  <div className="sig-line"></div>
+                  <span>Employee Signature</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -301,7 +435,7 @@ export default function PayrollDashboard({ embedded = false }) {
           padding: 12px 24px; border-radius: 12px; border: none; height: 46px;
           background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
           color: white; font-weight: 700; cursor: pointer; transition: transform 0.2s;
-          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); display: flex; align-items: center; gap: 6px;
         }
         .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -334,6 +468,7 @@ export default function PayrollDashboard({ embedded = false }) {
         .btn-action.view { background: #f1f5f9; color: #3b82f6; }
         .btn-action.download { background: #f1f5f9; color: #8b5cf6; }
         .btn-action.sync { background: #f1f5f9; color: #10b981; }
+        .btn-action.delete { background: #fef2f2; color: #ef4444; }
         .btn-action:hover { filter: brightness(0.95); }
 
         .empty-state, .loading-state { text-align: center; padding: 40px !important; color: #64748b; font-weight: 600; }
@@ -344,8 +479,59 @@ export default function PayrollDashboard({ embedded = false }) {
         .modal-header-flex h3 { margin: 0; font-size: 20px; color: #1e293b; }
         .modal-sub { margin: 4px 0 0; color: #64748b; font-size: 13px; }
 
+        /* Payslip Card Styling */
+        .payslip-modal-overlay { z-index: 1000; }
+        .payslip-printable-container { max-width: 700px; background: white; border-radius: 16px; padding: 24px; }
+        .payslip-card {
+          border: 2px solid #e2e8f0; border-radius: 12px; padding: 24px; background: white; color: #0f172a;
+        }
+        .payslip-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .company-info h2 { margin: 0; font-size: 22px; font-weight: 900; color: #ea580c; letter-spacing: -0.02em; }
+        .company-info p { margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 600; }
+        .pay-period-box { text-align: right; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .pay-period-box .label { display: block; font-size: 10px; font-weight: 800; color: #94a3b8; }
+        .pay-period-box .value { font-size: 12px; font-weight: 700; color: #1e293b; }
+
+        .divider { margin: 16px 0; border: none; border-top: 1px solid #e2e8f0; }
+
+        .emp-details-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; background: #f8fafc; padding: 12px; border-radius: 8px; }
+        .meta-label { display: block; font-size: 10px; font-weight: 800; color: #64748b; }
+        .meta-value { font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+
+        .pay-breakdown-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+        .breakdown-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+        .breakdown-box h4 { margin: 0 0 8px; font-size: 12px; font-weight: 800; color: #475569; letter-spacing: 0.05em; }
+        .mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .mini-table td { padding: 6px 0; border-bottom: 1px dashed #f1f5f9; }
+        .mini-table td.amount { text-align: right; }
+
+        .net-pay-banner {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white; padding: 16px 20px; border-radius: 12px;
+          display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;
+        }
+        .net-label { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; opacity: 0.9; }
+        .net-amount { font-size: 28px; font-weight: 900; }
+        .pay-status { font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; }
+
+        .signature-section { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 32px; padding-top: 16px; }
+        .sig-block { text-align: center; }
+        .sig-line { border-bottom: 1px solid #94a3b8; height: 30px; margin-bottom: 6px; }
+        .sig-block span { font-size: 11px; color: #64748b; font-weight: 600; }
+
+        @media print {
+          body * { visibility: hidden; }
+          .payslip-printable-container, #printable-payslip, #printable-payslip * { visibility: visible; }
+          .payslip-printable-container {
+            position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0;
+            box-shadow: none; border: none; background: white;
+          }
+          .no-print { display: none !important; }
+        }
+
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </DashboardLayout>
   );
 }
+

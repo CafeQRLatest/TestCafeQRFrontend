@@ -104,6 +104,10 @@ export const hrService = {
     return await api.post(`/api/v1/hr/payroll-accounting/sync/${runId}`);
   },
 
+  deletePayrollRun: async (runId) => {
+    return await api.delete(`/api/v1/hr/payroll/runs/${runId}`);
+  },
+
   // ---- Leaves ----
   getAllLeaveRequests: async () => {
     return await api.get('/api/v1/hr/leaves');
@@ -113,8 +117,16 @@ export const hrService = {
     return await api.post('/api/v1/hr/leaves', data);
   },
 
+  updateLeaveRequest: async (id, data) => {
+    return await api.put(`/api/v1/hr/leaves/${id}`, data);
+  },
+
   updateLeaveStatus: async (id, status) => {
     return await api.put(`/api/v1/hr/leaves/${id}/status?status=${status}`);
+  },
+
+  deleteLeaveRequest: async (id) => {
+    return await api.delete(`/api/v1/hr/leaves/${id}`);
   },
 
   // ---- Salary Advances ----
@@ -126,8 +138,16 @@ export const hrService = {
     return await api.post('/api/v1/hr/advances', data);
   },
 
+  updateAdvance: async (id, data) => {
+    return await api.put(`/api/v1/hr/advances/${id}`, data);
+  },
+
   updateAdvanceStatus: async (id, status) => {
     return await api.put(`/api/v1/hr/advances/${id}/status?status=${status}`);
+  },
+
+  deleteAdvance: async (id) => {
+    return await api.delete(`/api/v1/hr/advances/${id}`);
   },
 
   // ---- Salary Components ----
@@ -145,5 +165,18 @@ export const hrService = {
 
   deleteComponent: async (id) => {
     return await api.delete(`/api/v1/hr/salary-components/${id}`);
+  },
+
+  // ---- Employee Salary Components ----
+  getEmployeeSalaryComponents: async (employeeId) => {
+    return await api.get(`/api/v1/hr/employees/${employeeId}/components`);
+  },
+
+  assignEmployeeSalaryComponent: async (employeeId, data) => {
+    return await api.post(`/api/v1/hr/employees/${employeeId}/components`, data);
+  },
+
+  removeEmployeeSalaryComponent: async (employeeId, salaryComponentId) => {
+    return await api.delete(`/api/v1/hr/employees/${employeeId}/components/${salaryComponentId}`);
   }
 };

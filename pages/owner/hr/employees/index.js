@@ -6,7 +6,8 @@ import { hrService } from '../../../../services/hrService';
 import EmployeeCreationModal from '../../../../components/hr/EmployeeCreationModal';
 import DepartmentModal from '../../../../components/hr/DepartmentModal';
 import DesignationModal from '../../../../components/hr/DesignationModal';
-import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash } from 'react-icons/fa';
+import EmployeeSalaryRulesModal from '../../../../components/hr/EmployeeSalaryRulesModal';
+import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash, FaCogs } from 'react-icons/fa';
 
 export default function EmployeeMaster({ embedded = false }) {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function EmployeeMaster({ embedded = false }) {
   const [designations, setDesignations] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
+  const [rulesEmployee, setRulesEmployee] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -99,10 +103,13 @@ export default function EmployeeMaster({ embedded = false }) {
     }
   };
 
-  const filteredEmployees = employees.filter(e => 
-    (e.firstName + ' ' + e.lastName).toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (e.email || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(e => {
+    const matchesSearch = (e.firstName + ' ' + e.lastName).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept = !departmentFilter || (e.department?.id === departmentFilter || e.departmentId === departmentFilter);
+    const matchesType = !employmentTypeFilter || e.employmentType === employmentTypeFilter;
+    return matchesSearch && matchesDept && matchesType;
+  });
 
   return (
     <DashboardLayout title="Employee Master" subtitle="Manage your staff, payroll details, and access." showBack={false} bare={embedded}>
@@ -122,6 +129,30 @@ export default function EmployeeMaster({ embedded = false }) {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+          </div>
+
+          <div className="filter-box" style={{ display: 'flex', gap: '8px' }}>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Departments</option>
+              {departments.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+
+            <select
+              value={employmentTypeFilter}
+              onChange={(e) => setEmploymentTypeFilter(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Types</option>
+              <option value="FULL_TIME">Full Time</option>
+              <option value="PART_TIME">Part Time</option>
+              <option value="HOURLY">Hourly</option>
+            </select>
           </div>
           
           <div className="action-buttons-group" style={{ display: 'flex', gap: '12px' }}>
@@ -221,6 +252,7 @@ export default function EmployeeMaster({ embedded = false }) {
                       </td>
                       <td>
                         <div className="action-buttons">
+                          <button className="icon-btn rules" onClick={() => setRulesEmployee(emp)} title="Salary Rules & Allowances"><FaCogs /></button>
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(emp)} title="Edit Employee"><FaEdit /></button>
                           <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp.id)} title="Delete Employee"><FaTrash /></button>
                         </div>
@@ -255,6 +287,12 @@ export default function EmployeeMaster({ embedded = false }) {
         onClose={() => setIsDesigModalOpen(false)}
         designations={designations}
         onRefresh={fetchData}
+      />
+
+      <EmployeeSalaryRulesModal
+        isOpen={!!rulesEmployee}
+        onClose={() => setRulesEmployee(null)}
+        employee={rulesEmployee}
       />
 
       <style jsx>{`
@@ -357,11 +395,17 @@ export default function EmployeeMaster({ embedded = false }) {
         .status-inactive { background: #fee2e2; color: #b91c1c; }
 
         .action-buttons { display: flex; gap: 8px; }
+        .filter-select {
+          padding: 10px 14px; border-radius: 12px; border: 1px solid #cbd5e1;
+          background: white; color: #334155; font-size: 13px; font-weight: 600; outline: none;
+        }
         .icon-btn {
           width: 32px; height: 32px; border-radius: 8px; border: none;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: all 0.2s;
         }
+        .icon-btn.rules { background: #f3e8ff; color: #8b5cf6; }
+        .icon-btn.rules:hover { background: #e9d5ff; }
         .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
         .icon-btn.edit:hover { background: #dbeafe; }
         .icon-btn.delete { background: #fef2f2; color: #ef4444; }
