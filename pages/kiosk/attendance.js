@@ -239,7 +239,7 @@ export default function AttendanceKiosk() {
                   required
                 >
                   <option value="">-- Tap to Select --</option>
-                  {employees.map(emp => (
+                  {employees.filter(emp => emp.isActive).map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
                   ))}
                 </select>
