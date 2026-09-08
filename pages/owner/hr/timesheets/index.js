@@ -90,11 +90,17 @@ export default function TimesheetsDashboard() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const formatLocalIso = (val) => {
+        if (!val || !val.trim()) return null;
+        if (val.length === 16) return val + ':00';
+        return val;
+      };
+
       const payload = {
         employeeId: formData.employeeId,
         attendanceDate: formData.attendanceDate,
-        clockInTime: formData.clockInTime ? new Date(formData.clockInTime).toISOString() : null,
-        clockOutTime: formData.clockOutTime ? new Date(formData.clockOutTime).toISOString() : null,
+        clockInTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockInTime),
+        clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime),
         status: formData.status,
         punchMethod: formData.punchMethod
       };
@@ -209,8 +215,18 @@ export default function TimesheetsDashboard() {
                       <tr key={record.id}>
                         <td className="font-bold">{record.employeeName || 'Staff Member'}</td>
                         <td>{record.attendanceDate}</td>
-                        <td className="time-badge in">{formatTime(record.clockInTime)}</td>
-                        <td className="time-badge out">{record.clockOutTime ? formatTime(record.clockOutTime) : 'Active'}</td>
+                        <td className="time-badge in">
+                          {record.status === 'ABSENT' || !record.clockInTime ? '--' : formatTime(record.clockInTime)}
+                        </td>
+                        <td className="time-badge out">
+                          {record.status === 'ABSENT' 
+                            ? '--' 
+                            : (record.clockOutTime 
+                                ? formatTime(record.clockOutTime) 
+                                : (record.status === 'PRESENT' ? 'Active' : '--')
+                              )
+                          }
+                        </td>
                         <td>
                           {record.totalHoursWorked ? `${record.totalHoursWorked} hrs` : '--'}
                           {isOvertime && <span className="overtime-flag"><FaExclamationTriangle /> OT</span>}
@@ -265,7 +281,20 @@ export default function TimesheetsDashboard() {
                 <input 
                   type="date" 
                   value={formData.attendanceDate} 
-                  onChange={(e) => setFormData({ ...formData, attendanceDate: e.target.value })}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setFormData(prev => {
+                      let newIn = prev.clockInTime;
+                      let newOut = prev.clockOutTime;
+                      if (newIn && newIn.length >= 10) {
+                        newIn = newDate + newIn.substring(10);
+                      }
+                      if (newOut && newOut.length >= 10) {
+                        newOut = newDate + newOut.substring(10);
+                      }
+                      return { ...prev, attendanceDate: newDate, clockInTime: newIn, clockOutTime: newOut };
+                    });
+                  }}
                   required 
                 />
               </div>
