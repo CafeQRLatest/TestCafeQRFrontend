@@ -770,13 +770,14 @@ const MENU_CONFIG = {
   "Data Backup": { name: "Data Backup", icon: <FaDatabase /> },
   "Partners": { name: "Partners", icon: <FaUserFriends /> },
   "Payment Types": { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" },
-  "Payroll & HR": { name: "Employees", icon: <FaIdBadge />, url: "/owner/hr/employees" },
-  "Timesheets": { name: "Timesheets", icon: <FaClock />, url: "/owner/hr/timesheets" },
-  "Leaves": { name: "Leave Approvals", icon: <FaCalendarAlt />, url: "/owner/hr/leaves" },
-  "Advances": { name: "Salary Advances", icon: <FaMoneyBillWave />, url: "/owner/hr/advances" },
-  "Salary Components": { name: "Salary Rules", icon: <FaCogs />, url: "/owner/hr/components" },
-  "HR Policy Settings": { name: "HR Settings", icon: <FaSlidersH />, url: "/owner/hr/settings" },
-  "Payroll Processing": { name: "Run Payroll", icon: <FaMoneyCheckAlt />, url: "/owner/hr/payroll" }
+  "Payroll & HR": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "HR & Payroll": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "Timesheets": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "Leaves": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "Advances": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "Salary Components": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "HR Policy Settings": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+  "Payroll Processing": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" }
 };
 
 const CATEGORY_MAPPING = {
@@ -813,12 +814,7 @@ const CATEGORY_MAPPING = {
   "Data Backup": "ACCOUNT",
   "Document Sequences": "ACCOUNT",
   "Payroll & HR": "OPERATIONS",
-  "Timesheets": "OPERATIONS",
-  "Leaves": "OPERATIONS",
-  "Advances": "OPERATIONS",
-  "Salary Components": "OPERATIONS",
-  "HR Policy Settings": "OPERATIONS",
-  "Payroll Processing": "OPERATIONS"
+  "HR & Payroll": "OPERATIONS"
 };
 
 const MENU_ORDER = [
@@ -827,7 +823,7 @@ const MENU_ORDER = [
   "Customers", "Loyalty",
   "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
-  "Payroll & HR", "Timesheets", "Leaves", "Advances", "Salary Components", "HR Policy Settings", "Payroll Processing"
+  "Payroll & HR"
 ];
 
 // ─── INTERNAL COMPONENTS ────────────────────────────────────────────────────────
@@ -870,7 +866,14 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "ACCOUNT": []
   };
 
+  let hasHrAccess = false;
+  const HR_MENU_NAMES = ["Payroll & HR", "HR & Payroll", "Timesheets", "Leaves", "Advances", "Salary Components", "HR Policy Settings", "Payroll Processing"];
+
   parentMenus.forEach(m => {
+    if (HR_MENU_NAMES.includes(m.name)) {
+      hasHrAccess = true;
+      return;
+    }
     const cat = categoryMapping[m.name] || "OPERATIONS";
     groupedMenus[cat].push(m);
   });
@@ -885,28 +888,9 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     });
   });
 
-  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN') {
-    // Statically inject Payroll for Owners so it doesn't require backend permission seeding during dev
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr/employees" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Timesheets")) {
-      groupedMenus["OPERATIONS"].push({ name: "Timesheets", url: "/owner/hr/timesheets" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Leaves")) {
-      groupedMenus["OPERATIONS"].push({ name: "Leaves", url: "/owner/hr/leaves" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Advances")) {
-      groupedMenus["OPERATIONS"].push({ name: "Advances", url: "/owner/hr/advances" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Salary Components")) {
-      groupedMenus["OPERATIONS"].push({ name: "Salary Components", url: "/owner/hr/components" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "HR Policy Settings")) {
-      groupedMenus["OPERATIONS"].push({ name: "HR Policy Settings", url: "/owner/hr/settings" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll Processing")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll Processing", url: "/owner/hr/payroll" });
+  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
+    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
     }
   }
 
@@ -981,7 +965,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
               {allItems.map(m => {
                 const configItem = menuConfig[m.name] || {};
                 const targetUrl = configItem.url || m.url;
-                const active = router.pathname === targetUrl;
+                const active = targetUrl === '/owner/hr' ? router.pathname.startsWith('/owner/hr') : router.pathname === targetUrl;
                 const displayName = configItem.name || m.name;
                 const displayIcon = configItem.icon || <FaBuilding />;
                 return (
@@ -1062,7 +1046,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "QR Availability": { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours": { name: "Delivery Hours", icon: <FaTruck /> },
     "Credit Settlements": { name: "Credit Settlements", icon: <FaUserFriends />, url: "/owner/credit-settlements" },
-  "Credit Customers": { name: "Credit Settlements", icon: <FaUserFriends />, url: "/owner/credit-settlements" },
+    "Credit Customers": { name: "Credit Settlements", icon: <FaUserFriends />, url: "/owner/credit-settlements" },
     "Credit Sales": { name: "Credit Sales Ledger", icon: <FaBookOpen /> },
     "Offline Sync Center": { name: "Offline Sync Center", icon: <FaClock /> },
     "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
@@ -1085,9 +1069,14 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Data Backup": { name: "Data Backup", icon: <FaDatabase /> },
     "Partners": { name: "Partners", icon: <FaUserFriends /> },
     "Payment Types": { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" },
-    "Payroll & HR": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr/employees" },
-    "Timesheets": { name: "Timesheets", icon: <FaClock />, url: "/owner/hr/timesheets" },
-    "Payroll Processing": { name: "Payroll Processing", icon: <FaMoneyCheckAlt />, url: "/owner/hr/payroll" }
+    "Payroll & HR": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "HR & Payroll": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "Timesheets": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "Leaves": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "Advances": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "Salary Components": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "HR Policy Settings": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
+    "Payroll Processing": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" }
   };
 
   const categoryMapping = {
@@ -1102,7 +1091,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "QR Availability": "ADD ON",
     "Delivery Hours": "ADD ON",
     "Credit Settlements": "ADD ON",
-  "Credit Customers": "ADD ON",
+    "Credit Customers": "ADD ON",
     "Credit Sales": "ADD ON",
     "Offline Sync Center": "ADD ON",
     "Waste Management": "ADD ON",
@@ -1124,8 +1113,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Data Backup": "ACCOUNT",
     "Document Sequences": "ACCOUNT",
     "Payroll & HR": "OPERATIONS",
-    "Timesheets": "OPERATIONS",
-    "Payroll Processing": "OPERATIONS"
+    "HR & Payroll": "OPERATIONS"
   };
 
   const menuOrder = [
@@ -1133,7 +1121,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
     "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
-    "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR", "Timesheets", "Payroll Processing"
+    "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
   ];
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
@@ -1165,7 +1153,14 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "ACCOUNT": []
   };
 
+  let hasHrAccess = false;
+  const HR_MENU_NAMES = ["Payroll & HR", "HR & Payroll", "Timesheets", "Leaves", "Advances", "Salary Components", "HR Policy Settings", "Payroll Processing"];
+
   parentMenus.forEach(m => {
+    if (HR_MENU_NAMES.includes(m.name)) {
+      hasHrAccess = true;
+      return;
+    }
     const cat = categoryMapping[m.name] || "OPERATIONS";
     groupedMenus[cat].push(m);
   });
@@ -1180,15 +1175,9 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     });
   });
 
-  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN') {
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr/employees" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Timesheets")) {
-      groupedMenus["OPERATIONS"].push({ name: "Timesheets", url: "/owner/hr/timesheets" });
-    }
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll Processing")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll Processing", url: "/owner/hr/payroll" });
+  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
+    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
     }
   }
 
@@ -1213,7 +1202,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
               {allItems.map(m => {
                 const configItem = menuConfig[m.name] || {};
                 const targetUrl = configItem.url || m.url;
-                const active = router.pathname === targetUrl;
+                const active = targetUrl === '/owner/hr' ? router.pathname.startsWith('/owner/hr') : router.pathname === targetUrl;
                 const displayName = configItem.name || m.name;
                 const displayIcon = configItem.icon || <FaBuilding />;
                 return (
