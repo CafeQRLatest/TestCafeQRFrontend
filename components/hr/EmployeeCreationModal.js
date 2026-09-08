@@ -19,7 +19,10 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
     isActive: true
   });
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   useEffect(() => {
+    setErrorMsg('');
     if (employeeToEdit) {
       setFormData({
         firstName: employeeToEdit.firstName || '',
@@ -47,7 +50,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
         departmentId: '',
         designationId: '',
         employmentType: 'FULL_TIME',
- baseSalary: '',
+        baseSalary: '',
         hourlyRate: '',
         bankAccountNumber: '',
         bankRoutingNumber: '',
@@ -62,14 +65,53 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
   if (!isOpen) return null;
 
   const handleChange = (e) => {
+    setErrorMsg('');
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    if (!formData.firstName || !formData.firstName.trim()) {
+      setErrorMsg('First name is required.');
+      return;
+    }
+
+    if (!formData.lastName || !formData.lastName.trim()) {
+      setErrorMsg('Last name is required.');
+      return;
+    }
+
+    if (formData.pinCode && formData.pinCode.trim() !== '') {
+      if (!/^\d{4}$/.test(formData.pinCode.trim())) {
+        setErrorMsg('Kiosk PIN must be exactly 4 numeric digits (e.g. 1234).');
+        return;
+      }
+    }
+
+    if (formData.email && formData.email.trim() !== '') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+        setErrorMsg('Please enter a valid email address.');
+        return;
+      }
+    }
+
+    if (formData.baseSalary !== '' && Number(formData.baseSalary) < 0) {
+      setErrorMsg('Base salary cannot be negative.');
+      return;
+    }
+
+    if (formData.hourlyRate !== '' && Number(formData.hourlyRate) < 0) {
+      setErrorMsg('Hourly rate cannot be negative.');
+      return;
+    }
     
     // Clean up empty strings to null for UUID fields so backend doesn't crash
-    const payload = { ...formData };
+    const payload = { 
+      ...formData,
+      phoneNumber: formData.phone || formData.phoneNumber || ''
+    };
     if (!payload.departmentId) payload.departmentId = null;
     if (!payload.designationId) payload.designationId = null;
     
@@ -85,6 +127,11 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
         </div>
         
         <form onSubmit={handleSubmit} className="modal-body">
+          {errorMsg && (
+            <div className="error-banner" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', padding: '12px 16px', borderRadius: '12px', marginBottom: '20px', fontSize: '14px', fontWeight: '600' }}>
+              {errorMsg}
+            </div>
+          )}
           <div className="form-grid">
             <div className="form-group">
               <label><FaUser className="input-icon" /> First Name</label>

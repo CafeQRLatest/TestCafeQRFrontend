@@ -18,6 +18,7 @@ export default function TimesheetsDashboard() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     employeeId: '',
     attendanceDate: todayStr,
@@ -86,6 +87,8 @@ export default function TimesheetsDashboard() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const payload = {
         employeeId: formData.employeeId,
@@ -107,6 +110,8 @@ export default function TimesheetsDashboard() {
     } catch (err) {
       console.error('Failed to save timecard:', err);
       alert('Failed to save timecard: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -313,8 +318,10 @@ export default function TimesheetsDashboard() {
               </div>
 
               <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn-primary"><FaSave /> Save Timecard</button>
+                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={isSubmitting}>
+                  <FaSave /> {isSubmitting ? 'Saving...' : 'Save Timecard'}
+                </button>
               </div>
             </form>
           </div>

@@ -184,11 +184,11 @@ export default function EmployeeMaster() {
                       <td>
                         <div className="contact-info">
                           <span>{emp.email || 'N/A'}</span>
-                          <span className="phone">{emp.phone || 'N/A'}</span>
+                          <span className="phone">{emp.phoneNumber || emp.phone || 'N/A'}</span>
                         </div>
                       </td>
                       <td>
-                        {emp.department ? emp.department.name : (emp.departmentName || 'N/A')}
+                        <div className="dept-name">{emp.department ? emp.department.name : (emp.departmentName || '—')}</div>
                         <div className="designation">{(emp.designation ? (emp.designation.name || emp.designation.title) : emp.designationName) || ''}</div>
                       </td>
                       <td>
@@ -333,9 +333,10 @@ export default function EmployeeMaster() {
         .emp-id { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
         .contact-info { display: flex; flex-direction: column; font-size: 13px; color: #475569; }
-        .contact-info .phone { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+        .contact-info .phone { font-size: 12px; color: #64748b; margin-top: 2px; }
 
-        .designation { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+        .dept-name { font-weight: 700; color: #1e293b; font-size: 13px; }
+        .designation { font-size: 12px; color: #64748b; margin-top: 2px; }
 
         .badge {
           padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
