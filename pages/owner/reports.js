@@ -8,11 +8,13 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import { publishAccountingDataChanged, subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
+import { printUniversal } from '../../utils/printGateway';
+import { buildThermalReportText } from '../../utils/thermalReportFormatter';
 import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
   FaChevronRight, FaBan, FaBook, FaMoneyBillWave, FaMobileAlt, FaWallet,
-  FaInfoCircle, FaCoins, FaTag
+  FaInfoCircle, FaCoins, FaTag, FaPrint
 } from 'react-icons/fa';
 
 const TABS = [
@@ -250,6 +252,27 @@ export default function Reports() {
     } catch { notify('error', 'Excel export failed'); }
   };
 
+  const handlePrint = async (tabKey) => {
+    let dataToPrint = null;
+    switch (tabKey) {
+      case 'summary': dataToPrint = summary; break;
+      case 'items': dataToPrint = items; break;
+      case 'payments': dataToPrint = payments; break;
+      case 'tax': dataToPrint = taxData; break;
+      case 'hourly': dataToPrint = hourly; break;
+      case 'pnl': dataToPrint = pnl; break;
+      case 'credit': dataToPrint = creditReport; break;
+      default: return;
+    }
+    const text = buildThermalReportText(tabKey, dataToPrint, config, timezone, { start: dateFrom, end: dateTo });
+    try {
+      await printUniversal({ text, jobKind: 'bill', allowSystemDialog: true });
+    } catch (e) {
+      console.warn('Print failed', e);
+      notify('error', e.message || 'Printer not configured');
+    }
+  };
+
   const viewDocument = async (tx, type) => {
     if (tx.orderId) {
       try {
@@ -351,6 +374,7 @@ export default function Reports() {
             ].filter(Boolean),
             'Sales Summary', 'sales_summary'
           )}><FaFileExcel /> Excel</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('summary')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-kpi-grid">
           {cards.map((c, i) => (
@@ -609,6 +633,7 @@ export default function Reports() {
             items.map(i => `"${i.productName}","${i.categoryName}",${i.quantitySold},${i.revenue}`),
             'item_wise'
           )}><FaFileCsv /> CSV</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('items')}><FaPrint /> Print</button>
         </div>
         {items.length === 0 ? <div className="rpt-empty">No item data</div> : (
           <div className="rpt-tbl-wrap">
@@ -651,6 +676,7 @@ export default function Reports() {
             })),
             'Payments Breakdown', 'payments_breakdown'
           )}><FaFileExcel /> Excel</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('payments')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-pay-grid">
           {payments.map((p, i) => {
@@ -720,6 +746,7 @@ export default function Reports() {
           taxData.map(t => `${t.taxRate}%,${t.taxableAmount},${t.cgst},${t.sgst},${t.totalTax}`),
           'tax_report'
         )}><FaFileCsv /> HSN CSV</button>
+        <button className="rpt-exp-btn" onClick={() => handlePrint('tax')}><FaPrint /> Print</button>
       </div>
       {taxData.length === 0 ? <div className="rpt-empty">No tax data</div> : (
         <div className="rpt-tbl-wrap">
@@ -852,6 +879,7 @@ export default function Reports() {
             exportData.map(row => ({ Metric: row[0], Value: row[1] })),
             'Profit & Loss', 'profit_loss'
           )}><FaFileExcel /> Excel</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('pnl')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-note">Profit & Loss is calculated from accounting journals, so expenses, purchases, COGS, inventory adjustments, and reversals are included.</div>
         {/* Visual Profit & Loss Waterfall and Side Metrics */}
@@ -1123,6 +1151,7 @@ export default function Reports() {
             })),
             'Hourly Trends', 'hourly_trends'
           )}><FaFileExcel /> Excel</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('hourly')}><FaPrint /> Print</button>
         </div>
         {/* Premium Styled Hourly Chart */}
         <div className="rpt-chart-card">
@@ -1193,6 +1222,7 @@ export default function Reports() {
             ].map(csvCell).join(',')),
             'credit_payments'
           )}><FaFileCsv /> Export Credit Payments CSV</button>
+          <button className="rpt-exp-btn" onClick={() => handlePrint('credit')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-kpi-grid">
           {cards.map((card) => (
