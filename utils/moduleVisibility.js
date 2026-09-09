@@ -8,6 +8,7 @@ const FEATURE_DEFAULTS = {
   discountEnabled: true,
   sendToKitchenEnabled: true,
   offlineSyncEnabled: true,
+  payrollEnabled: true,
 };
 
 const MENU_FEATURES = {
@@ -19,6 +20,7 @@ const MENU_FEATURES = {
   'Credit Sales': 'creditEnabled',
   'Loyalty': 'loyaltyEnabled',
   'Offline Sync Center': 'offlineSyncEnabled',
+  'Payroll & HR': 'payrollEnabled',
 };
 
 const ROUTE_FEATURES = [
@@ -29,6 +31,7 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
   { pattern: /^\/owner\/loyalty(?:\/)?$/, flag: 'loyaltyEnabled', label: 'Loyalty' },
   { pattern: /^\/owner\/offline-sync(?:\/)?$/, flag: 'offlineSyncEnabled', label: 'Offline Sync Center' },
+  { pattern: /^\/owner\/hr(?:-|\/|$)/, flag: 'payrollEnabled', label: 'Payroll & HR' },
 ];
 
 export function isFeatureEnabled(config, flag) {

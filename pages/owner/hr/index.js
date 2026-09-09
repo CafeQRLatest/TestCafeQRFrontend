@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../components/DashboardLayout';
+import ModuleGate from '../../../components/ModuleGate';
 import EmployeeMaster from './employees/index';
 import TimesheetsDashboard from './timesheets/index';
 import LeaveManagement from './leaves/index';
@@ -22,6 +23,14 @@ const TABS = [
 ];
 
 export default function UnifiedHrHub() {
+  return (
+    <ModuleGate>
+      <UnifiedHrContent />
+    </ModuleGate>
+  );
+}
+
+function UnifiedHrContent() {
   const router = useRouter();
   const { tab } = router.query;
   const [activeTab, setActiveTab] = useState('employees');
