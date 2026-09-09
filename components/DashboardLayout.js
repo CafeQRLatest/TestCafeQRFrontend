@@ -98,6 +98,19 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
     if (isAuthenticated) {
       fetchConfig();
     }
+
+    const handleConfigUpdate = () => {
+      fetchConfig();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('cafeqr-config-updated', handleConfigUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('cafeqr-config-updated', handleConfigUpdate);
+      }
+    };
   }, [isAuthenticated]);
 
   const fetchConfig = async () => {
@@ -888,9 +901,11 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     });
   });
 
-  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+  if (isMenuVisibleForConfig("Payroll & HR", config)) {
+    if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
+      if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+        groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+      }
     }
   }
 
@@ -1175,9 +1190,11 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     });
   });
 
-  if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
-    if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
-      groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+  if (isMenuVisibleForConfig("Payroll & HR", config)) {
+    if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
+      if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+        groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+      }
     }
   }
 

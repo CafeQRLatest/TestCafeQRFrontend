@@ -105,6 +105,8 @@ function MainMenuContent() {
     'Loyalty':            { name: 'Loyalty',              desc: 'Reward points & tiers',         icon: <FaCrown />,        color: '#f59e0b', bg: '#fffbeb', cat: 'Customers' },
     'Analytics':          { name: 'Analytics',            desc: 'Business intelligence',         icon: <FaChartBar />,     color: '#8b5cf6', bg: '#f5f3ff', cat: 'Insights' },
     'Sales_Insight':      { name: 'Sales',                desc: 'Sales performance',             icon: <FaChartLine />,    color: '#06b6d4', bg: '#ecfeff', cat: 'Insights' },
+    'Payroll & HR':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
+    'HR & Payroll':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
   };
 
   const categoryOrder = ['Operations', 'Insights', 'Customers', 'Account'];

@@ -21,6 +21,14 @@ const MENU_FEATURES = {
   'Loyalty': 'loyaltyEnabled',
   'Offline Sync Center': 'offlineSyncEnabled',
   'Payroll & HR': 'payrollEnabled',
+  'HR & Payroll': 'payrollEnabled',
+  'Payroll': 'payrollEnabled',
+  'Timesheets': 'payrollEnabled',
+  'Leaves': 'payrollEnabled',
+  'Advances': 'payrollEnabled',
+  'Salary Components': 'payrollEnabled',
+  'HR Policy Settings': 'payrollEnabled',
+  'Payroll Processing': 'payrollEnabled',
 };
 
 const ROUTE_FEATURES = [

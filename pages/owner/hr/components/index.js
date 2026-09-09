@@ -163,11 +163,19 @@ export default function SalaryComponents({ embedded = false }) {
                         {comp.name}
                       </td>
                       <td><span className={`type-badge ${comp.type.toLowerCase()}`}>{comp.type}</span></td>
-                      <td>{comp.amountType}</td>
-                      <td className="font-bold">
-                        {comp.amountType === 'FIXED' ? `$${comp.defaultAmount?.toFixed(2)}` : `${comp.percentage}% of Gross`}
+                      <td>
+                        <span className={`calc-badge ${comp.amountType === 'PERCENTAGE' ? 'percentage' : 'fixed'}`}>
+                          {comp.amountType || 'FIXED'}
+                        </span>
                       </td>
-                      <td>{comp.isTaxApplicable ? "Yes" : "No"}</td>
+                      <td className="font-bold">
+                        {comp.amountType === 'FIXED' || !comp.amountType ? `$${comp.defaultAmount?.toFixed(2) || '0.00'}` : `${comp.percentage}% of Gross`}
+                      </td>
+                      <td>
+                        <span className={`tax-badge ${(comp.isTaxApplicable || comp.taxApplicable || comp.taxable) ? 'yes' : 'no'}`}>
+                          {(comp.isTaxApplicable || comp.taxApplicable || comp.taxable) ? "Taxable" : "Non-Taxable"}
+                        </span>
+                      </td>
                       <td>
                         <span 
                           className={isCompActive ? "status-badge approved cursor-pointer" : "status-badge rejected cursor-pointer"}
@@ -268,6 +276,14 @@ export default function SalaryComponents({ embedded = false }) {
         .type-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
         .type-badge.earning { background: #e0e7ff; color: #4338ca; }
         .type-badge.deduction { background: #ffedd5; color: #c2410c; }
+
+        .calc-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .calc-badge.fixed { background: #f3f4f6; color: #4b5563; }
+        .calc-badge.percentage { background: #fef3c7; color: #d97706; }
+
+        .tax-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tax-badge.yes { background: #e0f2fe; color: #0369a1; }
+        .tax-badge.no { background: #f1f5f9; color: #64748b; }
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
         .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
