@@ -220,8 +220,9 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
         .form-group label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; }
         .form-group input, .form-group select {
           padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1;
-          font-size: 13px; outline: none; background: white;
+          font-size: 13px; outline: none; background: white; color: #1e293b;
         }
+        .form-group input::placeholder { color: #94a3b8; opacity: 1; }
         .btn-add {
           padding: 10px 16px; border-radius: 8px; border: none;
           background: #f97316; color: white; font-weight: 700; font-size: 13px;
