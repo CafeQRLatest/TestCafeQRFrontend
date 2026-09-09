@@ -114,7 +114,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
       const payload = {
         employeeId: formData.employeeId,
         attendanceDate: formData.attendanceDate,
-        clockInTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockInTime),
+        clockInTime: formData.status === 'ABSENT' ? `${formData.attendanceDate}T00:00:00` : formatLocalIso(formData.clockInTime),
         clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime),
         status: formData.status,
         punchMethod: formData.punchMethod
@@ -314,26 +314,37 @@ export default function TimesheetsDashboard({ embedded = false }) {
                 />
               </div>
 
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Clock In Time</label>
-                  <input 
-                    type="datetime-local" 
-                    value={formData.clockInTime} 
-                    onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
-                    required 
-                  />
-                </div>
+              {formData.status !== 'ABSENT' ? (
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>Clock In Time</label>
+                    <input 
+                      type="datetime-local" 
+                      value={formData.clockInTime} 
+                      onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
+                      required 
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label>Clock Out Time (Optional)</label>
-                  <input 
-                    type="datetime-local" 
-                    value={formData.clockOutTime} 
-                    onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
-                  />
+                  <div className="form-group">
+                    <label>Clock Out Time (Optional)</label>
+                    <input 
+                      type="datetime-local" 
+                      value={formData.clockOutTime} 
+                      onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="info-alert glass-panel" style={{ padding: '12px 16px', marginBottom: '16px', borderLeftColor: '#f97316' }}>
+                  <FaExclamationTriangle style={{ color: '#f97316', fontSize: '18px' }} />
+                  <div className="alert-content">
+                    <p style={{ margin: 0, fontSize: '13px', color: '#475569' }}>
+                      Time fields are disabled for Absences. A placeholder time (midnight) will be logged automatically.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="form-grid">
                 <div className="form-group">
