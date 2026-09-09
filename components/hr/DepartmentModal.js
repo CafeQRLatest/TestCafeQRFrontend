@@ -27,14 +27,13 @@ export default function DepartmentModal({ isOpen, onClose, departments, onRefres
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this department?")) return;
+  const handleToggleActive = async (dept) => {
     try {
-      await hrService.deleteDepartment(id);
+      await hrService.updateDepartment(dept.id, { ...dept, isActive: !dept.isActive });
       onRefresh();
     } catch (error) {
-      console.error("Failed to delete department", error);
-      alert("Cannot delete department (it might be in use).");
+      console.error("Failed to update department status", error);
+      alert("Failed to update status. Please try again.");
     }
   };
 
@@ -72,14 +71,19 @@ export default function DepartmentModal({ isOpen, onClose, departments, onRefres
             ) : (
               <ul className="item-list">
                 {departments.map(dept => (
-                  <li key={dept.id}>
+                  <li key={dept.id} className={!dept.isActive ? 'inactive-item' : ''}>
                     <div>
-                      <strong>{dept.name}</strong>
+                      <strong>{dept.name} {!dept.isActive && <span className="inactive-badge">Inactive</span>}</strong>
                       <span className="desc">{dept.description}</span>
                     </div>
-                    <button className="icon-btn delete" onClick={() => handleDelete(dept.id)}>
-                      <FaTrash />
-                    </button>
+                    <label className="switch" title={dept.isActive ? "Deactivate" : "Activate"}>
+                      <input 
+                        type="checkbox" 
+                        checked={dept.isActive !== false} 
+                        onChange={() => handleToggleActive(dept)} 
+                      />
+                      <span className="slider"></span>
+                    </label>
                   </li>
                 ))}
               </ul>
@@ -139,11 +143,22 @@ export default function DepartmentModal({ isOpen, onClose, departments, onRefres
         .item-list li strong { display: block; color: #1e293b; font-size: 14px; }
         .item-list li .desc { font-size: 12px; color: #64748b; }
         
-        .icon-btn.delete {
-          width: 32px; height: 32px; border-radius: 8px; border: none;
-          background: #fef2f2; color: #ef4444; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
+        .item-list li.inactive-item {
+          opacity: 0.6;
+          background: #f1f5f9;
         }
+        .inactive-badge {
+          font-size: 10px; padding: 2px 6px; background: #e2e8f0; color: #64748b; border-radius: 4px; margin-left: 8px; vertical-align: middle; font-weight: normal;
+        }
+        
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        input:checked + .slider { background-color: #10b981; }
+        input:checked + .slider:before { transform: translateX(16px); }
+        input:focus + .slider { box-shadow: 0 0 1px #10b981; }
+        
         .empty-state { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
