@@ -965,7 +965,7 @@ export default function OrdersPage() {
         to: toUtc,
         q: queryToSend || undefined,
         status: filters.status ? filters.status : (queryToSend ? undefined : 'COMPLETED_CANCELLED'),
-        orgId: filters.branchId || undefined,
+        orgId: filters.branchId || orgId || undefined,
         terminalId: filters.terminalId || undefined,
         page,
         size: 20
