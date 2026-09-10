@@ -113,8 +113,8 @@ export const hrService = {
     });
   },
 
-  syncToAccounting: async (runId) => {
-    return await api.post(`/api/v1/hr/payroll-accounting/sync/${runId}`);
+  syncToAccounting: async (runId, paymentMethod = 'BANK_TRANSFER') => {
+    return await api.post(`/api/v1/hr/payroll-accounting/sync/${runId}?paymentMethod=${paymentMethod}`);
   },
 
   deletePayrollRun: async (runId) => {

@@ -214,6 +214,14 @@ export function useExpenses() {
     if (userRole) loadData();
   }, [userRole, loadData]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      if (userRole) loadData(true);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [userRole, loadData]);
+
   const totalAll = useMemo(
     () => expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0),
     [expenses]

@@ -26,6 +26,11 @@ export default function PayrollDashboard({ embedded = false }) {
   // Printable Payslip State
   const [selectedSlipForPrint, setSelectedSlipForPrint] = useState(null);
 
+  // Sync Modal State
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncRunId, setSyncRunId] = useState(null);
+  const [syncPaymentMethod, setSyncPaymentMethod] = useState('BANK_TRANSFER');
+
   useEffect(() => {
     if (!embedded) {
       router.replace('/owner/hr?tab=payroll');
@@ -103,14 +108,26 @@ export default function PayrollDashboard({ embedded = false }) {
     }
   };
 
-  const handleSyncAccounting = async (runId) => {
+  const openSyncModal = (runId) => {
+    setSyncRunId(runId);
+    setSyncPaymentMethod('BANK_TRANSFER');
+    setShowSyncModal(true);
+  };
+
+  const confirmSyncAccounting = async () => {
+    if (!syncRunId) return;
     try {
-      await hrService.syncToAccounting(runId);
+      setIsLoading(true);
+      await hrService.syncToAccounting(syncRunId, syncPaymentMethod);
       alert("Payroll successfully synchronized with Accounting Expenses!");
+      setShowSyncModal(false);
+      setSyncRunId(null);
       fetchPayrollRuns();
     } catch (error) {
       console.error("Failed to sync accounting", error);
       alert(error.response?.data?.message || error.message || "Failed to sync with accounting.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -227,7 +244,7 @@ export default function PayrollDashboard({ embedded = false }) {
                             <button 
                               className="btn-action sync" 
                               title="Sync to Accounting Expenses"
-                              onClick={() => handleSyncAccounting(run.id)}
+                              onClick={() => openSyncModal(run.id)}
                             >
                               <FaSync /> Sync
                             </button>
@@ -417,6 +434,41 @@ export default function PayrollDashboard({ embedded = false }) {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Modal */}
+      {showSyncModal && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-panel" style={{ maxWidth: '400px' }}>
+            <div className="modal-header-flex">
+              <h3>Sync to Accounting</h3>
+              <button className="btn-secondary" onClick={() => setShowSyncModal(false)}>Close</button>
+            </div>
+            
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <label>Select Payment Method</label>
+              <select 
+                value={syncPaymentMethod}
+                onChange={(e) => setSyncPaymentMethod(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none' }}
+              >
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="CASH">Cash</option>
+                <option value="CHECK">Check</option>
+                <option value="ONLINE">Online / Other</option>
+              </select>
+            </div>
+
+            <button 
+              className="btn-primary" 
+              style={{ width: '100%', justifyContent: 'center' }}
+              onClick={confirmSyncAccounting}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Syncing...' : 'Confirm Sync'}
+            </button>
           </div>
         </div>
       )}
