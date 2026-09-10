@@ -107,9 +107,10 @@ export default function PayrollDashboard({ embedded = false }) {
     try {
       await hrService.syncToAccounting(runId);
       alert("Payroll successfully synchronized with Accounting Expenses!");
+      fetchPayrollRuns();
     } catch (error) {
       console.error("Failed to sync accounting", error);
-      alert("Failed to sync with accounting.");
+      alert(error.response?.data?.message || error.message || "Failed to sync with accounting.");
     }
   };
 
@@ -222,13 +223,15 @@ export default function PayrollDashboard({ embedded = false }) {
                           >
                             <FaFileDownload /> ACH
                           </button>
-                          <button 
-                            className="btn-action sync" 
-                            title="Sync to Accounting Expenses"
-                            onClick={() => handleSyncAccounting(run.id)}
-                          >
-                            <FaSync /> Sync
-                          </button>
+                          {run.status !== 'PAID' && (
+                            <button 
+                              className="btn-action sync" 
+                              title="Sync to Accounting Expenses"
+                              onClick={() => handleSyncAccounting(run.id)}
+                            >
+                              <FaSync /> Sync
+                            </button>
+                          )}
                           <button 
                             className="btn-action delete" 
                             title="Delete Payroll Run"
