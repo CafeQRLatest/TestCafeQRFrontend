@@ -3,10 +3,12 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
 import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryAdvances({ embedded = false }) {
   const router = useRouter();
+  const currencySymbol = useCurrencySymbol();
   const [advances, setAdvances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -164,9 +166,9 @@ export default function SalaryAdvances({ embedded = false }) {
                   <tr key={adv.id}>
                     <td className="font-bold">{adv.employeeName}</td>
                     <td>{new Date(adv.advanceDate).toLocaleDateString()}</td>
-                    <td className="font-bold">${adv.totalAmount?.toFixed(2)}</td>
-                    <td className="text-red-500">-${adv.monthlyInstallmentAmount?.toFixed(2)}/mo</td>
-                    <td className="font-bold text-orange-600">${adv.remainingBalance?.toFixed(2)}</td>
+                    <td className="font-bold">{currencySymbol}{adv.totalAmount?.toFixed(2)}</td>
+                    <td className="text-red-500">-{currencySymbol}{adv.monthlyInstallmentAmount?.toFixed(2)}/mo</td>
+                    <td className="font-bold text-orange-600">{currencySymbol}{adv.remainingBalance?.toFixed(2)}</td>
                     <td><span className={`status-badge ${adv.status.toLowerCase()}`}>{adv.status}</span></td>
                     <td>
                       <div className="action-buttons">
@@ -212,19 +214,19 @@ export default function SalaryAdvances({ embedded = false }) {
               </div>
               <div className="flex gap-4 mb-4">
                 <div className="form-group flex-1">
-                  <label>Total Loan Amount ($)</label>
-                  <input type="number" step="0.01" value={totalAmount} onChange={e => setTotalAmount(e.target.value)} required />
+                  <label>Total Loan Amount ({currencySymbol})</label>
+                  <input type="number" step="0.01" min="0" value={totalAmount} onChange={e => setTotalAmount(e.target.value)} required />
                 </div>
                 <div className="form-group flex-1">
-                  <label>Monthly Deduction ($)</label>
-                  <input type="number" step="0.01" value={installmentAmount} onChange={e => setInstallmentAmount(e.target.value)} required />
+                  <label>Monthly Deduction ({currencySymbol})</label>
+                  <input type="number" step="0.01" min="0" value={installmentAmount} onChange={e => setInstallmentAmount(e.target.value)} required />
                 </div>
               </div>
               {editingAdvance && (
                 <div className="flex gap-4 mb-4">
                   <div className="form-group flex-1">
-                    <label>Remaining Balance ($)</label>
-                    <input type="number" step="0.01" value={remainingBalance} onChange={e => setRemainingBalance(e.target.value)} required />
+                    <label>Remaining Balance ({currencySymbol})</label>
+                    <input type="number" step="0.01" min="0" value={remainingBalance} onChange={e => setRemainingBalance(e.target.value)} required />
                   </div>
                   <div className="form-group flex-1">
                     <label>Status</label>
@@ -263,7 +265,7 @@ export default function SalaryAdvances({ embedded = false }) {
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
         .modern-table th { padding: 16px; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #475569; font-size: 14px; font-weight: 500; }
         .font-bold { font-weight: 700; color: #1e293b; }
         
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
