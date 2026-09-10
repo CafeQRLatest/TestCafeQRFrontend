@@ -449,7 +449,7 @@ export default function PayrollDashboard({ embedded = false }) {
           padding: 16px 24px; font-size: 12px; font-weight: 700; color: #64748b;
           text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0;
         }
-        .modern-table td { padding: 16px 24px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .modern-table td { padding: 16px 24px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #475569; font-size: 14px; font-weight: 500; }
         
         .font-bold { font-weight: 700; color: #1e293b; }
         .text-slate { color: #1e293b; }
