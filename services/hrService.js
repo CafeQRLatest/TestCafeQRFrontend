@@ -31,6 +31,10 @@ export const hrService = {
     return await api.post('/api/v1/hr/departments', data);
   },
 
+  updateDepartment: async (id, data) => {
+    return await api.put(`/api/v1/hr/departments/${id}`, data);
+  },
+
   // ---- Designations ----
   getAllDesignations: async () => {
     return await api.get('/api/v1/hr/designations');
@@ -38,6 +42,10 @@ export const hrService = {
   
   createDesignation: async (data) => {
     return await api.post('/api/v1/hr/designations', data);
+  },
+
+  updateDesignation: async (id, data) => {
+    return await api.put(`/api/v1/hr/designations/${id}`, data);
   },
 
   // ---- Attendance ----

@@ -164,7 +164,7 @@ export default function SalaryComponents({ embedded = false }) {
                       </td>
                       <td><span className={`type-badge ${comp.type.toLowerCase()}`}>{comp.type}</span></td>
                       <td>
-                        <span className={`calc-badge ${comp.amountType === 'PERCENTAGE' ? 'percentage' : 'fixed'}`}>
+                        <span className={`calc-badge ${comp.amountType === 'PERCENTAGE' ? 'percentage' : 'calc-fixed'}`}>
                           {comp.amountType || 'FIXED'}
                         </span>
                       </td>
@@ -277,8 +277,8 @@ export default function SalaryComponents({ embedded = false }) {
         .type-badge.earning { background: #e0e7ff; color: #4338ca; }
         .type-badge.deduction { background: #ffedd5; color: #c2410c; }
 
-        .calc-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .calc-badge.fixed { background: #f3f4f6; color: #4b5563; }
+        .calc-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; white-space: nowrap; }
+        .calc-badge.calc-fixed { background: #f3f4f6; color: #4b5563; }
         .calc-badge.percentage { background: #fef3c7; color: #d97706; }
 
         .tax-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
