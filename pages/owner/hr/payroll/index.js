@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint } from 'react-icons/fa';
 
 export default function PayrollDashboard({ embedded = false }) {
@@ -321,8 +322,8 @@ export default function PayrollDashboard({ embedded = false }) {
             <div className="no-print modal-header-flex" style={{ marginBottom: '16px' }}>
               <h3>Official Employee Payslip</h3>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn-primary" onClick={() => window.print()} style={{ height: '38px', padding: '8px 16px' }}>
-                  <FaPrint /> Print Payslip
+                <button className="btn-primary" onClick={() => downloadPayslipPdf(selectedSlipForPrint, selectedRun)} style={{ height: '38px', padding: '8px 16px' }}>
+                  <FaFileDownload /> Download PDF
                 </button>
                 <button className="btn-secondary" onClick={() => setSelectedSlipForPrint(null)}>
                   Close
