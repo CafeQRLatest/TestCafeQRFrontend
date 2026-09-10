@@ -11,6 +11,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [expandedRows, setExpandedRows] = useState(new Set());
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -165,6 +166,13 @@ export default function TimesheetsDashboard({ embedded = false }) {
     }
   };
 
+  const toggleRow = (id) => {
+    const newSet = new Set(expandedRows);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedRows(newSet);
+  };
+
   return (
     <DashboardLayout title="Timesheets & Overrides" subtitle="Manage staff attendance and manual timecard overrides" bare={embedded}>
       <Head>
@@ -217,11 +225,13 @@ export default function TimesheetsDashboard({ embedded = false }) {
             <table className="modern-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Employee</th>
                   <th>Date</th>
                   <th>Clock In</th>
                   <th>Clock Out</th>
                   <th>Total Hours</th>
+                  <th>Break Hours</th>
                   <th>Method</th>
                   <th>Actions</th>
                 </tr>
@@ -234,38 +244,74 @@ export default function TimesheetsDashboard({ embedded = false }) {
                 ) : (
                   timesheets.map(record => {
                     const isOvertime = record.overtimeHours > 0 || (record.totalHoursWorked && record.totalHoursWorked > 8.0);
+                    const isExpanded = expandedRows.has(record.id);
                     return (
-                      <tr key={record.id}>
-                        <td className="font-bold">{record.employeeName || 'Staff Member'}</td>
-                        <td>{record.attendanceDate}</td>
-                        <td className="time-badge in">
-                          {record.status === 'ABSENT' || !record.clockInTime ? '--' : formatTime(record.clockInTime)}
-                        </td>
-                        <td className="time-badge out">
-                          {record.status === 'ABSENT' 
-                            ? '--' 
-                            : (record.clockOutTime 
-                                ? formatTime(record.clockOutTime) 
-                                : (record.status === 'PRESENT' ? 'Active' : '--')
-                              )
-                          }
-                        </td>
-                        <td>
-                          {record.totalHoursWorked ? `${record.totalHoursWorked} hrs` : '--'}
-                          {isOvertime && <span className="overtime-flag"><FaExclamationTriangle /> OT</span>}
-                        </td>
-                        <td>
-                          <span className={`method-badge ${(record.punchMethod || 'MANUAL').toLowerCase()}`}>
-                            {(record.punchMethod || 'MANUAL').replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="action-buttons">
-                            <button className="icon-btn edit" onClick={() => handleOpenEdit(record)} title="Edit Timecard"><FaEdit /></button>
-                            <button className="icon-btn delete" onClick={() => handleDelete(record.id)} title="Delete Timecard"><FaTrash /></button>
-                          </div>
-                        </td>
-                      </tr>
+                      <React.Fragment key={record.id}>
+                        <tr className={isExpanded ? 'expanded-parent' : ''} onClick={() => toggleRow(record.id)}>
+                          <td className="expand-icon">{isExpanded ? '▼' : '▶'}</td>
+                          <td className="font-bold">{record.employeeName || 'Staff Member'}</td>
+                          <td>{record.attendanceDate}</td>
+                          <td className="time-badge in">
+                            {record.status === 'ABSENT' || !record.clockInTime ? '--' : formatTime(record.clockInTime)}
+                          </td>
+                          <td className="time-badge out">
+                            {record.status === 'ABSENT' 
+                              ? '--' 
+                              : (record.clockOutTime 
+                                  ? formatTime(record.clockOutTime) 
+                                  : (record.status === 'PRESENT' ? 'Active' : '--')
+                                )
+                            }
+                          </td>
+                          <td>
+                            {record.totalHoursWorked ? `${record.totalHoursWorked} hrs` : '--'}
+                            {isOvertime && <span className="overtime-flag"><FaExclamationTriangle /> OT</span>}
+                          </td>
+                          <td>
+                            <span style={{color: '#854d0e', fontWeight: 700}}>{record.totalBreakHours || '0.00'} hrs</span>
+                          </td>
+                          <td>
+                            <span className={`method-badge ${(record.punchMethod || 'MANUAL').toLowerCase()}`}>
+                              {(record.punchMethod || 'MANUAL').replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td onClick={e => e.stopPropagation()}>
+                            <div className="action-buttons">
+                              <button className="icon-btn edit" onClick={() => handleOpenEdit(record)} title="Edit Timecard"><FaEdit /></button>
+                              <button className="icon-btn delete" onClick={() => handleDelete(record.id)} title="Delete Timecard"><FaTrash /></button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && record.segments && record.segments.length > 0 && (
+                          <tr className="expanded-row">
+                            <td></td>
+                            <td colSpan="8" className="segments-container">
+                              <div className="segments-table-wrapper">
+                                <table className="segments-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Segment Type</th>
+                                      <th>Clock In</th>
+                                      <th>Clock Out</th>
+                                      <th>Hours Worked</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {record.segments.map(seg => (
+                                      <tr key={seg.id}>
+                                        <td><span className={`seg-badge ${seg.segmentType.toLowerCase()}`}>{seg.segmentType}</span></td>
+                                        <td>{formatTime(seg.clockInTime)}</td>
+                                        <td>{seg.clockOutTime ? formatTime(seg.clockOutTime) : 'Active'}</td>
+                                        <td>{seg.hoursWorked || '0.00'} hrs</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -487,6 +533,22 @@ export default function TimesheetsDashboard({ embedded = false }) {
 
         .empty-state { text-align: center; padding: 40px !important; color: #64748b; font-weight: 600; }
         .loading-state { text-align: center; padding: 40px; color: #64748b; font-weight: 600; }
+
+        .expand-icon { font-size: 10px; color: #94a3b8; cursor: pointer; text-align: center; width: 40px; }
+        tr.expanded-parent td { border-bottom: none; }
+        tr:not(.expanded-row):hover { background: #f8fafc; cursor: pointer; }
+        .expanded-row td { padding: 0 24px 24px 0 !important; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
+        
+        .segments-container { padding-left: 0; }
+        .segments-table-wrapper { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-top: -8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .segments-table { width: 100%; border-collapse: collapse; }
+        .segments-table th { padding: 8px 16px; font-size: 11px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #f1f5f9; text-align: left; }
+        .segments-table td { padding: 12px 16px; font-size: 13px; color: #334155; border-bottom: 1px solid #f8fafc; }
+        .segments-table tr:last-child td { border-bottom: none; }
+        
+        .seg-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+        .seg-badge.work { background: #dcfce7; color: #166534; }
+        .seg-badge.break { background: #fef9c3; color: #854d0e; }
 
         /* Modal styling */
         .modal-overlay {

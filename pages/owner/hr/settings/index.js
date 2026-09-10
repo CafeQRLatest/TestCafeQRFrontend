@@ -11,7 +11,9 @@ export default function HrSettingsDashboard({ embedded = false }) {
     standardHoursPerDay: '8.00',
     overtimeMultiplier: '1.50',
     weeklyOvertimeThreshold: '40.00',
-    overtimeMode: 'DAILY'
+    weeklyOvertimeThreshold: '40.00',
+    overtimeMode: 'DAILY',
+    shiftDayBoundaryHour: '4'
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -37,7 +39,8 @@ export default function HrSettingsDashboard({ embedded = false }) {
           standardHoursPerDay: res.data.standardHoursPerDay ? String(res.data.standardHoursPerDay) : '8.00',
           overtimeMultiplier: res.data.overtimeMultiplier ? String(res.data.overtimeMultiplier) : '1.50',
           weeklyOvertimeThreshold: res.data.weeklyOvertimeThreshold ? String(res.data.weeklyOvertimeThreshold) : '40.00',
-          overtimeMode: res.data.overtimeMode || 'DAILY'
+          overtimeMode: res.data.overtimeMode || 'DAILY',
+          shiftDayBoundaryHour: res.data.shiftDayBoundaryHour !== undefined ? String(res.data.shiftDayBoundaryHour) : '4'
         });
       }
     } catch (err) {
@@ -64,7 +67,8 @@ export default function HrSettingsDashboard({ embedded = false }) {
         standardHoursPerDay: Number(formData.standardHoursPerDay),
         overtimeMultiplier: Number(formData.overtimeMultiplier),
         weeklyOvertimeThreshold: Number(formData.weeklyOvertimeThreshold),
-        overtimeMode: formData.overtimeMode
+        overtimeMode: formData.overtimeMode,
+        shiftDayBoundaryHour: Number(formData.shiftDayBoundaryHour)
       };
 
       if (payload.standardHoursPerDay <= 0 || payload.standardHoursPerDay > 24) {
@@ -190,6 +194,24 @@ export default function HrSettingsDashboard({ embedded = false }) {
                   <option value="BOTH">Both (Higher of Daily or Weekly Overtime)</option>
                 </select>
                 <small className="help-text">Select whether overtime is evaluated on a daily shift basis or weekly total basis.</small>
+              </div>
+
+              <div className="form-group">
+                <label><FaClock className="label-icon" /> Shift Day Boundary Hour</label>
+                <div className="input-with-unit">
+                  <input 
+                    type="number" 
+                    step="1"
+                    min="0" 
+                    max="23"
+                    name="shiftDayBoundaryHour" 
+                    value={formData.shiftDayBoundaryHour} 
+                    onChange={handleChange}
+                    required 
+                  />
+                  <span className="unit">Hour (0-23)</span>
+                </div>
+                <small className="help-text">Clock-ins before this hour belong to the previous calendar day (e.g. set to 4 for shifts running past midnight until 4 AM).</small>
               </div>
 
               <div className="form-actions">

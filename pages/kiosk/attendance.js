@@ -10,6 +10,7 @@ export default function AttendanceKiosk() {
   const [isFaceMode, setIsFaceMode] = useState(true);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [employeeStatus, setEmployeeStatus] = useState(null); // 'NOT_CLOCKED_IN', 'WORKING', 'ON_BREAK'
   const [pin, setPin] = useState('');
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -91,13 +92,43 @@ export default function AttendanceKiosk() {
 
         if (detection) {
           // In a real scenario, you'd match detection.descriptor against employee registered descriptors.
-          // For this prototype, we'll simulate a match.
-          handleClockIn('SIMULATED_ID', 'FACE_SCAN');
+          // For this prototype, we'll simulate a match to first employee if we don't have one selected
+          let targetEmp = selectedEmployee;
+          if (!targetEmp && employees.length > 0) {
+            targetEmp = employees[0].id;
+            setSelectedEmployee(targetEmp);
+          }
+          if (targetEmp) {
+             handleFaceMatch(targetEmp);
+          }
           clearInterval(interval);
         }
       }
     }, 2000);
   };
+
+  const handleFaceMatch = async (empId) => {
+    try {
+      const res = await hrService.getEmployeeAttendanceStatus(empId);
+      setEmployeeStatus(res.data.status);
+      stopVideo();
+      setIsFaceMode(false); // Switch to PIN view to show the dashboard
+      setStatusMsg({ text: 'Face matched! Choose your action.', type: 'success' });
+    } catch (e) {
+      console.error(e);
+      setStatusMsg({ text: 'Failed to get status.', type: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedEmployee) {
+      hrService.getEmployeeAttendanceStatus(selectedEmployee)
+        .then(res => setEmployeeStatus(res.data.status))
+        .catch(err => console.error('Failed to get status', err));
+    } else {
+      setEmployeeStatus(null);
+    }
+  }, [selectedEmployee]);
 
   const handlePunch = async (type) => {
     if (!selectedEmployee || !pin) {
@@ -112,13 +143,13 @@ export default function AttendanceKiosk() {
     }
 
     try {
-      if (type === 'IN') {
+      if (type === 'IN' || type === 'RETURN_BREAK') {
         await hrService.clockIn({ 
           employeeId: selectedEmployee, 
           punchMethod: 'PIN' 
         });
         setStatusMsg({ text: `Success: ${emp ? emp.firstName : ''} Clocked In!`, type: 'success' });
-      } else {
+      } else if (type === 'OUT' || type === 'START_BREAK') {
         await hrService.clockOut({ 
           employeeId: selectedEmployee 
         });
@@ -127,51 +158,18 @@ export default function AttendanceKiosk() {
       
       setPin('');
       setSelectedEmployee('');
+      setEmployeeStatus(null);
       
       setTimeout(() => {
         setStatusMsg({ text: '', type: '' });
       }, 5000);
 
     } catch (error) {
-      const msg = error.response?.data?.message || error.message || `Clock-${type.toLowerCase()} failed. Try again.`;
+      const msg = error.response?.data?.message || error.message || `Action failed. Try again.`;
       setStatusMsg({ text: msg, type: 'error' });
     }
   };
 
-  const handleClockIn = async (employeeId, method) => {
-    try {
-      // Hardcode SIMULATED_ID for face-scan demo to the first employee if exists
-      const targetId = employeeId === 'SIMULATED_ID' 
-        ? (employees.length > 0 ? employees[0].id : null) 
-        : employeeId;
-        
-      if (!targetId) {
-        setStatusMsg({ text: 'Employee not found.', type: 'error' });
-        return;
-      }
-
-      await hrService.clockIn({ 
-        employeeId: targetId, 
-        punchMethod: method, 
-        punchTime: new Date().toISOString()
-      });
-      
-      const emp = employees.find(e => e.id === targetId);
-      setStatusMsg({ text: `Success: ${emp ? emp.firstName : ''} Clocked In!`, type: 'success' });
-      
-      setPin('');
-      setSelectedEmployee('');
-      
-      setTimeout(() => {
-        setStatusMsg({ text: '', type: '' });
-        if (isFaceMode) startVideo(); // Restart scanning after a delay
-      }, 5000);
-
-    } catch (error) {
-      const msg = error.response?.data?.message || 'Clock-in failed. Try again.';
-      setStatusMsg({ text: msg, type: 'error' });
-    }
-  };
 
   return (
     <div className="kiosk-container">
@@ -247,6 +245,29 @@ export default function AttendanceKiosk() {
                 </select>
               </div>
 
+              {selectedEmployee && employeeStatus && (
+                <div className="status-dashboard">
+                  {employeeStatus === 'NOT_CLOCKED_IN' && (
+                    <div className="dashboard-message">
+                      <h4>Ready to start your shift!</h4>
+                      <p>Enter your PIN to clock in.</p>
+                    </div>
+                  )}
+                  {employeeStatus === 'WORKING' && (
+                    <div className="dashboard-message working">
+                      <h4>🟢 You are currently On Shift</h4>
+                      <p>Enter your PIN to start a break or end shift.</p>
+                    </div>
+                  )}
+                  {employeeStatus === 'ON_BREAK' && (
+                    <div className="dashboard-message break">
+                      <h4>☕ You are currently On Break</h4>
+                      <p>Enter your PIN to return to work.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Enter 4-Digit PIN</label>
                 <input 
@@ -261,12 +282,24 @@ export default function AttendanceKiosk() {
               </div>
 
               <div className="action-buttons">
-                <button type="button" className="btn-primary clock-in-btn" onClick={() => handlePunch('IN')}>
-                  <FaClock /> Clock In
-                </button>
-                <button type="button" className="btn-secondary clock-out-btn" onClick={() => handlePunch('OUT')}>
-                  <FaClock /> Clock Out
-                </button>
+                {!employeeStatus || employeeStatus === 'NOT_CLOCKED_IN' ? (
+                  <button type="button" className="btn-primary clock-in-btn" onClick={() => handlePunch('IN')}>
+                    <FaClock /> Clock In (Start Shift)
+                  </button>
+                ) : employeeStatus === 'WORKING' ? (
+                  <>
+                    <button type="button" className="btn-warning break-btn" onClick={() => handlePunch('START_BREAK')}>
+                      <FaClock /> Start Break (AUX)
+                    </button>
+                    <button type="button" className="btn-secondary clock-out-btn" onClick={() => handlePunch('OUT')}>
+                      <FaClock /> Clock Out (End Shift)
+                    </button>
+                  </>
+                ) : employeeStatus === 'ON_BREAK' ? (
+                  <button type="button" className="btn-primary clock-in-btn" onClick={() => handlePunch('RETURN_BREAK')}>
+                    <FaClock /> Return from Break
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -362,15 +395,24 @@ export default function AttendanceKiosk() {
         select:focus, .pin-input:focus { border-color: #f97316; background: rgba(255, 255, 255, 0.15); }
 
         .action-buttons { display: flex; gap: 12px; }
-        .btn-primary, .btn-secondary {
+        .btn-primary, .btn-secondary, .btn-warning {
           flex: 1; padding: 16px; border-radius: 12px; border: none;
           color: white; font-size: 16px; font-weight: 800; cursor: pointer;
           display: flex; align-items: center; justify-content: center; gap: 8px;
           transition: transform 0.2s; box-shadow: 0 8px 16px rgba(0,0,0,0.2);
         }
-        .btn-primary { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
-        .btn-secondary { background: linear-gradient(135deg, #475569 0%, #334155 100%); }
-        .btn-primary:hover, .btn-secondary:hover { transform: translateY(-2px); }
+        .btn-primary { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); }
+        .btn-secondary { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .btn-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .btn-primary:hover, .btn-secondary:hover, .btn-warning:hover { transform: translateY(-2px); }
+
+        .status-dashboard {
+          background: rgba(0, 0, 0, 0.2); border-radius: 12px; padding: 16px; text-align: center;
+        }
+        .dashboard-message h4 { margin: 0 0 4px; font-size: 18px; color: #fff; }
+        .dashboard-message p { margin: 0; font-size: 14px; color: #cbd5e1; }
+        .dashboard-message.working h4 { color: #4ade80; }
+        .dashboard-message.break h4 { color: #facc15; }
 
         .status-alert {
           position: absolute; top: 120px;

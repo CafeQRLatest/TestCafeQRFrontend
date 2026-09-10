@@ -58,6 +58,10 @@ export const hrService = {
     return await api.get(url);
   },
 
+  getEmployeeAttendanceStatus: async (employeeId) => {
+    return await api.get(`/api/v1/hr/attendance/status/${employeeId}`);
+  },
+
   clockIn: async (data) => {
     // data: { employeeId, punchMethod: "PIN" | "FACE_SCAN" }
     return await api.post('/api/v1/hr/attendance/clock-in', data);
