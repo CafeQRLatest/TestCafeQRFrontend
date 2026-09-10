@@ -137,12 +137,17 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
   doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
   doc.text('DEDUCTIONS', dedX + 4, y + 6);
   doc.setDrawColor(241, 245, 249);
-  doc.line(dedX + 4, y + 16, dedX + boxW - 4, y + 16);
+  doc.line(dedX + 4, y + 22, dedX + boxW - 4, y + 22); // adjusted line y
   
   doc.setFont('Roboto', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
   doc.text('Total Deductions & Advances', dedX + 4, y + 13);
   doc.setFont('Roboto', 'bold'); doc.setTextColor(...RED);
   doc.text(`-${money(slip.totalDeductions, sym)}`, dedX + boxW - 4, y + 13, { align: 'right' });
+  
+  if (slip.totalUnpaidLeaveDays && slip.totalUnpaidLeaveDays > 0) {
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
+    doc.text(`(Includes deductions for ${slip.totalUnpaidLeaveDays} Unpaid Leave days)`, dedX + 4, y + 18);
+  }
 
   y += boxH + 8;
 
