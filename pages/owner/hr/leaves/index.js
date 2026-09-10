@@ -257,7 +257,7 @@ export default function LeaveManagement({ embedded = false }) {
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
         .modern-table th { padding: 16px; font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .modern-table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #475569; font-size: 14px; font-weight: 500; }
         .font-bold { font-weight: 700; color: #1e293b; }
         
         .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
