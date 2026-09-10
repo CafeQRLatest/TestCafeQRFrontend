@@ -3,13 +3,19 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle } from 'react-icons/fa';
+import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
 
 export default function TimesheetsDashboard({ embedded = false }) {
   const router = useRouter();
   const [timesheets, setTimesheets] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
     if (!embedded) {
@@ -75,11 +81,11 @@ export default function TimesheetsDashboard({ embedded = false }) {
   const handleOpenCreate = () => {
     setEditingRecord(null);
     const now = new Date();
-    const currentLocalISO = `${getLocalDateStr(now)}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     setFormData({
       employeeId: employees.length > 0 ? employees[0].id : '',
       attendanceDate: todayStr,
-      clockInTime: currentLocalISO,
+      clockInTime: currentTimeStr,
       clockOutTime: '',
       status: 'PRESENT',
       punchMethod: 'MANUAL'
@@ -92,8 +98,8 @@ export default function TimesheetsDashboard({ embedded = false }) {
     setFormData({
       employeeId: record.employeeId,
       attendanceDate: record.attendanceDate || todayStr,
-      clockInTime: record.clockInTime ? record.clockInTime.substring(0, 16) : '',
-      clockOutTime: record.clockOutTime ? record.clockOutTime.substring(0, 16) : '',
+      clockInTime: record.clockInTime ? record.clockInTime.substring(11, 16) : '',
+      clockOutTime: record.clockOutTime ? record.clockOutTime.substring(11, 16) : '',
       status: record.status || 'PRESENT',
       punchMethod: record.punchMethod || 'MANUAL'
     });
@@ -127,10 +133,11 @@ export default function TimesheetsDashboard({ embedded = false }) {
       }
 
       setIsModalOpen(false);
+      showToast(editingRecord ? "Timecard updated successfully" : "Timecard created successfully", "success");
       fetchTimesheets();
     } catch (err) {
       console.error('Failed to save timecard:', err);
-      alert('Failed to save timecard: ' + (err.response?.data?.message || err.message));
+      showToast('Failed to save timecard: ' + (err.response?.data?.message || err.message), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -140,10 +147,11 @@ export default function TimesheetsDashboard({ embedded = false }) {
     if (!confirm('Are you sure you want to delete this attendance record?')) return;
     try {
       await hrService.deleteAttendance(id);
+      showToast("Timecard deleted", "success");
       fetchTimesheets();
     } catch (err) {
       console.error('Failed to delete attendance record:', err);
-      alert('Failed to delete record');
+      showToast('Failed to delete record', "error");
     }
   };
 
@@ -319,7 +327,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   <div className="form-group">
                     <label>Clock In Time</label>
                     <input 
-                      type="datetime-local" 
+                      type="time" 
                       value={formData.clockInTime} 
                       onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
                       required 
@@ -329,7 +337,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   <div className="form-group">
                     <label>Clock Out Time (Optional)</label>
                     <input 
-                      type="datetime-local" 
+                      type="time" 
                       value={formData.clockOutTime} 
                       onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
                     />
@@ -383,7 +391,23 @@ export default function TimesheetsDashboard({ embedded = false }) {
         </div>
       )}
 
+      {toast && (
+        <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>
+          {toast.type === 'success' ? <FaCheck /> : <FaTimes />}
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
       <style jsx>{`
+        ._t {
+          position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px;
+          display: flex; align-items: center; gap: 12px; color: white; font-weight: 700; font-size: 14px;
+          cursor: pointer; z-index: 99999; animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        ._t.success { background: #15803d; }
+        ._t.error { background: #b91c1c; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
         .timesheets-wrapper { display: flex; flex-direction: column; gap: 24px; animation: slideUp 0.4s ease-out; }
         
         .glass-panel {

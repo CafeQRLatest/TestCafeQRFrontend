@@ -11,6 +11,12 @@ export default function LeaveManagement({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingLeave, setEditingLeave] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
     if (!embedded) {
@@ -73,9 +79,11 @@ export default function LeaveManagement({ embedded = false }) {
   const handleStatusChange = async (id, newStatus) => {
     try {
       await hrService.updateLeaveStatus(id, newStatus);
+      showToast("Status updated successfully", "success");
       fetchData();
     } catch (error) {
-      alert("Failed to update status");
+      const msg = error.response?.data?.message || "Failed to update status";
+      showToast(msg, "error");
     }
   };
 
@@ -83,10 +91,11 @@ export default function LeaveManagement({ embedded = false }) {
     if (!confirm("Are you sure you want to delete this leave request?")) return;
     try {
       await hrService.deleteLeaveRequest(id);
+      showToast("Leave request deleted", "success");
       fetchData();
     } catch (error) {
       console.error("Failed to delete leave request", error);
-      alert("Failed to delete leave request");
+      showToast("Failed to delete leave request", "error");
     }
   };
 
@@ -118,10 +127,12 @@ export default function LeaveManagement({ embedded = false }) {
       }
       setShowModal(false);
       setEditingLeave(null);
+      showToast(editingLeave ? "Leave updated successfully" : "Leave created successfully", "success");
       fetchData();
     } catch (error) {
-      console.error("Error saving leave request", error);
-      alert("Error saving leave request: " + (error.response?.data?.message || error.message));
+      console.error("Failed to save leave", error);
+      const msg = error.response?.data?.message || "Failed to save leave request";
+      showToast(msg, "error");
     }
   };
 
@@ -248,7 +259,23 @@ export default function LeaveManagement({ embedded = false }) {
         </div>
       )}
 
+      {toast && (
+        <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>
+          {toast.type === 'success' ? <FaCheck /> : <FaTimes />}
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
       <style jsx>{`
+        ._t {
+          position: fixed; top: 20px; right: 20px; padding: 16px 24px; border-radius: 12px;
+          display: flex; align-items: center; gap: 12px; color: white; font-weight: 700; font-size: 14px;
+          cursor: pointer; z-index: 99999; animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        ._t.success { background: #15803d; }
+        ._t.error { background: #b91c1c; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
         .glass-panel {
           background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;

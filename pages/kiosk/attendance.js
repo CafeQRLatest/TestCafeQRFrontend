@@ -168,7 +168,8 @@ export default function AttendanceKiosk() {
       }, 5000);
 
     } catch (error) {
-      setStatusMsg({ text: 'Clock-in failed. Try again.', type: 'error' });
+      const msg = error.response?.data?.message || 'Clock-in failed. Try again.';
+      setStatusMsg({ text: msg, type: 'error' });
     }
   };
 
