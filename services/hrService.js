@@ -103,9 +103,10 @@ export const hrService = {
   },
   
   // ---- Accounting Export ----
-  downloadAchExport: (runId) => {
-    // Return the URL for direct download or fetch blob
-    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/hr/payroll-export/ach/${runId}`;
+  downloadAchExport: async (runId) => {
+    return await api.get(`/api/v1/hr/payroll-export/ach/${runId}`, {
+      responseType: 'blob'
+    });
   },
 
   syncToAccounting: async (runId) => {

@@ -86,9 +86,20 @@ export default function PayrollDashboard({ embedded = false }) {
     }
   };
 
-  const handleDownloadACH = (runId) => {
-    const url = hrService.downloadAchExport(runId);
-    window.open(url, '_blank');
+  const handleDownloadACH = async (runId) => {
+    try {
+      const response = await hrService.downloadAchExport(runId);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ACH_Export_${runId}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Failed to download ACH", error);
+      alert("Failed to download ACH file.");
+    }
   };
 
   const handleSyncAccounting = async (runId) => {
