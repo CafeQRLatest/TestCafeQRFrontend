@@ -97,6 +97,13 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
       }
     }
 
+    if (formData.phone && formData.phone.trim() !== '') {
+      if (!/^[0-9+\-\s()]+$/.test(formData.phone.trim())) {
+        setErrorMsg('Please enter a valid phone number (digits and standard symbols only).');
+        return;
+      }
+    }
+
     if (formData.baseSalary !== '' && Number(formData.baseSalary) < 0) {
       setErrorMsg('Base salary cannot be negative.');
       return;
@@ -105,6 +112,20 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
     if (formData.hourlyRate !== '' && Number(formData.hourlyRate) < 0) {
       setErrorMsg('Hourly rate cannot be negative.');
       return;
+    }
+    
+    if (formData.bankAccountNumber && formData.bankAccountNumber.trim() !== '') {
+      if (!/^\d+$/.test(formData.bankAccountNumber.trim())) {
+        setErrorMsg('Bank Account Number must contain only digits.');
+        return;
+      }
+    }
+    
+    if (formData.bankRoutingNumber && formData.bankRoutingNumber.trim() !== '') {
+      if (!/^\d{9}$/.test(formData.bankRoutingNumber.trim())) {
+        setErrorMsg('Bank Routing Number must be exactly 9 digits.');
+        return;
+      }
     }
     
     // Clean up empty strings to null for UUID fields so backend doesn't crash
@@ -135,11 +156,11 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
           <div className="form-grid">
             <div className="form-group">
               <label><FaUser className="input-icon" /> First Name</label>
-              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required />
+              <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required pattern="[A-Za-z\s\-']+" title="Letters, spaces, hyphens, and apostrophes only" />
             </div>
             <div className="form-group">
               <label><FaUser className="input-icon" /> Last Name</label>
-              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required />
+              <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required pattern="[A-Za-z\s\-']+" title="Letters, spaces, hyphens, and apostrophes only" />
             </div>
             <div className="form-group">
               <label><FaEnvelope className="input-icon" /> Email</label>
@@ -147,7 +168,7 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
             </div>
             <div className="form-group">
               <label><FaPhone className="input-icon" /> Phone</label>
-              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} />
+              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} pattern="^[0-9+\-\s()]+$" title="Valid phone number format (digits, +, -, parentheses)" />
             </div>
             
             <div className="form-group">
@@ -177,23 +198,23 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
             {formData.employmentType === 'HOURLY' ? (
               <div className="form-group highlight-field">
                 <label><FaMoneyBillWave className="input-icon" /> Hourly Rate ($)</label>
-                <input type="number" step="0.01" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} required />
+                <input type="number" step="0.01" min="0" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} required />
               </div>
             ) : (
               <div className="form-group highlight-field">
                 <label><FaMoneyBillWave className="input-icon" /> Base Salary (Monthly)</label>
-                <input type="number" step="0.01" name="baseSalary" value={formData.baseSalary} onChange={handleChange} required />
+                <input type="number" step="0.01" min="0" name="baseSalary" value={formData.baseSalary} onChange={handleChange} required />
               </div>
             )}
             
             <div className="form-group">
               <label>Bank Account Number</label>
-              <input type="text" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleChange} />
+              <input type="text" name="bankAccountNumber" value={formData.bankAccountNumber} onChange={handleChange} pattern="^\d+$" title="Account number must contain only digits" />
             </div>
             
             <div className="form-group">
               <label>Bank Routing Number</label>
-              <input type="text" name="bankRoutingNumber" value={formData.bankRoutingNumber} onChange={handleChange} />
+              <input type="text" name="bankRoutingNumber" value={formData.bankRoutingNumber} onChange={handleChange} pattern="^\d{9}$" title="Routing number must be exactly 9 digits" />
             </div>
 
             <div className="form-group">

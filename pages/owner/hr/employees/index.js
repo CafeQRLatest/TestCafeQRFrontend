@@ -105,7 +105,8 @@ export default function EmployeeMaster({ embedded = false }) {
 
   const filteredEmployees = employees.filter(e => {
     const matchesSearch = (e.firstName + ' ' + e.lastName).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (e.email || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (e.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (e.id || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDept = !departmentFilter || (e.department?.id === departmentFilter || e.departmentId === departmentFilter);
     const matchesType = !employmentTypeFilter || e.employmentType === employmentTypeFilter;
     return matchesSearch && matchesDept && matchesType;
@@ -125,7 +126,7 @@ export default function EmployeeMaster({ embedded = false }) {
             <FaSearch className="search-icon" />
             <input 
               type="text" 
-              placeholder="Search employees by name or email..." 
+              placeholder="Search employees by name, email, or ID..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -199,6 +200,7 @@ export default function EmployeeMaster({ embedded = false }) {
                   <th>Department</th>
                   <th>Type</th>
                   <th>Pay Rate</th>
+                  <th>Pay Rules</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -206,7 +208,7 @@ export default function EmployeeMaster({ embedded = false }) {
               <tbody>
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="empty-state">No employees found.</td>
+                    <td colSpan="8" className="empty-state">No employees found.</td>
                   </tr>
                 ) : (
                   filteredEmployees.map(emp => (
@@ -241,6 +243,11 @@ export default function EmployeeMaster({ embedded = false }) {
                           : `$${emp.baseSalary}/mo`}
                       </td>
                       <td>
+                        <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }} onClick={() => setRulesEmployee(emp)}>
+                          <FaCogs /> Manage Rules
+                        </button>
+                      </td>
+                      <td>
                         <span 
                           className={`badge status-${emp.isActive ? 'active' : 'inactive'} cursor-pointer`}
                           onClick={() => handleToggleStatus(emp)}
@@ -252,7 +259,6 @@ export default function EmployeeMaster({ embedded = false }) {
                       </td>
                       <td>
                         <div className="action-buttons">
-                          <button className="icon-btn rules" onClick={() => setRulesEmployee(emp)} title="Salary Rules & Allowances"><FaCogs /></button>
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(emp)} title="Edit Employee"><FaEdit /></button>
                           <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp.id)} title="Delete Employee"><FaTrash /></button>
                         </div>
