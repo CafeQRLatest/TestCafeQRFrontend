@@ -371,6 +371,7 @@ export default function EmployeeMaster({ embedded = false }) {
         }
         .modern-table td {
           padding: 16px 24px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;
+          color: #475569; font-size: 14px; font-weight: 500;
         }
         .modern-table tbody tr:hover { background: rgba(248, 250, 252, 0.8); }
         
