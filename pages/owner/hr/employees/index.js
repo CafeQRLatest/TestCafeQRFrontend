@@ -7,6 +7,7 @@ import EmployeeCreationModal from '../../../../components/hr/EmployeeCreationMod
 import DepartmentModal from '../../../../components/hr/DepartmentModal';
 import DesignationModal from '../../../../components/hr/DesignationModal';
 import EmployeeSalaryRulesModal from '../../../../components/hr/EmployeeSalaryRulesModal';
+import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash, FaCogs } from 'react-icons/fa';
 
 export default function EmployeeMaster({ embedded = false }) {
@@ -20,6 +21,7 @@ export default function EmployeeMaster({ embedded = false }) {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
   const [rulesEmployee, setRulesEmployee] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -76,7 +78,16 @@ export default function EmployeeMaster({ embedded = false }) {
       fetchData(); // Refresh list
     } catch (error) {
       console.error('Failed to save employee:', error);
-      alert('Failed to save employee: ' + (error.response?.data?.message || error.message));
+      const msg = error.response?.data?.message || error.message || 'Failed to save employee.';
+      setConfirmModal({
+        title: 'Error Saving Employee',
+        message: msg,
+        type: 'error',
+        confirmText: 'OK',
+        confirmVariant: 'primary',
+        showCancel: false,
+        onConfirm: () => setConfirmModal(null)
+      });
     }
   };
 
@@ -92,15 +103,35 @@ export default function EmployeeMaster({ embedded = false }) {
     }
   };
 
-  const handleDeleteEmployee = async (id) => {
-    if (!confirm("Are you sure you want to delete this employee?")) return;
-    try {
-      await hrService.deleteEmployee(id);
-      fetchData();
-    } catch (error) {
-      console.error('Failed to delete employee:', error);
-      alert('Failed to delete employee: ' + (error.response?.data?.message || error.message));
-    }
+  const handleDeleteEmployee = (emp) => {
+    const empName = `${emp.firstName} ${emp.lastName || ''}`.trim();
+    setConfirmModal({
+      title: 'Delete Employee',
+      message: `Are you sure you want to delete "${empName}"?`,
+      type: 'confirm',
+      confirmText: 'Delete Employee',
+      confirmVariant: 'danger',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await hrService.deleteEmployee(emp.id);
+          fetchData();
+        } catch (error) {
+          console.error('Failed to delete employee:', error);
+          const errorMsg = error.response?.data?.message || error.message || 'Failed to delete employee.';
+          setConfirmModal({
+            title: 'Cannot Delete Employee',
+            message: errorMsg,
+            type: 'error',
+            confirmText: 'Got It',
+            confirmVariant: 'primary',
+            showCancel: false,
+            onConfirm: () => setConfirmModal(null)
+          });
+        }
+      }
+    });
   };
 
   const filteredEmployees = employees.filter(e => {
@@ -260,7 +291,7 @@ export default function EmployeeMaster({ embedded = false }) {
                       <td>
                         <div className="action-buttons">
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(emp)} title="Edit Employee"><FaEdit /></button>
-                          <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp.id)} title="Delete Employee"><FaTrash /></button>
+                          <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp)} title="Delete Employee"><FaTrash /></button>
                         </div>
                       </td>
                     </tr>
@@ -299,6 +330,12 @@ export default function EmployeeMaster({ embedded = false }) {
         isOpen={!!rulesEmployee}
         onClose={() => setRulesEmployee(null)}
         employee={rulesEmployee}
+      />
+
+      <HrConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        {...confirmModal}
       />
 
       <style jsx>{`

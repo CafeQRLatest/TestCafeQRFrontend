@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaPlus, FaCogs, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryComponents({ embedded = false }) {
@@ -11,6 +12,7 @@ export default function SalaryComponents({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingComponent, setEditingComponent] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -89,7 +91,16 @@ export default function SalaryComponents({ embedded = false }) {
       fetchData();
     } catch (error) {
       console.error("Error saving component", error);
-      alert("Error saving component: " + (error.response?.data?.message || error.message));
+      const msg = error.response?.data?.message || error.message || "Failed to save salary rule.";
+      setConfirmModal({
+        title: 'Error Saving Rule',
+        message: msg,
+        type: 'error',
+        confirmText: 'OK',
+        confirmVariant: 'primary',
+        showCancel: false,
+        onConfirm: () => setConfirmModal(null)
+      });
     }
   };
 
@@ -105,19 +116,37 @@ export default function SalaryComponents({ embedded = false }) {
       fetchData();
     } catch (error) {
       console.error("Error toggling status", error);
-      alert("Failed to update status");
     }
   };
 
-  const handleDeleteComponent = async (id) => {
-    if (!confirm("Are you sure you want to delete this salary component?")) return;
-    try {
-      await hrService.deleteComponent(id);
-      fetchData();
-    } catch (error) {
-      console.error("Error deleting component", error);
-      alert("Failed to delete component");
-    }
+  const handleDeleteComponent = (comp) => {
+    setConfirmModal({
+      title: 'Delete Salary Rule',
+      message: `Are you sure you want to delete rule "${comp.name}"?`,
+      type: 'confirm',
+      confirmText: 'Delete Rule',
+      confirmVariant: 'danger',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await hrService.deleteComponent(comp.id);
+          fetchData();
+        } catch (error) {
+          console.error("Error deleting component", error);
+          const errorMsg = error.response?.data?.message || error.message || 'Failed to delete salary component.';
+          setConfirmModal({
+            title: 'Cannot Delete Rule',
+            message: errorMsg,
+            type: 'error',
+            confirmText: 'Got It',
+            confirmVariant: 'primary',
+            showCancel: false,
+            onConfirm: () => setConfirmModal(null)
+          });
+        }
+      }
+    });
   };
 
   return (
@@ -189,7 +218,7 @@ export default function SalaryComponents({ embedded = false }) {
                       <td>
                         <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(comp)} title="Edit Rule"><FaEdit /></button>
-                          <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp.id)} title="Delete Rule"><FaTrash /></button>
+                          <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp)} title="Delete Rule"><FaTrash /></button>
                         </div>
                       </td>
                     </tr>
@@ -205,7 +234,7 @@ export default function SalaryComponents({ embedded = false }) {
         <div className="modal-overlay">
           <div className="modal-content glass-panel">
             <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
-            <form onSubmit={handleSaveComponent}>
+            <form onSubmit={handleSave}>
               <div className="form-group mb-4">
                 <label>Rule Name (e.g., "Health Insurance")</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} required />
@@ -229,29 +258,35 @@ export default function SalaryComponents({ embedded = false }) {
               
               {amountType === 'FIXED' ? (
                 <div className="form-group mb-4">
-                  <label>Default Amount ($)</label>
+                  <label>Fixed Amount ($)</label>
                   <input type="number" step="0.01" value={defaultAmount} onChange={e => setDefaultAmount(e.target.value)} required />
                 </div>
               ) : (
                 <div className="form-group mb-4">
-                  <label>Percentage of Gross Pay (%)</label>
+                  <label>Percentage (% of Gross Pay)</label>
                   <input type="number" step="0.01" value={percentage} onChange={e => setPercentage(e.target.value)} required />
                 </div>
               )}
 
-              <div className="form-group flex items-center gap-3 mb-6">
-                <input type="checkbox" id="taxable" checked={isTaxApplicable} onChange={e => setIsTaxApplicable(e.target.checked)} className="w-4 h-4" />
-                <label htmlFor="taxable" className="!mb-0 cursor-pointer">Is this component subject to payroll taxes?</label>
+              <div className="form-group mb-4" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="checkbox" id="taxCheck" checked={isTaxApplicable} onChange={e => setIsTaxApplicable(e.target.checked)} />
+                <label htmlFor="taxCheck">Tax Applicable</label>
               </div>
 
-              <div className="flex justify-end gap-3">
-                <button type="button" className="btn-secondary" onClick={() => { setShowModal(false); setEditingComponent(null); }}>Cancel</button>
-                <button type="submit" className="btn-primary">{editingComponent ? 'Save Changes' : 'Create Rule'}</button>
+              <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary">Save Rule</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <HrConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        {...confirmModal}
+      />
 
       <style jsx>{`
         .glass-panel {
