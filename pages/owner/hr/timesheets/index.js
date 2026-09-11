@@ -112,17 +112,18 @@ export default function TimesheetsDashboard({ embedded = false }) {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const formatLocalIso = (val) => {
-        if (!val || !val.trim()) return null;
-        if (val.length === 16) return val + ':00';
-        return val;
+      const formatLocalIso = (timeStr, dateStr) => {
+        if (!timeStr || !timeStr.trim()) return null;
+        let t = timeStr.trim();
+        if (t.length === 5) t += ':00';
+        return `${dateStr}T${t}`;
       };
 
       const payload = {
         employeeId: formData.employeeId,
         attendanceDate: formData.attendanceDate,
-        clockInTime: formData.status === 'ABSENT' ? `${formData.attendanceDate}T00:00:00` : formatLocalIso(formData.clockInTime),
-        clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime),
+        clockInTime: formData.status === 'ABSENT' ? `${formData.attendanceDate}T00:00:00` : formatLocalIso(formData.clockInTime, formData.attendanceDate),
+        clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime, formData.attendanceDate),
         status: formData.status,
         punchMethod: formData.punchMethod
       };
