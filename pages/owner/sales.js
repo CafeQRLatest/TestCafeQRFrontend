@@ -135,6 +135,8 @@ function resolveTableOrderState(table, activeOrder) {
     status = 'BILLED';
   } else if (activeOrder && isOpenOrder(activeOrder)) {
     status = 'OCCUPIED';
+  } else if (!activeOrder && ['OCCUPIED', 'BILLED', 'KITCHEN', 'CONFIRMED', 'DRAFT'].includes(status)) {
+    status = 'AVAILABLE';
   }
 
   const label = tableStatusMeta(status).label;
@@ -148,6 +150,7 @@ function resolveTableOrderState(table, activeOrder) {
       : `Table ${table?.tableNumber || ''} is currently ${label}. Change it to Available before placing an order.`.trim(),
   };
 }
+
 
 import {
   TopHeaderBar,
@@ -1739,6 +1742,13 @@ function SalesContent() {
       setFloorOrders((current) => current.map((item) =>
         item.id === order.id ? { ...item, ...cancelledOrder, orderStatus: 'CANCELLED', order_status: 'CANCELLED' } : item
       ));
+      if (order.tableId || order.tableNumber) {
+        setTables((current) => current.map((t) =>
+          (String(t.id) === String(order.tableId) || String(t.tableNumber) === String(order.tableNumber))
+            ? { ...t, status: 'AVAILABLE' }
+            : t
+        ));
+      }
       showToast('Order cancelled');
       setPopoverTable(null);
       publishAccountingRefresh('order-cancelled', cancelledOrder);

@@ -247,8 +247,18 @@ export default function TablePopover({
   canCancelOrder = true,
 }) {
   const [showMove, setShowMove] = useState(false);
-  const [targetTableId, setTargetTableId] = useState('');
-  const status = useMemo(() => statusPalette(order?.orderStatus || order?.order_status || table?.status), [order, table]);
+  const status = useMemo(() => {
+    const orderStatusStr = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+    const hasLiveOrder = order && !['COMPLETED', 'PAID', 'CANCELLED', 'VOID'].includes(orderStatusStr);
+    if (hasLiveOrder) {
+      return statusPalette(orderStatusStr || 'OCCUPIED');
+    }
+    const rawTableStatus = String(table?.status || 'AVAILABLE').toUpperCase();
+    if (!order && ['OCCUPIED', 'BILLED', 'KITCHEN', 'CONFIRMED', 'DRAFT'].includes(rawTableStatus)) {
+      return statusPalette('AVAILABLE');
+    }
+    return statusPalette(rawTableStatus);
+  }, [order, table]);
   const hasOrder = Boolean(order);
   const orderStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
   const paymentStatus = String(order?.paymentStatus || order?.payment_status || '').toUpperCase();
