@@ -11,6 +11,7 @@ type Options = {
   relayUrl?: string;
   ip?: string;
   port?: number;
+  copies?: number;
   codepage?: number;
   allowPrompt?: boolean;
   allowSystemDialog?: boolean;
@@ -268,14 +269,21 @@ let printChain: Promise<void> = Promise.resolve();
 /** Public API: queued printing (never drops a job). */
 export function printUniversal(opts: Options) {
   const normalizedOpts = normalizePrintOptions(opts);
+  const numCopies = Math.max(1, Number(opts.copies || 1));
   const job = printChain.then(async () => {
     try {
-      const res = await printUniversalNow(normalizedOpts);
+      let lastRes: any;
+      for (let copy = 0; copy < numCopies; copy++) {
+        lastRes = await printUniversalNow(normalizedOpts);
+        if (copy < numCopies - 1) {
+          await sleep(150);
+        }
+      }
 
       // small gap helps some printers/helpers flush before next job
       await sleep(80);
 
-      return res;
+      return lastRes;
     } catch (error: any) {
       throw error;
     }

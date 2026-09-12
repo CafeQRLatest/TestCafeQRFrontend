@@ -225,9 +225,51 @@ async function printClaimedJob(job) {
   // Sync customized templates from backend before building text
   await ensurePrintTemplatesSynced();
 
+  const orderId = normalized.order?.id;
+  const isDirected = Boolean(normalized.printerProfileId || normalized.payload?.reason === 'master');
+
+  // If this is a generic KOT job and the order was already printed recently on local POS, skip physical re-print
+  if (!isDirected && orderId && normalized.kind === 'kot') {
+    const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
+    const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
+    const key = `${orderId}:kot`;
+    if (rawDedup.includes(orderId) || rawCloud.includes(orderId)) {
+      console.log(`[cloud-print] Job ${normalized.id} for order ${orderId} was already printed locally, marking completed.`);
+      await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
+        backgroundSync: true,
+        skipAuthRedirect: true,
+        skipOfflineQueue: true,
+      });
+      return normalized;
+    }
+  }
+
   const text = normalized.kind === 'kot'
     ? buildKotText(normalized.order, profile)
     : buildReceiptText(normalized.order, null, profile);
+
+  let targetIp = undefined;
+  let targetPort = undefined;
+  let targetBt = undefined;
+  let targetWin = undefined;
+
+  if (normalized.printerProfileId && typeof window !== 'undefined') {
+    try {
+      const rawProfiles = window.localStorage.getItem('PRINT_PROFILES');
+      const profiles = rawProfiles ? JSON.parse(rawProfiles) : [];
+      const matchedProfile = Array.isArray(profiles) ? profiles.find(p => p?.id === normalized.printerProfileId) : null;
+      if (matchedProfile) {
+        if (matchedProfile.connectionType === 'NETWORK' && matchedProfile.host) {
+          targetIp = matchedProfile.host;
+          targetPort = Number(matchedProfile.port || 9100);
+        } else if ((matchedProfile.connectionType === 'BLUETOOTH' || matchedProfile.connectionType === 'BLUETOOTH_COM') && (matchedProfile.btAddress || matchedProfile.macAddress)) {
+          targetBt = [matchedProfile.btAddress || matchedProfile.macAddress];
+        } else if (matchedProfile.connectionType === 'WINDOWS_QUEUE' && matchedProfile.windowsPrinterName) {
+          targetWin = [matchedProfile.windowsPrinterName];
+        }
+      }
+    } catch { }
+  }
 
   await printUniversal({
     text,
@@ -236,6 +278,10 @@ async function printClaimedJob(job) {
     codepage: 0,
     jobId: normalized.id,
     jobKind: normalized.kind,
+    ip: targetIp,
+    port: targetPort,
+    btAddresses: targetBt,
+    winPrinterNames: targetWin,
     document: {
       order: normalized.order,
       restaurant: profile,
