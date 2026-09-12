@@ -522,7 +522,8 @@ const sanitizeConfiguration = (configuration) => {
   DOCUMENT_DEFAULTS.forEach(({ type, profileKey, modeKey }) => {
     defaults[profileKey] = (defaults[profileKey] || []).filter((profileId) => {
       const profile = profileMap.get(profileId);
-      return profile?.enabled !== false && profileSupportsDocument(profile, type);
+      // Guard: if the profile was deleted (not in the map), drop its ID from defaults
+      return profile && profile.enabled !== false && profileSupportsDocument(profile, type);
     });
     defaults[modeKey] = 'MIRROR';
   });

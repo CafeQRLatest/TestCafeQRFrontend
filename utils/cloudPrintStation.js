@@ -228,8 +228,8 @@ async function printClaimedJob(job) {
   const orderId = normalized.order?.id;
   const isDirected = Boolean(normalized.printerProfileId || normalized.payload?.reason === 'master');
 
-  // If this is a generic KOT job and the order was already printed recently on local POS, skip physical re-print
-  if (!isDirected && orderId && normalized.kind === 'kot') {
+  // If this order was already printed recently on local POS, skip physical re-print
+  if (orderId && normalized.kind === 'kot') {
     const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
     const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
     const key = `${orderId}:kot`;

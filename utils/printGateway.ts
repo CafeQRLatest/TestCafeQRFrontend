@@ -281,7 +281,7 @@ export function printUniversal(opts: Options) {
       }
 
       // small gap helps some printers/helpers flush before next job
-      await sleep(80);
+      await sleep(100);
 
       return lastRes;
     } catch (error: any) {
@@ -457,14 +457,13 @@ async function printUniversalNow(opts: Options) {
       await DevicePrinter.ensurePermissions();
 
       if (opts.ip) {
-        await Promise.race([
-          DevicePrinter.printTcpRaw({
-            base64,
-            host: opts.ip,
-            port: opts.port ?? 9100
-          }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Android TCP socket timed out')), 2500))
-        ]);
+        // Await native socket directly — Java manages its own 5s connect + 5s SO timeout.
+        // No JS-side Promise.race: avoids orphaned threads that cause infinite re-prints.
+        await DevicePrinter.printTcpRaw({
+          base64,
+          host: opts.ip,
+          port: opts.port ?? 9100
+        });
         return { via: 'android-pos' as const };
       }
 
@@ -479,14 +478,13 @@ async function printUniversalNow(opts: Options) {
         const savedPort = Number(window.localStorage.getItem(netPortKey) || 9100);
 
         if (savedIp) {
-          await Promise.race([
-            DevicePrinter.printTcpRaw({
-              base64,
-              host: savedIp,
-              port: savedPort
-            }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Android TCP socket timed out')), 2500))
-          ]);
+          // Await native socket directly — Java manages its own 5s connect + 5s SO timeout.
+          // No JS-side Promise.race: avoids orphaned threads that cause infinite re-prints.
+          await DevicePrinter.printTcpRaw({
+            base64,
+            host: savedIp,
+            port: savedPort
+          });
           return { via: 'android-pos' as const };
         }
       }
