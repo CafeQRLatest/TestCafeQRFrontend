@@ -184,9 +184,13 @@ export async function printKotByStation(
     if (masterPrinters && masterPrinters.length > 0) {
       const masterOrder: KotOrder = {
         ...order,
-        restaurant_name: `${order.restaurant_name || ''} [MASTER KOT]`.trim(),
+        restaurant_name: `${restaurantProfile?.restaurant_name || order.restaurant_name || ''} [MASTER KOT]`.trim(),
       };
-      const text = buildKotText(masterOrder, restaurantProfile);
+      const masterProfile = {
+        ...restaurantProfile,
+        restaurant_name: masterOrder.restaurant_name,
+      };
+      const text = buildKotText(masterOrder, masterProfile);
 
       const winPrinterNames: string[] = [];
       const btAddresses: string[] = [];

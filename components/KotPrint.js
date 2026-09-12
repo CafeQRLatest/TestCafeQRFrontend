@@ -569,9 +569,13 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
         const masterOrder = {
           ...normalizedOrder,
-          restaurant_name: `${restaurantProfile?.name || normalizedOrder.restaurant_name || ''} [MASTER KOT]`.trim(),
+          restaurant_name: `${restaurantProfile?.restaurant_name || normalizedOrder.restaurant_name || ''} [MASTER KOT]`.trim(),
         };
-        const text = buildKotText(masterOrder, restaurantProfile);
+        const masterProfile = {
+          ...restaurantProfile,
+          restaurant_name: masterOrder.restaurant_name,
+        };
+        const text = buildKotText(masterOrder, masterProfile);
 
         const hasMasterTargets = masterWinPrinterNames.length > 0 || masterIpPrinters.length > 0 || masterBtPrinters.length > 0;
 
