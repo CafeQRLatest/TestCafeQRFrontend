@@ -16,12 +16,19 @@ export type NativePrintSubmission = {
   metadata?: Record<string, unknown>;
 };
 
+let lastOfflineTime = 0;
+const OFFLINE_COOLDOWN = 10000;
+
 function localToken() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem(TOKEN_KEY) || '';
-}
+}
 
-async function request(path: string, init: RequestInit = {}, timeoutMs = 5000) {
+async function request(path: string, init: RequestInit = {}, timeoutMs = 300) {
+  if (Date.now() - lastOfflineTime < OFFLINE_COOLDOWN) {
+    throw new Error('PRINT_SERVICE_OFFLINE_CACHED');
+  }
+
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -39,6 +46,7 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 5000) {
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
     if (!response.ok) {
+      lastOfflineTime = Date.now();
       const error = new Error(data?.error || `PRINT_SERVICE_${response.status}`) as Error & {
         code?: string;
         status?: number;
@@ -50,6 +58,9 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 5000) {
       throw error;
     }
     return data;
+  } catch (err: any) {
+    lastOfflineTime = Date.now();
+    throw err;
   } finally {
     window.clearTimeout(timer);
   }

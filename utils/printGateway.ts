@@ -4,6 +4,9 @@ import { textToEscPos } from './escpos';
 import { buildKotText, buildReceiptText } from './printUtils';
 import { isNativePrintServicePaired, submitNativePrintJob } from './printServiceClient';
 
+let lastHubProbeFail = 0;
+let cachedDiscoveredHubPrinter: string | null = null;
+
 type Options = {
   text: string;
   vendorId?: number;
@@ -369,20 +372,31 @@ async function printUniversalNow(opts: Options) {
   // This allows silent printing to work out of the box on Windows without
   // manual setup, matching the production Cafe-QR behavior.
   async function autoDiscoverWinHub(): Promise<string | null> {
+    if (cachedDiscoveredHubPrinter) return cachedDiscoveredHubPrinter;
+    if (Date.now() - lastHubProbeFail < 10000) return null;
+
     const hubListUrl = window.localStorage.getItem('PRINT_WIN_LIST_URL') || 'http://127.0.0.1:3333/printers';
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 2000);
+      const t = setTimeout(() => ctrl.abort(), 1500);
       const resp = await fetch(hubListUrl, { signal: ctrl.signal });
       clearTimeout(t);
-      if (!resp.ok) return null;
+      if (!resp.ok) {
+        lastHubProbeFail = Date.now();
+        return null;
+      }
       const printers: string[] = await resp.json();
-      if (!Array.isArray(printers) || printers.length === 0) return null;
+      if (!Array.isArray(printers) || printers.length === 0) {
+        lastHubProbeFail = Date.now();
+        return null;
+      }
 
       // Find a POS/thermal printer (common names)
       const thermalHints = ['pos', 'thermal', 'receipt', 'xp-', 'rongta', 'epson', 'star', 'bixolon', 'citizen', 'custom'];
       const thermalPrinter = printers.find((p) => thermalHints.some((h) => p.toLowerCase().includes(h)));
       const chosen = thermalPrinter || printers[0];
+
+      cachedDiscoveredHubPrinter = chosen;
 
       // Auto-configure so subsequent prints don't need re-discovery
       window.localStorage.setItem('PRINT_WIN_URL', 'http://127.0.0.1:3333/printRaw');
@@ -392,6 +406,7 @@ async function printUniversalNow(opts: Options) {
       console.log('[print] Auto-discovered Windows printer:', chosen);
       return chosen;
     } catch {
+      lastHubProbeFail = Date.now();
       return null;
     }
   }
