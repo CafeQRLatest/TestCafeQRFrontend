@@ -40,6 +40,7 @@ public class DevicePrinterPlugin extends Plugin {
   private static final int REQ_BT = 901;
   private static final UUID SPP_UUID =
       UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+  private static final Object BT_LOCK = new Object();
   private String pendingPermCallbackId = null;
 
   private boolean hasBluetoothConnectPermission() {
@@ -586,59 +587,33 @@ public class DevicePrinterPlugin extends Plugin {
   }
 
   private boolean connectAndWrite(BluetoothDevice dev, byte[] data) {
-    BluetoothSocket sock = null;
-    final boolean slow = data != null && data.length > 8 * 1024;
+    synchronized (BT_LOCK) {
+      BluetoothSocket sock = null;
+      final boolean slow = data != null && data.length > 8 * 1024;
 
-    final int CHUNK = slow ? 128 : 256;
-    final int SLEEP_BETWEEN = slow ? 35 : 15;
-    final int SLEEP_BEFORE_CLOSE = slow ? 900 : 350;
-    try {
-      if (safeBondState(dev) != BluetoothDevice.BOND_BONDED) return false;
-      try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
-
-      // Create RFCOMM socket
+      final int CHUNK = slow ? 128 : 256;
+      final int SLEEP_BETWEEN = slow ? 35 : 15;
+      final int SLEEP_BEFORE_CLOSE = slow ? 900 : 350;
       try {
-        sock = dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
-      } catch (Exception e) {
-        sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
-      }
+        if (safeBondState(dev) != BluetoothDevice.BOND_BONDED) return false;
+        try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
 
-      sock.connect();
-      OutputStream os = sock.getOutputStream();
+        // Create RFCOMM socket
+        try {
+          sock = dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+        } catch (Exception e) {
+          sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
+        }
 
-      // HARD RESET BEFORE EACH JOB
-      os.write(new byte[]{ 0x1b, '@' });  // ESC @
-      os.flush();
-      try { Thread.sleep(80); } catch (InterruptedException ignored) {}
+        sock.connect();
+        OutputStream os = sock.getOutputStream();
 
-      // CHUNKED WRITE
-      int offset = 0;
-      while (offset < data.length) {
-        int len = Math.min(CHUNK, data.length - offset);
-        os.write(data, offset, len);
-        os.flush();
-        offset += len;
-        try { Thread.sleep(SLEEP_BETWEEN); } catch (InterruptedException ignored) {}
-      }
-
-      os.write(new byte[]{ 0x0a, 0x0a });
-      os.flush();
-      try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
-      os.close();
-      return true;
-
-    } catch (Exception ex) {
-      // Fallback reflection socket
-      try {
-        BluetoothSocket alt = (BluetoothSocket) dev.getClass()
-          .getMethod("createRfcommSocket", int.class).invoke(dev, 1);
-        alt.connect();
-        OutputStream os = alt.getOutputStream();
-
-        os.write(new byte[]{ 0x1b, '@' });
+        // HARD RESET BEFORE EACH JOB
+        os.write(new byte[]{ 0x1b, '@' });  // ESC @
         os.flush();
         try { Thread.sleep(80); } catch (InterruptedException ignored) {}
 
+        // CHUNKED WRITE
         int offset = 0;
         while (offset < data.length) {
           int len = Math.min(CHUNK, data.length - offset);
@@ -651,16 +626,44 @@ public class DevicePrinterPlugin extends Plugin {
         os.write(new byte[]{ 0x0a, 0x0a });
         os.flush();
         try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
-
         os.close();
-        alt.close();
         return true;
-      } catch (Exception ignored) {
-        return false;
-      }
-    } finally {
-      if (sock != null) {
-        try { sock.close(); } catch (Exception ignored) {}
+
+      } catch (Exception ex) {
+        // Fallback reflection socket
+        try {
+          BluetoothSocket alt = (BluetoothSocket) dev.getClass()
+            .getMethod("createRfcommSocket", int.class).invoke(dev, 1);
+          alt.connect();
+          OutputStream os = alt.getOutputStream();
+
+          os.write(new byte[]{ 0x1b, '@' });
+          os.flush();
+          try { Thread.sleep(80); } catch (InterruptedException ignored) {}
+
+          int offset = 0;
+          while (offset < data.length) {
+            int len = Math.min(CHUNK, data.length - offset);
+            os.write(data, offset, len);
+            os.flush();
+            offset += len;
+            try { Thread.sleep(SLEEP_BETWEEN); } catch (InterruptedException ignored) {}
+          }
+
+          os.write(new byte[]{ 0x0a, 0x0a });
+          os.flush();
+          try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
+
+          os.close();
+          alt.close();
+          return true;
+        } catch (Exception ignored) {
+          return false;
+        }
+      } finally {
+        if (sock != null) {
+          try { sock.close(); } catch (Exception ignored) {}
+        }
       }
     }
   }

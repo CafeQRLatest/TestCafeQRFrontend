@@ -421,6 +421,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         closeAfterPrint();
         return true;
       }
+
+      markPrinted(normalizedOrder?.id, kind);
+      if (normalizedOrder?.id) {
+        markCloudPrintJobPrinted({ id: normalizedOrder.id }, kind).catch(() => null);
+      }
+      
       const baseDocument = {
         order: normalizedOrder,
         restaurant: restaurantProfile,
@@ -533,13 +539,29 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         const masterKotPrinters = readJson('PRINT_MASTER_KOT_PRINTERS', []);
 
         const masterProfiles = (masterKotProfileIds || []).map(id => profileMap.get(id)).filter(Boolean);
-        const masterWinPrinterNames = masterProfiles.filter(p => p.connectionType === 'WINDOWS_QUEUE').map(p => p.windowsPrinterName).filter(Boolean);
+        let masterWinPrinterNames = masterProfiles.filter(p => p.connectionType === 'WINDOWS_QUEUE').map(p => p.windowsPrinterName).filter(Boolean);
         const masterIpPrinters = masterProfiles.filter(p => p.connectionType === 'NETWORK').map(p => ({ ip: p.host, port: Number(p.port || 9100), copies: Math.max(1, Number(p.copies || 1)) })).filter(p => p.ip);
-        const masterBtPrinters = masterProfiles.filter(p => p.connectionType === 'BLUETOOTH_COM' || p.connectionType === 'BLUETOOTH').map(p => ({ addr: p.btAddress || p.macAddress || p.comPort, copies: Math.max(1, Number(p.copies || 1)) })).filter(p => p.addr);
+        let masterBtPrinters = masterProfiles.filter(p => p.connectionType === 'BLUETOOTH_COM' || p.connectionType === 'BLUETOOTH').map(p => ({ addr: p.btAddress || p.macAddress || p.comPort, copies: Math.max(1, Number(p.copies || 1)) })).filter(p => p.addr);
 
         for (const pName of masterKotPrinters) {
           if (typeof pName === 'string' && pName && !masterWinPrinterNames.includes(pName)) {
             masterWinPrinterNames.push(pName);
+          }
+        }
+
+        if (masterWinPrinterNames.length === 0 && masterIpPrinters.length === 0 && masterBtPrinters.length === 0) {
+          const defaultWin = readJson('PRINT_WIN_PRINTER_NAMES_KOT', []);
+          if (defaultWin.length > 0) {
+            masterWinPrinterNames = [...defaultWin];
+          }
+          if (isNativeAndroid()) {
+            const defaultBt = readJson('BT_PRINTER_ADDRS_KOT', []);
+            const singleBt = typeof window !== 'undefined' ? localStorage.getItem('BT_PRINTER_ADDR_KOT') : null;
+            if (defaultBt.length > 0) {
+              masterBtPrinters = defaultBt.map(addr => ({ addr, copies: 1 }));
+            } else if (singleBt) {
+              masterBtPrinters = [{ addr: singleBt, copies: 1 }];
+            }
           }
         }
 
@@ -551,7 +573,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
         const hasMasterTargets = masterWinPrinterNames.length > 0 || masterIpPrinters.length > 0 || masterBtPrinters.length > 0;
 
-        if (hasMasterTargets || onAndroidPWA) {
+        if (hasMasterTargets || onAndroidPWA || isNativeAndroid()) {
           // 1. Direct Network (LAN IP) printers
           for (const t of masterIpPrinters) {
             try {
@@ -794,10 +816,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         }
       }
 
-      markPrinted(normalizedOrder?.id, kind);
-      if (normalizedOrder?.id) {
-        markCloudPrintJobPrinted({ id: normalizedOrder.id }, kind).catch(() => null);
-      }
+
       onPrint?.();
       closeAfterPrint();
       return true;

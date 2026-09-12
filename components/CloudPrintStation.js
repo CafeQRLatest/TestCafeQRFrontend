@@ -12,7 +12,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
 
   useEffect(() => {
     const refresh = () => {
-      setEnabled(isNativePrintServicePaired() || isPrintStationEnabled());
+      setEnabled(isPrintStationEnabled());
       setWidgetVisible(typeof window !== 'undefined' && window.localStorage.getItem('CAFEQR_HIDE_PRINT_WIDGET') !== '1');
     };
     refresh();

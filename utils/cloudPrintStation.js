@@ -53,11 +53,12 @@ export function isAndroidPrintStationEnabled() {
 
 export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
-  if (isNativePrintServicePaired()) return false;
-  return (
-    isAndroidPrintStationEnabled() ||
-    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
-  );
+  
+  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') {
+    return true;
+  }
+  
+  return hasExplicitPrintStationFlag();
 }
 
 export function isCloudPrintCoolingDown() {
@@ -297,7 +298,7 @@ async function printClaimedJob(job) {
 }
 
 export async function claimAndPrintCloudJobs(limit = 3) {
-  if ((!isPrintStationEnabled() && !isNativePrintServicePaired()) || isKnownOffline() || isCloudPrintCoolingDown()) {
+  if (!isPrintStationEnabled() || isKnownOffline() || isCloudPrintCoolingDown()) {
     return [];
   }
 

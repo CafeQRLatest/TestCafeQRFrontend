@@ -520,10 +520,7 @@ async function printUniversalNow(opts: Options) {
       }
 
       for (const address of targets) {
-        await Promise.race([
-          DevicePrinter.printRaw({ base64, address, nameContains: nameHint }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Android Bluetooth connection timed out')), 3500))
-        ]);
+        await DevicePrinter.printRaw({ base64, address, nameContains: nameHint });
       }
 
       return { via: 'android-pos' as const };
