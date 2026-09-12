@@ -533,28 +533,32 @@ async function printUniversalNow(opts: Options) {
       const forced = uniq(opts.winPrinterNames || []);
       const targets = forced.length ? forced : names;
 
-      const result = await submitNativePrintJob({
-        idempotencyKey: opts.jobId || (
-          opts.offlineOperationId || opts.orderId || opts.orderNo
-            ? `local:${jobKind}:${opts.offlineOperationId || opts.orderId || opts.orderNo}:${hashText(opts.text)}`
-            : `local:${jobKind}:${Date.now()}:${hashText(opts.text)}`
-        ),
-        jobKind,
-        outputFormat: opts.outputFormat,
-        printerProfileId: opts.printerProfileId,
-        winPrinterNames: targets,
-        routeId: opts.routeId,
-        text: opts.text,
-        dataBase64: base64,
-        document: opts.document,
-        metadata: {
-          ...(opts.metadata || {}),
-          orderId: opts.orderId,
-          orderNo: opts.orderNo,
-          offlineOperationId: opts.offlineOperationId,
-        },
-      });
-      return { via: 'cafeqr-print-service' as const, jobs: result };
+      try {
+        const result = await submitNativePrintJob({
+          idempotencyKey: opts.jobId || (
+            opts.offlineOperationId || opts.orderId || opts.orderNo
+              ? `local:${jobKind}:${opts.offlineOperationId || opts.orderId || opts.orderNo}:${hashText(opts.text)}`
+              : `local:${jobKind}:${Date.now()}:${hashText(opts.text)}`
+          ),
+          jobKind,
+          outputFormat: opts.outputFormat,
+          printerProfileId: opts.printerProfileId,
+          winPrinterNames: targets,
+          routeId: opts.routeId,
+          text: opts.text,
+          dataBase64: base64,
+          document: opts.document,
+          metadata: {
+            ...(opts.metadata || {}),
+            orderId: opts.orderId,
+            orderNo: opts.orderNo,
+            offlineOperationId: opts.offlineOperationId,
+          },
+        });
+        return { via: 'cafeqr-print-service' as const, jobs: result };
+      } catch (err: any) {
+        console.warn('[print-gateway] submitNativePrintJob failed, falling back to local print:', err);
+      }
     }
 
     const n: any = navigator as any;

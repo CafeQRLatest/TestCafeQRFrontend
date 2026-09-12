@@ -168,12 +168,6 @@ function markPrinted(orderId, kind = 'bill') {
     const map = JSON.parse(raw);
     map[key] = now;
     localStorage.setItem(PRINT_DEDUP_KEY, JSON.stringify(map));
-
-    // Write to cafeqr_printed_jobs
-    const rawCloud = localStorage.getItem('cafeqr_printed_jobs') || '{}';
-    const cloudMap = JSON.parse(rawCloud);
-    cloudMap[key] = now;
-    localStorage.setItem('cafeqr_printed_jobs', JSON.stringify(cloudMap));
   } catch {
     // ignore
   }
@@ -553,6 +547,14 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           const defaultWin = readJson('PRINT_WIN_PRINTER_NAMES_KOT', []);
           if (defaultWin.length > 0) {
             masterWinPrinterNames = [...defaultWin];
+          } else {
+            const singleWinKot = typeof window !== 'undefined' ? localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') : null;
+            if (singleWinKot) {
+              masterWinPrinterNames.push(singleWinKot);
+            } else {
+              const singleWinBill = typeof window !== 'undefined' ? localStorage.getItem('PRINT_WIN_PRINTER_NAME') : null;
+              if (singleWinBill) masterWinPrinterNames.push(singleWinBill);
+            }
           }
           if (isNativeAndroid()) {
             const defaultBt = readJson('BT_PRINTER_ADDRS_KOT', []);
@@ -597,8 +599,9 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             }
           }
 
-          // 2. Windows Queue printers
-          if (masterWinPrinterNames.length > 0) {
+          // 2. Windows Queue / WebUSB printers
+          const fallbackLocal = !onAndroidPWA && !isNativeAndroid() && masterIpPrinters.length === 0 && masterBtPrinters.length === 0;
+          if (masterWinPrinterNames.length > 0 || fallbackLocal) {
             try {
               await printUniversal({
                 text,
@@ -609,7 +612,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
                 jobKind: 'kot',
                 outputFormat: nativeOutput,
                 document: { ...baseDocument, order: masterOrder },
-                winPrinterNames: masterWinPrinterNames,
+                winPrinterNames: masterWinPrinterNames.length > 0 ? masterWinPrinterNames : undefined,
                 ...getPrintJobMeta(masterOrder, 'kot', `master-kot-win-${masterWinPrinterNames.join('-')}`),
               });
             } catch (e) {
