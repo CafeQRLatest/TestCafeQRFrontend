@@ -586,6 +586,9 @@ public class DevicePrinterPlugin extends Plugin {
     return connectAndWrite(arr[0], data);
   }
 
+  private static BluetoothSocket cachedSocket = null;
+  private static String cachedDeviceAddress = null;
+
   private boolean connectAndWrite(BluetoothDevice dev, byte[] data) {
     synchronized (BT_LOCK) {
       BluetoothSocket sock = null;
@@ -596,16 +599,29 @@ public class DevicePrinterPlugin extends Plugin {
       final int SLEEP_BEFORE_CLOSE = slow ? 900 : 350;
       try {
         if (safeBondState(dev) != BluetoothDevice.BOND_BONDED) return false;
-        try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
 
-        // Create RFCOMM socket
-        try {
-          sock = dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
-        } catch (Exception e) {
-          sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
+        // PERPETUAL KEEP-ALIVE CACHE
+        if (cachedSocket != null && dev.getAddress().equals(cachedDeviceAddress) && cachedSocket.isConnected()) {
+          sock = cachedSocket;
+        } else {
+          // Close old socket if wrong device or disconnected
+          if (cachedSocket != null) {
+            try { cachedSocket.close(); } catch (Exception ignored) {}
+            cachedSocket = null;
+          }
+
+          try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
+
+          try {
+            sock = dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+          } catch (Exception e) {
+            sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
+          }
+          sock.connect();
+          cachedSocket = sock;
+          cachedDeviceAddress = dev.getAddress();
         }
 
-        sock.connect();
         OutputStream os = sock.getOutputStream();
 
         // HARD RESET BEFORE EACH JOB
@@ -626,11 +642,20 @@ public class DevicePrinterPlugin extends Plugin {
         os.write(new byte[]{ 0x0a, 0x0a });
         os.flush();
         try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
-        os.close();
+        
+        // DO NOT CLOSE SOCKET (Perpetual Keep-Alive)
+        // os.close();
+        
         return true;
 
       } catch (Exception ex) {
-        // Fallback reflection socket
+        // IF IT FAILS, CLEAR THE CACHE
+        if (cachedSocket != null) {
+          try { cachedSocket.close(); } catch (Exception ignored) {}
+          cachedSocket = null;
+        }
+
+        // Fallback reflection socket (which connects and closes immediately)
         try {
           BluetoothSocket alt = (BluetoothSocket) dev.getClass()
             .getMethod("createRfcommSocket", int.class).invoke(dev, 1);
@@ -661,9 +686,10 @@ public class DevicePrinterPlugin extends Plugin {
           return false;
         }
       } finally {
-        if (sock != null) {
-          try { sock.close(); } catch (Exception ignored) {}
-        }
+        // DO NOT CLOSE SOCKET IN FINALLY BLOCK
+        // if (sock != null) {
+        //   try { sock.close(); } catch (Exception ignored) {}
+        // }
       }
     }
   }
