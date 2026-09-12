@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
+import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryAdvances({ embedded = false }) {
@@ -13,6 +14,7 @@ export default function SalaryAdvances({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingAdvance, setEditingAdvance] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -51,13 +53,15 @@ export default function SalaryAdvances({ embedded = false }) {
     }
   };
 
+  const activeEmployees = employees.filter(emp => emp.isActive !== false);
+
   const handleOpenCreate = () => {
     setEditingAdvance(null);
-    setEmployeeId(employees.length > 0 ? employees[0].id : '');
+    setEmployeeId(activeEmployees.length > 0 ? activeEmployees[0].id : '');
     setTotalAmount('');
     setInstallmentAmount('');
     setRemainingBalance('');
-    setAdvanceDate('');
+    setAdvanceDate(new Date().toISOString().substring(0, 10));
     setStatus('PENDING');
     setReason('');
     setShowModal(true);
@@ -80,19 +84,47 @@ export default function SalaryAdvances({ embedded = false }) {
       await hrService.updateAdvanceStatus(id, newStatus);
       fetchData();
     } catch (error) {
-      alert("Failed to update status");
+      const msg = error.response?.data?.message || error.message || "Failed to update status.";
+      setConfirmModal({
+        title: 'Error Updating Status',
+        message: msg,
+        type: 'error',
+        confirmText: 'OK',
+        confirmVariant: 'primary',
+        showCancel: false,
+        onConfirm: () => setConfirmModal(null)
+      });
     }
   };
 
-  const handleDeleteAdvance = async (id) => {
-    if (!confirm("Are you sure you want to delete this salary advance record?")) return;
-    try {
-      await hrService.deleteAdvance(id);
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete salary advance", error);
-      alert("Failed to delete salary advance");
-    }
+  const handleDeleteAdvance = (adv) => {
+    setConfirmModal({
+      title: 'Delete Salary Advance',
+      message: 'Are you sure you want to delete this salary advance record?',
+      type: 'confirm',
+      confirmText: 'Delete Advance',
+      confirmVariant: 'danger',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await hrService.deleteAdvance(adv.id);
+          fetchData();
+        } catch (error) {
+          console.error("Failed to delete salary advance", error);
+          const errorMsg = error.response?.data?.message || error.message || 'Failed to delete salary advance.';
+          setConfirmModal({
+            title: 'Cannot Delete Advance',
+            message: errorMsg,
+            type: 'error',
+            confirmText: 'Got It',
+            confirmVariant: 'primary',
+            showCancel: false,
+            onConfirm: () => setConfirmModal(null)
+          });
+        }
+      }
+    });
   };
 
   const handleSaveAdvance = async (e) => {
@@ -124,7 +156,16 @@ export default function SalaryAdvances({ embedded = false }) {
       fetchData();
     } catch (error) {
       console.error("Error saving advance request", error);
-      alert("Error saving advance request: " + (error.response?.data?.message || error.message));
+      const msg = error.response?.data?.message || error.message || 'Error saving advance request.';
+      setConfirmModal({
+        title: 'Error Saving Advance',
+        message: msg,
+        type: 'error',
+        confirmText: 'OK',
+        confirmVariant: 'primary',
+        showCancel: false,
+        onConfirm: () => setConfirmModal(null)
+      });
     }
   };
 
@@ -185,7 +226,7 @@ export default function SalaryAdvances({ embedded = false }) {
                         <button onClick={() => handleOpenEdit(adv)} className="icon-btn edit" title="Edit Loan Record">
                           <FaEdit />
                         </button>
-                        <button onClick={() => handleDeleteAdvance(adv.id)} className="icon-btn delete" title="Delete Loan Record">
+                        <button onClick={() => handleDeleteAdvance(adv)} className="icon-btn delete" title="Delete Loan Record">
                           <FaTrash />
                         </button>
                       </div>
@@ -207,9 +248,13 @@ export default function SalaryAdvances({ embedded = false }) {
                 <label>Employee</label>
                 <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
                   <option value="">Select Employee</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
-                  ))}
+                  {employees
+                    .filter(emp => emp.isActive !== false || emp.id === employeeId)
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="flex gap-4 mb-4">
@@ -255,6 +300,12 @@ export default function SalaryAdvances({ embedded = false }) {
           </div>
         </div>
       )}
+
+      <HrConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        {...confirmModal}
+      />
 
       <style jsx>{`
         .glass-panel {

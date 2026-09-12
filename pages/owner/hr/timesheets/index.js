@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
 
 export default function TimesheetsDashboard({ embedded = false }) {
@@ -12,6 +13,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -83,8 +85,9 @@ export default function TimesheetsDashboard({ embedded = false }) {
     setEditingRecord(null);
     const now = new Date();
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const activeEmps = employees.filter(e => e.isActive !== false);
     setFormData({
-      employeeId: employees.length > 0 ? employees[0].id : '',
+      employeeId: activeEmps.length > 0 ? activeEmps[0].id : '',
       attendanceDate: todayStr,
       clockInTime: currentTimeStr,
       clockOutTime: '',
@@ -145,16 +148,26 @@ export default function TimesheetsDashboard({ embedded = false }) {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this attendance record?')) return;
-    try {
-      await hrService.deleteAttendance(id);
-      showToast("Timecard deleted", "success");
-      fetchTimesheets();
-    } catch (err) {
-      console.error('Failed to delete attendance record:', err);
-      showToast('Failed to delete record', "error");
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      title: 'Delete Timecard',
+      message: 'Are you sure you want to delete this attendance record?',
+      type: 'confirm',
+      confirmText: 'Delete Timecard',
+      confirmVariant: 'danger',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await hrService.deleteAttendance(id);
+          showToast("Timecard deleted", "success");
+          fetchTimesheets();
+        } catch (err) {
+          console.error('Failed to delete attendance record:', err);
+          showToast('Failed to delete record: ' + (err.response?.data?.message || err.message), "error");
+        }
+      }
+    });
   };
 
   const formatTime = (isoStr) => {
@@ -340,9 +353,13 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   required
                 >
                   <option value="">Select Employee...</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
-                  ))}
+                  {employees
+                    .filter(emp => emp.isActive !== false || emp.id === formData.employeeId)
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -369,34 +386,25 @@ export default function TimesheetsDashboard({ embedded = false }) {
                 />
               </div>
 
-              {formData.status !== 'ABSENT' ? (
-                <div className="form-grid">
+              {formData.status !== 'ABSENT' && (
+                <div className="form-row">
                   <div className="form-group">
                     <label>Clock In Time</label>
                     <input 
                       type="time" 
-                      value={formData.clockInTime} 
+                      value={formData.clockInTime ? (formData.clockInTime.length > 5 ? formData.clockInTime.substring(11, 16) : formData.clockInTime) : ''} 
                       onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
-                      required 
+                      required={formData.status !== 'ABSENT'} 
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Clock Out Time (Optional)</label>
+                    <label>Clock Out Time</label>
                     <input 
                       type="time" 
-                      value={formData.clockOutTime} 
+                      value={formData.clockOutTime ? (formData.clockOutTime.length > 5 ? formData.clockOutTime.substring(11, 16) : formData.clockOutTime) : ''} 
                       onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
                     />
-                  </div>
-                </div>
-              ) : (
-                <div className="info-alert glass-panel" style={{ padding: '12px 16px', marginBottom: '16px', borderLeftColor: '#f97316' }}>
-                  <FaExclamationTriangle style={{ color: '#f97316', fontSize: '18px' }} />
-                  <div className="alert-content">
-                    <p style={{ margin: 0, fontSize: '13px', color: '#475569' }}>
-                      Time fields are disabled for Absences. A placeholder time (midnight) will be logged automatically.
-                    </p>
                   </div>
                 </div>
               )}
@@ -437,6 +445,12 @@ export default function TimesheetsDashboard({ embedded = false }) {
           </div>
         </div>
       )}
+
+      <HrConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        {...confirmModal}
+      />
 
       {toast && (
         <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>

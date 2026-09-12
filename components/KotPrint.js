@@ -505,31 +505,53 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       // --- Print Consolidated Master KOT (if enabled) ---
       const masterKotEnabled = typeof window !== 'undefined' && localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
       if (masterKotEnabled) {
+        const masterKotProfileIds = readJson('PRINT_MASTER_KOT_PROFILE_IDS', []);
         const masterKotPrinters = readJson('PRINT_MASTER_KOT_PRINTERS', []);
-        
+
+        const masterProfiles = (masterKotProfileIds || []).map(id => profileMap.get(id)).filter(Boolean);
+        const masterWinPrinterNames = masterProfiles.filter(p => p.connectionType === 'WINDOWS_QUEUE').map(p => p.windowsPrinterName).filter(Boolean);
+        const masterIpPrinters = masterProfiles.filter(p => p.connectionType === 'NETWORK').map(p => ({ ip: p.host, port: Number(p.port || 9100) })).filter(p => p.ip);
+        const masterBtPrinters = masterProfiles.filter(p => p.connectionType === 'BLUETOOTH_COM' || p.connectionType === 'BLUETOOTH').map(p => p.btAddress || p.macAddress || p.comPort).filter(Boolean);
+
+        for (const pName of masterKotPrinters) {
+          if (typeof pName === 'string' && pName && !masterWinPrinterNames.includes(pName)) {
+            masterWinPrinterNames.push(pName);
+          }
+        }
+
         const masterOrder = {
           ...normalizedOrder,
           restaurant_name: `${restaurantProfile?.name || normalizedOrder.restaurant_name || ''} [MASTER KOT]`.trim(),
         };
         const text = buildKotText(masterOrder, restaurantProfile);
 
-        if (masterKotPrinters.length > 0) {
-          if (onAndroidPWA) {
+        const hasMasterTargets = masterWinPrinterNames.length > 0 || masterIpPrinters.length > 0 || masterBtPrinters.length > 0;
+
+        if (hasMasterTargets || onAndroidPWA) {
+          // 1. Direct Network (LAN IP) printers
+          for (const t of masterIpPrinters) {
             try {
               await printUniversal({
                 text,
-                allowPrompt: true,
-                allowSystemDialog: true,
+                relayUrl: (typeof window !== 'undefined' && localStorage.getItem('PRINT_RELAY_URL')) || undefined,
+                ip: t.ip,
+                port: t.port,
+                codepage: 0,
+                allowPrompt: false,
+                allowSystemDialog: false,
                 scale,
                 jobKind: 'kot',
                 outputFormat: nativeOutput,
                 document: { ...baseDocument, order: masterOrder },
-                ...getPrintJobMeta(masterOrder, 'kot', 'master-kot'),
+                ...getPrintJobMeta(masterOrder, 'kot', `master-kot-net-${t.ip}`),
               });
             } catch (e) {
-              console.warn('[print] master kot android fail:', e);
+              console.warn('[print] master kot net fail:', e);
             }
-          } else {
+          }
+
+          // 2. Windows Queue printers
+          if (masterWinPrinterNames.length > 0) {
             try {
               await printUniversal({
                 text,
@@ -540,11 +562,49 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
                 jobKind: 'kot',
                 outputFormat: nativeOutput,
                 document: { ...baseDocument, order: masterOrder },
-                winPrinterNames: masterKotPrinters,
-                ...getPrintJobMeta(masterOrder, 'kot', 'master-kot-win'),
+                winPrinterNames: masterWinPrinterNames,
+                ...getPrintJobMeta(masterOrder, 'kot', `master-kot-win-${masterWinPrinterNames.join('-')}`),
               });
             } catch (e) {
               console.warn('[print] master kot win fail:', e);
+            }
+          }
+
+          // 3. Bluetooth printers
+          if (masterBtPrinters.length > 0) {
+            try {
+              await printUniversal({
+                text,
+                codepage: 0,
+                allowPrompt: false,
+                allowSystemDialog,
+                scale,
+                jobKind: 'kot',
+                outputFormat: nativeOutput,
+                document: { ...baseDocument, order: masterOrder },
+                btAddresses: masterBtPrinters,
+                ...getPrintJobMeta(masterOrder, 'kot', `master-kot-bt-${masterBtPrinters.join('-')}`),
+              });
+            } catch (e) {
+              console.warn('[print] master kot bt fail:', e);
+            }
+          }
+
+          // 4. Android PWA generic fallback if no specific targets were resolved
+          if (onAndroidPWA && !masterIpPrinters.length && !masterWinPrinterNames.length && !masterBtPrinters.length) {
+            try {
+              await printUniversal({
+                text,
+                allowPrompt: true,
+                allowSystemDialog: true,
+                scale,
+                jobKind: 'kot',
+                outputFormat: nativeOutput,
+                document: { ...baseDocument, order: masterOrder },
+                ...getPrintJobMeta(masterOrder, 'kot', 'master-kot-android'),
+              });
+            } catch (e) {
+              console.warn('[print] master kot android fail:', e);
             }
           }
         }

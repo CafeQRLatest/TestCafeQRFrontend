@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaCalendarAlt, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function LeaveManagement({ embedded = false }) {
@@ -12,6 +13,7 @@ export default function LeaveManagement({ embedded = false }) {
   const [showModal, setShowModal] = useState(false);
   const [editingLeave, setEditingLeave] = useState(null);
   const [toast, setToast] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -54,11 +56,13 @@ export default function LeaveManagement({ embedded = false }) {
     }
   };
 
+  const activeEmployees = employees.filter(emp => emp.isActive !== false);
+
   const handleOpenCreate = () => {
     setEditingLeave(null);
-    setEmployeeId(employees.length > 0 ? employees[0].id : '');
-    setStartDate('');
-    setEndDate('');
+    setEmployeeId(activeEmployees.length > 0 ? activeEmployees[0].id : '');
+    setStartDate(new Date().toISOString().substring(0, 10));
+    setEndDate(new Date().toISOString().substring(0, 10));
     setLeaveType('UNPAID');
     setStatus('PENDING');
     setReason('');
@@ -87,16 +91,35 @@ export default function LeaveManagement({ embedded = false }) {
     }
   };
 
-  const handleDeleteLeave = async (id) => {
-    if (!confirm("Are you sure you want to delete this leave request?")) return;
-    try {
-      await hrService.deleteLeaveRequest(id);
-      showToast("Leave request deleted", "success");
-      fetchData();
-    } catch (error) {
-      console.error("Failed to delete leave request", error);
-      showToast("Failed to delete leave request", "error");
-    }
+  const handleDeleteLeave = (leave) => {
+    setConfirmModal({
+      title: 'Delete Leave Request',
+      message: 'Are you sure you want to delete this leave request?',
+      type: 'confirm',
+      confirmText: 'Delete Leave',
+      confirmVariant: 'danger',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await hrService.deleteLeaveRequest(leave.id);
+          showToast("Leave request deleted", "success");
+          fetchData();
+        } catch (error) {
+          console.error("Failed to delete leave request", error);
+          const errorMsg = error.response?.data?.message || error.message || 'Failed to delete leave request.';
+          setConfirmModal({
+            title: 'Cannot Delete Leave',
+            message: errorMsg,
+            type: 'error',
+            confirmText: 'Got It',
+            confirmVariant: 'primary',
+            showCancel: false,
+            onConfirm: () => setConfirmModal(null)
+          });
+        }
+      }
+    });
   };
 
   const handleSaveLeave = async (e) => {
@@ -191,7 +214,7 @@ export default function LeaveManagement({ embedded = false }) {
                         <button onClick={() => handleOpenEdit(leave)} className="icon-btn edit" title="Edit Request">
                           <FaEdit />
                         </button>
-                        <button onClick={() => handleDeleteLeave(leave.id)} className="icon-btn delete" title="Delete Request">
+                        <button onClick={() => handleDeleteLeave(leave)} className="icon-btn delete" title="Delete Request">
                           <FaTrash />
                         </button>
                       </div>
@@ -213,9 +236,13 @@ export default function LeaveManagement({ embedded = false }) {
                 <label>Employee</label>
                 <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
                   <option value="">Select Employee</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
-                  ))}
+                  {employees
+                    .filter(emp => emp.isActive !== false || emp.id === employeeId)
+                    .map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
               <div className="flex gap-4 mb-4">
@@ -232,9 +259,10 @@ export default function LeaveManagement({ embedded = false }) {
                 <div className="form-group flex-1">
                   <label>Leave Type</label>
                   <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
-                    <option value="PAID">Paid Leave</option>
                     <option value="UNPAID">Unpaid Leave</option>
+                    <option value="PAID">Paid Leave / Vacation</option>
                     <option value="SICK">Sick Leave</option>
+                    <option value="CASUAL">Casual Leave</option>
                   </select>
                 </div>
                 <div className="form-group flex-1">
@@ -247,17 +275,23 @@ export default function LeaveManagement({ embedded = false }) {
                 </div>
               </div>
               <div className="form-group mb-6">
-                <label>Reason</label>
-                <textarea value={reason} onChange={e => setReason(e.target.value)} rows="3" />
+                <label>Reason / Notes</label>
+                <textarea value={reason} onChange={e => setReason(e.target.value)} rows="2" />
               </div>
               <div className="flex justify-end gap-3">
                 <button type="button" className="btn-secondary" onClick={() => { setShowModal(false); setEditingLeave(null); }}>Cancel</button>
-                <button type="submit" className="btn-primary">{editingLeave ? 'Save Changes' : 'Save Request'}</button>
+                <button type="submit" className="btn-primary">{editingLeave ? 'Save Changes' : 'Submit Request'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <HrConfirmModal
+        isOpen={!!confirmModal}
+        onClose={() => setConfirmModal(null)}
+        {...confirmModal}
+      />
 
       {toast && (
         <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>

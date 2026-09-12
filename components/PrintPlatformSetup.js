@@ -354,9 +354,11 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_KOT', kotPrinters[0] || '');
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_LABEL', labelPrinters[0] || '');
 
-  const masterKotPrinters = getPrinterNamesForDoc(defaults.masterKotProfileIds);
+  const masterKotProfileIds = Array.isArray(defaults.masterKotProfileIds) ? defaults.masterKotProfileIds : [];
+  const masterKotPrinters = getPrinterNamesForDoc(masterKotProfileIds);
   localStorage.setItem('PRINT_MASTER_KOT_ENABLED', defaults.printMasterKot ? '1' : '0');
   localStorage.setItem('PRINT_MASTER_KOT_PRINTERS', JSON.stringify(masterKotPrinters));
+  localStorage.setItem('PRINT_MASTER_KOT_PROFILE_IDS', JSON.stringify(masterKotProfileIds));
 
   // 3. Map Routing
   const routes = Array.isArray(config.routes) ? config.routes : [];
