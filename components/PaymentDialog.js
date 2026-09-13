@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt } from 'react-icons/fa';
+import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isDiscountModuleEnabled, isLoyaltyModuleEnabled } from '../utils/moduleVisibility';
@@ -10,10 +10,10 @@ import { fetchCustomerLoyalty, fetchLoyaltyPrograms, invalidateCustomerLoyalty }
 import { cartKeyFor } from './CounterSale/domain/cart';
 import {
   THEMES,
-  Overlay, Card,
+  Overlay, Card, DialogBody, DialogColumn,
   Header, CloseButton,
-  TotalBanner, Breakdown, Row,
-  FieldGrid, Field,
+  TotalBanner, Breakdown, Row, TaxBadge, GrandTotalRow,
+  FieldGrid, Field, RoundOffBox,
   SplitPanel, SplitRow, IconButton, SplitFooter,
   CreditPanel, CreditLabel, CreditPickerRow, NewCreditButton,
   MethodGrid, MethodButton,
@@ -34,8 +34,11 @@ const toNumber = (value) => {
 const getMethodIcon = (val, ptType) => {
   const v = String(val || '').toUpperCase();
   if (v === 'CASH') return <FaMoneyBillWave style={{ fontSize: '14px', color: '#16a34a' }} />;
-  if (v === 'ONLINE' || v === 'UPI' || v === 'QR CODE') return <FaQrcode style={{ fontSize: '14px', color: '#0284c7' }} />;
+  if (v === 'UPI' || v === 'QR CODE') return <FaQrcode style={{ fontSize: '14px', color: '#0284c7' }} />;
   if (v === 'CARD') return <FaCreditCard style={{ fontSize: '14px', color: '#6366f1' }} />;
+  if (v === 'ONLINE') return <FaQrcode style={{ fontSize: '14px', color: '#0284c7' }} />;
+  if (v.includes('SWIGGY') || v.includes('ZOMATO')) return <FaStore style={{ fontSize: '14px', color: '#ea580c' }} />;
+  if (v.includes('ETF') || v.includes('BANK')) return <FaCreditCard style={{ fontSize: '14px', color: '#0891b2' }} />;
   if (ptType === 'CREDIT' || v.includes('CREDIT')) return <FaBook style={{ fontSize: '14px', color: '#d97706' }} />;
   if (v === 'MIXED') return <FaLayerGroup style={{ fontSize: '14px', color: '#ea580c' }} />;
   return <FaStore style={{ fontSize: '14px', color: '#64748b' }} />;
@@ -835,419 +838,629 @@ export default function PaymentDialog({
         <Header>
           <div>
             <h2>Payment Collection</h2>
-            <span>{order.orderNo || order.order_no || `#${String(order.id || '').slice(0, 8)}`} - {order.tableNumber || order.table_number || 'Counter'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+              <span style={{
+                background: '#f8fafc',
+                color: '#64748b',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 5,
+                border: '1px solid #e2e8f0'
+              }}>
+                Order #{order.orderNo || order.order_no || String(order.id || '').slice(0, 8)}
+              </span>
+              <span style={{
+                background: '#f0fdf4',
+                color: '#059669',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 5,
+                border: '1px solid #dcfce7'
+              }}>
+                {order.tableNumber || order.table_number ? `Table ${String(order.tableNumber || order.table_number).replace(/^t/i, '')}` : (order.fulfillmentType || 'Takeaway')}
+              </span>
+            </div>
           </div>
           <CloseButton type="button" onClick={onClose} aria-label="Close payment dialog">
-            <FaTimes />
+            <FaTimes size={13} />
           </CloseButton>
         </Header>
 
-        <TotalBanner $theme={theme}>
-          <span>Settled Total</span>
-          <strong>{money(payable)}</strong>
-        </TotalBanner>
-
-        <Breakdown>
-          <Row><span>Gross Total</span><strong>{money(gross)}</strong></Row>
-          {disc > 0 && <Row style={{ color: '#dc2626' }}><span>Discount</span><strong>-{money(disc)}</strong></Row>}
-          {config?.taxEnabled && <Row><span>Subtotal</span><strong>{money(taxableSubtotal)}</strong></Row>}
-          {config?.taxEnabled && <Row><span>Tax Amount</span><strong>{money(tax)}</strong></Row>}
-          {roundOffEnabled && !isCreditPayment && roundOff !== 0 && (
-            <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
-              <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>
-              <strong>{roundOff > 0 ? '+' : ''}{money(roundOff)}</strong>
-            </Row>
-          )}
-          <Row style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '6px', marginTop: '2px' }}>
-            <span>Grand Total</span><strong>{money(grossPayable)}</strong>
-          </Row>
-          {loyaltyDiscount > 0 && (
-            <Row style={{ color: '#ea580c', fontWeight: '800' }}>
-              <span>Loyalty Discount</span>
-              <strong>-{money(loyaltyDiscount)}</strong>
-            </Row>
-          )}
-          {loyaltyDiscount > 0 && (
-            <Row style={{ borderTop: '1px solid #fed7aa', paddingTop: '4px', marginTop: '2px', color: '#059669', fontWeight: '800' }}>
-              <span>Net Payable</span>
+        <DialogBody>
+          {/* Left Column: Totals, Breakdown, Discounts, Loyalty */}
+          <DialogColumn>
+            <TotalBanner $theme={theme}>
+              <span>Total</span>
               <strong>{money(payable)}</strong>
-            </Row>
-          )}
-        </Breakdown>
+            </TotalBanner>
 
-        {discountsEnabled && !disableEditDiscount && (
-          <DiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginTop: '4px', height: '36px' }}>
-            {disc > 0 ? `Edit Discounts (${money(disc)})` : 'Apply Discount'}
-          </DiscountBtn>
-        )}
+            <Breakdown>
+              {/* If discount exists, show Gross Total and Discount */}
+              {disc > 0 && (
+                <>
+                  <Row>
+                    <span>Gross Total</span>
+                    <strong>{money(gross)}</strong>
+                  </Row>
+                  <Row style={{ color: '#dc2626' }}>
+                    <span style={{ color: '#dc2626', fontWeight: 600 }}>Discount</span>
+                    <strong style={{ color: '#dc2626', fontWeight: 700 }}>-{money(disc)}</strong>
+                  </Row>
+                </>
+              )}
 
-        {!isCreditPayment && roundOffEnabled && roundOffMode === 'manual' && (
-          <Field>
-            Desired Final Amount
-            <input
-              type="number"
-              step="any"
-              value={manualFinalAmount}
-              onChange={(event) => setManualFinalAmount(event.target.value)}
-              placeholder="Enter final amount..."
-            />
-          </Field>
-        )}
-        {!isCreditPayment && roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
-          <Field>
-            Round Off (Auto)
-            <input type="number" step="any" value={roundOff.toFixed(dp)} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />
-          </Field>
-        )}
+              {/* Subtotal & Tax breakdown */}
+              {config?.taxEnabled ? (
+                <>
+                  <Row>
+                    <span>{config?.pricesIncludeTax ? 'Taxable Amount' : 'Subtotal'}</span>
+                    <strong>{money(taxableSubtotal)}</strong>
+                  </Row>
+                  <Row>
+                    <span>
+                      Tax Amount
+                      {config?.pricesIncludeTax && <TaxBadge>Incl.</TaxBadge>}
+                    </span>
+                    <strong>{money(tax)}</strong>
+                  </Row>
+                </>
+              ) : (
+                disc === 0 && (
+                  <Row>
+                    <span>Subtotal</span>
+                    <strong>{money(gross)}</strong>
+                  </Row>
+                )
+              )}
 
-        {loyaltyEnabled && hasAttachedCustomer && !isCreditPayment && (
-          <div style={{
-            marginTop: '10px',
-            marginBottom: '12px',
-            padding: '12px 14px',
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '10px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
-                Loyalty Points
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: currentPoints > 0 ? '#ea580c' : '#64748b', background: currentPoints > 0 ? '#fff7ed' : '#f1f5f9', padding: '2px 8px', borderRadius: '6px', border: currentPoints > 0 ? '1px solid #ffedd5' : '1px solid #e2e8f0' }}>
-                  {currentPoints} pts Available
-                </span>
-                <button
-                  type="button"
-                  title="Refresh points"
-                  onClick={() => fetchLoyaltyData(true)}
-                  disabled={loyaltyLoading}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: loyaltyLoading ? '#94a3b8' : '#64748b',
-                    cursor: loyaltyLoading ? 'not-allowed' : 'pointer',
-                    padding: '2px 4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '11px',
-                    transition: 'transform 0.3s ease',
-                    transform: loyaltyLoading ? 'rotate(180deg)' : 'none',
-                  }}
-                >
-                  <FaSyncAlt style={{ animation: loyaltyLoading ? 'spin 1s linear infinite' : 'none' }} />
-                </button>
-              </div>
-            </div>
+              {/* Round Off */}
+              {roundOffEnabled && !isCreditPayment && roundOff !== 0 && (
+                <Row style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
+                  <span>Round Off{roundOffMode === 'manual' ? ' (Manual)' : ''}</span>
+                  <strong style={{ color: roundOff >= 0 ? '#16a34a' : '#dc2626' }}>
+                    {roundOff > 0 ? '+' : ''}{money(roundOff)}
+                  </strong>
+                </Row>
+              )}
 
-            {customerInfo.name || customerInfo.phone ? (
-              <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '8px' }}>
-                Customer: <strong style={{ color: '#334155' }}>{customerInfo.name || 'Guest'}</strong> {customerInfo.phone ? `(${customerInfo.phone})` : ''}
-              </div>
-            ) : null}
+              {/* Grand Total */}
+              <GrandTotalRow>
+                <span>Grand Total</span>
+                <strong>{money(grossPayable)}</strong>
+              </GrandTotalRow>
 
-            {loyaltyLoading && (
-              <div style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <FaSyncAlt className="animate-spin" style={{ fontSize: '10px' }} /> Loading loyalty balance...
-              </div>
+              {/* Loyalty Discount */}
+              {loyaltyDiscount > 0 && (
+                <>
+                  <Row style={{ color: '#ea580c', fontWeight: 600 }}>
+                    <span>Loyalty Discount</span>
+                    <strong style={{ color: '#ea580c' }}>-{money(loyaltyDiscount)}</strong>
+                  </Row>
+                  <GrandTotalRow style={{ borderTop: '1px solid #bbf7d0', color: '#059669', paddingTop: '8px' }}>
+                    <span style={{ color: '#059669' }}>Net Payable</span>
+                    <strong style={{ color: '#059669' }}>{money(payable)}</strong>
+                  </GrandTotalRow>
+                </>
+              )}
+            </Breakdown>
+
+            {discountsEnabled && !disableEditDiscount && (
+              <DiscountBtn
+                type="button"
+                $theme={theme}
+                $applied={disc > 0}
+                onClick={() => setShowDiscountModal(true)}
+              >
+                <FaTag size={11} style={{ color: disc > 0 ? (theme.name === 'green' ? '#059669' : '#ea580c') : '#94a3b8' }} />
+                <span>{disc > 0 ? `Discount Applied: -${money(disc)} (Edit)` : 'Apply Discount'}</span>
+              </DiscountBtn>
             )}
 
-            {loyaltyFetchError && !loyaltyLoading && (
-              <div style={{ fontSize: '11.5px', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>{loyaltyFetchError}</span>
-                <button
-                  type="button"
-                  onClick={() => fetchLoyaltyData(true)}
-                  style={{
-                    background: '#fee2e2',
-                    border: '1px solid #fca5a5',
-                    color: '#991b1b',
-                    borderRadius: '4px',
-                    padding: '2px 6px',
-                    fontSize: '10.5px',
-                    cursor: 'pointer',
-                    fontWeight: '600'
-                  }}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {!loyaltyLoading && !loyaltyFetchError && !loyaltyProgram && (
-              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                No active default loyalty programme is available.
-              </div>
-            )}
-
-            {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints <= 0 && (
-              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                No points available to redeem.
-              </div>
-            )}
-
-            {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints > 0 && maxRedeemablePoints <= 0 && (
-              <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
-                {redemptionRules?.minPoints ? `Minimum ${redemptionRules.minPoints} points required to redeem.` : 'No redeemable points.'}
-              </div>
-            )}
-
-            {!loyaltyLoading && maxRedeemablePoints > 0 && redemptionRules && (
-              <div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
-                  Redemption Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints} pts)
+            {!isCreditPayment && roundOffEnabled && roundOffMode === 'manual' && (
+              <RoundOffBox>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#64748b' }}>
+                    Desired Final Amount
+                  </span>
+                  <span style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 500 }}>
+                    (±{sym}{roundOffManualLimit.toFixed(dp)})
+                  </span>
                 </div>
-
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#64748b',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    pointerEvents: 'none'
+                  }}>
+                    {sym}
+                  </span>
                   <input
                     type="number"
-                    min={0}
-                    max={maxRedeemablePoints}
-                    value={inputPoints}
-                    onChange={(e) => setInputPoints(e.target.value)}
-                    placeholder="Enter points to redeem..."
+                    step="any"
+                    value={manualFinalAmount}
+                    onChange={(event) => setManualFinalAmount(event.target.value)}
+                    placeholder="0.00"
                     style={{
-                      flex: 1,
-                      height: '36px',
-                      borderRadius: '6px',
+                      width: '100%',
+                      padding: '7px 10px 7px 24px',
+                      borderRadius: 8,
                       border: '1px solid #cbd5e1',
-                      background: '#ffffff',
-                      fontSize: '13px',
-                      fontWeight: '500',
+                      fontSize: 13,
+                      fontWeight: 700,
                       color: '#0f172a',
                       outline: 'none',
-                      padding: '0 10px',
+                      background: '#ffffff',
                       boxSizing: 'border-box'
                     }}
                   />
+                </div>
+              </RoundOffBox>
+            )}
+            {!isCreditPayment && roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+                padding: '8px 12px'
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#64748b' }}>
+                  Round Off (Auto)
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  {roundOff > 0 ? '+' : ''}{money(roundOff)}
+                </span>
+              </div>
+            )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const pts = Math.min(maxRedeemablePoints, Math.max(0, parseInt(inputPoints, 10) || 0));
-                      setAppliedLoyaltyPoints(pts);
-                    }}
-                    style={{
-                      height: '36px',
-                      padding: '0 16px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: '#ea580c',
-                      color: '#ffffff',
-                      fontSize: '12.5px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'background 0.2s ease'
-                    }}
-                  >
-                    Apply
-                  </button>
-
-                  {appliedLoyaltyPoints > 0 && (
+            {loyaltyEnabled && hasAttachedCustomer && !isCreditPayment && (
+              <div style={{
+                marginTop: '6px',
+                padding: '10px 12px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: '700', color: '#1e293b' }}>
+                    Loyalty Points
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: currentPoints > 0 ? '#ea580c' : '#64748b', background: currentPoints > 0 ? '#fff7ed' : '#f1f5f9', padding: '2px 7px', borderRadius: '6px', border: currentPoints > 0 ? '1px solid #ffedd5' : '1px solid #e2e8f0' }}>
+                      {currentPoints} pts
+                    </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        setAppliedLoyaltyPoints(0);
-                        setInputPoints('');
-                      }}
+                      title="Refresh points"
+                      onClick={() => fetchLoyaltyData(true)}
+                      disabled={loyaltyLoading}
                       style={{
-                        height: '36px',
-                        padding: '0 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #cbd5e1',
-                        background: '#ffffff',
-                        color: '#64748b',
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        cursor: 'pointer'
+                        background: 'transparent',
+                        border: 'none',
+                        color: loyaltyLoading ? '#94a3b8' : '#64748b',
+                        cursor: loyaltyLoading ? 'not-allowed' : 'pointer',
+                        padding: '2px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        transition: 'transform 0.3s ease',
+                        transform: loyaltyLoading ? 'rotate(180deg)' : 'none',
                       }}
                     >
-                      Clear
+                      <FaSyncAlt style={{ animation: loyaltyLoading ? 'spin 1s linear infinite' : 'none' }} />
                     </button>
-                  )}
+                  </div>
                 </div>
 
-                {appliedLoyaltyPoints > 0 && loyaltyDiscount > 0 && (
-                  <div style={{
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    color: '#15803d',
-                    marginTop: '8px',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    background: '#f0fdf4',
-                    border: '1px solid #bbf7d0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    ✓ Applied {appliedLoyaltyPoints} points (−{money(loyaltyDiscount)} Off)
+                {customerInfo.name || customerInfo.phone ? (
+                  <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '6px' }}>
+                    Customer: <strong style={{ color: '#334155' }}>{customerInfo.name || 'Guest'}</strong> {customerInfo.phone ? `(${customerInfo.phone})` : ''}
+                  </div>
+                ) : null}
+
+                {loyaltyLoading && (
+                  <div style={{ fontSize: '11.5px', color: '#64748b', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FaSyncAlt className="animate-spin" style={{ fontSize: '10px' }} /> Loading balance...
+                  </div>
+                )}
+
+                {loyaltyFetchError && !loyaltyLoading && (
+                  <div style={{ fontSize: '11.5px', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{loyaltyFetchError}</span>
+                    <button
+                      type="button"
+                      onClick={() => fetchLoyaltyData(true)}
+                      style={{
+                        background: '#fee2e2',
+                        border: '1px solid #fca5a5',
+                        color: '#991b1b',
+                        borderRadius: '4px',
+                        padding: '2px 6px',
+                        fontSize: '10.5px',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {!loyaltyLoading && !loyaltyFetchError && !loyaltyProgram && (
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                    No active loyalty programme available.
+                  </div>
+                )}
+
+                {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints <= 0 && (
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                    No points available to redeem.
+                  </div>
+                )}
+
+                {!loyaltyLoading && !loyaltyFetchError && loyaltyProgram && currentPoints > 0 && maxRedeemablePoints <= 0 && (
+                  <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>
+                    {redemptionRules?.minPoints ? `Min ${redemptionRules.minPoints} pts required.` : 'No redeemable points.'}
+                  </div>
+                )}
+
+                {!loyaltyLoading && maxRedeemablePoints > 0 && redemptionRules && (
+                  <div>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', marginBottom: '6px' }}>
+                      Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints})
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={maxRedeemablePoints}
+                        value={inputPoints}
+                        onChange={(e) => setInputPoints(e.target.value)}
+                        placeholder="Points..."
+                        style={{
+                          flex: 1,
+                          height: '32px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#0f172a',
+                          outline: 'none',
+                          padding: '0 8px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pts = Math.min(maxRedeemablePoints, Math.max(0, parseInt(inputPoints, 10) || 0));
+                          setAppliedLoyaltyPoints(pts);
+                        }}
+                        style={{
+                          height: '32px',
+                          padding: '0 12px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#ea580c',
+                          color: '#ffffff',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'background 0.2s ease'
+                        }}
+                      >
+                        Apply
+                      </button>
+
+                      {appliedLoyaltyPoints > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedLoyaltyPoints(0);
+                            setInputPoints('');
+                          }}
+                          style={{
+                            height: '32px',
+                            padding: '0 10px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            background: '#ffffff',
+                            color: '#64748b',
+                            fontSize: '11.5px',
+                            fontWeight: '500',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+
+                    {appliedLoyaltyPoints > 0 && loyaltyDiscount > 0 && (
+                      <div style={{
+                        fontSize: '11.5px',
+                        fontWeight: '600',
+                        color: '#15803d',
+                        marginTop: '6px',
+                        padding: '5px 8px',
+                        borderRadius: '6px',
+                        background: '#f0fdf4',
+                        border: '1px solid #bbf7d0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        ✓ Applied {appliedLoyaltyPoints} pts (−{money(loyaltyDiscount)} Off)
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
-          </div>
-        )}
+          </DialogColumn>
 
-        <Field style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>Payment Method</span>
-            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Select method</span>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '8px',
-            maxHeight: '190px',
-            overflowY: 'auto',
-            paddingRight: '4px',
-          }}>
-            {selectOptions.map((opt) => {
-              const isSelected = paymentMethod === opt.value;
-              const displayLabel = opt.value === 'CREDIT' ? 'Credit Ledger' 
-                : (opt.value === 'MIXED' ? 'Split Payment' 
-                : (opt.displayName || opt.label.replace(' (Credit Ledger)', '').replace(' / Split Payment', '')));
-
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => chooseMethod(opt.value)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: isSelected ? '2px solid #ea580c' : '1.5px solid #e2e8f0',
-                    background: isSelected ? '#fff7ed' : '#ffffff',
-                    color: isSelected ? '#ea580c' : '#334155',
-                    fontWeight: isSelected ? '700' : '600',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    textAlign: 'center',
-                    transition: 'all 0.15s ease',
-                    boxShadow: isSelected ? '0 3px 8px rgba(234, 88, 12, 0.18)' : '0 1px 2px rgba(0, 0, 0, 0.03)',
-                    lineHeight: '1.2'
-                  }}
-                >
-                  <span style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {displayLabel}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-
-        {isCreditSelected && (
-          <CreditPanel>
-            <CreditLabel>Credit Customer</CreditLabel>
-            <CreditPickerRow>
-              <NiceSelect
-                value={creditCustomerId}
-                onChange={setCreditCustomerId}
-                placeholder="Choose customer..."
-                options={creditCustomerOptions}
-                maxHeight={320}
-                style={{ height: 42, minWidth: 0 }}
-              />
-              <NewCreditButton type="button" onClick={() => setShowNewCreditCustomer(true)}>
-                <FaPlus /> New
-              </NewCreditButton>
-            </CreditPickerRow>
-            {creditLimitWarning && (
-              <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                background: '#fff7ed',
-                border: '1px solid #ffedd5',
-                borderRadius: '8px',
-                color: '#ea580c',
-                fontSize: '12px',
-                fontWeight: '600',
-                lineHeight: '1.4',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}>
-                <span style={{ fontSize: '14px' }}>⚠️</span>
-                {creditLimitWarning}
+          {/* Right Column: Payment Method Selection & Settle Actions */}
+          <DialogColumn>
+            <Field style={{ marginBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155' }}>Payment Method</span>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '500' }}>Select method</span>
               </div>
-            )}
-          </CreditPanel>
-        )}
 
+              <MethodGrid>
+                {selectOptions.map((opt) => {
+                  const isSelected = paymentMethod === opt.value;
+                  const rawLabel = opt.value === 'CREDIT' ? 'Credit Ledger' 
+                    : (opt.value === 'MIXED' ? 'Mixed' 
+                    : (opt.displayName || opt.label.replace(' (Credit Ledger)', '').replace(' / Split Payment', '').replace(' / Mixed Payment', '')));
+                  const displayLabel = rawLabel.length <= 3 ? rawLabel.toUpperCase() : (rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1));
+                  const isGreenTheme = theme.name === 'green';
+                  const btnBorderColor = isSelected 
+                    ? (isGreenTheme ? '#059669' : '#ea580c')
+                    : (isGreenTheme ? '#bbf7d0' : '#fed7aa');
+                  const btnBg = isSelected 
+                    ? (isGreenTheme ? '#f0fdf4' : '#fff7ed')
+                    : '#ffffff';
+                  const btnColor = isSelected 
+                    ? (isGreenTheme ? '#047857' : '#ea580c')
+                    : '#334155';
+                  const btnShadow = isSelected 
+                    ? (isGreenTheme ? '0 2px 8px rgba(16, 185, 129, 0.2)' : '0 2px 8px rgba(234, 88, 12, 0.16)')
+                    : '0 1px 2px rgba(0, 0, 0, 0.02)';
 
-        {paymentMethod === 'MIXED' && (
-          <SplitPanel>
-            {paymentSplits.map((split, index) => (
-              <SplitRow key={`${split.paymentMethod}-${index}`} style={{ gridTemplateColumns: '1.1fr 1fr' }}>
-                <Field>
-                  Method
+                  return (
+                    <MethodButton
+                      key={opt.value}
+                      type="button"
+                      $active={isSelected}
+                      $borderColor={btnBorderColor}
+                      $bg={btnBg}
+                      $color={btnColor}
+                      $shadow={btnShadow}
+                      onClick={() => chooseMethod(opt.value)}
+                    >
+                      <span>{displayLabel}</span>
+                    </MethodButton>
+                  );
+                })}
+              </MethodGrid>
+            </Field>
+
+            {isCreditSelected && (
+              <CreditPanel>
+                <CreditLabel>Credit Customer</CreditLabel>
+                <CreditPickerRow>
+                  <NiceSelect
+                    value={creditCustomerId}
+                    onChange={setCreditCustomerId}
+                    placeholder="Choose customer..."
+                    options={creditCustomerOptions}
+                    maxHeight={320}
+                    style={{ height: 42, minWidth: 0 }}
+                  />
+                  <NewCreditButton type="button" onClick={() => setShowNewCreditCustomer(true)}>
+                    <FaPlus /> New
+                  </NewCreditButton>
+                </CreditPickerRow>
+                {creditLimitWarning && (
                   <div style={{
-                    height: 38,
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    background: '#fff7ed',
+                    border: '1px solid #ffedd5',
+                    borderRadius: '8px',
+                    color: '#ea580c',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    lineHeight: '1.4',
                     display: 'flex',
                     alignItems: 'center',
-                    padding: '0 10px',
-                    background: '#f1f5f9',
-                    borderRadius: 8,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    color: '#0f172a',
-                    border: '1.5px solid #e2e8f0',
-                    userSelect: 'none'
+                    gap: '6px'
                   }}>
-                    {split.paymentMethod === 'CASH' ? 'Cash' : 'Online'}
+                    <span style={{ fontSize: '14px' }}>⚠️</span>
+                    {creditLimitWarning}
                   </div>
-                </Field>
-                <Field>
-                  Amount
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={split.amount}
-                    placeholder="0.00"
-                    onChange={(event) => updateSplit(index, 'amount', event.target.value)}
-                  />
-                </Field>
-              </SplitRow>
-            ))}
-            <SplitFooter $theme={theme}>
-              <span style={{ marginLeft: 'auto' }}>{money(mixedTotal)} / {money(payable)}</span>
-            </SplitFooter>
-          </SplitPanel>
-        )}
-        {mixedInvalid && (
-          <ErrorText>
-            {isMixedNotSplit
-              ? `Mixed payment requires at least two payment methods with a non-zero amount. Total must equal ${money(payable)}.`
-              : `Mixed payment split must be valid and equal ${money(payable)}.`}
-          </ErrorText>
-        )}
-        {creditInvalid && (
-          <ErrorText>Choose a credit customer to complete this order as credit.</ErrorText>
-        )}
-        {!isRoundOffValid && (
-          <ErrorText>Manual round off must not exceed the limit of ±{sym}{roundOffManualLimit.toFixed(dp)}.</ErrorText>
-        )}
- 
-        <Actions>
-          <Button type="button" $theme={theme} disabled={loading} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="button" $theme={theme} $primary disabled={loading || mixedInvalid || creditInvalid || !isRoundOffValid} onClick={submit}>
-            {loading ? 'Settling...' : isCreditSelected ? <><FaBook /> Complete as Credit</> : <><FaWallet /> Settle & Finish</>}
-          </Button>
-        </Actions>
+                )}
+              </CreditPanel>
+            )}
+
+            {paymentMethod === 'MIXED' && (
+              <SplitPanel $theme={theme}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                    Mixed Split Allocation
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const half = Number((payable / 2).toFixed(dp));
+                      const otherHalf = Number((payable - half).toFixed(dp));
+                      setPaymentSplits([
+                        { paymentMethod: 'CASH', amount: String(half) },
+                        { paymentMethod: 'ONLINE', amount: String(otherHalf) }
+                      ]);
+                    }}
+                    style={{
+                      background: theme.primaryLight,
+                      border: `1px solid ${theme.primaryBorder}`,
+                      color: theme.primaryDark,
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Split 50/50
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {paymentSplits.map((split, index) => {
+                    const isCash = split.paymentMethod === 'CASH';
+                    const methodLabel = isCash ? 'Cash' : 'Online';
+                    const methodColor = isCash ? '#16a34a' : '#0284c7';
+                    const methodBg = isCash ? '#f0fdf4' : '#f0f9ff';
+                    const methodBorder = isCash ? '#bbf7d0' : '#bae6fd';
+
+                    return (
+                      <div
+                        key={`${split.paymentMethod}-${index}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          background: '#f8fafc',
+                          padding: '7px 10px',
+                          borderRadius: 10,
+                          border: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <div style={{
+                          minWidth: 74,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          background: methodBg,
+                          border: `1px solid ${methodBorder}`,
+                          color: methodColor,
+                          fontWeight: 700,
+                          fontSize: 12,
+                          textAlign: 'center'
+                        }}>
+                          {methodLabel}
+                        </div>
+
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <span style={{
+                            position: 'absolute',
+                            left: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#64748b',
+                            fontWeight: 700,
+                            fontSize: 13,
+                            pointerEvents: 'none'
+                          }}>
+                            {sym}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={split.amount}
+                            placeholder="0.00"
+                            onChange={(event) => updateSplit(index, 'amount', event.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px 7px 24px',
+                              borderRadius: 8,
+                              border: '1px solid #cbd5e1',
+                              fontSize: 13.5,
+                              fontWeight: 700,
+                              color: '#0f172a',
+                              outline: 'none',
+                              background: '#ffffff',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingTop: 4,
+                  fontSize: 12,
+                  fontWeight: 700
+                }}>
+                  <span style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600 }}>Allocated</span>
+                  <div>
+                    {Math.abs(mixedTotal - payable) < 0.001 ? (
+                      <span style={{ color: '#15803d', background: '#ecfdf5', padding: '2px 8px', borderRadius: 6, border: '1px solid #a7f3d0' }}>
+                        ✓ {money(mixedTotal)} Balanced
+                      </span>
+                    ) : (
+                      <span style={{ color: '#c2410c', background: '#fff7ed', padding: '2px 8px', borderRadius: 6, border: '1px solid #fed7aa' }}>
+                        {money(mixedTotal)} / {money(payable)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {mixedInvalid && (
+                  <div style={{
+                    fontSize: 11.5,
+                    color: '#b91c1c',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: 8,
+                    padding: '6px 10px',
+                    lineHeight: 1.3
+                  }}>
+                    {isMixedNotSplit
+                      ? `Mixed payment requires at least two non-zero amounts totaling ${money(payable)}.`
+                      : `Mixed payment amounts must total exactly ${money(payable)}.`}
+                  </div>
+                )}
+              </SplitPanel>
+            )}
+
+            {creditInvalid && (
+              <ErrorText>Choose a credit customer to complete this order as credit.</ErrorText>
+            )}
+            {!isRoundOffValid && (
+              <ErrorText>Manual round off must not exceed the limit of ±{sym}{roundOffManualLimit.toFixed(dp)}.</ErrorText>
+            )}
+
+            <Actions>
+              <Button type="button" $theme={theme} disabled={loading} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="button" $theme={theme} $primary disabled={loading || mixedInvalid || creditInvalid || !isRoundOffValid} onClick={submit}>
+                {loading ? 'Settling...' : isCreditSelected ? <><FaBook /> Complete as Credit</> : <><FaWallet /> Settle & Finish</>}
+              </Button>
+            </Actions>
+          </DialogColumn>
+        </DialogBody>
         <CreditCustomerQuickCreateModal
           open={showNewCreditCustomer}
           themeColor="#14b8a6"

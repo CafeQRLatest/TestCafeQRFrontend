@@ -60,6 +60,11 @@ function ProductManagementContent() {
   const [showImageImport, setShowImageImport] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [recipeSearch, setRecipeSearch] = useState('');
+  const [productPage, setProductPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [tableLoading, setTableLoading] = useState(false);
+  const isInitialFilterMount = React.useRef(true);
 
   // ... (existing helper methods)
 
@@ -136,7 +141,7 @@ function ProductManagementContent() {
       const resp = await api.put(`/api/v1/products/${product.id}/status`, { isActive: !product.isActive });
       if (resp.data.success) {
         notify('success', product.isActive ? "Marked out of stock" : "Marked available");
-        fetchProducts();
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isActive: !product.isActive } : p));
       }
     } catch (err) {
       notify('error', "Failed to update status");
@@ -172,8 +177,8 @@ function ProductManagementContent() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const coreResults = await Promise.allSettled([
-        fetchProducts(),
+      await Promise.allSettled([
+        fetchProducts(1, pageSize, searchTerm, tableCategoryFilter, tableStatusFilter),
         fetchCategories(),
         fetchUoms(),
         fetchVariantGroups(),
@@ -189,13 +194,61 @@ function ProductManagementContent() {
     }
   };
 
-  const fetchProducts = async () => {
-    const resp = await api.get('/api/v1/products');
-    console.log("===> [DEBUG] fetchProducts response:", resp.data);
-    if (resp.data.success) {
-        setProducts(resp.data.data || []);
-    } else {
-        toast.error(resp.data.message || "Failed to load products");
+  const fetchProducts = async (
+    page = productPage,
+    size = pageSize,
+    search = searchTerm,
+    cat = tableCategoryFilter,
+    status = tableStatusFilter
+  ) => {
+    try {
+      setTableLoading(true);
+      const params = {
+        page: Math.max(0, page - 1),
+        size: size
+      };
+      if (search && search.trim()) params.search = search.trim();
+      if (cat) params.categoryId = cat;
+      if (status) params.status = status;
+
+      const resp = await api.get('/api/v1/products', { params });
+      if (resp.data.success) {
+        if (resp.data.data && Array.isArray(resp.data.data.content)) {
+          setProducts(resp.data.data.content || []);
+          setTotalProducts(resp.data.data.totalElements ?? 0);
+        } else if (Array.isArray(resp.data.data)) {
+          setProducts(resp.data.data || []);
+          setTotalProducts(resp.data.data.length || 0);
+        }
+      } else {
+        notify('error', resp.data.message || "Failed to load products");
+      }
+    } catch (err) {
+      console.error("Failed to fetch products:", err);
+    } finally {
+      if (isMounted.current) setTableLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isInitialFilterMount.current) {
+      isInitialFilterMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setProductPage(1);
+      fetchProducts(1, pageSize, searchTerm, tableCategoryFilter, tableStatusFilter);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, tableCategoryFilter, tableStatusFilter, pageSize]);
+
+  const handlePageChange = (newPage) => {
+    setProductPage(newPage);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    if (products.length <= pageSize) {
+      fetchProducts(newPage, pageSize, searchTerm, tableCategoryFilter, tableStatusFilter);
     }
   };
 
@@ -542,29 +595,50 @@ function ProductManagementContent() {
     }
   };
 
-  if (loading) return <div className="loading-state"><span>Syncing ERP Catalog...</span></div>;
-
   const selectedCategoryFilter = categories.find(c => c.id === tableCategoryFilter);
-  const filteredProducts = products.filter(p => {
-    const pCatId = p.category?.id || p.categoryId;
-    const pCatName = p.category?.name || p.categoryName;
-    const matchesCategory = !tableCategoryFilter || 
-      pCatId === tableCategoryFilter || 
-      (selectedCategoryFilter && pCatName && pCatName.toLowerCase() === selectedCategoryFilter.name.toLowerCase());
-    const matchesStatus = !tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? p.isActive !== false : p.isActive === false);
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesCategory && matchesStatus && matchesSearch;
-  });
-  const categoryOptions = selectedProduct?.category?.id
-    ? normalizeById(categories.filter(c => c.isActive !== false), selectedProduct.category)
-    : categories.filter(c => c.isActive !== false);
-  const uomOptions = selectedProduct?.uom?.id
-    ? normalizeById(uoms.filter(u => u.isActive !== false), selectedProduct.uom)
-    : uoms.filter(u => u.isActive !== false);
+  const displayProducts = React.useMemo(() => {
+    if (products.length > pageSize) {
+      return products.filter(p => {
+        const pCatId = p.category?.id || p.categoryId;
+        const pCatName = p.category?.name || p.categoryName;
+        const matchesCategory = !tableCategoryFilter || 
+          pCatId === tableCategoryFilter || 
+          (selectedCategoryFilter && pCatName && pCatName.toLowerCase() === selectedCategoryFilter.name.toLowerCase());
+        const matchesStatus = !tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? p.isActive !== false : p.isActive === false);
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.productCode && p.productCode.toLowerCase().includes(searchTerm.toLowerCase()));
+        return matchesCategory && matchesStatus && matchesSearch;
+      });
+    }
+    return products;
+  }, [products, pageSize, tableCategoryFilter, tableStatusFilter, searchTerm, selectedCategoryFilter]);
+
+  const displayTotal = totalProducts > 0 ? (products.length > pageSize ? displayProducts.length : totalProducts) : displayProducts.length;
+  const totalPages = Math.max(1, Math.ceil(displayTotal / pageSize));
+
+  const paginatedProducts = React.useMemo(() => {
+    if (displayProducts.length <= pageSize) {
+      return displayProducts;
+    }
+    const start = (productPage - 1) * pageSize;
+    return displayProducts.slice(start, start + pageSize);
+  }, [displayProducts, productPage, pageSize]);
+
+  const allCurrentPageSelected = paginatedProducts.length > 0 && paginatedProducts.every(p => selectedItemIds.includes(p.id));
+  const toggleSelectCurrentPage = () => {
+    const pageIds = paginatedProducts.map(p => p.id);
+    if (allCurrentPageSelected) {
+      setSelectedItemIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedItemIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
 
   return (
     <DashboardLayout title="Product Management" showBack={false}>
-      <div className="erp-container">
+      {loading ? (
+        <div className="loading-state"><span>Syncing ERP Catalog...</span></div>
+      ) : (
+        <div className="erp-container">
         {/* Summary Row removed as per user request */}
         
         <div className="erp-main-card">
@@ -625,20 +699,20 @@ function ProductManagementContent() {
           </div>
 
           <div className="erp-table-wrapper desk-only">
-             <table className="erp-table">
+             <table className={`erp-table ${tableLoading ? 'table-loading' : ''}`}>
                 {activeTab === 'products' && (
                    <>
-                    <thead>
+                     <thead>
                       <tr>
                         <th style={{ width: '40px' }}>
-                           <input type="checkbox" checked={selectedItemIds.length === filteredProducts.length && filteredProducts.length > 0} onChange={() => toggleSelectAll(filteredProducts.map(p => p.id))} />
+                           <input type="checkbox" checked={allCurrentPageSelected} onChange={toggleSelectCurrentPage} title="Select page items" />
                         </th>
                         {config?.menuImagesEnabled && <th>Image</th>}
                         <th>Code</th><th>Name</th><th>Category</th><th>Price</th><th>Type</th><th>Remark</th><th>Status</th><th className="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredProducts.map(p => (
+                      {paginatedProducts.map(p => (
                         <tr key={p.id} onClick={(e) => {
                           if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
                             openProduct(p, true);
@@ -750,7 +824,7 @@ function ProductManagementContent() {
           </div>
 
           <div className="erp-mobile-list mobile-only">
-             {activeTab === 'products' && filteredProducts.map(p => (
+             {activeTab === 'products' && paginatedProducts.map(p => (
                <div key={p.id} className={`mobile-card ${selectedItemIds.includes(p.id) ? 'row-selected' : ''}`} onClick={() => openProduct(p, true)}>
                   <div className="card-check" onClick={e => { e.stopPropagation(); toggleSelectItem(p.id); }}>
                      <input type="checkbox" checked={selectedItemIds.includes(p.id)} readOnly />
@@ -795,7 +869,53 @@ function ProductManagementContent() {
                   <div className="card-action"><FaChevronRight /></div>
                </div>
              ))}
-          </div>
+           </div>
+
+          {activeTab === 'products' && displayTotal > 0 && (
+            <div className="erp-pagination-bar">
+              <div className="pagination-info">
+                Showing <strong>{displayTotal === 0 ? 0 : (productPage - 1) * pageSize + 1}</strong> - <strong>{Math.min(productPage * pageSize, displayTotal)}</strong> of <strong>{displayTotal}</strong> products
+              </div>
+              <div className="pagination-controls">
+                <button
+                  type="button"
+                  className="pagination-btn"
+                  disabled={productPage <= 1 || tableLoading}
+                  onClick={() => handlePageChange(Math.max(1, productPage - 1))}
+                  title="Previous page"
+                >
+                  ← Prev
+                </button>
+                <span className="pagination-current">
+                  Page <strong>{productPage}</strong> of <strong>{totalPages}</strong>
+                </span>
+                <button
+                  type="button"
+                  className="pagination-btn"
+                  disabled={productPage >= totalPages || tableLoading}
+                  onClick={() => handlePageChange(Math.min(totalPages, productPage + 1))}
+                  title="Next page"
+                >
+                  Next →
+                </button>
+              </div>
+              <div className="pagination-size">
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    const newSize = Number(e.target.value);
+                    setPageSize(newSize);
+                  }}
+                  className="page-size-select"
+                  aria-label="Products per page"
+                >
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Entity Management Popups */}
@@ -941,8 +1061,14 @@ function ProductManagementContent() {
           </CafeQRPopup>
         )}
       </div>
+      )}
 
       <style jsx>{`
+        .table-loading {
+          opacity: 0.5;
+          transition: opacity 0.15s ease-in-out;
+          pointer-events: none;
+        }
         .erp-container { padding: 24px 40px; background: #f8fafc; min-height: calc(100vh - 80px); }
         
         /* Premium Recipe Redesign Styles */
@@ -1257,9 +1383,88 @@ function ProductManagementContent() {
            .input-row, .info-options-row { grid-template-columns: 1fr !important; gap: 12px !important; }
            .drawer-tabs { width: 100%; overflow-x: auto; padding: 4px; gap: 4px; }
            .drawer-tab { padding: 6px 12px; font-size: 10px; flex-shrink: 0; }
-           .erp-section { padding: 16px; border-radius: 12px; }
-           .drawer-img-preview { height: 140px; }
-        }
+            .erp-section { padding: 16px; border-radius: 12px; }
+            .drawer-img-preview { height: 140px; }
+         }
+
+         .erp-pagination-bar {
+           display: flex;
+           justify-content: space-between;
+           align-items: center;
+           padding: 14px 20px;
+           background: #ffffff;
+           border-top: 1px solid #e2e8f0;
+           border-bottom-left-radius: 14px;
+           border-bottom-right-radius: 14px;
+           font-size: 13px;
+           color: #475569;
+           gap: 12px;
+           flex-wrap: wrap;
+         }
+         .pagination-info strong {
+           color: #0f172a;
+         }
+         .pagination-controls {
+           display: flex;
+           align-items: center;
+           gap: 12px;
+         }
+         .pagination-btn {
+           display: inline-flex;
+           align-items: center;
+           gap: 6px;
+           padding: 6px 14px;
+           border-radius: 8px;
+           border: 1.5px solid #e2e8f0;
+           background: #ffffff;
+           font-weight: 700;
+           font-size: 12.5px;
+           color: #1e293b;
+           cursor: pointer;
+           transition: all 0.18s ease;
+         }
+         .pagination-btn:hover:not(:disabled) {
+           border-color: #f97316;
+           color: #ea580c;
+           background: #fff7ed;
+         }
+         .pagination-btn:disabled {
+           opacity: 0.45;
+           cursor: not-allowed;
+         }
+         .pagination-current {
+           font-size: 13px;
+           color: #64748b;
+         }
+         .pagination-current strong {
+           color: #0f172a;
+         }
+         .page-size-select {
+           padding: 5px 10px;
+           border-radius: 8px;
+           border: 1.5px solid #e2e8f0;
+           background: #ffffff;
+           color: #334155;
+           font-size: 12px;
+           font-weight: 600;
+           cursor: pointer;
+           outline: none;
+         }
+         .page-size-select:focus {
+           border-color: #f97316;
+         }
+         @media (max-width: 640px) {
+           .erp-pagination-bar {
+             justify-content: center;
+             gap: 10px;
+             padding: 10px 12px;
+           }
+           .pagination-info {
+             width: 100%;
+             text-align: center;
+             font-size: 12px;
+           }
+         }
 
         .bulk-toolbar { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: #0f172a; color: white; padding: 10px 24px; border-radius: 100px; display: flex; align-items: center; gap: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 1100; animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); border: 1px solid rgba(255,255,255,0.1); }
         @keyframes slideUp { from { transform: translate(-50%, 150%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }

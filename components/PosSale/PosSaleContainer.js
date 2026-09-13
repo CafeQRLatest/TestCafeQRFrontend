@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { FaShoppingBag } from 'react-icons/fa';
-import useCounterSaleController from './hooks/useCounterSaleController';
-import CounterHeader from './components/CounterHeader';
-import ProductCatalog from './components/ProductCatalog';
-import CartSidebar from './components/CartSidebar';
-import DiscountDialog from './components/DiscountDialog';
-import VariablePriceModal from './components/VariablePriceModal';
-import useBarcodeScanner from './hooks/useBarcodeScanner';
-import CameraBarcodeScannerModal from './components/CameraBarcodeScannerModal';
-import * as S from './CounterSale.styles';
+import usePosSaleController from './hooks/usePosSaleController';
+import PosCounterHeader from './components/PosCounterHeader';
+import PosProductCatalog from './components/PosProductCatalog';
+import PosCartSidebar from './components/PosCartSidebar';
+import DiscountDialog from '../CounterSale/components/DiscountDialog';
+import VariablePriceModal from '../CounterSale/components/VariablePriceModal';
+import useBarcodeScanner from '../CounterSale/hooks/useBarcodeScanner';
+import CameraBarcodeScannerModal from '../CounterSale/components/CameraBarcodeScannerModal';
+import * as S from '../CounterSale/CounterSale.styles';
+import { isLoyaltyModuleEnabled } from '../../utils/moduleVisibility';
 
-// Import sub-modals from parent directory
+// Sub-modals from parent components directory
 import VariantSelector from '../VariantSelector';
 import CreditCustomerQuickCreateModal from '../CreditCustomerQuickCreateModal';
 import ProductManagementPopup from '../ProductManagementPopup';
 import PaymentDialog from '../PaymentDialog';
 
-export default function CounterSaleContainer(props) {
+export default function PosSaleContainer(props) {
   const router = useRouter();
-  const state = useCounterSaleController(props);
+  const state = usePosSaleController(props);
 
   const {
     bootstrap,
@@ -49,12 +50,41 @@ export default function CounterSaleContainer(props) {
     isEnabled: bootstrap.config?.barcodeScannerEnabled === true && !order.showSettleDialog && !ui.selectedProductForPopup
   });
 
-  if (bootstrap.loading) return null;
+  if (bootstrap.loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100%',
+        background: '#f8fafc',
+        color: '#64748b',
+        fontSize: '1rem',
+        gap: '12px'
+      }}>
+        <div style={{
+          width: '24px',
+          height: '24px',
+          border: '3px solid #e2e8f0',
+          borderTopColor: '#0ea5e9',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <span>Initializing POS Sales Engine (V2)...</span>
+        <style jsx>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <S.CsModalOverlay onClick={props.onBack} $zoom={ui.zoomLevel}>
       <S.CsModalContent onClick={e => e.stopPropagation()}>
-        <CounterHeader
+        <PosCounterHeader
           onBack={props.onBack}
           initialTable={props.initialTable}
           catalog={catalog}
@@ -65,13 +95,25 @@ export default function CounterSaleContainer(props) {
 
         <S.CsMainLayout>
           {bootstrap.loadError ? (
-            <S.CsOfflineNotice>{bootstrap.loadError}</S.CsOfflineNotice>
+            <div style={{
+              margin: '20px auto',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              background: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#dc2626',
+              fontSize: '14px',
+              fontWeight: 500,
+              textAlign: 'center'
+            }}>
+              {bootstrap.loadError}
+            </div>
           ) : (
             <>
               {catalog.productListingOn ? (
                 <>
                   <S.CsCatalogSection>
-                    <ProductCatalog
+                    <PosProductCatalog
                       bootstrap={bootstrap}
                       catalog={catalog}
                       cart={cart}
@@ -80,7 +122,7 @@ export default function CounterSaleContainer(props) {
                       onOpenCameraScanner={() => setShowCameraScanner(true)}
                     />
                   </S.CsCatalogSection>
-                  <CartSidebar
+                  <PosCartSidebar
                     bootstrap={bootstrap}
                     catalog={catalog}
                     cart={cart}
@@ -91,6 +133,9 @@ export default function CounterSaleContainer(props) {
                     mobileCartOpen={mobileCartOpen}
                     setMobileCartOpen={setMobileCartOpen}
                   />
+                  {mobileCartOpen && (
+                    <S.CsMobileCartBackdrop onClick={() => setMobileCartOpen(false)} />
+                  )}
                   {cart.items.length > 0 && (
                     <S.CsMobileCartToggle
                       type="button"
@@ -102,8 +147,8 @@ export default function CounterSaleContainer(props) {
                   )}
                 </>
               ) : (
-                <S.CsCatalogSection>
-                  <ProductCatalog
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: '#ffffff', width: '100%' }}>
+                  <PosProductCatalog
                     bootstrap={bootstrap}
                     catalog={catalog}
                     cart={cart}
@@ -111,7 +156,7 @@ export default function CounterSaleContainer(props) {
                     order={order}
                     onOpenCameraScanner={() => setShowCameraScanner(true)}
                   />
-                  <CartSidebar
+                  <PosCartSidebar
                     bootstrap={bootstrap}
                     catalog={catalog}
                     cart={cart}
@@ -119,10 +164,11 @@ export default function CounterSaleContainer(props) {
                     discounts={discounts}
                     order={order}
                     ui={ui}
-                    mobileCartOpen={mobileCartOpen}
+                    isCounterMode={true}
+                    mobileCartOpen={false}
                     setMobileCartOpen={setMobileCartOpen}
                   />
-                </S.CsCatalogSection>
+                </div>
               )}
             </>
           )}
@@ -135,7 +181,24 @@ export default function CounterSaleContainer(props) {
           onCreated={customer.handleCreditCustomerCreated}
         />
         
-        {cart.variantLoading && <S.CsOfflineNotice style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 1200 }}>Loading item options...</S.CsOfflineNotice>}
+        {cart.variantLoading && (
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 1200,
+            padding: '12px 24px',
+            background: '#ffffff',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            color: '#475569',
+            fontSize: '13px',
+            fontWeight: 600
+          }}>
+            Loading item options...
+          </div>
+        )}
         
         {cart.variantProduct && (
           <VariantSelector
@@ -202,7 +265,9 @@ export default function CounterSaleContainer(props) {
               customerId: customer.selectedCustomerId || customer.selectedCreditCustomer?.linkedCustomerId || customer.selectedCustomers?.[0]?.id || null,
               customerName: customer.customerName || customer.selectedCustomers?.[0]?.name || null,
               customerPhone: customer.customerPhone || customer.selectedCustomers?.[0]?.phone || null,
-              loyaltyPoints: customer.selectedCustomer?.loyaltyPoints ?? customer.selectedCustomer?.loyalty_points ?? customer.selectedCustomers?.[0]?.loyaltyPoints ?? null,
+              loyaltyPoints: (isLoyaltyModuleEnabled(bootstrap.config) || bootstrap.config?.loyaltyEnabled === true)
+                ? (customer.selectedCustomer?.loyaltyPoints ?? customer.selectedCustomer?.loyalty_points ?? customer.selectedCustomers?.[0]?.loyaltyPoints ?? null)
+                : null,
               customer: customer.selectedCustomer || null,
               customers: customer.selectedCustomers || [],
               orderNo: '(new)',
@@ -219,7 +284,6 @@ export default function CounterSaleContainer(props) {
               order.handlePlaceOrder(paymentPayload);
             }}
             onCreditCustomerCreated={props.onCreditCustomerCreated}
-            themeColor="green"
             disableEditDiscount={true}
           />
         )}

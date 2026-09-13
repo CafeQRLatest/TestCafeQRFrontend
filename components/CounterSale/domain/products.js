@@ -58,42 +58,61 @@ export function getStandardMatches(products, search) {
     .slice(0, 12);
 }
 
+const barcodeIndexCache = new WeakMap();
+
 export function findProductByBarcode(products, rawBarcode) {
-  if (!Array.isArray(products)) return null;
+  if (!Array.isArray(products) || products.length === 0) return null;
   const barcode = String(rawBarcode || '').trim().toLowerCase();
   if (!barcode) return null;
 
-  const strippedBarcode = barcode.replace(/^0+/, '');
-
-  return products.find(p => {
-    if (p.isActive === false || p.isactive === 'N') return false;
-    if (
-      p.isIngredient === true || 
-      p.is_ingredient === true || 
-      String(p.isIngredient).toUpperCase() === 'Y' || 
-      String(p.is_ingredient).toUpperCase() === 'Y'
-    ) {
-      return false;
+  let index = barcodeIndexCache.get(products);
+  if (!index) {
+    index = new Map();
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      if (p.isActive === false || p.isactive === 'N') continue;
+      if (
+        p.isIngredient === true || 
+        p.is_ingredient === true || 
+        String(p.isIngredient).toUpperCase() === 'Y' || 
+        String(p.is_ingredient).toUpperCase() === 'Y'
+      ) {
+        continue;
+      }
+      const pBarcode = String(p.barcode || '').trim().toLowerCase();
+      const pCode = String(p.productCode || '').trim().toLowerCase();
+      if (pBarcode) {
+        index.set(pBarcode, p);
+        const stripped = pBarcode.replace(/^0+/, '');
+        if (stripped && !index.has(stripped)) index.set(stripped, p);
+      }
+      if (pCode && !index.has(pCode)) {
+        index.set(pCode, p);
+      }
     }
-    const pBarcode = String(p.barcode || '').trim().toLowerCase();
-    const pCode = String(p.productCode || '').trim().toLowerCase();
-    if (!pBarcode && !pCode) return false;
+    barcodeIndexCache.set(products, index);
+  }
 
-    // 1. Direct exact match
-    if (pBarcode === barcode || pCode === barcode) return true;
+  // O(1) direct lookup
+  let match = index.get(barcode);
+  if (match) return match;
 
-    // 2. Match ignoring leading zeros (EAN-13 vs UPC-A: 0123456789012 vs 123456789012)
-    const strippedPBarcode = pBarcode.replace(/^0+/, '');
-    if (strippedBarcode && strippedPBarcode && strippedBarcode === strippedPBarcode) return true;
+  const stripped = barcode.replace(/^0+/, '');
+  if (stripped && (match = index.get(stripped))) {
+    return match;
+  }
 
-    // 3. EAN-13 / UPC 12-to-13 digit prefix/checksum tolerance
-    if (pBarcode && barcode) {
-      if (barcode.length === 13 && pBarcode.length === 12 && (barcode.startsWith(pBarcode) || barcode.endsWith(pBarcode))) return true;
-      if (barcode.length === 12 && pBarcode.length === 13 && (pBarcode.startsWith(barcode) || pBarcode.endsWith(barcode))) return true;
+  // Fallback EAN-13 / UPC 12-to-13 tolerance if not in map
+  if (barcode.length === 12 || barcode.length === 13) {
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i];
+      const pBarcode = String(p.barcode || '').trim().toLowerCase();
+      if (barcode.length === 13 && pBarcode.length === 12 && (barcode.startsWith(pBarcode) || barcode.endsWith(pBarcode))) return p;
+      if (barcode.length === 12 && pBarcode.length === 13 && (pBarcode.startsWith(barcode) || pBarcode.endsWith(barcode))) return p;
     }
+  }
 
-    return false;
-  }) || null;
+  return null;
 }
 
 export function extractUniqueCategories(products) {

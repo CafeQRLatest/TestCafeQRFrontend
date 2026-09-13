@@ -6,7 +6,7 @@ const FEATURE_DEFAULTS = {
   customersEnabled: false,
   loyaltyEnabled: false,
   discountEnabled: true,
-  sendToKitchenEnabled: true,
+  sendToKitchenEnabled: false,
   offlineSyncEnabled: true,
   payrollEnabled: true,
 };
@@ -78,6 +78,11 @@ export function isDiscountModuleEnabled(config) {
 }
 
 export function isKitchenModuleEnabled(config) {
+  if (!config) return false;
+  if (config.sendToKitchenEnabled === false || config.sendToKitchenEnabled === 'false') return false;
+  if (config.pm_send_to_kitchen === false || config.pm_send_to_kitchen === 'false') return false;
+  if (config.sendToKitchenEnabled === true || config.sendToKitchenEnabled === 'true') return true;
+  if (config.pm_send_to_kitchen === true || config.pm_send_to_kitchen === 'true') return true;
   return isFeatureEnabled(config, 'sendToKitchenEnabled');
 }
 

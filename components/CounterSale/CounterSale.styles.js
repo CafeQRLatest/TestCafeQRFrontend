@@ -16,6 +16,10 @@ export const CsModalOverlay = styled.div`
   height: 100%;
   overflow: hidden;
   zoom: ${props => props.$zoom || 1};
+
+  @media (max-width: 768px) {
+    zoom: 1 !important;
+  }
 `;
 
 export const CsModalContent = styled.div`
@@ -206,6 +210,10 @@ export const CsZoomControl = styled.div`
   box-shadow: inset 0 1px 2.5px rgba(15, 23, 42, 0.08);
   border: 1.5px solid #edf2f7;
   flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 export const CsZoomBtn = styled.button`
@@ -1340,8 +1348,10 @@ export const CsMobileCartBackdrop = styled.div`
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
     inset: 0;
-    background: rgba(15, 23, 42, 0.38);
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
     z-index: 1000;
+    cursor: pointer;
   }
 `;
 

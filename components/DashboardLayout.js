@@ -9,7 +9,7 @@ import {
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge,
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes,
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase, FaMoneyCheckAlt,
-  FaCalendarAlt, FaMoneyBillWave, FaCogs, FaSlidersH
+  FaCalendarAlt, FaMoneyBillWave, FaCogs, FaSlidersH, FaHistory
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
@@ -766,11 +766,13 @@ const MENU_CONFIG = {
   "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
   "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
+  "POS (V2)": { name: "POS (V2)", icon: <FaCashRegister />, url: "/owner/pos-sales" },
   "Customers": { name: "Customers", icon: <FaIdBadge /> },
   "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
   "Analytics": { name: "Analytics", icon: <FaChartBar /> },
   "Sales_Insight": { name: "Sales", icon: <FaChartLine /> },
+  "Sales History": { name: "Sales History", icon: <FaHistory />, url: "/owner/sales-history" },
   "Expenses": { name: "Expenses & Bills", icon: <FaReceipt /> },
   "Accounting": { name: "Accounting", icon: <FaBalanceScale /> },
   "Reports & Billing": { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
@@ -811,11 +813,13 @@ const CATEGORY_MAPPING = {
   "Waste Management": "ADD ON",
 
   "Point of Sale": "OPERATIONS",
+  "POS (V2)": "OPERATIONS",
   "Customers": "CUSTOMERS",
   "Loyalty": "CUSTOMERS",
 
   "Analytics": "INSIGHTS",
   "Sales_Insight": "INSIGHTS",
+  "Sales History": "INSIGHTS",
   "Expenses": "INSIGHTS",
   "Accounting": "INSIGHTS",
   "Reports & Billing": "INSIGHTS",
@@ -831,10 +835,10 @@ const CATEGORY_MAPPING = {
 };
 
 const MENU_ORDER = [
-  "Dashboard", "Product Management", "Orders", "Point of Sale", "Sales", "Table Management",
+  "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
   "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
   "Customers", "Loyalty",
-  "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+  "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
   "Payroll & HR"
 ];
@@ -851,7 +855,15 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
   const menuOrder = MENU_ORDER;
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
-  const parentMenus = menus.filter(m => {
+  const rawMenus = [...menus];
+  if (!rawMenus.some(m => m.name === "POS (V2)")) {
+    rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
+  }
+  if (!rawMenus.some(m => m.name === "Sales History")) {
+    rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+  }
+
+  const parentMenus = rawMenus.filter(m => {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
     if (m.name === "Sales" && hasPointOfSale) return false;
@@ -1067,6 +1079,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
     "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
+    "POS (V2)": { name: "POS (V2)", icon: <FaCashRegister />, url: "/owner/pos-sales" },
     "Customers": { name: "Customers", icon: <FaIdBadge /> },
     "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
@@ -1112,11 +1125,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Waste Management": "ADD ON",
 
     "Point of Sale": "OPERATIONS",
+    "POS (V2)": "OPERATIONS",
     "Customers": "CUSTOMERS",
     "Loyalty": "CUSTOMERS",
 
     "Analytics": "INSIGHTS",
     "Sales_Insight": "INSIGHTS",
+    "Sales History": "INSIGHTS",
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
@@ -1132,15 +1147,23 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   };
 
   const menuOrder = [
-    "Dashboard", "Product Management", "Orders", "Point of Sale", "Sales", "Table Management",
+    "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
     "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
-    "Analytics", "Sales_Insight", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+    "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
   ];
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
-  const parentMenus = menus.filter(m => {
+  const rawMenus = [...menus];
+  if (!rawMenus.some(m => m.name === "POS (V2)")) {
+    rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
+  }
+  if (!rawMenus.some(m => m.name === "Sales History")) {
+    rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+  }
+
+  const parentMenus = rawMenus.filter(m => {
     const isParent = (!m.parentId && !m.parent_id);
     if (!isParent) return false;
     if (m.name === "Sales" && hasPointOfSale) return false;

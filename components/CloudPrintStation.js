@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/router';
 import { FaPrint } from 'react-icons/fa';
 import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../utils/printServiceClient';
 
 export default function CloudPrintStation({ onJobsChanged }) {
+  const router = useRouter();
+  const isPosPage = router?.pathname?.includes('/pos-sales') || router?.pathname?.includes('/sales');
   const [enabled, setEnabled] = useState(false);
   const [widgetVisible, setWidgetVisible] = useState(true);
   const [status, setStatus] = useState('Idle');
@@ -89,7 +92,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
   if (!widgetVisible) return null;
 
   return (
-    <div className="cloud-print-station" title="This device is listening for cloud print jobs">
+    <div className={`cloud-print-station ${isPosPage ? 'pos-mode' : ''}`} title="This device is listening for cloud print jobs">
       <FaPrint />
       <span>Print station: {status}</span>
       {lastCount > 0 && <strong>{lastCount}</strong>}
@@ -112,6 +115,11 @@ export default function CloudPrintStation({ onJobsChanged }) {
           box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
           pointer-events: none;
         }
+        .cloud-print-station.pos-mode {
+          right: auto;
+          left: 16px;
+          bottom: 16px;
+        }
         .cloud-print-station strong {
           min-width: 20px;
           height: 20px;
@@ -128,6 +136,11 @@ export default function CloudPrintStation({ onJobsChanged }) {
             right: 12px;
             bottom: 108px;
             max-width: calc(100vw - 24px);
+          }
+          .cloud-print-station.pos-mode {
+            right: auto;
+            left: 12px;
+            bottom: 60px;
           }
         }
       `}</style>

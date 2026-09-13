@@ -18,7 +18,8 @@ function buildOrderTypes(config) {
     types.push({ key: 'DINE_IN',   icon: <FaUtensils />,  label: 'Dine in',     accent: '#6366f1' });
   }
   types.push({ key: 'TAKEAWAY',  icon: <FaShoppingBag />, label: 'Takeaway', accent: '#10b981' });
-  if (config?.onlineDeliveryEnabled) {
+  const isDeliveryOn = Boolean(config?.onlineDeliveryEnabled ?? config?.pm_online_delivery ?? false);
+  if (isDeliveryOn) {
     types.push({ key: 'DELIVERY',  icon: <FaTruck />,     label: 'Delivery',  accent: '#3b82f6' });
   }
   return types;
@@ -26,7 +27,7 @@ function buildOrderTypes(config) {
 
 /* ─── table status color map ─────────────────────────────────────── */
 const STATUS_CUBE = {
-  AVAILABLE:   { bg: '#ffffff', fg: '#0f172a', border: '#cbd5e1', label: 'Available' },
+  AVAILABLE:   { bg: '#ffffff', fg: '#0f172a', border: '#10b981', label: 'Available' },
   OCCUPIED:    { bg: '#ef4444', fg: '#ffffff', border: '#dc2626', label: 'Occupied' },
   BILLED:      { bg: '#10b981', fg: '#ffffff', border: '#059669', label: 'Billed' },
   RESERVED:    { bg: '#3b82f6', fg: '#ffffff', border: '#2563eb', label: 'Reserved' },
@@ -46,23 +47,26 @@ export default function OrderTypeSelectorModal({
   onPoHistoryClick,
   onClose,
 }) {
+  const isTableConfigOn = Boolean(config?.tableManagementEnabled);
   const [activeType, setActiveType] = useState(
-    config?.tableManagementEnabled ? 'TABLE' : null
+    isTableConfigOn ? 'TABLE' : 'TAKEAWAY'
   );
   const [hoveredTable, setHoveredTable] = useState(null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [floorFilter, setFloorFilter] = useState('ALL');
 
-  // Config loads async — default to TABLE tab once tableManagementEnabled resolves
+  // Config loads async — default to TABLE if tables enabled, else TAKEAWAY
   useEffect(() => {
-    if (config?.tableManagementEnabled && !activeType) {
-      setActiveType('TABLE');
+    if (config) {
+      if (config.tableManagementEnabled) {
+        if (!activeType) setActiveType('TABLE');
+      } else {
+        if (!activeType || activeType === 'TABLE') setActiveType('TAKEAWAY');
+      }
     }
   }, [config?.tableManagementEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const orderTypes = useMemo(() => buildOrderTypes(config), [config]);
-
-  const isTableConfigOn = Boolean(config?.tableManagementEnabled);
 
   /* group tables by floor — must be declared before any early return */
   const floors = useMemo(() => {

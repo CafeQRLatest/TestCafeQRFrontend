@@ -18,7 +18,9 @@ export default function CounterHeader({
   return (
     <S.CsCounterHeader>
       <S.CsHeaderLeft>
-        <S.CsBackBtn onClick={onBack} aria-label="Go back"><FaArrowLeft/></S.CsBackBtn>
+        {kitchenEnabled && (
+          <S.CsBackBtn onClick={onBack} aria-label="Go back"><FaArrowLeft/></S.CsBackBtn>
+        )}
         <S.CsTitleGroup $accentColor={theme.main}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <S.CsTitle>

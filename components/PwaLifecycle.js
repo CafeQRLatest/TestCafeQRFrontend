@@ -132,7 +132,7 @@ export default function PwaLifecycle() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-[9999] mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-lg">
+    <div className="fixed bottom-4 left-4 z-[9999] flex max-w-sm items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-lg">
       <span className="font-semibold text-slate-800">
         {updateReady ? 'A new CafeQR version is ready.' : 'Install CafeQR for offline use.'}
       </span>

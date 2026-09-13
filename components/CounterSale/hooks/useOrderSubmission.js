@@ -7,6 +7,7 @@ import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBill
 import { isAndroidPrintStationEnabled } from '../../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../../utils/printServiceClient';
 import { businessTimeToUtc, getLocalISOString } from '../../../utils/timezoneUtils';
+import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
 
 function localPrintWillHandleOrder(kind) {
   if (typeof window === 'undefined') return false;
@@ -317,7 +318,8 @@ export default function useOrderSubmission({ timezone }) {
       if (typeof setOrderNote === 'function') setOrderNote('');
       if (typeof clearCustomerSelection === 'function') clearCustomerSelection();
 
-      if (kind !== 'settle' && config?.tableManagementEnabled) {
+      const isKitchenOn = isKitchenModuleEnabled(config);
+      if (kind !== 'settle' && (config?.tableManagementEnabled || isKitchenOn)) {
         if (onBack) onBack();
       }
     } catch (err) {

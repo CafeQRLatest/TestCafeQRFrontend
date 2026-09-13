@@ -10,7 +10,7 @@ import {
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
   FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle,
   FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar,
-  FaSearch, FaTimes
+  FaSearch, FaTimes, FaHistory
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -101,18 +101,29 @@ function MainMenuContent() {
     'Expenses':           { name: 'Expenses & Bills',     desc: 'Track outgoing cash',           icon: <FaReceipt />,      color: '#f43f5e', bg: '#fff1f2', cat: 'Insights'    },
     'Configurations':     { name: 'Settings',             desc: 'Global settings',               icon: <FaCog />,          color: '#64748b', bg: '#f8fafc', cat: 'Account'    },
     'Point of Sale':      { name: 'POS',                  desc: 'Point of sale terminal',        icon: <FaCashRegister />, color: '#10b981', bg: '#f0fdf4', cat: 'Operations', url: '/owner/sales' },
+    'POS (V2)':           { name: 'POS (V2)',             desc: 'High-performance sales terminal', icon: <FaCashRegister />, color: '#0ea5e9', bg: '#f0f9ff', cat: 'Operations', url: '/owner/pos-sales' },
     'Customers':          { name: 'Customers',            desc: 'Client CRM & profiles',         icon: <FaIdBadge />,      color: '#3b82f6', bg: '#eff6ff', cat: 'Customers' },
     'Loyalty':            { name: 'Loyalty',              desc: 'Reward points & tiers',         icon: <FaCrown />,        color: '#f59e0b', bg: '#fffbeb', cat: 'Customers' },
     'Analytics':          { name: 'Analytics',            desc: 'Business intelligence',         icon: <FaChartBar />,     color: '#8b5cf6', bg: '#f5f3ff', cat: 'Insights' },
     'Sales_Insight':      { name: 'Sales',                desc: 'Sales performance',             icon: <FaChartLine />,    color: '#06b6d4', bg: '#ecfeff', cat: 'Insights' },
     'Payroll & HR':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
     'HR & Payroll':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
+    'Sales History':      { name: 'Sales History',        desc: 'Completed & cancelled orders',   icon: <FaHistory />,      color: '#f97316', bg: '#fff7ed', cat: 'Insights',   url: '/owner/sales-history' },
   };
 
   const categoryOrder = ['Operations', 'Insights', 'Customers', 'Account'];
 
   const hasPointOfSale = assignedMenus.some(menu => menu.name === 'Point of Sale');
-  const allowedMenus = assignedMenus.filter(m => {
+  const canAccessPos = hasPointOfSale || assignedMenus.some(menu => menu.name === 'Sales');
+  const baseMenus = [...assignedMenus];
+  if (canAccessPos && !baseMenus.some(m => m.name === 'POS (V2)')) {
+    baseMenus.push({ name: 'POS (V2)', url: '/owner/pos-sales' });
+  }
+  if (!baseMenus.some(m => m.name === 'Sales History')) {
+    baseMenus.push({ name: 'Sales History', url: '/owner/sales-history' });
+  }
+
+  const allowedMenus = baseMenus.filter(m => {
     if (m.parentId || m.parent_id || m.name === 'Offline Sync Center') return false;
     if (m.name === 'Sales' && hasPointOfSale) return false;
     return isMenuVisibleForConfig(m, config);
