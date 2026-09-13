@@ -158,31 +158,15 @@ export default function PosSalesPage() {
 
         const isSendToKitchenOn = isKitchenModuleEnabled(cfg);
 
-        // 3. Intelligent Order Type / Table Routing:
-        // Always show ordertype panel if send to kitchen is on, otherwise no need of ordertype panel
-        if (isSendToKitchenOn) {
-          // Send to kitchen is ON -> Show OrderTypeSelectorModal immediately
-          setSelectedTable(null);
-          setActiveView('order_type');
-        } else {
-          // Send to kitchen is OFF -> Bypass OrderTypeSelectorModal and land directly in POS billing screen
-          setSelectedTable({
-            tableNumber: 'COUNTER',
-            id: null,
-            orderType: 'TAKEAWAY'
-          });
-          setActiveView('billing');
-        }
+        // 3. In New Sales: Always make Board view default!
+        setSelectedTable(null);
+        setActiveView('order_type');
       } catch (err) {
         console.error('Failed to initialize POS V2 bootstrap:', err);
         if (!cancelled && isMountedRef.current) {
-          // Default fallback
-          setSelectedTable({
-            tableNumber: 'COUNTER',
-            id: null,
-            orderType: 'TAKEAWAY'
-          });
-          setActiveView('billing');
+          // Default fallback: Always make board default in New Sales
+          setSelectedTable(null);
+          setActiveView('order_type');
         }
       }
     }
@@ -196,22 +180,14 @@ export default function PosSalesPage() {
 
   const isSendToKitchenOn = isKitchenModuleEnabled(config);
   const isTableManagementOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);
-  const needsOrderTypeModal = isSendToKitchenOn;
+  const needsOrderTypeModal = true; // Always return to Board view in New Sales
 
-  // Ensure that if Send to Kitchen is ON, we are never stuck on billing with no table selected
+  // Ensure that if no table is selected, we always stay on Board view
   useEffect(() => {
     if (activeView === 'billing' && !selectedTable) {
-      if (needsOrderTypeModal) {
-        setActiveView('order_type');
-      } else {
-        setSelectedTable({
-          tableNumber: 'COUNTER',
-          id: null,
-          orderType: 'TAKEAWAY'
-        });
-      }
+      setActiveView('order_type');
     }
-  }, [activeView, selectedTable, needsOrderTypeModal]);
+  }, [activeView, selectedTable]);
 
   // Browser back-button handling
   useEffect(() => {

@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
-import { isMenuVisibleForConfig } from '../../utils/moduleVisibility';
+import { isMenuVisibleForConfig, isPosV2Enabled } from '../../utils/moduleVisibility';
 import {
   FaChartLine, FaCreditCard, FaBoxes, FaBookOpen, FaBalanceScale,
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
@@ -101,7 +101,7 @@ function MainMenuContent() {
     'Expenses':           { name: 'Expenses & Bills',     desc: 'Track outgoing cash',           icon: <FaReceipt />,      color: '#f43f5e', bg: '#fff1f2', cat: 'Insights'    },
     'Configurations':     { name: 'Settings',             desc: 'Global settings',               icon: <FaCog />,          color: '#64748b', bg: '#f8fafc', cat: 'Account'    },
     'Point of Sale':      { name: 'POS',                  desc: 'Point of sale terminal',        icon: <FaCashRegister />, color: '#10b981', bg: '#f0fdf4', cat: 'Operations', url: '/owner/sales' },
-    'POS (V2)':           { name: 'POS (V2)',             desc: 'High-performance sales terminal', icon: <FaCashRegister />, color: '#0ea5e9', bg: '#f0f9ff', cat: 'Operations', url: '/owner/pos-sales' },
+    'POS (V2)':           { name: 'POS',                  desc: 'High-performance sales terminal', icon: <FaCashRegister />, color: '#0ea5e9', bg: '#f0f9ff', cat: 'Operations', url: '/owner/pos-sales' },
     'Customers':          { name: 'Customers',            desc: 'Client CRM & profiles',         icon: <FaIdBadge />,      color: '#3b82f6', bg: '#eff6ff', cat: 'Customers' },
     'Loyalty':            { name: 'Loyalty',              desc: 'Reward points & tiers',         icon: <FaCrown />,        color: '#f59e0b', bg: '#fffbeb', cat: 'Customers' },
     'Analytics':          { name: 'Analytics',            desc: 'Business intelligence',         icon: <FaChartBar />,     color: '#8b5cf6', bg: '#f5f3ff', cat: 'Insights' },
@@ -115,12 +115,19 @@ function MainMenuContent() {
 
   const hasPointOfSale = assignedMenus.some(menu => menu.name === 'Point of Sale');
   const canAccessPos = hasPointOfSale || assignedMenus.some(menu => menu.name === 'Sales');
-  const baseMenus = [...assignedMenus];
-  if (canAccessPos && !baseMenus.some(m => m.name === 'POS (V2)')) {
-    baseMenus.push({ name: 'POS (V2)', url: '/owner/pos-sales' });
-  }
-  if (!baseMenus.some(m => m.name === 'Sales History')) {
-    baseMenus.push({ name: 'Sales History', url: '/owner/sales-history' });
+  const isV2 = isPosV2Enabled(config);
+  let baseMenus = [...assignedMenus];
+  if (isV2) {
+    if (canAccessPos && !baseMenus.some(m => m.name === 'POS (V2)')) {
+      baseMenus.push({ name: 'POS (V2)', url: '/owner/pos-sales' });
+    }
+    if (!baseMenus.some(m => m.name === 'Sales History')) {
+      baseMenus.push({ name: 'Sales History', url: '/owner/sales-history' });
+    }
+    // If New Sales is selected, hide old sales (Point of Sale / Sales)
+    baseMenus = baseMenus.filter(m => m.name !== 'Point of Sale' && m.name !== 'Sales');
+  } else {
+    baseMenus = baseMenus.filter(m => m.name !== 'POS (V2)' && m.name !== 'Sales History');
   }
 
   const allowedMenus = baseMenus.filter(m => {

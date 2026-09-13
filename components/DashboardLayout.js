@@ -14,7 +14,7 @@ import {
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
 import CloudPrintStation from './CloudPrintStation';
-import { isMenuVisibleForConfig } from '../utils/moduleVisibility';
+import { isMenuVisibleForConfig, isPosV2Enabled } from '../utils/moduleVisibility';
 import { getNetworkStatus } from '../utils/networkState';
 
 /**
@@ -766,7 +766,7 @@ const MENU_CONFIG = {
   "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
   "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
-  "POS (V2)": { name: "POS (V2)", icon: <FaCashRegister />, url: "/owner/pos-sales" },
+  "POS (V2)": { name: "POS", icon: <FaCashRegister />, url: "/owner/pos-sales" },
   "Customers": { name: "Customers", icon: <FaIdBadge /> },
   "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
@@ -855,12 +855,19 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
   const menuOrder = MENU_ORDER;
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
-  const rawMenus = [...menus];
-  if (!rawMenus.some(m => m.name === "POS (V2)")) {
-    rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
-  }
-  if (!rawMenus.some(m => m.name === "Sales History")) {
-    rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+  const isV2 = isPosV2Enabled(config);
+  let rawMenus = [...menus];
+  if (isV2) {
+    if (!rawMenus.some(m => m.name === "POS (V2)")) {
+      rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
+    }
+    if (!rawMenus.some(m => m.name === "Sales History")) {
+      rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+    }
+    // If New Sales is selected, hide old sales (Point of Sale / Sales)
+    rawMenus = rawMenus.filter(m => m.name !== "Point of Sale" && m.name !== "Sales");
+  } else {
+    rawMenus = rawMenus.filter(m => m.name !== "POS (V2)" && m.name !== "Sales History");
   }
 
   const parentMenus = rawMenus.filter(m => {
@@ -1079,7 +1086,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
     "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
-    "POS (V2)": { name: "POS (V2)", icon: <FaCashRegister />, url: "/owner/pos-sales" },
+    "POS (V2)": { name: "POS", icon: <FaCashRegister />, url: "/owner/pos-sales" },
     "Customers": { name: "Customers", icon: <FaIdBadge /> },
     "Loyalty": { name: "Loyalty", icon: <FaCrown />, url: "/owner/loyalty" },
 
@@ -1155,12 +1162,19 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   ];
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
-  const rawMenus = [...menus];
-  if (!rawMenus.some(m => m.name === "POS (V2)")) {
-    rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
-  }
-  if (!rawMenus.some(m => m.name === "Sales History")) {
-    rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+  const isV2 = isPosV2Enabled(config);
+  let rawMenus = [...menus];
+  if (isV2) {
+    if (!rawMenus.some(m => m.name === "POS (V2)")) {
+      rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
+    }
+    if (!rawMenus.some(m => m.name === "Sales History")) {
+      rawMenus.push({ name: "Sales History", url: "/owner/sales-history" });
+    }
+    // If New Sales is selected, hide old sales (Point of Sale / Sales)
+    rawMenus = rawMenus.filter(m => m.name !== "Point of Sale" && m.name !== "Sales");
+  } else {
+    rawMenus = rawMenus.filter(m => m.name !== "POS (V2)" && m.name !== "Sales History");
   }
 
   const parentMenus = rawMenus.filter(m => {

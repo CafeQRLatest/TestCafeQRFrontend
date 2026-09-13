@@ -12,7 +12,7 @@ import {
 import { PageContainer } from '../../components/PremiumPOSUI';
 import CounterSale from '../../components/CounterSale';
 import OrderTypeSelectorModal from '../../components/OrderTypeSelectorModal';
-import { isKitchenModuleEnabled } from '../../utils/moduleVisibility';
+import { isKitchenModuleEnabled, isPosV2Enabled } from '../../utils/moduleVisibility';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import NiceSelect from '../../components/NiceSelect';
 import TablePopover from '../../components/TablePopover';
@@ -491,14 +491,15 @@ function SalesContent() {
         const parsed = JSON.parse(cached);
         if (parsed && typeof parsed === 'object') {
           setConfig(parsed);
-          setBillingUi(parsed.defaultBillingUiMode || 'counter');
+          const mode = (parsed.defaultBillingUiMode || 'board').toLowerCase();
+          setBillingUi(mode === 'counter' ? 'counter' : 'standard');
           const isKitchenOn = isKitchenModuleEnabled(parsed);
-          if (!isKitchenOn) {
+          if (mode === 'board' || mode === 'ordertype' || isKitchenOn) {
+            setActiveView('order_type');
+          } else {
             setPendingOrderType('TAKEAWAY');
             setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'TAKEAWAY' });
             setActiveView('billing');
-          } else {
-            setActiveView('order_type');
           }
         }
       }
@@ -527,6 +528,13 @@ function SalesContent() {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Auto-redirect to New Sales (POS V2) when v2 is active
+  useEffect(() => {
+    if (config && isPosV2Enabled(config)) {
+      router.replace('/owner/pos-sales');
+    }
+  }, [config, router]);
 
   const showToast = useCallback((message, type = 'success') => {
     if (!isMountedRef.current) return;
@@ -559,20 +567,23 @@ function SalesContent() {
     if (!config) return;
 
     // Determine billing UI mode from config
-    const uiMode = config.defaultBillingUiMode || 'counter';
-    setBillingUi(uiMode);
+    const mode = (config.defaultBillingUiMode || 'board').toLowerCase();
+    setBillingUi(mode === 'counter' ? 'counter' : 'standard');
 
     const isSendToKitchenOn = isKitchenModuleEnabled(config);
 
-    if (!isSendToKitchenOn) {
-      // If Send to Kitchen is OFF, no need of ordertype panel -> force billing screen with COUNTER sale
+    if (mode === 'board' || mode === 'ordertype') {
+      if (!selectedTable && activeView !== 'order_type' && activeView !== 'history') {
+        setPendingOrderType(null);
+        setActiveView('order_type');
+      }
+    } else if (!isSendToKitchenOn) {
       if (activeView !== 'billing' || selectedTable?.tableNumber !== 'COUNTER') {
         setPendingOrderType('TAKEAWAY');
         setSelectedTable({ tableNumber: 'COUNTER', id: null, orderType: 'TAKEAWAY' });
         setActiveView('billing');
       }
     } else {
-      // If Send to Kitchen is ON, always show ordertype panel if no table is selected
       if (!selectedTable && activeView !== 'order_type' && activeView !== 'history') {
         setPendingOrderType(null);
         setActiveView('order_type');
@@ -2049,7 +2060,11 @@ function SalesContent() {
             config={config}
             onSelect={handleOrderTypeSelected}
             onHistoryClick={() => {
-              router.push('/owner/orders?tab=completed');
+              if (isPosV2Enabled(config)) {
+                router.push('/owner/sales-history');
+              } else {
+                router.push('/owner/orders?tab=completed');
+              }
             }}
             onPoHistoryClick={() => {
               router.push('/owner/purchase-orders?view=history');

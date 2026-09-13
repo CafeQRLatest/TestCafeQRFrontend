@@ -56,6 +56,56 @@ import { isKitchenModuleEnabled } from '../utils/moduleVisibility';
 
 const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
 
+const getItemLineTotal = (item) => {
+  if (!item) return 0;
+  const qty = Number(item.quantity ?? item.qty ?? 1) || 1;
+  if (item.lineTotal != null && !isNaN(Number(item.lineTotal)) && Number(item.lineTotal) > 0) {
+    return Number(item.lineTotal);
+  }
+  if (item.grossLineAmount != null && !isNaN(Number(item.grossLineAmount)) && Number(item.grossLineAmount) > 0) {
+    return Number(item.grossLineAmount);
+  }
+  if (item.line_total != null && !isNaN(Number(item.line_total)) && Number(item.line_total) > 0) {
+    return Number(item.line_total);
+  }
+  if (item.totalPrice != null && !isNaN(Number(item.totalPrice)) && Number(item.totalPrice) > 0) {
+    return Number(item.totalPrice);
+  }
+  if (item.total != null && !isNaN(Number(item.total)) && Number(item.total) > 0) {
+    return Number(item.total);
+  }
+  if (item.amount != null && !isNaN(Number(item.amount)) && Number(item.amount) > 0) {
+    return Number(item.amount);
+  }
+  const unit = Number(item.unitPrice ?? item.unit_price ?? item.price ?? item.itemPrice ?? item.item_price ?? item.rate ?? 0);
+  return unit * qty;
+};
+
+const getItemUnitPrice = (item) => {
+  if (!item) return 0;
+  if (item.unitPrice != null && !isNaN(Number(item.unitPrice)) && Number(item.unitPrice) > 0) {
+    return Number(item.unitPrice);
+  }
+  if (item.unit_price != null && !isNaN(Number(item.unit_price)) && Number(item.unit_price) > 0) {
+    return Number(item.unit_price);
+  }
+  if (item.price != null && !isNaN(Number(item.price)) && Number(item.price) > 0) {
+    return Number(item.price);
+  }
+  if (item.itemPrice != null && !isNaN(Number(item.itemPrice)) && Number(item.itemPrice) > 0) {
+    return Number(item.itemPrice);
+  }
+  if (item.item_price != null && !isNaN(Number(item.item_price)) && Number(item.item_price) > 0) {
+    return Number(item.item_price);
+  }
+  if (item.rate != null && !isNaN(Number(item.rate)) && Number(item.rate) > 0) {
+    return Number(item.rate);
+  }
+  const total = getItemLineTotal(item);
+  const qty = Number(item.quantity ?? item.qty ?? 1) || 1;
+  return total / qty;
+};
+
 const OPEN_ORDER_STATUSES = new Set([
   'DRAFT',
   'CONFIRMED',
@@ -143,462 +193,72 @@ function LiveOrderBoardView({
   onSelectOrder,
   onPrintKot,
   onPrintBill,
+  onDownloadInvoice,
   onUpdateStatus,
   onSettleOrder,
   onEditOrder,
   onCancelOrder,
+  onNewOrder,
+  newOrderLabel = '+ New Order',
 }) {
-  const [layoutMode, setLayoutMode] = useState('list'); // Default: 'list' (Vertical list)
-  const [expandedOrderIds, setExpandedOrderIds] = useState({});
-
-  const toggleOrderExpand = (e, orderId) => {
-    e.stopPropagation();
-    setExpandedOrderIds(prev => ({
-      ...prev,
-      [orderId]: !prev[orderId]
-    }));
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('cafeqr_live_board_layout');
-      if (saved === 'grid' || saved === 'list') {
-        setLayoutMode(saved);
-      }
-    }
-  }, []);
-
-  const handleToggleLayout = (mode) => {
-    setLayoutMode(mode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cafeqr_live_board_layout', mode);
-    }
-  };
-
   return (
     <div style={S.boardWrap}>
-      {/* Board Header with Layout Switcher */}
+      {/* Board Header */}
       <div style={S.boardHeader}>
         <span style={S.boardCountText}>
           Live Orders (<strong>{ordersList.length}</strong>)
         </span>
-        <div style={S.layoutToggleBox}>
-          <button
-            type="button"
-            style={layoutMode === 'list' ? S.layoutToggleBtnActive : S.layoutToggleBtnInactive}
-            onClick={() => handleToggleLayout('list')}
-            title="Vertical List View"
-          >
-            <FaList size={11} />
-            <span>List</span>
-          </button>
-          <button
-            type="button"
-            style={layoutMode === 'grid' ? S.layoutToggleBtnActive : S.layoutToggleBtnInactive}
-            onClick={() => handleToggleLayout('grid')}
-            title="Card Grid View"
-          >
-            <FaThLarge size={11} />
-            <span>Cards</span>
-          </button>
-        </div>
       </div>
 
-      {layoutMode === 'list' ? (
-        /* ── Vertical List View: Each order is a sleek, full-width row card stacked vertically ── */
-        <div className="board-list-container" style={S.boardListContainer}>
-          {ordersList.map(order => {
-            const statusBadge = orderStatusBadgeStyle(order.orderStatus);
-            const isTable = Boolean(order.tableNumber);
-            const isTakeaway = String(order.fulfillmentType || '').toUpperCase() === 'TAKEAWAY' || String(order.fulfillmentType || '').toUpperCase() === 'PARCEL';
-            const s = String(order.orderStatus || '').toUpperCase();
-            const isBilled = s === 'BILLED';
-            const itemCount = Array.isArray(order.lines) ? order.lines.reduce((acc, l) => acc + (l.quantity || 1), 0) : 0;
-            const isExpanded = Boolean(expandedOrderIds[order.id]);
-
-            return (
-              <div
-                key={order.id}
-                className="board-list-card"
-                style={{
-                  ...S.boardListCard,
-                  background: '#ffffff',
-                  border: isBilled ? '1px solid #a7f3d0' : '1px solid #fed7aa',
-                  borderLeft: isBilled ? '4px solid #10b981' : '4px solid #f97316',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
-                  borderRadius: 16,
-                  padding: '11px 16px',
-                }}
-              >
-                {/* ── Single Horizontal Line: table no | status badge | billno | time | grandtotal | buttons ── */}
-                <div className="board-row-single-line hide-board-scrollbar" style={S.boardRowSingleLine}>
-                  {/* Left Info Group: Table No, Status Badge, Bill No, Time, Customer */}
-                  <div className="board-row-left" style={S.boardRowLeft}>
-                    {/* Table Pill */}
-                    <div
-                      className="card-table-pill"
-                      style={{
-                        ...S.cardTablePill,
-                        background: isBilled ? '#ecfdf5' : (isTable ? '#fff7ed' : (isTakeaway ? '#f0fdf4' : '#f0f9ff')),
-                        color: isBilled ? '#047857' : (isTable ? '#c2410c' : (isTakeaway ? '#16a34a' : '#0284c7')),
-                        border: isBilled ? '1px solid #a7f3d0' : (isTable ? '1px solid #fed7aa' : (isTakeaway ? '1px solid #bbf7d0' : '1px solid #bae6fd')),
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        padding: '5px 12px',
-                        borderRadius: 9999,
-                        flexShrink: 0,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        letterSpacing: '-0.01em',
-                      }}
-                      onClick={() => onSelectOrder && onSelectOrder(order)}
-                      title="Click to view full order"
-                    >
-                      {isTable ? (
-                        <>
-                          <FaChair size={11} style={{ opacity: 0.8 }} />
-                          <span>Table {order.tableNumber}</span>
-                        </>
-                      ) : isTakeaway ? (
-                        <>
-                          <FaShoppingBag size={11} style={{ opacity: 0.8 }} />
-                          <span>Takeaway</span>
-                        </>
-                      ) : (
-                        <>
-                          <FaTruck size={11} style={{ opacity: 0.8 }} />
-                          <span>{order.fulfillmentType || 'Delivery'}</span>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Operational / Billing Status Tag (Clean static dot, no blinking) */}
-                    <span
-                      className="card-status-pill"
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.03em',
-                        padding: '3px 9px',
-                        borderRadius: 20,
-                        background: isBilled ? '#ecfdf5' : '#fff7ed',
-                        color: isBilled ? '#047857' : '#c2410c',
-                        border: isBilled ? '1px solid #a7f3d0' : '1px solid #fed7aa',
-                        whiteSpace: 'nowrap',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        flexShrink: 0
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: isBilled ? '#10b981' : '#ea580c',
-                          display: 'inline-block',
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span>{isBilled ? 'BILLED' : (String(order.orderStatus || '').toUpperCase() === 'KITCHEN' ? 'ORDERED' : String(order.orderStatus || 'ORDERED').replace(/_/g, ' '))}</span>
-                    </span>
-
-                    {/* Token Number */}
-                    {(() => {
-                      const tokenNo = order.dailyBillNo || order.orderNo || order.order_no || String(order.id).slice(0, 8);
-                      const cleanToken = String(tokenNo).replace(/^[#\s]+/, '');
-
-                      return (
-                        <div className="card-token-wrap" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          <span
-                            style={{
-                              fontSize: 10.5,
-                              fontWeight: 600,
-                              color: '#64748b',
-                              background: '#f1f5f9',
-                              border: '1px solid #e2e8f0',
-                              padding: '1px 6px',
-                              borderRadius: 9999,
-                              letterSpacing: '0.02em',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                            }}
-                            onClick={() => onSelectOrder && onSelectOrder(order)}
-                            title="Click to view full order"
-                          >
-                            #{cleanToken}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Time */}
-                    <span
-                      className="card-time-pill"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: '#64748b',
-                        whiteSpace: 'nowrap',
-                        gap: 4,
-                      }}
-                    >
-                      <FaClock size={11} style={{ color: isBilled ? '#10b981' : '#f97316', opacity: 0.85 }} />
-                      {timeAgo(order.createdAt || order.orderDate)}
-                    </span>
-
-                    {order.customerName && (
-                      <span
-                        className="card-customer-pill"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          fontSize: 12,
-                          fontWeight: 500,
-                          color: '#475569',
-                          gap: 4,
-                        }}
-                        title={order.customerPhone ? `${order.customerName} (${order.customerPhone})` : order.customerName}
-                      >
-                        <FaUser size={10} style={{ color: '#94a3b8' }} />
-                        {order.customerName}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Grand Total & Item Count with expandable toggle */}
-                  <div className="board-row-price-box" style={S.boardRowPriceBox}>
-                    <button
-                      type="button"
-                      className="board-items-toggle-btn"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        background: isExpanded ? '#fff7ed' : '#f8fafc',
-                        border: isExpanded ? '1px solid #fdba74' : '1px solid #e2e8f0',
-                        borderRadius: 9999,
-                        padding: '3px 10px',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: isExpanded ? '#c2410c' : '#475569',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={(e) => toggleOrderExpand(e, order.id)}
-                      title={isExpanded ? 'Hide items' : 'Show items'}
-                    >
-                      <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
-                      {isExpanded ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
-                    </button>
-                    <span style={{
-                      fontSize: 17,
-                      fontWeight: 700,
-                      color: isBilled ? '#047857' : '#0f172a',
-                      letterSpacing: '-0.02em',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>
-                      {money(order.grandTotal, sym)}
-                    </span>
-                  </div>
-
-                  {/* Right Action Buttons */}
-                  <div className="board-list-btn-group" style={S.boardListBtnGroup} onClick={e => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="board-aux-btn"
-                      style={{
-                        ...S.boardAuxBtn,
-                        height: 32,
-                        borderRadius: 10,
-                        border: '1px solid #e2e8f0',
-                        background: '#ffffff',
-                        color: '#334155',
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        padding: '0 11px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                      onClick={() => onPrintKot && onPrintKot(order)}
-                      title="Print KOT"
-                    >
-                      <FaPrint size={11} style={{ color: '#64748b' }} /> KOT
-                    </button>
-
-                    <button
-                      type="button"
-                      className="board-aux-btn"
-                      style={{
-                        ...S.boardAuxBtn,
-                        height: 32,
-                        borderRadius: 10,
-                        border: isBilled ? '1px solid #a7f3d0' : '1px solid #e2e8f0',
-                        background: isBilled ? '#ecfdf5' : '#ffffff',
-                        color: isBilled ? '#047857' : '#334155',
-                        fontWeight: isBilled ? 700 : 600,
-                        fontSize: 11.5,
-                        padding: '0 11px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                      onClick={() => onPrintBill && onPrintBill(order)}
-                      title={isBilled ? "Re-print Bill" : "Print Bill"}
-                    >
-                      <FaReceipt size={11} style={{ color: isBilled ? '#10b981' : '#64748b' }} /> Bill
-                    </button>
-
-                    <button
-                      type="button"
-                      className="board-settle-btn"
-                      style={{
-                        ...S.boardSettleBtn,
-                        height: 32,
-                        borderRadius: 10,
-                        border: 'none',
-                        background: isBilled ? '#10b981' : '#f97316',
-                        color: '#ffffff',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: '0 16px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        boxShadow: isBilled 
-                          ? '0 2px 6px rgba(16, 185, 129, 0.25)' 
-                          : '0 2px 6px rgba(249, 115, 22, 0.25)',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => onSettleOrder && onSettleOrder(order)}
-                      title="Settle Payment"
-                    >
-                      <FaCreditCard size={11} /> Settle
-                    </button>
-
-                    <button
-                      type="button"
-                      className="board-icon-btn"
-                      style={{
-                        ...S.boardIconBtn,
-                        height: 32,
-                        borderRadius: 10,
-                        border: '1px solid #e2e8f0',
-                        background: '#ffffff',
-                        color: '#0284c7',
-                        fontSize: 11.5,
-                        fontWeight: 600,
-                        padding: '0 10px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4
-                      }}
-                      onClick={() => onEditOrder && onEditOrder(order)}
-                      title="Edit Order"
-                    >
-                      <FaEdit size={11} /> Edit
-                    </button>
-
-                    {canCancelOrder && (
-                      <button
-                        type="button"
-                        className="board-danger-btn"
-                        style={{
-                          ...S.boardDangerBtn,
-                          height: 32,
-                          borderRadius: 10,
-                          border: '1px solid #fecdd3',
-                          background: '#fff1f2',
-                          color: '#e11d48',
-                          fontSize: 11.5,
-                          fontWeight: 600,
-                          padding: '0 10px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4
-                        }}
-                        onClick={() => onCancelOrder && onCancelOrder(order)}
-                        title="Cancel Order"
-                      >
-                        <FaTimesCircle size={11} /> Cancel
-                      </button>
-                    )}
-
-                    {/* Down / Up Arrow to toggle product details */}
-                    <button
-                      type="button"
-                      className="board-arrow-btn"
-                      style={{
-                        ...(isExpanded ? S.boardRowArrowBtnActive : S.boardRowArrowBtn),
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        border: isExpanded ? '1px solid #f97316' : '1px solid #e2e8f0',
-                        background: isExpanded ? '#fff7ed' : '#ffffff',
-                        color: isExpanded ? '#ea580c' : '#64748b'
-                      }}
-                      onClick={(e) => toggleOrderExpand(e, order.id)}
-                      title={isExpanded ? 'Hide products' : 'Show products'}
-                    >
-                      {isExpanded ? <FaChevronUp size={11} /> : <FaChevronDown size={11} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* ── Collapsible Product Details Drawer ── */}
-                {isExpanded && (
-                  <div style={S.boardRowExpandedDrawer}>
-                    {Array.isArray(order.lines) && order.lines.length > 0 ? (
-                      <div style={S.boardExpandedItemsWrap}>
-                        {order.lines.map((item, idx) => (
-                          <span key={idx} style={S.boardListItemPill}>
-                            <span style={S.boardItemQtyBadge}>{item.quantity || 1}x</span>
-                            <span style={{ fontWeight: 600, color: '#1e293b', fontSize: 12 }}>
-                              {item.itemName || item.productName || 'Item'}
-                            </span>
-                            <span style={{ color: '#64748b', fontSize: 11, marginLeft: 4, fontWeight: 700 }}>
-                              {money((item.itemPrice || item.price || 0) * (item.quantity || 1), sym)}
-                            </span>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ color: '#94a3b8', fontSize: 11, fontStyle: 'italic' }}>No item details</span>
-                    )}
-
-                    {(order.notes || order.remarks || order.specialInstructions) && (
-                      <div style={S.boardListNote}>
-                        <strong>Note:</strong> {order.notes || order.remarks || order.specialInstructions}
-                      </div>
-                    )}
-
-                    {(order.customerPhone || order.deliveryAddress) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 11, color: '#64748b', marginTop: 4, flexWrap: 'wrap' }}>
-                        {order.customerPhone && (
-                          <span>Phone: <strong style={{ color: '#0f172a' }}>{order.customerPhone}</strong></span>
-                        )}
-                        {order.deliveryAddress && (
-                          <span>Address: <strong style={{ color: '#0f172a' }}>{order.deliveryAddress}</strong></span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* ── Grid View: Multi-column responsive cards flowing vertically ── */
+      {/* Multi-column responsive cards grid */}
         <div className="board-card-grid" style={S.boardCardGrid}>
+          {/* First Card: + New Takeaway / + New Delivery button card inside the board grid */}
+          {onNewOrder && (
+            <div
+              className="board-new-order-card"
+              style={{
+                minHeight: 200,
+                border: '2px dashed #f97316',
+                background: '#ffffff',
+                borderRadius: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 12,
+                cursor: 'pointer',
+                padding: '20px 14px',
+                boxSizing: 'border-box',
+                transition: 'all 0.18s ease',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+              }}
+              onClick={onNewOrder}
+              title={newOrderLabel}
+            >
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(249, 115, 22, 0.35)',
+              }}>
+                <FaPlus size={20} />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: '#ea580c', letterSpacing: '-0.01em' }}>
+                  {newOrderLabel}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#64748b', marginTop: 3 }}>
+                  Start new order
+                </div>
+              </div>
+            </div>
+          )}
+
           {ordersList.map(order => {
             const statusBadge = orderStatusBadgeStyle(order.orderStatus);
             const isTable = Boolean(order.tableNumber);
@@ -612,49 +272,69 @@ function LiveOrderBoardView({
                 className="board-list-card"
                 style={{
                   ...S.boardCard,
-                  background: isBilled 
-                    ? 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)' 
-                    : 'linear-gradient(180deg, #ffffff 0%, #fffbf7 100%)',
-                  border: isBilled ? '1px solid #86efac' : '1px solid #fed7aa',
-                  borderLeft: isBilled ? '4px solid #10b981' : '4px solid #f97316',
+                  background: '#ffffff',
+                  border: isBilled ? '1.5px solid #86efac' : '1.5px solid #fed7aa',
                   boxShadow: isBilled 
-                    ? '0 2px 8px rgba(16, 185, 129, 0.08), 0 1px 3px rgba(0,0,0,0.02)' 
-                    : '0 2px 8px rgba(249, 115, 22, 0.06), 0 1px 3px rgba(0,0,0,0.02)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
+                    ? '0 4px 12px rgba(16, 185, 129, 0.08), 0 1px 3px rgba(0,0,0,0.03)' 
+                    : '0 4px 12px rgba(249, 115, 22, 0.08), 0 1px 3px rgba(0,0,0,0.03)',
+                  borderRadius: 12,
+                  padding: '10px 11px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 7,
+                  height: '100%',
+                  boxSizing: 'border-box',
                 }}
                 onClick={() => onSelectOrder && onSelectOrder(order)}
               >
-                {/* Top Header Pill & Status */}
-                <div style={S.cardTop}>
-                  <div style={{
-                    ...S.cardTablePill,
-                    background: isBilled ? '#ecfdf5' : (isTable ? '#fff7ed' : '#f0fdf4'),
-                    color: isBilled ? '#047857' : (isTable ? '#c2410c' : '#16a34a'),
-                    border: isBilled ? '1px solid #10b981' : (isTable ? '1px solid #f97316' : '1px solid #86efac'),
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}>
-                    {isTable ? (
-                      <>
-                        <FaChair size={9} style={{ opacity: 0.8 }} />
-                        <span>Table {order.tableNumber}</span>
-                      </>
-                    ) : (
-                      <>
-                        <FaShoppingBag size={9} style={{ opacity: 0.8 }} />
-                        <span>{order.fulfillmentType || 'Takeaway'}</span>
-                      </>
-                    )}
-                  </div>
+                {/* ── Section 1: Header (Token / Table + Status + Time) ── */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: 7,
+                  borderBottom: '1px solid #f1f5f9',
+                }}>
+                  {(() => {
+                    const tokenNo = order.dailyBillNo || order.orderNo || order.order_no || String(order.id).slice(0, 8);
+                    const cleanToken = String(tokenNo).replace(/^[#\s]+/, '');
+
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          background: '#f1f5f9',
+                          border: '1px solid #e2e8f0',
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          letterSpacing: '0.02em',
+                        }}>
+                          #{cleanToken}
+                        </span>
+                        {isTable && (
+                          <span style={{
+                            background: isBilled ? '#ecfdf5' : '#fff7ed',
+                            color: isBilled ? '#047857' : '#c2410c',
+                            border: isBilled ? '1px solid #a7f3d0' : '1px solid #fdba74',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 7px',
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            <FaChair size={9} style={{ opacity: 0.85, flexShrink: 0 }} />
+                            <span>{order.tableNumber}</span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{
                       ...S.cardStatusBadge,
@@ -663,24 +343,24 @@ function LiveOrderBoardView({
                         : 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
                       color: isBilled ? '#ffffff' : '#c2410c',
                       border: isBilled ? '1px solid #059669' : '1px solid #fdba74',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       fontSize: 9.5,
-                      padding: '2px 7px',
+                      padding: '2px 8px',
                       borderRadius: 14,
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 3,
+                      gap: 3.5,
                     }}>
                       {isBilled ? (
                         <>
-                          <FaCheckCircle size={8} />
+                          <FaCheckCircle size={8.5} />
                           <span>BILLED</span>
                         </>
                       ) : (
                         <>
                           <span style={{
-                            width: 4,
-                            height: 4,
+                            width: 5,
+                            height: 5,
                             borderRadius: '50%',
                             background: '#ea580c',
                             display: 'inline-block',
@@ -697,47 +377,32 @@ function LiveOrderBoardView({
                       background: '#f8fafc',
                       padding: '2px 6px',
                       borderRadius: 5,
-                      border: '1px solid #f1f5f9',
+                      border: '1px solid #e2e8f0',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
                     }}>
-                      <FaClock size={8} style={{ color: isBilled ? '#10b981' : '#f97316', marginRight: 3 }} />
+                      <FaClock size={8.5} style={{ color: isBilled ? '#10b981' : '#f97316' }} />
                       {timeAgo(order.createdAt || order.orderDate)}
                     </span>
                   </div>
                 </div>
 
-                {/* Token Number & Phone */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  {(() => {
-                    const tokenNo = order.dailyBillNo || order.orderNo || order.order_no || String(order.id).slice(0, 8);
-                    const cleanToken = String(tokenNo).replace(/^[#\s]+/, '');
-
-                    return (
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color: '#64748b',
-                        background: '#f1f5f9',
-                        border: '1px solid #e2e8f0',
-                        padding: '1px 5px',
-                        borderRadius: 4,
-                        letterSpacing: '0.02em',
-                      }}>
-                        #{cleanToken}
+                {/* Optional Customer Info row (Phone / Customer Name) */}
+                {(order.customerPhone || order.customerName) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10.5, color: '#64748b', padding: '0 2px' }}>
+                    {order.customerName && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600, color: '#334155' }}>
+                        <FaUser size={8} style={{ color: '#94a3b8' }} />
+                        {order.customerName}
                       </span>
-                    );
-                  })()}
-                  {order.customerPhone && (
-                    <span style={{ fontSize: 10.5, color: '#64748b' }}>
-                      <FaPhoneAlt size={8} style={{ marginRight: 3 }} />
-                      {order.customerPhone}
-                    </span>
-                  )}
-                </div>
-
-                {order.customerName && (
-                  <div style={{ ...S.cardCustomer, fontSize: 11, fontWeight: 500 }}>
-                    <FaUser size={8} style={{ color: '#94a3b8' }} />
-                    <span>{order.customerName}</span>
+                    )}
+                    {order.customerPhone && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <FaPhoneAlt size={8} style={{ color: '#94a3b8' }} />
+                        {order.customerPhone}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -750,21 +415,57 @@ function LiveOrderBoardView({
                   </div>
                 )}
 
-                {/* Full Itemized Lines List */}
+                {/* ── Section 2: Full Itemized Lines List ── */}
                 {Array.isArray(order.lines) && order.lines.length > 0 && (
-                  <div style={S.boardItemsBox}>
+                  <div style={{
+                    ...S.boardItemsBox,
+                    background: '#f8fafc',
+                    borderRadius: 8,
+                    border: '1px solid #eef2f6',
+                    padding: '6px 8px',
+                    margin: 0,
+                    gap: 4,
+                    maxHeight: 80,
+                  }}>
                     {order.lines.map((item, idx) => (
-                      <div key={idx} style={S.boardItemLine}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, maxWidth: '75%' }}>
-                          <span style={S.boardItemQtyBadge}>
-                            {item.quantity || 1}x
+                      <div key={idx} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: 11,
+                        lineHeight: 1.3,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, maxWidth: '72%' }}>
+                          <span style={{
+                            background: '#e2e8f0',
+                            color: '#1e293b',
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            padding: '1px 5px',
+                            borderRadius: 4,
+                            flexShrink: 0,
+                          }}>
+                            {item.quantity || item.qty || 1}x
                           </span>
-                          <span style={S.boardItemNameText}>
-                            {item.itemName || item.productName || 'Item'}
+                          <span style={{
+                            color: '#1e293b',
+                            fontWeight: 600,
+                            fontSize: 11.5,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {item.productName || item.itemName || item.name || 'Item'}
                           </span>
                         </div>
-                        <span style={S.boardItemPriceText}>
-                          {money((item.itemPrice || item.price || 0) * (item.quantity || 1), sym)}
+                        <span style={{
+                          color: '#334155',
+                          fontWeight: 700,
+                          fontSize: 11.5,
+                          flexShrink: 0,
+                          marginLeft: 4,
+                        }}>
+                          {money(getItemLineTotal(item), sym)}
                         </span>
                       </div>
                     ))}
@@ -773,159 +474,223 @@ function LiveOrderBoardView({
 
                 {/* Special Notes / Instructions */}
                 {(order.notes || order.remarks || order.specialInstructions) && (
-                  <div style={S.boardNoteAlert}>
+                  <div style={{
+                    ...S.boardNoteAlert,
+                    borderRadius: 6,
+                    padding: '3px 8px',
+                    fontSize: 10.5,
+                  }}>
                     <strong>Note:</strong> {order.notes || order.remarks || order.specialInstructions}
                   </div>
                 )}
 
-                {/* Total Amount & Items Count */}
-                <div style={S.boardTotalRow}>
+                {/* ── Section 3: Summary & Total Amount ── */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingTop: 6,
+                  borderTop: '1px solid #f1f5f9',
+                  marginTop: 1,
+                }}>
                   <span style={{
-                    ...S.boardItemCountLabel,
                     fontSize: 10.5,
-                    fontWeight: 500,
+                    fontWeight: 600,
                     color: '#64748b',
                     background: '#f1f5f9',
-                    padding: '1px 6px',
+                    padding: '2px 8px',
                     borderRadius: 12,
                     border: '1px solid #e2e8f0'
                   }}>
                     {itemCount} {itemCount === 1 ? 'item' : 'items'}
                   </span>
-                  <span style={{
-                    ...S.cardTotal,
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: isBilled ? '#047857' : '#1e293b',
-                    letterSpacing: '-0.01em',
-                  }}>
-                    {money(order.grandTotal, sym)}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Total</span>
+                    <span style={{
+                      fontSize: 16.5,
+                      fontWeight: 800,
+                      color: isBilled ? '#047857' : '#0f172a',
+                      letterSpacing: '-0.02em',
+                    }}>
+                      {money(order.grandTotal, sym)}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Action Buttons Bar directly on card (Ready button removed) */}
-                <div className="board-card-actions" style={S.boardCardActions} onClick={e => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="board-aux-btn"
-                    style={{
-                      ...S.boardAuxBtn,
-                      height: 28,
-                      borderRadius: 5,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      padding: '0 8px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      border: '1px solid #cbd5e1',
-                    }}
-                    onClick={() => onPrintKot && onPrintKot(order)}
-                    title="Print KOT"
-                  >
-                    <FaPrint size={9} style={{ color: '#64748b' }} /> KOT
-                  </button>
-
-                  <button
-                    type="button"
-                    className="board-aux-btn"
-                    style={{
-                      ...S.boardAuxBtn,
-                      height: 28,
-                      borderRadius: 5,
-                      fontSize: 11,
-                      fontWeight: isBilled ? 600 : 500,
-                      padding: '0 8px',
-                      border: isBilled ? '1px solid #86efac' : '1px solid #cbd5e1',
-                      background: isBilled ? '#ecfdf5' : '#ffffff',
-                      color: isBilled ? '#047857' : '#475569',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3
-                    }}
-                    onClick={() => onPrintBill && onPrintBill(order)}
-                    title={isBilled ? "Re-print Bill" : "Print Bill"}
-                  >
-                    <FaReceipt size={9} style={{ color: isBilled ? '#10b981' : '#64748b' }} /> Bill
-                  </button>
-
-                  <button
-                    type="button"
-                    className="board-settle-btn"
-                    style={{
-                      ...S.boardSettleBtn,
-                      height: 28,
-                      borderRadius: 5,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: '0 11px',
-                      border: 'none',
-                      background: isBilled 
-                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
-                        : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-                      color: '#ffffff',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      boxShadow: isBilled 
-                        ? '0 2px 5px rgba(16, 185, 129, 0.3)' 
-                        : '0 2px 5px rgba(249, 115, 22, 0.3)',
-                    }}
-                    onClick={() => onSettleOrder && onSettleOrder(order)}
-                    title="Settle Payment"
-                  >
-                    <FaCreditCard size={9} /> Settle
-                  </button>
-
-                  <button
-                    type="button"
-                    className="board-icon-btn"
-                    style={{
-                      ...S.boardIconBtn,
-                      height: 28,
-                      borderRadius: 5,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      padding: '0 7px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      border: '1px solid #cbd5e1',
-                    }}
-                    onClick={() => onEditOrder && onEditOrder(order)}
-                    title="Edit Order"
-                  >
-                    <FaEdit size={9} /> Edit
-                  </button>
-
-                  {canCancelOrder && (
+                {/* ── Section 4: Action Buttons (Always Pinned to Bottom) ── */}
+                <div className="board-card-actions" style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  alignItems: 'stretch',
+                  marginTop: 'auto',
+                  paddingTop: 8,
+                  borderTop: '1px solid #f8fafc',
+                }} onClick={e => e.stopPropagation()}>
+                  {/* Row 1: Auxiliary action buttons (Bill, KOT, Invoice, Edit, Cancel) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: canCancelOrder ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)',
+                    gap: 4,
+                    width: '100%'
+                  }}>
                     <button
                       type="button"
-                      className="board-danger-btn"
+                      className="pos-action-bar-btn"
                       style={{
-                        ...S.boardDangerBtn,
-                        height: 28,
-                        borderRadius: 5,
+                        ...S.actionBarBtn,
+                        height: 29,
+                        padding: '0 3px',
+                        borderRadius: 6,
                         fontSize: 11,
-                        fontWeight: 500,
-                        padding: '0 7px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
                         gap: 3,
-                        border: '1px solid #fecdd3',
+                        letterSpacing: '-0.01em',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                       }}
-                      onClick={() => onCancelOrder && onCancelOrder(order)}
-                      title="Cancel Order"
+                      onClick={() => onPrintBill && onPrintBill(order)}
+                      title="Print Bill"
                     >
-                      <FaTimesCircle size={9} /> Cancel
+                      <FaPrint size={10.5} style={{ color: '#0284c7', flexShrink: 0 }} />
+                      <span>Bill</span>
                     </button>
-                  )}
+
+                    <button
+                      type="button"
+                      className="pos-action-bar-btn"
+                      style={{
+                        ...S.actionBarBtn,
+                        height: 29,
+                        padding: '0 3px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
+                        gap: 3,
+                        letterSpacing: '-0.01em',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                      }}
+                      onClick={() => onPrintKot && onPrintKot(order)}
+                      title="Print KOT"
+                    >
+                      <FaUtensils size={10.5} style={{ color: '#ea580c', flexShrink: 0 }} />
+                      <span>KOT</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pos-action-bar-btn"
+                      style={{
+                        ...S.actionBarBtn,
+                        height: 29,
+                        padding: '0 3px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
+                        gap: 3,
+                        letterSpacing: '-0.01em',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                      }}
+                      onClick={async () => {
+                        if (onDownloadInvoice) {
+                          await onDownloadInvoice(order);
+                        } else {
+                          try {
+                            await downloadInvoicePdf(order);
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }
+                      }}
+                      title="Download Invoice PDF"
+                    >
+                      <FaFileInvoice size={10.5} style={{ color: '#7c3aed', flexShrink: 0 }} />
+                      <span>Invoice</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pos-action-bar-btn"
+                      style={{
+                        ...S.actionBarBtn,
+                        height: 29,
+                        padding: '0 3px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        border: '1px solid #e2e8f0',
+                        gap: 3,
+                        letterSpacing: '-0.01em',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                      }}
+                      onClick={() => onEditOrder && onEditOrder(order)}
+                      title="Edit Order"
+                    >
+                      <FaEdit size={10.5} style={{ color: '#0d9488', flexShrink: 0 }} />
+                      <span>Edit</span>
+                    </button>
+
+                    {canCancelOrder && (
+                      <button
+                        type="button"
+                        className="pos-action-bar-btn pos-action-bar-btn-cancel"
+                        style={{
+                          ...S.actionBarBtnCancel,
+                          height: 29,
+                          padding: '0 3px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          border: '1px solid #fecdd3',
+                          gap: 3,
+                          letterSpacing: '-0.01em',
+                          boxShadow: '0 1px 2px rgba(225,29,72,0.04)'
+                        }}
+                        onClick={() => onCancelOrder && onCancelOrder(order)}
+                        title="Cancel Order"
+                      >
+                        <FaTimesCircle size={10.5} style={{ color: '#e11d48', flexShrink: 0 }} />
+                        <span>Cancel</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Row 2: Prominent Centered Settle Payment Button */}
+                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                    <button
+                      type="button"
+                      className="pos-settle-primary-btn"
+                      style={{
+                        ...S.actionBtnPrimaryCentered,
+                        height: 35,
+                        padding: '0 14px',
+                        borderRadius: 9,
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        gap: 6,
+                        width: '100%',
+                        background: isBilled 
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
+                          : 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)',
+                        boxShadow: isBilled 
+                          ? '0 2px 6px rgba(16, 185, 129, 0.3)' 
+                          : '0 2px 6px rgba(234, 88, 12, 0.3)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => onSettleOrder && onSettleOrder(order)}
+                      title="Settle Payment"
+                    >
+                      <FaCreditCard size={13} style={{ flexShrink: 0 }} />
+                      <span>Settle Payment</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
-      )}
     </div>
   );
 }
@@ -976,7 +741,7 @@ export default function PosOrderTypeModal({
   };
 
   const [activeType, setActiveType] = useState(() => (isTableConfigOn ? 'TABLE' : 'TAKEAWAY'));
-  const [viewMode, setViewMode] = useState('standard'); // 'standard' | 'board'
+  const [viewMode, setViewMode] = useState('board'); // Always 'board' by default in New Sales
   const [hoveredTable, setHoveredTable] = useState(null);
   const [floorFilter, setFloorFilter] = useState('ALL');
 
@@ -1599,8 +1364,15 @@ export default function PosOrderTypeModal({
   const renderLiveOrderGrid = (ordersList) => renderOrderBoxGrid(ordersList, activeType);
 
   /* ─── Render Live Orders in Board View (All order cards with full details & buttons) ─── */
-  const renderLiveOrderBoard = (ordersList) => {
-    if (!ordersList || ordersList.length === 0) {
+  const renderLiveOrderBoard = (ordersList, customOrderType) => {
+    const currentType = customOrderType || activeType;
+    const isTakeawayOrDelivery = currentType === 'TAKEAWAY' || currentType === 'DELIVERY';
+    const onNewOrder = isTakeawayOrDelivery
+      ? (currentType === 'DELIVERY' ? handleStartNewDelivery : handleStartNewTakeaway)
+      : null;
+    const newOrderLabel = currentType === 'DELIVERY' ? '+ New Delivery' : '+ New Takeaway';
+
+    if ((!ordersList || ordersList.length === 0) && !onNewOrder) {
       return (
         <div style={S.emptyStateBox}>
           <FaUtensils size={36} style={{ color: '#cbd5e1' }} />
@@ -1612,13 +1384,22 @@ export default function PosOrderTypeModal({
 
     return (
       <LiveOrderBoardSlider
-        ordersList={ordersList}
+        ordersList={ordersList || []}
         sym={sym}
         actionBusy={actionBusy}
         canCancelOrder={canCancelOrder}
+        onNewOrder={onNewOrder}
+        newOrderLabel={newOrderLabel}
         onSelectOrder={setSelectedLiveOrder}
         onPrintKot={handlePrintKot}
         onPrintBill={handlePrintBill}
+        onDownloadInvoice={async (order) => {
+          try {
+            await downloadInvoicePdf(order);
+          } catch (e) {
+            notify('error', 'Failed to download invoice: ' + e.message);
+          }
+        }}
         onUpdateStatus={handleUpdateStatus}
         onSettleOrder={(order) => {
           setSelectedLiveOrder(null);
@@ -1725,37 +1506,6 @@ export default function PosOrderTypeModal({
               Board
             </button>
           </div>
-
-          {viewMode === 'board' && activeType !== 'TABLE' && (
-            <button
-              type="button"
-              className="pos-header-new-order-btn"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                height: 32,
-                padding: '0 14px',
-                borderRadius: 9999,
-                border: 'none',
-                background: '#f97316',
-                color: '#ffffff',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(249, 115, 22, 0.25)',
-                transition: 'all 0.15s ease',
-                whiteSpace: 'nowrap',
-              }}
-              onClick={handleNewOrderClick}
-              title={activeType === 'DELIVERY' ? 'Start new delivery order' : 'Start new takeaway order'}
-            >
-              <FaPlus size={10} />
-              <span>
-                {activeType === 'DELIVERY' ? 'New Delivery' : 'New Takeaway'}
-              </span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -2020,15 +1770,7 @@ export default function PosOrderTypeModal({
         {activeType === 'TAKEAWAY' && (
           <div style={S.tabPane}>
             {viewMode === 'board' ? (
-              takeawayOrders.length === 0 ? (
-                <div style={S.emptyStateBox}>
-                  <FaShoppingBag size={36} style={{ color: '#cbd5e1' }} />
-                  <div style={S.emptyTitle}>No Live Takeaway Orders</div>
-                  <div style={S.emptySub}>Click the "+ New Takeaway" button in the header above to begin an order.</div>
-                </div>
-              ) : (
-                renderLiveOrderBoard(takeawayOrders)
-              )
+              renderLiveOrderBoard(takeawayOrders, 'TAKEAWAY')
             ) : (
               <>
                 {/* Status Legend (Red: Occupied, Green: Billed, White: New Order) */}
@@ -2059,15 +1801,7 @@ export default function PosOrderTypeModal({
         {activeType === 'DELIVERY' && isDeliveryConfigOn && (
           <div style={S.tabPane}>
             {viewMode === 'board' ? (
-              deliveryOrders.length === 0 ? (
-                <div style={S.emptyStateBox}>
-                  <FaTruck size={36} style={{ color: '#cbd5e1' }} />
-                  <div style={S.emptyTitle}>No Live Delivery Orders</div>
-                  <div style={S.emptySub}>Click the "+ New Delivery" button in the header above to begin an order.</div>
-                </div>
-              ) : (
-                renderLiveOrderBoard(deliveryOrders)
-              )
+              renderLiveOrderBoard(deliveryOrders, 'DELIVERY')
             ) : (
               <>
                 {/* Status Legend */}
@@ -2191,14 +1925,14 @@ export default function PosOrderTypeModal({
                   {(selectedLiveOrder.lines || []).map((item, idx) => (
                     <div key={idx} className="pos-modal-item-row pos-order-item-row-res" style={S.orderItemRow}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, overflow: 'hidden' }}>
-                        <span style={S.itemNameText}>{item.productName || item.name || 'Item'}</span>
+                        <span style={S.itemNameText}>{item.productName || item.itemName || item.name || 'Item'}</span>
                         {item.notes && <span style={S.itemNotesText}>{item.notes}</span>}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <span style={S.itemQtyBadge}>{item.quantity}</span>
+                        <span style={S.itemQtyBadge}>{item.quantity || item.qty || 1}</span>
                       </div>
-                      <span style={S.itemUnitPriceText}>{money(item.unitPrice, sym)}</span>
-                      <span style={S.itemTotalText}>{money(item.lineTotal, sym)}</span>
+                      <span style={S.itemUnitPriceText}>{money(getItemUnitPrice(item), sym)}</span>
+                      <span style={S.itemTotalText}>{money(getItemLineTotal(item), sym)}</span>
                     </div>
                   ))}
                 </div>
@@ -2646,6 +2380,16 @@ export default function PosOrderTypeModal({
           transform: translateY(0);
           background: #dcfce7 !important;
           border-color: #047857 !important;
+        }
+        .board-new-order-card:hover {
+          background: #ffffff !important;
+          border-color: #ea580c !important;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(249, 115, 22, 0.16) !important;
+        }
+        .board-new-order-card:active {
+          transform: translateY(0);
+          box-shadow: 0 2px 6px rgba(249, 115, 22, 0.12) !important;
         }
         .spin-icon {
           animation: spin 0.8s linear infinite;
@@ -3857,8 +3601,9 @@ const S = {
   },
   boardCardGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-    gap: 10,
+    gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 305px))',
+    justifyContent: 'start',
+    gap: 14,
     width: '100%',
     boxSizing: 'border-box',
     paddingBottom: 24,

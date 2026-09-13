@@ -11,7 +11,7 @@ import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
-import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
 // ═════════════════════════════════════════════════════════════════════════════
@@ -402,7 +402,9 @@ function ConfigurationsContent() {
     
     ro_enabled: false, ro_mode: 'automatic', ro_auto_factor: 1.0, ro_manual_limit: 10.0,
     bill_footer: '',
-    default_billing_ui_mode: 'standard',
+    default_billing_ui_mode: 'board',
+    sales_version: 'v1',
+    pos_v2_enabled: false,
     pm_pos_product_listing: true,
     pm_discount: true,
     print_logo_bitmap: null, print_logo_cols: null, print_logo_rows: null,
@@ -549,8 +551,10 @@ function ConfigurationsContent() {
             ro_enabled: !!d.roundOffEnabled, ro_mode: d.roundOffMode || 'automatic',
             ro_auto_factor: d.roundOffAutoFactor ?? 1.0, ro_manual_limit: d.roundOffManualLimit ?? 10.0,
             bill_footer: d.billFooter || '',
-            default_billing_ui_mode: (d.defaultBillingUiMode || (d.posProductListingEnabled === false ? 'counter' : 'standard')).toLowerCase(),
-            pm_pos_product_listing: d.posProductListingEnabled !== false && d.defaultBillingUiMode !== 'counter',
+            default_billing_ui_mode: (d.defaultBillingUiMode || 'board').toLowerCase(),
+            sales_version: (d.salesVersion || 'v1').toLowerCase(),
+            pos_v2_enabled: (d.salesVersion || '').toLowerCase() === 'v2',
+            pm_pos_product_listing: d.posProductListingEnabled !== false,
             pm_discount: d.discountEnabled !== false,
             print_logo_bitmap: d.printLogoBitmap || null,
             print_logo_cols: d.printLogoCols || null,
@@ -683,8 +687,10 @@ function ConfigurationsContent() {
         roundOffEnabled: config.ro_enabled, roundOffMode: config.ro_mode,
         roundOffAutoFactor: Number(config.ro_auto_factor), roundOffManualLimit: Number(config.ro_manual_limit),
         billFooter: config.bill_footer || '',
-        defaultBillingUiMode: config.default_billing_ui_mode || 'standard',
-        posProductListingEnabled: config.default_billing_ui_mode !== 'counter',
+        defaultBillingUiMode: config.default_billing_ui_mode || 'board',
+        salesVersion: config.sales_version || 'v1',
+        posV2Enabled: config.sales_version === 'v2',
+        posProductListingEnabled: config.pm_pos_product_listing !== false,
         discountEnabled: config.pm_discount,
         printLogoBitmap: config.print_logo_bitmap,
         printLogoCols: config.print_logo_cols,
@@ -933,60 +939,145 @@ function ConfigurationsContent() {
                 <p>Activate specific business features required for your workflow.</p>
               </div>
 
-              {/* POS Sales Screen Interface Mode */}
-              <div className="pos-mode-section">
-                <div className="pos-mode-header">
-                  <div className="pos-mode-header-title">
-                    <FaTh size={15} style={{ color: '#ea580c' }} />
-                    <h3>POS Sales Screen Interface Mode</h3>
+              {/* ═══ UNIFIED SALES & POS CONFIGURATION SECTION ═══ */}
+              <div className="sales-config-unified-section">
+                <div className="sales-config-header">
+                  <div className="sales-config-header-title">
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: '#fff7ed',
+                      border: '1.5px solid #fed7aa',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ea580c',
+                      flexShrink: 0
+                    }}>
+                      <FaCashRegister size={18} />
+                    </div>
+                    <div>
+                      <h3>Sales &amp; POS Configuration</h3>
+                      <p>Manage default terminal version, cashier landing screen, and billing interface workflows.</p>
+                    </div>
                   </div>
-                  <p>Choose the default layout and billing workflow used by cashiers and sales counters.</p>
                 </div>
 
-                <div className="pos-mode-grid">
-                  <div
-                    className={`pos-mode-card ${config.default_billing_ui_mode !== 'counter' ? 'active' : ''}`}
-                    onClick={() => {
-                      set('default_billing_ui_mode', 'standard');
-                      set('pm_pos_product_listing', true);
-                    }}
-                  >
-                    <div className="pos-mode-icon" style={{
-                      background: config.default_billing_ui_mode !== 'counter' ? '#ea580c' : '#f1f5f9',
-                      color: config.default_billing_ui_mode !== 'counter' ? '#ffffff' : '#64748b'
-                    }}>
-                      <FaTh size={16} />
+                <div className="sales-config-body">
+                  {/* Group 1: Sales Terminal Engine Version */}
+                  <div className="sales-config-group">
+                    <div className="sales-group-title">
+                      <strong>1. Sales Terminal Engine Version</strong>
+                      <span className="sales-group-sub">Select Classic Sales (Default) or New Sales (POS V2) &amp; Sales History.</span>
                     </div>
-                    <div className="pos-mode-details">
-                      <div className="pos-mode-title-row">
-                        <strong>Standard Mode</strong>
-                        {config.default_billing_ui_mode !== 'counter' && <span className="pos-mode-badge">ACTIVE</span>}
+
+                    <div className="pos-mode-grid">
+                      <div
+                        className={`pos-mode-card ${config.sales_version !== 'v2' ? 'active' : ''}`}
+                        onClick={() => {
+                          set('sales_version', 'v1');
+                          set('pos_v2_enabled', false);
+                        }}
+                      >
+                        <div className="pos-mode-icon" style={{
+                          background: config.sales_version !== 'v2' ? '#fff7ed' : '#f8fafc',
+                          color: config.sales_version !== 'v2' ? '#ea580c' : '#94a3b8',
+                          border: config.sales_version !== 'v2' ? '1px solid #fed7aa' : '1px solid #e2e8f0'
+                        }}>
+                          <FaHistory size={16} />
+                        </div>
+                        <div className="pos-mode-details">
+                          <div className="pos-mode-title-row">
+                            <strong>Classic Sales (Default)</strong>
+                            {config.sales_version !== 'v2' && <span className="pos-mode-badge">ACTIVE</span>}
+                          </div>
+                          <p>Standard reliable POS sales terminal. Hides POS V2 and dedicated Sales History screen from navigation.</p>
+                        </div>
                       </div>
-                      <p>Full visual catalog with product cards, category filter tabs, and keyset browsing. Ideal for restaurants, cafes, and touchscreen POS terminals.</p>
+
+                      <div
+                        className={`pos-mode-card ${config.sales_version === 'v2' ? 'active' : ''}`}
+                        onClick={() => {
+                          set('sales_version', 'v2');
+                          set('pos_v2_enabled', true);
+                        }}
+                      >
+                        <div className="pos-mode-icon" style={{
+                          background: config.sales_version === 'v2' ? '#fff7ed' : '#f8fafc',
+                          color: config.sales_version === 'v2' ? '#ea580c' : '#94a3b8',
+                          border: config.sales_version === 'v2' ? '1px solid #fed7aa' : '1px solid #e2e8f0'
+                        }}>
+                          <FaBolt size={16} />
+                        </div>
+                        <div className="pos-mode-details">
+                          <div className="pos-mode-title-row">
+                            <strong>New Sales (POS V2) &amp; Sales History</strong>
+                            {config.sales_version === 'v2' && <span className="pos-mode-badge">ACTIVE</span>}
+                          </div>
+                          <p>High-performance POS V2 terminal with live sales history, cached product catalog, and offline outbox sync.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div
-                    className={`pos-mode-card ${config.default_billing_ui_mode === 'counter' ? 'active' : ''}`}
-                    onClick={() => {
-                      set('default_billing_ui_mode', 'counter');
-                      set('pm_pos_product_listing', false);
-                    }}
-                  >
-                    <div className="pos-mode-icon" style={{
-                      background: config.default_billing_ui_mode === 'counter' ? '#ea580c' : '#f1f5f9',
-                      color: config.default_billing_ui_mode === 'counter' ? '#ffffff' : '#64748b'
-                    }}>
-                      <FaList size={16} />
-                    </div>
-                    <div className="pos-mode-details">
-                      <div className="pos-mode-title-row">
-                        <strong>Counter Mode</strong>
-                        {config.default_billing_ui_mode === 'counter' && <span className="pos-mode-badge">ACTIVE</span>}
+                  {/* POS SUB-CONFIGURATIONS (SHOWN ONLY WHEN NEW SALES V2 IS SELECTED) */}
+                  {config.sales_version === 'v2' && (
+                    <div className="sales-config-group" style={{ marginTop: '22px' }}>
+                      <div className="sales-group-title">
+                        <strong>2. POS Sales Screen Interface Mode</strong>
+                        <span className="sales-group-sub">Choose between visual catalog browsing or compact counter fast-billing.</span>
                       </div>
-                      <p>Ultra-fast keyboard-first quick billing with direct barcode/item search and compact order list. Ideal for supermarkets, express retail, and takeaway counters.</p>
+
+                      <div className="pos-mode-grid">
+                        {/* Standard Mode */}
+                        <div
+                          className={`pos-mode-card ${config.pm_pos_product_listing !== false ? 'active' : ''}`}
+                          onClick={() => {
+                            set('pm_pos_product_listing', true);
+                          }}
+                        >
+                          <div className="pos-mode-icon" style={{
+                            background: config.pm_pos_product_listing !== false ? '#fff7ed' : '#f8fafc',
+                            color: config.pm_pos_product_listing !== false ? '#ea580c' : '#94a3b8',
+                            border: config.pm_pos_product_listing !== false ? '1px solid #fed7aa' : '1px solid #e2e8f0'
+                          }}>
+                            <FaTh size={16} />
+                          </div>
+                          <div className="pos-mode-details">
+                            <div className="pos-mode-title-row">
+                              <strong>Standard Mode</strong>
+                              {config.pm_pos_product_listing !== false && <span className="pos-mode-badge">ACTIVE</span>}
+                            </div>
+                            <p>Full visual product catalog with item cards, category filter tabs, and keyset browsing for cafes &amp; restaurants.</p>
+                          </div>
+                        </div>
+
+                        {/* Counter Mode */}
+                        <div
+                          className={`pos-mode-card ${config.pm_pos_product_listing === false ? 'active' : ''}`}
+                          onClick={() => {
+                            set('pm_pos_product_listing', false);
+                          }}
+                        >
+                          <div className="pos-mode-icon" style={{
+                            background: config.pm_pos_product_listing === false ? '#fff7ed' : '#f8fafc',
+                            color: config.pm_pos_product_listing === false ? '#ea580c' : '#94a3b8',
+                            border: config.pm_pos_product_listing === false ? '1px solid #fed7aa' : '1px solid #e2e8f0'
+                          }}>
+                            <FaList size={16} />
+                          </div>
+                          <div className="pos-mode-details">
+                            <div className="pos-mode-title-row">
+                              <strong>Counter Mode</strong>
+                              {config.pm_pos_product_listing === false && <span className="pos-mode-badge">ACTIVE</span>}
+                            </div>
+                            <p>Ultra-fast keyboard-first quick billing with instant barcode/item search and compact order list. Ideal for retail counters.</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
               
@@ -1843,6 +1934,58 @@ function ConfigurationsContent() {
            gap: 12px; 
         }
 
+        .sales-config-unified-section {
+          background: #ffffff;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 18px;
+          padding: 22px 24px;
+          margin-bottom: 24px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+        }
+        .sales-config-header {
+          margin-bottom: 18px;
+          padding-bottom: 14px;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        .sales-config-header-title {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .sales-config-header h3 {
+          margin: 0;
+          font-size: 16px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .sales-config-header p {
+          margin: 4px 0 0 0;
+          font-size: 13px;
+          color: #64748b;
+          font-weight: 500;
+        }
+        .sales-config-body {
+          display: flex;
+          flex-direction: column;
+        }
+        .sales-group-title {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+        .sales-group-title strong {
+          font-size: 13.5px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .sales-group-sub {
+          font-size: 12.5px;
+          color: #64748b;
+          font-weight: 500;
+        }
+
         .pos-mode-section {
           background: #ffffff;
           border: 1.5px solid #e2e8f0;
@@ -1882,8 +2025,8 @@ function ConfigurationsContent() {
           gap: 14px;
           padding: 16px 18px;
           border-radius: 14px;
-          border: 2px solid #e2e8f0;
-          background: #fafbfc;
+          border: 1.5px solid #e2e8f0;
+          background: #ffffff;
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           user-select: none;
@@ -1892,12 +2035,15 @@ function ConfigurationsContent() {
           border-color: #cbd5e1;
           background: #ffffff;
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
         }
         .pos-mode-card.active {
-          border-color: #ea580c;
-          background: #fffaf5;
-          box-shadow: 0 4px 16px rgba(234, 88, 12, 0.12);
+          border-color: #fdba74;
+          background: #fffcf9;
+          box-shadow: 0 2px 10px rgba(249, 115, 22, 0.06);
+        }
+        .pos-mode-card.active:hover {
+          border-color: #fb923c;
         }
         .pos-mode-icon {
           width: 38px;
@@ -1926,12 +2072,13 @@ function ConfigurationsContent() {
         }
         .pos-mode-badge {
           font-size: 9.5px;
-          font-weight: 800;
+          font-weight: 700;
           padding: 2px 7px;
           border-radius: 6px;
-          background: #ea580c;
-          color: #ffffff;
-          letter-spacing: 0.04em;
+          background: #fff7ed;
+          color: #c2410c;
+          border: 1px solid #fdba74;
+          letter-spacing: 0.03em;
         }
         .pos-mode-details p {
           margin: 0;

@@ -48,23 +48,26 @@ export default function OrderTypeSelectorModal({
   onClose,
 }) {
   const isTableConfigOn = Boolean(config?.tableManagementEnabled);
-  const [activeType, setActiveType] = useState(
-    isTableConfigOn ? 'TABLE' : 'TAKEAWAY'
-  );
+  const mode = (config?.defaultBillingUiMode || 'board').toLowerCase();
+  const [activeType, setActiveType] = useState(() => {
+    if (mode === 'ordertype') return 'TAKEAWAY';
+    return isTableConfigOn ? 'TABLE' : 'TAKEAWAY';
+  });
   const [hoveredTable, setHoveredTable] = useState(null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [floorFilter, setFloorFilter] = useState('ALL');
 
-  // Config loads async — default to TABLE if tables enabled, else TAKEAWAY
+  // Config loads async — default to TABLE if tables enabled and board mode, else TAKEAWAY
   useEffect(() => {
     if (config) {
-      if (config.tableManagementEnabled) {
-        if (!activeType) setActiveType('TABLE');
-      } else {
+      const currentMode = (config.defaultBillingUiMode || 'board').toLowerCase();
+      if (currentMode === 'board' && config.tableManagementEnabled) {
+        setActiveType('TABLE');
+      } else if (!config.tableManagementEnabled) {
         if (!activeType || activeType === 'TABLE') setActiveType('TAKEAWAY');
       }
     }
-  }, [config?.tableManagementEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [config?.tableManagementEnabled, config?.defaultBillingUiMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const orderTypes = useMemo(() => buildOrderTypes(config), [config]);
 
