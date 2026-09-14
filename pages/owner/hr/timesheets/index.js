@@ -113,6 +113,14 @@ export default function TimesheetsDashboard({ embedded = false }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    if (formData.status !== 'ABSENT' && formData.clockInTime && formData.clockOutTime) {
+      if (formData.clockOutTime <= formData.clockInTime) {
+        showToast("Clock Out time must be later than Clock In time.", "error");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const formatLocalIso = (timeStr, dateStr) => {
