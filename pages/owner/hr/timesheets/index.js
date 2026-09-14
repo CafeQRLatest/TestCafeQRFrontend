@@ -257,7 +257,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   </tr>
                 ) : (
                   timesheets.map(record => {
-                    const isOvertime = record.overtimeHours > 0 || (record.totalHoursWorked && record.totalHoursWorked > 8.0);
+                    const isOvertime = Number(record.overtimeHours || 0) > 0;
                     const isExpanded = expandedRows.has(record.id);
                     return (
                       <React.Fragment key={record.id}>
