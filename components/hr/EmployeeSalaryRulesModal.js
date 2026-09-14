@@ -37,9 +37,18 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
 
   const handleAssignComponent = async () => {
     if (!selectedComponentId || isSaving) return;
+
+    const isAlreadyAssigned = employeeComponents.some(
+      c => String(c.salaryComponentId) === String(selectedComponentId)
+    );
+    if (isAlreadyAssigned) {
+      alert('This salary rule is already assigned to this employee.');
+      return;
+    }
+
     try {
       setIsSaving(true);
-      const comp = allComponents.find(c => c.id === selectedComponentId);
+      const comp = allComponents.find(c => String(c.id) === String(selectedComponentId));
       const dto = {
         salaryComponentId: selectedComponentId,
         overrideAmount: overrideAmount !== '' ? parseFloat(overrideAmount) : null,
@@ -69,8 +78,11 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
     }
   };
 
-  const assignedIds = employeeComponents.map(c => c.salaryComponentId);
-  const availableComponents = allComponents.filter(c => !assignedIds.includes(c.id));
+  const assignedIds = employeeComponents
+    .map(c => c.salaryComponentId)
+    .filter(Boolean)
+    .map(String);
+  const availableComponents = allComponents.filter(c => !assignedIds.includes(String(c.id)));
 
   return (
     <div className="modal-overlay">
