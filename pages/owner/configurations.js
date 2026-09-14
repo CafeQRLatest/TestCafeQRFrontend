@@ -382,7 +382,7 @@ function ConfigurationsContent() {
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_purchase: true,
     pm_customers: false, pm_loyalty: false,
-    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: true, pm_allow_multi_customer: false,
+    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
     credit_allocation_mode: 'OLDEST_FIRST',
     
@@ -534,7 +534,7 @@ function ConfigurationsContent() {
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
             pm_dinein_auto_kot: !!d.dineInAutoPrintKotOnSettle, pm_dinein_hide_kitchen: !!d.dineInHideKitchenMode,
-            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_payroll: d.payrollEnabled !== false, pm_allow_multi_customer: false,
+            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_payroll: !!d.payrollEnabled, pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
