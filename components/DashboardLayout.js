@@ -21,9 +21,6 @@ import { getNetworkStatus } from '../utils/networkState';
  * DashboardLayout Component
  */
 export default function DashboardLayout({ children, title, subtitle, showBack = false, backUrl = null, onBack = null, noSidebar = false, hideTitle = false, noPadding = false, bare = false }) {
-  if (bare) {
-    return <>{children}</>;
-  }
   const { logout, userRole, email, firstName, lastName, fullName, orgId, orgName, clientName, terminalId, terminalName, isAuthenticated, assignedMenus } = useAuth();
   const router = useRouter();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -172,6 +169,10 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
       setCollapsed(!collapsed);
     }
   };
+
+  if (bare) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="dashboard-wrapper" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>

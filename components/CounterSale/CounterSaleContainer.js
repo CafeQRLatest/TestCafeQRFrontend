@@ -219,7 +219,6 @@ export default function CounterSaleContainer(props) {
               order.handlePlaceOrder(paymentPayload);
             }}
             onCreditCustomerCreated={props.onCreditCustomerCreated}
-            themeColor="green"
             disableEditDiscount={true}
           />
         )}

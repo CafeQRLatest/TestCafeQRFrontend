@@ -236,7 +236,7 @@ export default function SalaryComponents({ embedded = false }) {
             <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
             <form onSubmit={handleSave}>
               <div className="form-group mb-4">
-                <label>Rule Name (e.g., "Health Insurance")</label>
+                <label>Rule Name (e.g., &quot;Health Insurance&quot;)</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} required />
               </div>
               <div className="flex gap-4 mb-4">
