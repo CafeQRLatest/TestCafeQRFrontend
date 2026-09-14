@@ -36,7 +36,7 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
   if (!isOpen || !employee) return null;
 
   const handleAssignComponent = async () => {
-    if (!selectedComponentId) return;
+    if (!selectedComponentId || isSaving) return;
     try {
       setIsSaving(true);
       const comp = allComponents.find(c => c.id === selectedComponentId);
