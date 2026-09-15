@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -11,6 +11,38 @@ import { fetchSalesScreenDetails, fetchBootstrap, fetchSaleConfigurations } from
 import { isKitchenModuleEnabled } from '../../utils/moduleVisibility';
 import NiceSelect from '../../components/NiceSelect';
 import { FaExclamationCircle } from 'react-icons/fa';
+import { normalizeOrder } from '../../utils/normalizeOrder';
+import {
+  isAndroidPrintStationEnabled,
+  markCloudPrintJobPrinted,
+} from '../../utils/cloudPrintStation';
+import { isNativePrintServicePaired } from '../../utils/printServiceClient';
+
+const KotPrint = React.lazy(() => import('../../components/KotPrint'));
+
+const KITCHEN_PRINT_STATUSES = new Set(['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY']);
+const FINAL_BILL_PRINT_STATUSES = new Set(['BILLED', 'COMPLETED']);
+
+function resolveCreatedPrintKind(order, requestedKind) {
+  if (requestedKind === 'settle') return 'settle';
+  const status = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+  if (KITCHEN_PRINT_STATUSES.has(status)) return 'kot';
+  if (FINAL_BILL_PRINT_STATUSES.has(status)) return 'bill';
+  return requestedKind === 'kot' ? 'kot' : 'bill';
+}
+
+function localPrintWillHandleKind(kind) {
+  if (typeof window === 'undefined') return false;
+  if (!['kot', 'bill'].includes(kind)) return false;
+  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
+  const mode = window.localStorage.getItem('PRINTER_MODE');
+  return (
+    isAndroidPrintStationEnabled() ||
+    isNativePrintServicePaired() ||
+    mode === 'winspool' ||
+    mode === 'webusb'
+  );
+}
 
 export default function PosSalesPage() {
   const router = useRouter();
@@ -23,6 +55,8 @@ export default function PosSalesPage() {
   const [creditCustomers, setCreditCustomers] = useState([]);
   const [selectedTable, setSelectedTable] = useState(null);
   const [branches, setBranches] = useState([]);
+  const [printOrder, setPrintOrder] = useState(null);
+  const [printKind, setPrintKind] = useState('bill');
 
   const isMountedRef = useRef(true);
   const isPopStateRef = useRef(false);
@@ -254,16 +288,40 @@ export default function PosSalesPage() {
     }
   }, [needsOrderTypeModal, isTableManagementOn, fetchActiveTables, router]);
 
-  const handleOrderCreated = useCallback((order) => {
+  const handleOrderCreated = useCallback(async (rawOrder, kind) => {
+    const order = normalizeOrder(rawOrder);
+    const resolvedPrintKind = resolveCreatedPrintKind(order, kind);
+
+    // Auto-print locally if local print is configured
+    if (localPrintWillHandleKind(resolvedPrintKind)) {
+      let orderForPrint = order;
+      if (order?.id) {
+        try {
+          await markCloudPrintJobPrinted(order, resolvedPrintKind);
+        } catch (error) {
+          console.warn('Unable to pre-emptively mark cloud print job printed:', error?.message || error);
+        }
+        if (resolvedPrintKind === 'bill' || resolvedPrintKind === 'kot') {
+          try {
+            const { data } = await api.get(`/api/v1/orders/${order.id}`);
+            orderForPrint = data?.data || order;
+          } catch (error) {
+            console.warn('Unable to hydrate order before auto print:', error?.message || error);
+          }
+        }
+      }
+      setPrintOrder(orderForPrint);
+      setPrintKind(resolvedPrintKind);
+    }
+
+    // Navigate back to board/order-type
     if (needsOrderTypeModal) {
-      // Re-fetch tables to show updated occupancy and return to table picker
       if (isTableManagementOn) {
         fetchActiveTables();
       }
       setSelectedTable(null);
       setActiveView('order_type');
     } else {
-      // Takeaway/counter mode: remain on billing view with clean state for next sale
       setSelectedTable({
         tableNumber: 'COUNTER',
         id: null,
@@ -271,6 +329,75 @@ export default function PosSalesPage() {
       });
     }
   }, [needsOrderTypeModal, isTableManagementOn, fetchActiveTables]);
+
+  const handleLocalPrintDone = useCallback(() => {
+    const printedOrder = printOrder;
+    const printedKind = printKind;
+    setPrintOrder(null);
+
+    const isTakeawayOrder = printedOrder && (
+      String(printedOrder.fulfillmentType || printedOrder.fulfillment_type || '').toUpperCase() === 'TAKEAWAY' ||
+      String(printedOrder.orderType || printedOrder.order_type || '').toUpperCase() === 'TAKEAWAY' ||
+      printedOrder.tableNumber === 'COUNTER'
+    );
+
+    const isDineInOrder = printedOrder && !isTakeawayOrder && (
+      String(printedOrder.fulfillmentType || printedOrder.fulfillment_type || '').toUpperCase() === 'DINE_IN' ||
+      (printedOrder.tableNumber && printedOrder.tableNumber !== 'COUNTER')
+    );
+
+    const shouldChainedPrintKot = (
+      (config?.takeawayAutoPrintKotOnSettle && isTakeawayOrder) ||
+      (config?.dineInAutoPrintKotOnSettle && isDineInOrder)
+    ) && printedKind === 'bill' && !printedOrder?._chainedKotDone;
+
+    if (printedOrder && !printedOrder.offline) {
+      markCloudPrintJobPrinted(printedOrder, printedKind)
+        .catch((error) => {
+          console.warn('Unable to mark cloud print job printed:', error?.message || error);
+        })
+        .finally(() => {
+          if (shouldChainedPrintKot) {
+            setTimeout(() => {
+              setPrintOrder({ ...printedOrder, _chainedKotDone: true });
+              setPrintKind('kot');
+            }, 300);
+          }
+        });
+    } else {
+      if (shouldChainedPrintKot) {
+        setTimeout(() => {
+          setPrintOrder({ ...printedOrder, _chainedKotDone: true });
+          setPrintKind('kot');
+        }, 300);
+      }
+    }
+  }, [config?.takeawayAutoPrintKotOnSettle, config?.dineInAutoPrintKotOnSettle, printKind, printOrder]);
+
+  const handlePrintOrder = useCallback(async (order, kind) => {
+    try {
+      if (!localPrintWillHandleKind(kind)) {
+        return;
+      }
+
+      let fullOrder = order;
+      if (order?.id) {
+        try {
+          const { data } = await api.get(`/api/v1/orders/${order.id}`);
+          fullOrder = data?.data || order;
+        } catch (_) {}
+      }
+      setPrintOrder({ ...fullOrder, _manualPrint: true });
+      setPrintKind(kind);
+      if (order?.id) {
+        markCloudPrintJobPrinted(order, kind).catch((error) => {
+          console.warn('Unable to mark cloud print job printed:', error?.message || error);
+        });
+      }
+    } catch (e) {
+      console.error('Print preparation failed', e);
+    }
+  }, []);
 
   // Branch Selection Screen
   if (activeView === 'branch_select' || (!authLoading && !orgId)) {
@@ -385,7 +512,20 @@ export default function PosSalesPage() {
             initialCreditCustomers={creditCustomers}
             onBack={handleBackFromBilling}
             onOrderCreated={handleOrderCreated}
+            onPrintOrder={handlePrintOrder}
           />
+        )}
+
+        {printOrder && (
+          <Suspense fallback={null}>
+            <KotPrint
+              order={printOrder}
+              kind={printKind}
+              autoPrint={true}
+              onClose={() => setPrintOrder(null)}
+              onPrint={handleLocalPrintDone}
+            />
+          </Suspense>
         )}
       </div>
     </DashboardLayout>

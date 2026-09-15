@@ -237,7 +237,8 @@ export default function PosCounterHeader({
   catalog,
   order,
   ui,
-  router
+  router,
+  onPrintOrder
 }) {
   const { 
     mode: orderMode, setMode: setOrderMode, activeOrderMode, 
@@ -343,6 +344,7 @@ export default function PosCounterHeader({
         open={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
         currencySym={ui.sym}
+        onPrint={onPrintOrder}
       />
     </>
   );
