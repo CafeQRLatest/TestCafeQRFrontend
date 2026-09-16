@@ -108,7 +108,18 @@ export function isPrintStationEnabled() {
     return true;
   }
 
-  return hasExplicitPrintStationFlag() || hasActiveLocalPrinter('kot') || hasActiveLocalPrinter('bill');
+  const hasAnyPrinterConfigured = Boolean(
+    window.localStorage.getItem('PRINTER_READY') === '1' ||
+    window.localStorage.getItem('PRINTER_MODE') ||
+    window.localStorage.getItem('WIN_PRINTER_NAME') ||
+    window.localStorage.getItem('WIN_PRINTER_KOT') ||
+    window.localStorage.getItem('WIN_PRINTER_BILL') ||
+    window.localStorage.getItem('BT_PRINTER_ADDR') ||
+    window.localStorage.getItem('BT_PRINTER_ADDR_KOT') ||
+    readJsonArray('PRINT_PROFILES').length > 0
+  );
+
+  return hasExplicitPrintStationFlag() || hasAnyPrinterConfigured;
 }
 
 export function isCloudPrintCoolingDown() {
@@ -434,8 +445,8 @@ export async function autoPrintNewRemoteOrders(orders, profile) {
     const orderId = String(order.id);
     const status = String(order.orderStatus || order.order_status || '').toUpperCase();
 
-    // Check KOT printing (Kitchen Statuses)
-    const isKotStatus = ['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY'].includes(status);
+    // Check KOT printing (Kitchen & Order Statuses)
+    const isKotStatus = ['KITCHEN', 'ORDERED', 'CONFIRMED', 'IN_PROGRESS', 'READY', 'PENDING', 'NEW', 'SAVED', 'OPEN'].includes(status);
     if (isKotStatus) {
       const jobKey = `${orderId}:kot`;
       if (!printedJobs[jobKey]) {
