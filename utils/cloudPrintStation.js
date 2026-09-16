@@ -105,7 +105,7 @@ export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
   
   if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') {
-    return true;
+    return false;
   }
 
   const hasAnyPrinterConfigured = Boolean(
