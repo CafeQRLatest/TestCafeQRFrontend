@@ -106,6 +106,66 @@ const getItemUnitPrice = (item) => {
   return total / qty;
 };
 
+function calculateKotDeltaJs(oldOrder, newOrder) {
+  const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
+  const newLines = newOrder?.lines || newOrder?.orderLines || newOrder?.order_items || [];
+
+  const oldMap = new Map();
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    oldMap.set(key, (oldMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const newMap = new Map();
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    newMap.set(key, (newMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const addedLines = [];
+  const removedLines = [];
+
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = oldMap.get(key) || 0;
+    const newQty = Number(line.quantity || line.qty || 0);
+    if (newQty > oldQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
+      addedLines.push({
+        ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
+        quantity: newQty - oldQty,
+        qty: newQty - oldQty
+      });
+    }
+  });
+
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = Number(line.quantity || line.qty || 0);
+    const newQty = newMap.get(key) || 0;
+    if (oldQty > newQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
+      removedLines.push({
+        ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
+        quantity: oldQty - newQty,
+        qty: oldQty - newQty
+      });
+    }
+  });
+
+  return { addedLines, removedLines };
+}
+
 const OPEN_ORDER_STATUSES = new Set([
   'DRAFT',
   'CONFIRMED',
@@ -2070,8 +2130,24 @@ export default function PosOrderTypeModal({
             }}
             onSave={async (updatedOrder) => {
               try {
-                await api.patch(`/api/v1/orders/${editingOrder.id}`, updatedOrder);
+                const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, updatedOrder);
                 notify('success', 'Order updated successfully');
+                const savedOrder = res?.data?.data;
+                if (savedOrder) {
+                  const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, savedOrder);
+                  if (addedLines.length > 0 || removedLines.length > 0) {
+                    setPrintOrder({
+                      ...savedOrder,
+                      lines: addedLines,
+                      removed_items: removedLines,
+                      removedItems: removedLines,
+                      is_edited: true,
+                      isEdited: true,
+                      _manualPrint: true,
+                    });
+                    setPrintKind('kot');
+                  }
+                }
                 setEditingOrder(null);
                 setSelectedLiveOrder(null);
                 fetchLiveOrders();

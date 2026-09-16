@@ -93,8 +93,14 @@ function calculateKotDeltaJs(oldOrder, newOrder) {
     const oldQty = oldMap.get(key) || 0;
     const newQty = Number(line.quantity || line.qty || 0);
     if (newQty > oldQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
       addedLines.push({
         ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
         quantity: newQty - oldQty,
         qty: newQty - oldQty
       });
@@ -106,8 +112,14 @@ function calculateKotDeltaJs(oldOrder, newOrder) {
     const oldQty = Number(line.quantity || line.qty || 0);
     const newQty = newMap.get(key) || 0;
     if (oldQty > newQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
       removedLines.push({
         ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
         quantity: oldQty - newQty,
         qty: oldQty - newQty
       });

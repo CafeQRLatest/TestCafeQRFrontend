@@ -54,7 +54,13 @@ function getItemCategoryName(oi) {
   const category = oi?.categoryName || oi?.category_name || oi?.category || oi?.menu_items?.category || oi?.product?.category;
   if (!category) return '';
   if (typeof category === 'string') return category.trim();
-  return String(category.name || category.categoryName || '').trim();
+  return String(category.name || category.categoryName || category.label || '').trim();
+}
+
+function getItemCategoryId(oi) {
+  const catId = oi?.categoryId || oi?.category_id || oi?.category?.id || oi?.menu_items?.category_id || oi?.product?.category_id || oi?.product?.categoryId;
+  if (!catId) return '';
+  return String(catId).trim();
 }
 
 function toLegacyItemsFromOrderItems(orderItems) {
@@ -62,7 +68,7 @@ function toLegacyItemsFromOrderItems(orderItems) {
     name: oi?.productName || oi?.product_name || oi?.name || oi?.item_name || oi?.itemName || 'Item',
     quantity: Number(oi?.quantity ?? oi?.qty ?? 1),
     price: Number(oi?.unitPrice ?? oi?.price ?? oi?.rate ?? 0),
-    category: String(oi?.categoryName || oi?.category || '').trim(),
+    category: getItemCategoryName(oi),
     variantname: oi?.variantName || oi?.variant_name || null,
   }));
 }
@@ -671,16 +677,29 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         const cats = Array.isArray(r.categories) ? r.categories : [];
         const norm = (s) => String(s || '').trim().toUpperCase();
         const catSet = new Set(cats.map(norm));
-        const subset = allOrderItems.filter((oi) => catSet.has(norm(getItemCategoryName(oi))));
+        const subset = allOrderItems.filter((oi) => {
+          const name = norm(getItemCategoryName(oi));
+          const id = norm(getItemCategoryId(oi));
+          if (catSet.has(name) || (id && catSet.has(id))) return true;
+          // Partial name match fallback (e.g. "Meals" matching "Meals & Combos")
+          if (name) {
+            for (const c of catSet) {
+              if (c && (name.includes(c) || c.includes(name))) return true;
+            }
+          }
+          return false;
+        });
         if (!subset.length) continue;
 
-        subset.forEach(oi => matchedItemIds.add(oi.id || oi.productId || oi.name));
+        subset.forEach(oi => matchedItemIds.add(oi.id || oi.productId || oi.name || oi.clientLineId));
 
         const routedOrder = {
           ...normalizedOrder,
           lines: subset,
           order_items: subset,
           orderLines: subset,
+          lineItems: subset,
+          orderItems: subset,
           items: toLegacyItemsFromOrderItems(subset),
         };
         const text = buildKotText(routedOrder, restaurantProfile);
@@ -783,14 +802,24 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         }
       }
 
-      const unroutedItems = allOrderItems.filter(oi => !matchedItemIds.has(oi.id || oi.productId || oi.name));
+      const unroutedItems = allOrderItems.filter(oi => !matchedItemIds.has(oi.id || oi.productId || oi.name || oi.clientLineId));
       if (unroutedItems.length > 0) {
         const fallbackOrder = {
           ...normalizedOrder,
           lines: unroutedItems,
+          order_items: unroutedItems,
+          orderLines: unroutedItems,
+          lineItems: unroutedItems,
+          orderItems: unroutedItems,
           items: toLegacyItemsFromOrderItems(unroutedItems),
         };
         const text = buildKotText(fallbackOrder, restaurantProfile);
+
+        // Determine specific fallback printer if available, rather than broadcasting to all KOT printers
+        const primaryFallbackKotPrinter = typeof window !== 'undefined'
+          ? (localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') || localStorage.getItem('PRINT_WIN_PRINTER_NAME'))
+          : null;
+        const fallbackWinPrinters = primaryFallbackKotPrinter ? [primaryFallbackKotPrinter] : undefined;
 
         if (onAndroidPWA) {
           try {
@@ -802,6 +831,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
               jobKind: 'kot',
               outputFormat: nativeOutput,
               document: { ...baseDocument, order: fallbackOrder },
+              winPrinterNames: fallbackWinPrinters,
               ...getPrintJobMeta(fallbackOrder, 'kot', 'fallback-android'),
             });
           } catch (e) {
@@ -820,6 +850,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             jobKind: 'kot',
             outputFormat: nativeOutput,
             document: { ...baseDocument, order: fallbackOrder },
+            winPrinterNames: fallbackWinPrinters,
             ...getPrintJobMeta(fallbackOrder, 'kot', 'fallback-main'),
           });
         }

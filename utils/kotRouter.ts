@@ -70,16 +70,31 @@ function getLines(order: KotOrder): OrderLine[] {
 }
 
 function getCategoryIdForLine(line: OrderLine): string {
-  return String(line.category_id || '').trim();
+  return String(
+    line.category_id ||
+    line.categoryId ||
+    (line as any)?.category?.id ||
+    (line as any)?.product?.category_id ||
+    (line as any)?.product?.categoryId ||
+    (line as any)?.menu_items?.category_id ||
+    ''
+  ).trim();
 }
 
 function getCategoryNameForLine(line: OrderLine): string {
-  return String(
-    line.category_name ||
+  const cat = line.category_name ||
+    line.categoryName ||
+    (line as any)?.category ||
+    (line as any)?.category?.name ||
     (line as any)?.product?.category_name ||
+    (line as any)?.product?.categoryName ||
     (line as any)?.menu_items?.category_name ||
-    ''
-  ).trim().toLowerCase();
+    (line as any)?.menu_items?.categoryName ||
+    '';
+  if (typeof cat === 'object' && cat !== null) {
+    return String(cat.name || cat.categoryName || cat.label || '').trim().toLowerCase();
+  }
+  return String(cat || '').trim().toLowerCase();
 }
 
 /**
@@ -118,6 +133,14 @@ export function groupItemsByStation(
     if (!matched && catName) {
       matched = cfg.stations.find(s =>
         Array.isArray(s.categoryIds) && s.categoryIds.some(c => String(c).trim().toLowerCase() === catName)
+      ) ?? null;
+    }
+    if (!matched && catName) {
+      matched = cfg.stations.find(s =>
+        Array.isArray(s.categoryIds) && s.categoryIds.some(c => {
+          const str = String(c).trim().toLowerCase();
+          return str.length > 0 && (catName.includes(str) || str.includes(catName));
+        })
       ) ?? null;
     }
 
