@@ -15,6 +15,7 @@ import { normalizeOrder } from '../../utils/normalizeOrder';
 import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
+  localPrintWillHandleKind,
 } from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 
@@ -29,19 +30,6 @@ function resolveCreatedPrintKind(order, requestedKind) {
   if (KITCHEN_PRINT_STATUSES.has(status)) return 'kot';
   if (FINAL_BILL_PRINT_STATUSES.has(status)) return 'bill';
   return requestedKind === 'kot' ? 'kot' : 'bill';
-}
-
-function localPrintWillHandleKind(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  const mode = window.localStorage.getItem('PRINTER_MODE');
-  return (
-    isAndroidPrintStationEnabled() ||
-    isNativePrintServicePaired() ||
-    mode === 'winspool' ||
-    mode === 'webusb'
-  );
 }
 
 export default function PosSalesPage() {

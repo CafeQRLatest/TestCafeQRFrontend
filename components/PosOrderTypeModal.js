@@ -45,7 +45,8 @@ import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
   isPrintStationEnabled,
-  enqueueCloudPrintJob
+  enqueueCloudPrintJob,
+  localPrintWillHandleKind,
 } from '../utils/cloudPrintStation';
 import PaymentDialog from './PaymentDialog';
 import KotPrint from './KotPrint';
@@ -237,12 +238,7 @@ function orderStatusBadgeStyle(status) {
   return { bg: '#f8fafc', color: '#475569', border: '#e2e8f0' };
 }
 
-function localPrintWillHandleKind(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (isAndroidPrintStationEnabled()) return false;
-  return !isPrintStationEnabled();
-}
+
 
 /* ─── Live Order Board Subcomponent (Vertical List & Responsive Cards) ─── */
 function LiveOrderBoardView({

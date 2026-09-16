@@ -51,6 +51,56 @@ export function isAndroidPrintStationEnabled() {
   return isNativeAndroid() && (hasExplicitPrintStationFlag() || hasAndroidBluetoothConfig());
 }
 
+export function hasActiveLocalPrinter(kind = 'kot') {
+  if (!isBrowser()) return false;
+  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
+
+  const k = String(kind || '').toLowerCase();
+  const mode = window.localStorage.getItem('PRINTER_MODE');
+  const isReady = window.localStorage.getItem('PRINTER_READY') === '1';
+
+  // Windows Spooler check: Only valid on Windows OS with an active printer configured
+  const isWindowsOS = typeof navigator !== 'undefined' && /win/i.test(navigator.userAgent || navigator.platform || '');
+  if (mode === 'winspool') {
+    if (!isWindowsOS) return false;
+    if (!isReady) {
+      const hasWinPrinter = Boolean(
+        (k === 'kot' ? window.localStorage.getItem('WIN_PRINTER_KOT') : window.localStorage.getItem('WIN_PRINTER_BILL')) ||
+        window.localStorage.getItem('WIN_PRINTER_NAME') ||
+        readJsonArray('PRINT_PROFILES').length > 0
+      );
+      if (!hasWinPrinter) return false;
+    }
+    return true;
+  }
+
+  // WebUSB check
+  if (mode === 'webusb') {
+    return isReady;
+  }
+
+  // Native Android Bluetooth check: Only valid on Native Android App with paired BT MAC address
+  if (isNativeAndroid()) {
+    const hasBt = k === 'kot'
+      ? Boolean(window.localStorage.getItem('BT_PRINTER_ADDR_KOT') || window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_KOT').length > 0)
+      : Boolean(window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_BILL').length > 0);
+    return hasBt;
+  }
+
+  // Native Print Service pairing
+  if (isNativePrintServicePaired()) {
+    return true;
+  }
+
+  return false;
+}
+
+export function localPrintWillHandleKind(kind) {
+  if (!isBrowser()) return false;
+  if (!['kot', 'bill', 'invoice'].includes(String(kind).toLowerCase())) return false;
+  return hasActiveLocalPrinter(kind);
+}
+
 export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
   
@@ -58,15 +108,7 @@ export function isPrintStationEnabled() {
     return true;
   }
 
-  const hasConfiguredPrinter = Boolean(
-    window.localStorage.getItem('PRINTER_READY') === '1' ||
-    window.localStorage.getItem('PRINTER_MODE') ||
-    window.localStorage.getItem('BT_PRINTER_ADDR') ||
-    window.localStorage.getItem('BT_PRINTER_ADDR_KOT') ||
-    window.localStorage.getItem('PRINT_PROFILES')
-  );
-
-  return hasConfiguredPrinter || hasExplicitPrintStationFlag();
+  return hasExplicitPrintStationFlag() || hasActiveLocalPrinter('kot') || hasActiveLocalPrinter('bill');
 }
 
 export function isCloudPrintCoolingDown() {

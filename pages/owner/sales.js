@@ -25,7 +25,8 @@ import {
   markCloudPrintJobPrinted,
   isPrintStationEnabled,
   autoPrintNewRemoteOrders,
-  getRestaurantProfile
+  getRestaurantProfile,
+  localPrintWillHandleKind,
 } from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
@@ -56,18 +57,7 @@ function resolveCreatedPrintKind(order, requestedKind) {
   return requestedKind === 'kot' ? 'kot' : 'bill';
 }
 
-function localPrintWillHandleKind(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  const mode = window.localStorage.getItem('PRINTER_MODE');
-  return (
-    isAndroidPrintStationEnabled() ||
-    isNativePrintServicePaired() ||
-    mode === 'winspool' ||
-    mode === 'webusb'
-  );
-}
+
 
 function calculateKotDeltaJs(oldOrder, newOrder) {
   const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];

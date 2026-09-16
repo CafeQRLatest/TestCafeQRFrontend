@@ -39,7 +39,8 @@ import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
   isPrintStationEnabled,
-  enqueueCloudPrintJob
+  enqueueCloudPrintJob,
+  localPrintWillHandleKind,
 } from '../../utils/cloudPrintStation';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import KotPrint from '../../components/KotPrint';
@@ -143,12 +144,7 @@ function defaultHistoryRange(timezone) {
   return { from: toDateTimeInputValue(from), to: toDateTimeInputValue(to), q: '', status: '' };
 }
 
-function localPrintWillHandleKind(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (isAndroidPrintStationEnabled()) return false;
-  return !isPrintStationEnabled();
-}
+
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 

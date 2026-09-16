@@ -4,23 +4,10 @@ import { createOrder } from '../services/counterSaleApi';
 import { buildOrderPayload } from '../domain/orderPayload';
 import { isKnownOffline } from '../../../utils/networkState';
 import { allocateOfflineSequence, ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../../utils/offlineSequences';
-import { isAndroidPrintStationEnabled } from '../../../utils/cloudPrintStation';
+import { isAndroidPrintStationEnabled, localPrintWillHandleKind } from '../../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../../utils/printServiceClient';
 import { businessTimeToUtc, getLocalISOString } from '../../../utils/timezoneUtils';
 import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
-
-function localPrintWillHandleOrder(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  const mode = window.localStorage.getItem('PRINTER_MODE');
-  return (
-    isAndroidPrintStationEnabled() ||
-    isNativePrintServicePaired() ||
-    mode === 'winspool' ||
-    mode === 'webusb'
-  );
-}
 
 function createIdempotencyKey() {
   return typeof window !== 'undefined' && window.crypto?.randomUUID
@@ -128,7 +115,7 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         : (isSettleDirect || isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
 
       // Skip auto print check
-      const skipAutoPrintKinds = !knownOffline && localPrintWillHandleOrder(plannedPrintKind)
+      const skipAutoPrintKinds = !knownOffline && localPrintWillHandleKind(plannedPrintKind)
         ? [plannedPrintKind === 'kot' ? 'KOT' : 'BILL']
         : [];
 

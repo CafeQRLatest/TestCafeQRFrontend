@@ -93,7 +93,8 @@ import {
   isPrintStationEnabled,
   autoPrintNewRemoteOrders,
   getRestaurantProfile,
-  enqueueCloudPrintJob
+  enqueueCloudPrintJob,
+  localPrintWillHandleKind,
 } from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { toDisplayItems } from '../../utils/printUtils';
@@ -115,19 +116,6 @@ const slideIn = keyframes`
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 `;
-
-function localPrintWillHandleKind(kind) {
-  if (typeof window === 'undefined') return false;
-  if (!['kot', 'bill'].includes(kind)) return false;
-  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
-  const mode = window.localStorage.getItem('PRINTER_MODE');
-  return (
-    isAndroidPrintStationEnabled() ||
-    isNativePrintServicePaired() ||
-    mode === 'winspool' ||
-    mode === 'webusb'
-  );
-}
 
 function calculateKotDeltaJs(oldOrder, newOrder) {
   const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
