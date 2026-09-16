@@ -226,8 +226,13 @@ export default function usePosSaleController({
   }, [config]);
 
   const isTakeawayOrder = initialTable?.orderType === 'TAKEAWAY' || router?.query?.mode === 'TAKEAWAY';
-  const hideKitchenForTakeaway = isTakeawayOrder && config?.takeawayHideKitchenMode === true;
-  const activeOrderMode = hideKitchenForTakeaway ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
+  const isDeliveryOrder = initialTable?.orderType === 'DELIVERY' || router?.query?.mode === 'DELIVERY';
+  const isDineInOrder = !isTakeawayOrder && !isDeliveryOrder;
+
+  const hideKitchenForTakeaway = isTakeawayOrder && (config?.takeawayHideKitchenMode === true || config?.pm_takeaway_hide_kitchen === true);
+  const hideKitchenForDineIn = isDineInOrder && (config?.dineInHideKitchenMode === true || config?.pm_dinein_hide_kitchen === true);
+
+  const activeOrderMode = (hideKitchenForTakeaway || hideKitchenForDineIn) ? 'settle' : (kitchenEnabled ? orderMode : 'settle');
 
   const THEME = activeOrderMode === 'kitchen'
     ? { main: '#f97316', dark: '#ea580c', soft: '#fff7ed' }
@@ -695,7 +700,8 @@ export default function usePosSaleController({
       handleCompleteSettle,
       handlePlaceOrder,
       kitchenEnabled,
-      hideKitchenForTakeaway
+      hideKitchenForTakeaway,
+      hideKitchenForDineIn
     },
     ui: {
       zoomLevel,
