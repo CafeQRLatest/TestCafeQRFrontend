@@ -230,12 +230,12 @@ async function printClaimedJob(job) {
   const isDirected = Boolean(normalized.printerProfileId || normalized.payload?.reason === 'master');
 
   // If this order was already printed recently on local POS, skip physical re-print
-  if (orderId && normalized.kind === 'kot') {
+  if (orderId) {
     const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
     const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
-    const key = `${orderId}:kot`;
-    if (rawDedup.includes(orderId) || rawCloud.includes(orderId)) {
-      console.log(`[cloud-print] Job ${normalized.id} for order ${orderId} was already printed locally, marking completed.`);
+    const key = `${orderId}:${normalized.kind}`;
+    if (rawDedup.includes(key) || rawCloud.includes(key) || rawDedup.includes(String(orderId)) || rawCloud.includes(String(orderId))) {
+      console.log(`[cloud-print] Job ${normalized.id} (${normalized.kind}) for order ${orderId} was already printed locally, marking completed.`);
       await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
         backgroundSync: true,
         skipAuthRedirect: true,
@@ -402,6 +402,11 @@ export async function autoPrintNewRemoteOrders(orders, profile) {
     const isBillStatus = ['BILLED', 'COMPLETED'].includes(status);
     if (isBillStatus) {
       const jobKey = `${orderId}:bill`;
+      const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
+      if (rawDedup.includes(jobKey) || rawDedup.includes(orderId)) {
+        printedJobs[jobKey] = now;
+        dirty = true;
+      }
       if (!printedJobs[jobKey]) {
         printedJobs[jobKey] = now;
         dirty = true;
