@@ -471,13 +471,14 @@ export default function PosSalesPage() {
     );
   }
 
-  // Order Type & Table Selection Screen
-  if (activeView === 'order_type') {
-    return (
-      <DashboardLayout title="POS (V2)" hideTitle noPadding>
-        <Head>
-          <title>Select Order Type | POS (V2)</title>
-        </Head>
+  return (
+    <DashboardLayout title="POS (V2)" hideTitle noPadding>
+      <Head>
+        <title>{activeView === 'order_type' ? 'Select Order Type | POS (V2)' : 'POS (V2) | Cafe QR'}</title>
+      </Head>
+
+      {/* Order Type & Table Selection Screen */}
+      {activeView === 'order_type' && (
         <PosOrderTypeModal
           tables={tables}
           config={config}
@@ -485,49 +486,44 @@ export default function PosSalesPage() {
           onClose={() => router.push('/owner/dashboard')}
           onRefreshTables={fetchActiveTables}
         />
-      </DashboardLayout>
-    );
-  }
+      )}
 
-  // Main POS Billing Screen
-  return (
-    <DashboardLayout title="POS (V2)" hideTitle noPadding>
-      <Head>
-        <title>POS (V2) | Cafe QR</title>
-      </Head>
-      <div style={{
-        width: '100%',
-        height: 'calc(100dvh - 60px)',
-        minHeight: 0,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {selectedTable && (
-          <PosSaleContainer
-            key={`${selectedTable.tableNumber}-${selectedTable.orderType}-${selectedTable.id || 'counter'}`}
-            initialBootstrap={bootstrapData}
-            initialTable={selectedTable}
-            config={config}
-            initialCreditCustomers={creditCustomers}
-            onBack={handleBackFromBilling}
-            onOrderCreated={handleOrderCreated}
-            onPrintOrder={handlePrintOrder}
-          />
-        )}
-
-        {printOrder && (
-          <Suspense fallback={null}>
-            <KotPrint
-              order={printOrder}
-              kind={printKind}
-              autoPrint={true}
-              onClose={() => setPrintOrder(null)}
-              onPrint={handleLocalPrintDone}
+      {/* Main POS Billing Screen */}
+      {activeView === 'billing' && (
+        <div style={{
+          width: '100%',
+          height: 'calc(100dvh - 60px)',
+          minHeight: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {selectedTable && (
+            <PosSaleContainer
+              key={`${selectedTable.tableNumber}-${selectedTable.orderType}-${selectedTable.id || 'counter'}`}
+              initialBootstrap={bootstrapData}
+              initialTable={selectedTable}
+              config={config}
+              initialCreditCustomers={creditCustomers}
+              onBack={handleBackFromBilling}
+              onOrderCreated={handleOrderCreated}
+              onPrintOrder={handlePrintOrder}
             />
-          </Suspense>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+
+      {printOrder && (
+        <Suspense fallback={null}>
+          <KotPrint
+            order={printOrder}
+            kind={printKind}
+            autoPrint={true}
+            onClose={() => setPrintOrder(null)}
+            onPrint={handleLocalPrintDone}
+          />
+        </Suspense>
+      )}
     </DashboardLayout>
   );
 }

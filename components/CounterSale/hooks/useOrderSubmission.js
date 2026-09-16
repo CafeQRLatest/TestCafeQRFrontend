@@ -12,10 +12,13 @@ import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
 function localPrintWillHandleOrder(kind) {
   if (typeof window === 'undefined') return false;
   if (!['kot', 'bill'].includes(kind)) return false;
+  if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') return false;
+  const mode = window.localStorage.getItem('PRINTER_MODE');
   return (
     isAndroidPrintStationEnabled() ||
     isNativePrintServicePaired() ||
-    window.localStorage.getItem('PRINTER_MODE') === 'winspool'
+    mode === 'winspool' ||
+    mode === 'webusb'
   );
 }
 
@@ -44,7 +47,7 @@ function stableSerialize(value) {
     .join(',')}}`;
 }
 
-export default function useOrderSubmission({ timezone }) {
+export default function useOrderSubmission({ timezone, createOrderFn = createOrder }) {
   const [processing, setProcessing] = useState(false);
   const [showSettleDialog, setShowSettleDialog] = useState(false);
   const [orderDateTime, setOrderDateTime] = useState('');
@@ -256,7 +259,7 @@ export default function useOrderSubmission({ timezone }) {
         };
       }
 
-      const res = await createOrder(requestPayload, {
+      const res = await createOrderFn(requestPayload, {
         headers: { 'Idempotency-Key': idempotencyKey },
         skipOfflineQueue: knownOffline && effectiveOrderMode === 'settle' && !mainOfflineDevice
       });

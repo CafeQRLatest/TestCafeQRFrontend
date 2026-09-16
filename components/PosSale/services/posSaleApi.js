@@ -94,6 +94,7 @@ export async function createOrder(payload, options = {}) {
   const { data } = await api.post('/api/v1/pos/sale/orders', payload, options);
   return data;
 }
+export const createSaleOrder = createOrder;
 
 /**
  * Fetches product details by ID (delegates to existing endpoint).

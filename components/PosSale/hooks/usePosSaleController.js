@@ -20,7 +20,7 @@ import useDiscounts from '../../CounterSale/hooks/useDiscounts';
 import useOrderSubmission from '../../CounterSale/hooks/useOrderSubmission';
 
 // ── V2: Use new API for customer save + product refresh ──
-import { saveCustomer } from '../services/posSaleApi';
+import { saveCustomer, createSaleOrder } from '../services/posSaleApi';
 import { cartKeyFor, withoutDiscounts } from '../../CounterSale/domain/cart';
 import { extractUniqueCategories } from '../../CounterSale/domain/products';
 
@@ -198,7 +198,7 @@ export default function usePosSaleController({
   } = discounts;
 
   // 6. Order Submission (reused from CounterSale — uses V2 API via overridden createOrder)
-  const submission = useOrderSubmission({ timezone });
+  const submission = useOrderSubmission({ timezone, createOrderFn: createSaleOrder });
   const {
     processing,
     showSettleDialog,
