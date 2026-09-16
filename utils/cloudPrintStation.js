@@ -295,49 +295,54 @@ async function printClaimedJob(job) {
     }
   }
 
-  const text = normalized.kind === 'kot'
-    ? buildKotText(normalized.order, profile)
-    : buildReceiptText(normalized.order, null, profile);
+  if (normalized.kind === 'kot' && !normalized.printerProfileId) {
+    const { printKotByStation } = require('./kotRouter');
+    await printKotByStation(normalized.order, profile);
+  } else {
+    const text = normalized.kind === 'kot'
+      ? buildKotText(normalized.order, profile)
+      : buildReceiptText(normalized.order, null, profile);
 
-  let targetIp = undefined;
-  let targetPort = undefined;
-  let targetBt = undefined;
-  let targetWin = undefined;
+    let targetIp = undefined;
+    let targetPort = undefined;
+    let targetBt = undefined;
+    let targetWin = undefined;
 
-  if (normalized.printerProfileId && typeof window !== 'undefined') {
-    try {
-      const rawProfiles = window.localStorage.getItem('PRINT_PROFILES');
-      const profiles = rawProfiles ? JSON.parse(rawProfiles) : [];
-      const matchedProfile = Array.isArray(profiles) ? profiles.find(p => p?.id === normalized.printerProfileId) : null;
-      if (matchedProfile) {
-        if (matchedProfile.connectionType === 'NETWORK' && matchedProfile.host) {
-          targetIp = matchedProfile.host;
-          targetPort = Number(matchedProfile.port || 9100);
-        } else if ((matchedProfile.connectionType === 'BLUETOOTH' || matchedProfile.connectionType === 'BLUETOOTH_COM') && (matchedProfile.btAddress || matchedProfile.macAddress)) {
-          targetBt = [matchedProfile.btAddress || matchedProfile.macAddress];
-        } else if (matchedProfile.connectionType === 'WINDOWS_QUEUE' && matchedProfile.windowsPrinterName) {
-          targetWin = [matchedProfile.windowsPrinterName];
+    if (normalized.printerProfileId && typeof window !== 'undefined') {
+      try {
+        const rawProfiles = window.localStorage.getItem('PRINT_PROFILES');
+        const profiles = rawProfiles ? JSON.parse(rawProfiles) : [];
+        const matchedProfile = Array.isArray(profiles) ? profiles.find(p => p?.id === normalized.printerProfileId) : null;
+        if (matchedProfile) {
+          if (matchedProfile.connectionType === 'NETWORK' && matchedProfile.host) {
+            targetIp = matchedProfile.host;
+            targetPort = Number(matchedProfile.port || 9100);
+          } else if ((matchedProfile.connectionType === 'BLUETOOTH' || matchedProfile.connectionType === 'BLUETOOTH_COM') && (matchedProfile.btAddress || matchedProfile.macAddress)) {
+            targetBt = [matchedProfile.btAddress || matchedProfile.macAddress];
+          } else if (matchedProfile.connectionType === 'WINDOWS_QUEUE' && matchedProfile.windowsPrinterName) {
+            targetWin = [matchedProfile.windowsPrinterName];
+          }
         }
-      }
-    } catch { }
-  }
+      } catch { }
+    }
 
-  await printUniversal({
-    text,
-    allowPrompt: false,
-    allowSystemDialog: false,
-    codepage: 0,
-    jobId: normalized.id,
-    jobKind: normalized.kind,
-    ip: targetIp,
-    port: targetPort,
-    btAddresses: targetBt,
-    winPrinterNames: targetWin,
-    document: {
-      order: normalized.order,
-      restaurant: profile,
-    },
-  });
+    await printUniversal({
+      text,
+      allowPrompt: false,
+      allowSystemDialog: false,
+      codepage: 0,
+      jobId: normalized.id,
+      jobKind: normalized.kind,
+      ip: targetIp,
+      port: targetPort,
+      btAddresses: targetBt,
+      winPrinterNames: targetWin,
+      document: {
+        order: normalized.order,
+        restaurant: profile,
+      },
+    });
+  }
 
   await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
     backgroundSync: true,
