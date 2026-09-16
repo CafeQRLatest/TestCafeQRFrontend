@@ -57,8 +57,16 @@ export function isPrintStationEnabled() {
   if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') {
     return true;
   }
-  
-  return hasExplicitPrintStationFlag();
+
+  const hasConfiguredPrinter = Boolean(
+    window.localStorage.getItem('PRINTER_READY') === '1' ||
+    window.localStorage.getItem('PRINTER_MODE') ||
+    window.localStorage.getItem('BT_PRINTER_ADDR') ||
+    window.localStorage.getItem('BT_PRINTER_ADDR_KOT') ||
+    window.localStorage.getItem('PRINT_PROFILES')
+  );
+
+  return hasConfiguredPrinter || hasExplicitPrintStationFlag();
 }
 
 export function isCloudPrintCoolingDown() {

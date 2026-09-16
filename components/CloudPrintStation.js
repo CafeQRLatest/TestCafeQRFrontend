@@ -65,18 +65,23 @@ export default function CloudPrintStation({ onJobsChanged }) {
         return;
       }
       running = true;
+      let claimedCount = 0;
       try {
         setStatus('Checking');
         const jobs = await claimAndPrintCloudJobs(3);
         if (!alive) return;
-        setLastCount(jobs.length);
-        setStatus(jobs.length ? 'Printed' : 'Idle');
-        if (jobs.length) onJobsChanged?.();
+        claimedCount = jobs ? jobs.length : 0;
+        setLastCount(claimedCount);
+        setStatus(claimedCount ? 'Printed' : 'Idle');
+        if (claimedCount) onJobsChanged?.();
       } catch {
         if (alive) setStatus('Waiting');
       } finally {
         running = false;
-        if (alive) timerId = window.setTimeout(tick, 5000);
+        if (alive) {
+          const nextDelay = claimedCount > 0 ? 200 : 1000;
+          timerId = window.setTimeout(tick, nextDelay);
+        }
       }
     };
 
