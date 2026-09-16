@@ -68,10 +68,27 @@ export default function SalaryComponents({ embedded = false }) {
 
   const handleSaveComponent = async (e) => {
     e.preventDefault();
-    if (!name) return;
-    
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    const isDuplicate = components.some(
+      c => c.id !== editingComponent?.id && c.name?.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      setConfirmModal({
+        title: 'Duplicate Rule Name',
+        message: `A salary rule with the name "${trimmedName}" already exists.`,
+        type: 'error',
+        confirmText: 'OK',
+        confirmVariant: 'primary',
+        showCancel: false,
+        onConfirm: () => setConfirmModal(null)
+      });
+      return;
+    }
+
     const payload = {
-      name,
+      name: trimmedName,
       type,
       amountType,
       defaultAmount: amountType === 'FIXED' ? parseFloat(defaultAmount) : null,
