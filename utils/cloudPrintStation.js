@@ -98,6 +98,7 @@ export function hasActiveLocalPrinter(kind = 'kot') {
 export function localPrintWillHandleKind(kind) {
   if (!isBrowser()) return false;
   if (!['kot', 'bill', 'invoice'].includes(String(kind).toLowerCase())) return false;
+  if (!isPrintStationEnabled() && !isNativePrintServicePaired()) return false;
   return hasActiveLocalPrinter(kind);
 }
 
@@ -105,6 +106,25 @@ export function isPrintStationEnabled() {
   if (!isBrowser()) return false;
   
   if (window.localStorage.getItem('CAFEQR_PREFER_CLOUD_PRINT') === '1') {
+    return false;
+  }
+
+  if (window.localStorage.getItem('CAFEQR_IS_CLIENT_TERMINAL') === '1') {
+    return false;
+  }
+
+  if (hasExplicitPrintStationFlag()) {
+    return true;
+  }
+
+  if (window.localStorage.getItem('CAFEQR_PRINT_STATION_DISABLED') === '1') {
+    return false;
+  }
+
+  // Mobile Web / Mobile Browser check: Unless explicitly enabled via CAFEQR_PRINT_STATION_ENABLED === '1',
+  // mobile web browsers (Waiters taking orders on phones/tablets) are default Order Placement Clients, NOT Print Stations.
+  const isMobileUserAgent = typeof navigator !== 'undefined' && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+  if (isMobileUserAgent && !isNativeAndroid()) {
     return false;
   }
 
@@ -119,7 +139,7 @@ export function isPrintStationEnabled() {
     readJsonArray('PRINT_PROFILES').length > 0
   );
 
-  return hasExplicitPrintStationFlag() || hasAnyPrinterConfigured;
+  return hasAnyPrinterConfigured;
 }
 
 export function isCloudPrintCoolingDown() {
