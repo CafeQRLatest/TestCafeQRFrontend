@@ -115,6 +115,11 @@ export function groupItemsByStation(
     if (!matched && catName) {
       matched = nameToStation.get(catName) ?? null;
     }
+    if (!matched && catName) {
+      matched = cfg.stations.find(s =>
+        Array.isArray(s.categoryIds) && s.categoryIds.some(c => String(c).trim().toLowerCase() === catName)
+      ) ?? null;
+    }
 
     const key = matched ? matched.id : fallbackKey;
     if (!bucketMap.has(key)) {

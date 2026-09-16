@@ -28,13 +28,75 @@ const LS_KEY = 'PRINT_ROUTING_V1';
 
 // ---------- local storage ----------
 
+function readJsonArray(key: string): string[] {
+  try {
+    if (typeof window === 'undefined') return [];
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function getPrintRouting(): PrintRoutingConfig {
   try {
     if (typeof window === 'undefined') return empty();
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return { ...empty(), ...JSON.parse(raw) };
-  } catch {}
-  return empty();
+    
+    // 1. Try reading PRINT_ROUTING_V1 first
+    const rawRouting = localStorage.getItem(LS_KEY);
+    if (rawRouting) {
+      const parsed = JSON.parse(rawRouting);
+      if (parsed && (parsed.stations?.length > 0 || parsed.billPrinters?.length > 0)) {
+        return { ...empty(), ...parsed };
+      }
+    }
+
+    // 2. Fall back to converting PRINT_KOT_ROUTES_V1 & legacy localStorage settings
+    const rawLegacyRoutes = localStorage.getItem('PRINT_KOT_ROUTES_V1');
+    const legacyRoutes = rawLegacyRoutes ? JSON.parse(rawLegacyRoutes) : [];
+    const routingEnabled = localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
+
+    const defaultKotPrinters: PrinterTarget[] = readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').map(name => ({
+      type: 'winspool' as const,
+      printerName: name,
+    }));
+    const billPrinters: PrinterTarget[] = readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').map(name => ({
+      type: 'winspool' as const,
+      printerName: name,
+    }));
+
+    const masterKotEnabled = localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
+    const masterKotPrinters: PrinterTarget[] = readJsonArray('PRINT_MASTER_KOT_PRINTERS').map(name => ({
+      type: 'winspool' as const,
+      printerName: name,
+    }));
+
+    const stations: KitchenStation[] = (Array.isArray(legacyRoutes) ? legacyRoutes : [])
+      .filter((r: any) => r && r.enabled !== false && Array.isArray(r.categories) && r.categories.length > 0)
+      .map((r: any) => {
+        const printerTargets: PrinterTarget[] = (Array.isArray(r.printerNames) ? r.printerNames : [])
+          .filter(Boolean)
+          .map((name: string) => ({ type: 'winspool' as const, printerName: name }));
+        return {
+          id: r.id || String(Math.random()),
+          name: r.label || r.name || 'Kitchen Station',
+          categoryIds: r.categories || [],
+          printers: printerTargets,
+        };
+      });
+
+    return {
+      billPrinters,
+      kotDefaultPrinters: defaultKotPrinters,
+      stations: routingEnabled ? stations : [],
+      printMasterKot: masterKotEnabled,
+      masterKotPrinters: masterKotEnabled ? masterKotPrinters : [],
+    };
+  } catch {
+    return empty();
+  }
 }
 
 export function savePrintRouting(cfg: PrintRoutingConfig): void {

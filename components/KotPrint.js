@@ -679,6 +679,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         const routedOrder = {
           ...normalizedOrder,
           lines: subset,
+          order_items: subset,
+          orderLines: subset,
           items: toLegacyItemsFromOrderItems(subset),
         };
         const text = buildKotText(routedOrder, restaurantProfile);

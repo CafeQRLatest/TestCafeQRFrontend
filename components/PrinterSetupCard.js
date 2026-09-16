@@ -489,6 +489,27 @@ function saveNetworkPrinters() {
     writeJson('PRINT_MASTER_KOT_PRINTERS', masterKotPrinters);
     writeJson('PRINT_KOT_ROUTES_V1', routes);
 
+    // Sync to unified PRINT_ROUTING_V1 key for background print routing
+    const unifiedStations = routes
+      .filter(r => r && r.enabled !== false && Array.isArray(r.categories) && r.categories.length > 0)
+      .map(r => ({
+        id: r.id,
+        name: r.label || r.name || 'Kitchen Station',
+        categoryIds: r.categories || [],
+        printers: (Array.isArray(r.printerNames) ? r.printerNames : []).map(name => ({ type: 'winspool', printerName: name })),
+      }));
+    const unifiedMasterPrinters = masterKotPrinters.map(name => ({ type: 'winspool', printerName: name }));
+    const unifiedDefaultKot = kot.map(name => ({ type: 'winspool', printerName: name }));
+    const unifiedBill = bill.map(name => ({ type: 'winspool', printerName: name }));
+
+    writeJson('PRINT_ROUTING_V1', {
+      billPrinters: unifiedBill,
+      kotDefaultPrinters: unifiedDefaultKot,
+      stations: routingEnabled ? unifiedStations : [],
+      printMasterKot: masterKotEnabled,
+      masterKotPrinters: unifiedMasterPrinters,
+    });
+
     setMsg(bill.length ? `Saved ${bill.length} bill printer(s) and ${kot.length} KOT printer(s).` : 'Pick at least one bill printer first.');
   };
 
