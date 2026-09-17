@@ -528,6 +528,13 @@ const sanitizeConfiguration = (configuration) => {
     defaults[modeKey] = 'MIRROR';
   });
 
+  if (Array.isArray(defaults.masterKotProfileIds)) {
+    defaults.masterKotProfileIds = defaults.masterKotProfileIds.filter((profileId) => {
+      const profile = profileMap.get(profileId);
+      return profile && profile.enabled !== false && profileSupportsDocument(profile, 'KOT');
+    });
+  }
+
   return {
     ...configuration,
     defaults,
@@ -750,7 +757,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       api.get('/api/v1/print-configurations/effective', {
         params: { terminalId: terminalId || undefined, orgId: currentOrgId || undefined },
       }).catch((error) => ({ error })),
-      api.get('/api/v1/print-stations').catch(() => ({ data: { data: [] } })),
+      Promise.resolve({ data: { data: [] } }),
       api.get('/api/v1/terminals').catch(() => ({ data: { data: [] } })),
       api.get('/api/v1/products/categories').catch(() => ({ data: { data: [] } })),
     ];
@@ -888,9 +895,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
   };
 
   const persistConfiguration = async (candidate = printConfig) => {
-    const validationError = assignmentValidationError(candidate);
-    if (validationError) throw new Error(validationError);
     let settings = sanitizeConfiguration(candidate);
+    const validationError = assignmentValidationError(settings);
+    if (validationError) throw new Error(validationError);
     let cloudSettings = settings;
 
     if (scopeType === 'TERMINAL') {
