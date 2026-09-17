@@ -895,7 +895,7 @@ function CustomerLoyaltyTab() {
     setAccount(null);
     setTransactions([]);
     try {
-      const acc = await fetchCustomerLoyalty(cid);
+      const acc = await fetchCustomerLoyalty(cid, true);
       setAccount(acc);
       const txns = await fetchCustomerTransactions(cid, 0, 100);
       setTransactions(txns?.content || []);
