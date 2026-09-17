@@ -6,7 +6,8 @@ import { allocateOfflineSequence, isMainOfflineBillingDevice } from '../../../..
 
 // Mock the print utility components to avoid loading their code, which relies on global fetch/window APIs
 jest.mock('../../../../utils/cloudPrintStation', () => ({
-  isAndroidPrintStationEnabled: jest.fn(() => false)
+  isAndroidPrintStationEnabled: jest.fn(() => false),
+  localPrintWillHandleKind: jest.fn(() => false)
 }));
 
 jest.mock('../../../../utils/printServiceClient', () => ({

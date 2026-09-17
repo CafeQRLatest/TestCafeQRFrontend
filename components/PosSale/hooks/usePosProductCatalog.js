@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PRODUCT_PAGE_SIZE } from '../../CounterSale/domain/counterSale.constants';
 import { getStandardMatches } from '../../CounterSale/domain/products';
+import { isVegProduct } from '../../CounterSale/domain/cart';
 import { fetchPosProducts } from '../services/posSaleApi';
 
 /**
@@ -167,7 +168,7 @@ export default function usePosProductCatalog({
   const visibleProducts = useMemo(() => {
     if (dietFilter === 'ALL') return products;
     if (dietFilter === 'VEG') {
-      return products.filter(p => p.isVeg === true || p.is_veg === true || String(p.foodType || '').toUpperCase() === 'VEG');
+      return products.filter(p => isVegProduct(p));
     }
     if (dietFilter === 'TRENDING') {
       return Array.isArray(trendingProductIds) && trendingProductIds.length
