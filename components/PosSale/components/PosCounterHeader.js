@@ -248,10 +248,10 @@ export default function PosCounterHeader({
   const { zoomLevel, handleZoom, THEME: theme } = ui;
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  const isTakeaway = initialTable && (initialTable.tableNumber === 'COUNTER' && initialTable.orderType !== 'DINE_IN');
+  const isTakeaway = initialTable && (initialTable.tableNumber === 'COUNTER' && initialTable.orderType === 'TAKEAWAY');
   const isDelivery = initialTable && (initialTable.tableNumber === 'COUNTER' && initialTable.orderType === 'DELIVERY');
   const isDineIn = !isTakeaway && !isDelivery;
-  const hideKitchen = (isTakeaway && hideKitchenForTakeaway) || (isDineIn && hideKitchenForDineIn);
+  const hideKitchen = hideKitchenForTakeaway || hideKitchenForDineIn;
   const showKitchenToggle = kitchenEnabled && !hideKitchen;
 
   const tableNameText = initialTable
