@@ -482,62 +482,139 @@ async function printUniversalNow(opts: Options) {
         return { via: 'android-pos' as const };
       }
 
-      const job: 'bill' | 'kot' = jobKind === 'kot' ? 'kot' : 'bill';
+      const job: 'bill' | 'kot' | 'invoice' = opts.jobKind === 'kot'
+        ? 'kot'
+        : opts.jobKind === 'invoice'
+          ? 'invoice'
+          : 'bill';
 
-      const modeKey = job === 'kot' ? 'ANDROID_KOT_MODE' : 'ANDROID_BILL_MODE';
-      const isLan = window.localStorage.getItem(modeKey) === 'lan';
-      if (isLan) {
-        const netIpKey = job === 'kot' ? 'PRINTER_IP_KOT' : 'PRINTER_IP';
-        const netPortKey = job === 'kot' ? 'PRINTER_PORT_KOT' : 'PRINTER_PORT';
-        const savedIp = (window.localStorage.getItem(netIpKey) || '').trim();
-        const savedPort = Number(window.localStorage.getItem(netPortKey) || 9100);
+      // Resolve targets from PRINT_PROFILES, defaults, and legacy keys
+      const forcedBt = uniq(opts.btAddresses || []);
+      const netTargets: Array<{ host: string; port: number }> = [];
+      const btTargets: string[] = [...forcedBt];
+      // On Android native, winPrinterNames or printTarget label should never suppress Bluetooth/LAN fallback
+      const hasExplicitTarget = forcedBt.length > 0 || Boolean(opts.ip);
 
-        if (savedIp) {
-          // Await native socket directly — Java manages its own 5s connect + 5s SO timeout.
-          // No JS-side Promise.race: avoids orphaned threads that cause infinite re-prints.
-          await DevicePrinter.printTcpRaw({
-            base64,
-            host: savedIp,
-            port: savedPort
-          });
-          return { via: 'android-pos' as const };
+      if (!btTargets.length && !hasExplicitTarget) {
+        try {
+          const profilesRaw = window.localStorage.getItem('PRINT_PROFILES');
+          const defaultsRaw = window.localStorage.getItem('PRINT_DEFAULTS');
+          const profiles: any[] = profilesRaw ? JSON.parse(profilesRaw) : [];
+          const defaults: any = defaultsRaw ? JSON.parse(defaultsRaw) : {};
+
+          const profileMap = new Map<string, any>(profiles.map((p) => [p.id, p]));
+          const key = job === 'kot' ? 'kotProfileIds' : job === 'invoice' ? 'invoiceProfileIds' : 'billProfileIds';
+          const assignedIds: string[] = Array.isArray(defaults?.[key]) ? defaults[key] : [];
+
+          for (const id of assignedIds) {
+            const profile = profileMap.get(id);
+            if (profile && profile.enabled !== false) {
+              if ((profile.connectionType === 'BLUETOOTH' || profile.connectionType === 'BLUETOOTH_COM') && (profile.btAddress || profile.macAddress)) {
+                btTargets.push(profile.btAddress || profile.macAddress);
+              } else if (profile.connectionType === 'NETWORK' && profile.host) {
+                netTargets.push({ host: profile.host, port: Number(profile.port || 9100) });
+              }
+            }
+          }
+
+          // Also check all Bluetooth/LAN profiles supporting document type if no specific assigned defaults
+          if (!btTargets.length && !netTargets.length && profiles.length > 0) {
+            for (const profile of profiles) {
+              if (profile.enabled !== false) {
+                const docs = Array.isArray(profile.documents) ? profile.documents : [];
+                const supports = docs.length === 0 || docs.includes(job.toUpperCase());
+                if (supports) {
+                  if ((profile.connectionType === 'BLUETOOTH' || profile.connectionType === 'BLUETOOTH_COM') && (profile.btAddress || profile.macAddress)) {
+                    btTargets.push(profile.btAddress || profile.macAddress);
+                  } else if (profile.connectionType === 'NETWORK' && profile.host) {
+                    netTargets.push({ host: profile.host, port: Number(profile.port || 9100) });
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[print-gateway] Failed to parse PRINT_PROFILES for Android target resolution:', e);
         }
       }
 
-      // V2 arrays
-      const addrArrKey = job === 'kot' ? 'BT_PRINTER_ADDRS_KOT' : 'BT_PRINTER_ADDRS_BILL';
-      const savedAddrs = uniq(readJsonArray(addrArrKey));
+      // Fallback to legacy localStorage arrays if profiles gave nothing
+      if (!btTargets.length && !netTargets.length && !hasExplicitTarget) {
+        const modeKey = job === 'kot' ? 'ANDROID_KOT_MODE' : 'ANDROID_BILL_MODE';
+        const isLan = window.localStorage.getItem(modeKey) === 'lan';
+        if (isLan) {
+          const netIpKey = job === 'kot' ? 'PRINTER_IP_KOT' : 'PRINTER_IP';
+          const netPortKey = job === 'kot' ? 'PRINTER_PORT_KOT' : 'PRINTER_PORT';
+          const savedIp = (window.localStorage.getItem(netIpKey) || '').trim();
+          const savedPort = Number(window.localStorage.getItem(netPortKey) || 9100);
 
-      // V1 single fallback
-      const addrKey = job === 'kot' ? 'BT_PRINTER_ADDR_KOT' : 'BT_PRINTER_ADDR';
-      const addr1 = (window.localStorage.getItem(addrKey) || '').trim();
+          if (savedIp) {
+            netTargets.push({ host: savedIp, port: savedPort });
+          }
+        }
+
+        if (!netTargets.length) {
+          const addrArrKey = job === 'kot' ? 'BT_PRINTER_ADDRS_KOT' : 'BT_PRINTER_ADDRS_BILL';
+          const savedAddrs = uniq(readJsonArray(addrArrKey));
+          const addrKey = job === 'kot' ? 'BT_PRINTER_ADDR_KOT' : 'BT_PRINTER_ADDR';
+          const addr1 = (window.localStorage.getItem(addrKey) || '').trim();
+
+          if (savedAddrs.length) btTargets.push(...savedAddrs);
+          else if (addr1) btTargets.push(addr1);
+        }
+      }
 
       const nameHintKey = job === 'kot' ? 'BT_PRINTER_NAME_HINT_KOT' : 'BT_PRINTER_NAME_HINT';
       let nameHint: string | undefined = (window.localStorage.getItem(nameHintKey) || '').trim() || 'pos';
 
-      const forced = uniq(opts.btAddresses || []);
-      let targets = forced.length ? forced : (savedAddrs.length ? savedAddrs : (addr1 ? [addr1] : []));
+      // Execute LAN prints first
+      for (const netTarget of netTargets) {
+        try {
+          await DevicePrinter.printTcpRaw({
+            base64,
+            host: netTarget.host,
+            port: netTarget.port
+          });
+        } catch (netErr) {
+          console.warn(`[print-gateway] Android TCP print to ${netTarget.host}:${netTarget.port} failed:`, netErr);
+        }
+      }
 
-      if (!targets.length) {
+      const finalBtTargets = uniq(btTargets);
+
+      // Prompt ONLY if zero targets resolved AND allowPrompt is true AND not an explicit target
+      if (!finalBtTargets.length && !netTargets.length && opts.allowPrompt && !hasExplicitTarget) {
         try {
           const pick = await DevicePrinter.pickPrinter();
           const addr = pick?.address || '';
           if (addr) {
             try { await DevicePrinter.pairDevice({ address: addr }); } catch { }
+            const addrKey = job === 'kot' ? 'BT_PRINTER_ADDR_KOT' : 'BT_PRINTER_ADDR';
             window.localStorage.setItem(addrKey, addr);
-            targets = [addr];
+            finalBtTargets.push(addr);
             if (pick?.name) window.localStorage.setItem(nameHintKey, pick.name);
           }
         } catch {
           nameHint = undefined;
-          targets = [undefined as any]; // one attempt: plugin may fallback to USB/internal
         }
       }
 
-      for (const address of targets) {
-        await DevicePrinter.printRaw({ base64, address, nameContains: nameHint });
+      // Execute Bluetooth prints
+      if (finalBtTargets.length > 0) {
+        for (const address of finalBtTargets) {
+          await DevicePrinter.printRaw({ base64, address, nameContains: nameHint });
+        }
+        return { via: 'android-pos' as const };
       }
 
+      if (netTargets.length > 0) {
+        return { via: 'android-pos' as const };
+      }
+
+      // Fallback single attempt only if no explicit target was requested
+      if (!hasExplicitTarget) {
+        await DevicePrinter.printRaw({ base64, address: undefined, nameContains: nameHint });
+      }
       return { via: 'android-pos' as const };
     }
 

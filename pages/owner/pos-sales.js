@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -16,10 +16,10 @@ import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
   localPrintWillHandleKind,
+  enqueueCloudPrintJob,
 } from '../../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
-
-const KotPrint = React.lazy(() => import('../../components/KotPrint'));
+import KotPrint from '../../components/KotPrint';
 
 const KITCHEN_PRINT_STATUSES = new Set(['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY']);
 const FINAL_BILL_PRINT_STATUSES = new Set(['BILLED', 'COMPLETED']);
@@ -365,6 +365,9 @@ export default function PosSalesPage() {
   const handlePrintOrder = useCallback(async (order, kind) => {
     try {
       if (!localPrintWillHandleKind(kind)) {
+        try {
+          await enqueueCloudPrintJob(order, kind);
+        } catch (_) {}
         return;
       }
 
@@ -473,6 +476,7 @@ export default function PosSalesPage() {
           onSelect={handleOrderTypeSelected}
           onClose={() => router.push('/owner/dashboard')}
           onRefreshTables={fetchActiveTables}
+          onPrintOrder={handlePrintOrder}
         />
       )}
 
@@ -502,15 +506,13 @@ export default function PosSalesPage() {
       )}
 
       {printOrder && (
-        <Suspense fallback={null}>
-          <KotPrint
-            order={printOrder}
-            kind={printKind}
-            autoPrint={true}
-            onClose={() => setPrintOrder(null)}
-            onPrint={handleLocalPrintDone}
-          />
-        </Suspense>
+        <KotPrint
+          order={printOrder}
+          kind={printKind}
+          autoPrint={true}
+          onClose={() => setPrintOrder(null)}
+          onPrint={handleLocalPrintDone}
+        />
       )}
     </DashboardLayout>
   );

@@ -295,6 +295,7 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
 
   // ---------- load printers ----------
   const detectPrinters = async () => {
+    if (isNativeAndroid() || androidOnly) return;
     try {
       const r = await fetch(listUrl);
       const names = await r.json();

@@ -292,7 +292,7 @@ const routeDefaults = () => ({
   profileIds: [],
 });
 
-const syncPrintConfigToLocalStorage = (config) => {
+export const syncPrintConfigToLocalStorage = (config) => {
   if (typeof window === 'undefined' || !config) return;
 
   // 1. Basic flags
@@ -354,11 +354,50 @@ const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_KOT', kotPrinters[0] || '');
   localStorage.setItem('PRINT_WIN_PRINTER_NAME_LABEL', labelPrinters[0] || '');
 
+  // Helper to find btAddress by profile ID
+  const getBtAddress = (profileId) => {
+    const profile = profiles.find((p) => p.id === profileId);
+    return (profile?.connectionType === 'BLUETOOTH' || profile?.connectionType === 'BLUETOOTH_COM')
+      ? (profile.btAddress || profile.macAddress || '')
+      : '';
+  };
+
+  let billBtAddresses = (Array.isArray(defaults.billProfileIds) ? defaults.billProfileIds : []).map(getBtAddress).filter(Boolean);
+  let kotBtAddresses = (Array.isArray(defaults.kotProfileIds) ? defaults.kotProfileIds : []).map(getBtAddress).filter(Boolean);
+  let labelBtAddresses = (Array.isArray(defaults.labelProfileIds) ? defaults.labelProfileIds : []).map(getBtAddress).filter(Boolean);
+
+  if (!billBtAddresses.length) {
+    billBtAddresses = profiles
+      .filter((p) => (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress) && supportsDoc(p, 'BILL'))
+      .map((p) => p.btAddress || p.macAddress);
+  }
+  if (!kotBtAddresses.length) {
+    kotBtAddresses = profiles
+      .filter((p) => (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress) && supportsDoc(p, 'KOT'))
+      .map((p) => p.btAddress || p.macAddress);
+  }
+  if (!labelBtAddresses.length) {
+    labelBtAddresses = profiles
+      .filter((p) => (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress) && supportsDoc(p, 'LABEL'))
+      .map((p) => p.btAddress || p.macAddress);
+  }
+
   const masterKotProfileIds = Array.isArray(defaults.masterKotProfileIds) ? defaults.masterKotProfileIds : [];
   const masterKotPrinters = getPrinterNamesForDoc(masterKotProfileIds);
+  const masterKotBtAddresses = masterKotProfileIds.map(getBtAddress).filter(Boolean);
+
+  localStorage.setItem('BT_PRINTER_ADDRS_BILL', JSON.stringify(billBtAddresses));
+  localStorage.setItem('BT_PRINTER_ADDRS_KOT', JSON.stringify(kotBtAddresses));
+  localStorage.setItem('BT_PRINTER_ADDRS_LABEL', JSON.stringify(labelBtAddresses));
+  localStorage.setItem('PRINT_MASTER_KOT_BT_ADDRESSES', JSON.stringify(masterKotBtAddresses));
+  if (billBtAddresses[0]) localStorage.setItem('BT_PRINTER_ADDR', billBtAddresses[0]);
+  if (kotBtAddresses[0]) localStorage.setItem('BT_PRINTER_ADDR_KOT', kotBtAddresses[0]);
+  if (labelBtAddresses[0]) localStorage.setItem('BT_PRINTER_ADDR_LABEL', labelBtAddresses[0]);
+
   localStorage.setItem('PRINT_MASTER_KOT_ENABLED', defaults.printMasterKot ? '1' : '0');
   localStorage.setItem('PRINT_MASTER_KOT_PRINTERS', JSON.stringify(masterKotPrinters));
   localStorage.setItem('PRINT_MASTER_KOT_PROFILE_IDS', JSON.stringify(masterKotProfileIds));
+  localStorage.setItem('PRINT_DEFAULTS', JSON.stringify(defaults));
 
   // 3. Map Routing
   const routes = Array.isArray(config.routes) ? config.routes : [];
@@ -366,18 +405,22 @@ const syncPrintConfigToLocalStorage = (config) => {
     const printerNames = (Array.isArray(r.profileIds) ? r.profileIds : [])
       .map(getPrinterName)
       .filter(Boolean);
+    const btAddresses = (Array.isArray(r.profileIds) ? r.profileIds : [])
+      .map(getBtAddress)
+      .filter(Boolean);
     return {
       id: r.id || Math.random().toString(16).slice(2),
       label: r.name || 'Route',
       enabled: r.enabled !== false,
       categories: Array.isArray(r.categories) ? r.categories : [],
       printerNames: printerNames,
+      btAddresses: btAddresses,
       netPrinterIds: [],
       profileIds: Array.isArray(r.profileIds) ? r.profileIds : [],
     };
   });
 
-  const routingEnabled = legacyRoutes.some(r => r.enabled && r.categories.length > 0 && (r.printerNames.length > 0 || r.profileIds.length > 0));
+  const routingEnabled = legacyRoutes.some(r => r.enabled && r.categories.length > 0);
   localStorage.setItem('PRINT_KOT_CATEGORY_ROUTING', routingEnabled ? '1' : '0');
   localStorage.setItem('PRINT_KOT_ROUTES_V1', JSON.stringify(legacyRoutes));
   localStorage.setItem('PRINT_PROFILES', JSON.stringify(profiles));

@@ -203,7 +203,15 @@ export async function printKotByStation(
     return results;
   }
 
-  // --- Print Consolidated Master KOT (if enabled) ---
+function isNativeAndroid(): boolean {
+  try {
+    return typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.() && (window as any).Capacitor?.getPlatform?.() === 'android');
+  } catch {
+    return false;
+  }
+}
+
+// --- Print Consolidated Master KOT (if enabled) ---
   if (cfg.printMasterKot) {
     const masterPrinters = cfg.masterKotPrinters && cfg.masterKotPrinters.length > 0 
       ? cfg.masterKotPrinters 
@@ -225,6 +233,14 @@ export async function printKotByStation(
       for (const p of masterPrinters) {
         if (p.type === 'winspool') winPrinterNames.push(p.printerName);
         if (p.type === 'android-bt') btAddresses.push(p.address);
+      }
+
+      if (isNativeAndroid()) {
+        if (!btAddresses.length) {
+          const singleBt = typeof window !== 'undefined' ? (localStorage.getItem('BT_PRINTER_ADDR_KOT') || localStorage.getItem('BT_PRINTER_ADDR')) : null;
+          if (singleBt) btAddresses.push(singleBt);
+        }
+        winPrinterNames.length = 0; // Windows print queues do not exist on Android
       }
 
     try {
@@ -273,6 +289,14 @@ export async function printKotByStation(
     for (const p of bucket.printers) {
       if (p.type === 'winspool') winPrinterNames.push(p.printerName);
       if (p.type === 'android-bt') btAddresses.push(p.address);
+    }
+
+    if (isNativeAndroid()) {
+      if (!btAddresses.length) {
+        const singleBt = typeof window !== 'undefined' ? (localStorage.getItem('BT_PRINTER_ADDR_KOT') || localStorage.getItem('BT_PRINTER_ADDR')) : null;
+        if (singleBt) btAddresses.push(singleBt);
+      }
+      winPrinterNames.length = 0;
     }
 
     try {

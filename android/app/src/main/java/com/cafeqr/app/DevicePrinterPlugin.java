@@ -586,8 +586,7 @@ public class DevicePrinterPlugin extends Plugin {
     return connectAndWrite(arr[0], data);
   }
 
-  private static BluetoothSocket cachedSocket = null;
-  private static String cachedDeviceAddress = null;
+  private static final java.util.concurrent.ConcurrentHashMap<String, BluetoothSocket> socketCache = new java.util.concurrent.ConcurrentHashMap<>();
 
   private boolean connectAndWrite(BluetoothDevice dev, byte[] data) {
     synchronized (BT_LOCK) {
@@ -597,17 +596,21 @@ public class DevicePrinterPlugin extends Plugin {
       final int CHUNK = slow ? 128 : 256;
       final int SLEEP_BETWEEN = slow ? 35 : 15;
       final int SLEEP_BEFORE_CLOSE = slow ? 900 : 350;
+      String addr = dev != null ? dev.getAddress() : null;
+
       try {
         if (safeBondState(dev) != BluetoothDevice.BOND_BONDED) return false;
 
-        // PERPETUAL KEEP-ALIVE CACHE
-        if (cachedSocket != null && dev.getAddress().equals(cachedDeviceAddress) && cachedSocket.isConnected()) {
-          sock = cachedSocket;
+        BluetoothSocket cached = addr != null ? socketCache.get(addr) : null;
+
+        // PERPETUAL KEEP-ALIVE CACHE (Multi-Device)
+        if (cached != null && cached.isConnected()) {
+          sock = cached;
         } else {
-          // Close old socket if wrong device or disconnected
-          if (cachedSocket != null) {
-            try { cachedSocket.close(); } catch (Exception ignored) {}
-            cachedSocket = null;
+          // Clean up dead socket if it exists
+          if (cached != null) {
+            try { cached.close(); } catch (Exception ignored) {}
+            if (addr != null) socketCache.remove(addr);
           }
 
           try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
@@ -618,8 +621,7 @@ public class DevicePrinterPlugin extends Plugin {
             sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
           }
           sock.connect();
-          cachedSocket = sock;
-          cachedDeviceAddress = dev.getAddress();
+          if (addr != null) socketCache.put(addr, sock);
         }
 
         OutputStream os = sock.getOutputStream();
@@ -644,15 +646,15 @@ public class DevicePrinterPlugin extends Plugin {
         try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
         
         // DO NOT CLOSE SOCKET (Perpetual Keep-Alive)
-        // os.close();
-        
         return true;
 
       } catch (Exception ex) {
-        // IF IT FAILS, CLEAR THE CACHE
-        if (cachedSocket != null) {
-          try { cachedSocket.close(); } catch (Exception ignored) {}
-          cachedSocket = null;
+        // IF IT FAILS, CLEAR THE CACHE FOR THIS SPECIFIC DEVICE
+        if (addr != null) {
+          BluetoothSocket dead = socketCache.remove(addr);
+          if (dead != null) {
+            try { dead.close(); } catch (Exception ignored) {}
+          }
         }
 
         // Fallback reflection socket (which connects and closes immediately)

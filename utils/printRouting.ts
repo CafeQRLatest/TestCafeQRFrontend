@@ -58,27 +58,117 @@ export function getPrintRouting(): PrintRoutingConfig {
     const legacyRoutes = rawLegacyRoutes ? JSON.parse(rawLegacyRoutes) : [];
     const routingEnabled = localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
 
-    const defaultKotPrinters: PrinterTarget[] = readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').map(name => ({
-      type: 'winspool' as const,
-      printerName: name,
-    }));
-    const billPrinters: PrinterTarget[] = readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').map(name => ({
-      type: 'winspool' as const,
-      printerName: name,
-    }));
+    const rawProfiles = localStorage.getItem('PRINT_PROFILES');
+    const profiles: any[] = rawProfiles ? JSON.parse(rawProfiles) : [];
+    const profileMap = new Map<string, any>(profiles.map(p => [p.id, p]));
 
-    const masterKotEnabled = localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
-    const masterKotPrinters: PrinterTarget[] = readJsonArray('PRINT_MASTER_KOT_PRINTERS').map(name => ({
-      type: 'winspool' as const,
-      printerName: name,
-    }));
+    const rawDefaults = localStorage.getItem('PRINT_DEFAULTS');
+    const defaults: any = rawDefaults ? JSON.parse(rawDefaults) : {};
+
+    const defaultKotPrinters: PrinterTarget[] = [];
+    readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').forEach(name => {
+      defaultKotPrinters.push({ type: 'winspool' as const, printerName: name });
+    });
+    readJsonArray('BT_PRINTER_ADDRS_KOT').forEach(addr => {
+      defaultKotPrinters.push({ type: 'android-bt' as const, address: addr });
+    });
+    const singleBtKot = (localStorage.getItem('BT_PRINTER_ADDR_KOT') || '').trim();
+    if (singleBtKot && !defaultKotPrinters.some(p => p.type === 'android-bt' && p.address === singleBtKot)) {
+      defaultKotPrinters.push({ type: 'android-bt' as const, address: singleBtKot });
+    }
+    (Array.isArray(defaults.kotProfileIds) ? defaults.kotProfileIds : []).forEach((id: string) => {
+      const prof = profileMap.get(id);
+      if (prof && (prof.connectionType === 'BLUETOOTH' || prof.connectionType === 'BLUETOOTH_COM') && (prof.btAddress || prof.macAddress)) {
+        const addr = prof.btAddress || prof.macAddress;
+        if (!defaultKotPrinters.some(p => p.type === 'android-bt' && p.address === addr)) {
+          defaultKotPrinters.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
+        }
+      }
+    });
+
+    const billPrinters: PrinterTarget[] = [];
+    readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').forEach(name => {
+      billPrinters.push({ type: 'winspool' as const, printerName: name });
+    });
+    readJsonArray('BT_PRINTER_ADDRS_BILL').forEach(addr => {
+      billPrinters.push({ type: 'android-bt' as const, address: addr });
+    });
+    const singleBtBill = (localStorage.getItem('BT_PRINTER_ADDR') || '').trim();
+    if (singleBtBill && !billPrinters.some(p => p.type === 'android-bt' && p.address === singleBtBill)) {
+      billPrinters.push({ type: 'android-bt' as const, address: singleBtBill });
+    }
+    (Array.isArray(defaults.billProfileIds) ? defaults.billProfileIds : []).forEach((id: string) => {
+      const prof = profileMap.get(id);
+      if (prof && (prof.connectionType === 'BLUETOOTH' || prof.connectionType === 'BLUETOOTH_COM') && (prof.btAddress || prof.macAddress)) {
+        const addr = prof.btAddress || prof.macAddress;
+        if (!billPrinters.some(p => p.type === 'android-bt' && p.address === addr)) {
+          billPrinters.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
+        }
+      }
+    });
+
+    const masterKotEnabled = localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1' || defaults.printMasterKot === true;
+    const masterKotPrinters: PrinterTarget[] = [];
+    readJsonArray('PRINT_MASTER_KOT_PRINTERS').forEach(name => {
+      masterKotPrinters.push({ type: 'winspool' as const, printerName: name });
+    });
+    readJsonArray('PRINT_MASTER_KOT_BT_ADDRESSES').forEach(addr => {
+      masterKotPrinters.push({ type: 'android-bt' as const, address: addr });
+    });
+    const masterProfileIds: string[] = Array.isArray(defaults.masterKotProfileIds) ? defaults.masterKotProfileIds : readJsonArray('PRINT_MASTER_KOT_PROFILE_IDS');
+    masterProfileIds.forEach((id: string) => {
+      const prof = profileMap.get(id);
+      if (prof) {
+        if ((prof.connectionType === 'BLUETOOTH' || prof.connectionType === 'BLUETOOTH_COM') && (prof.btAddress || prof.macAddress)) {
+          const addr = prof.btAddress || prof.macAddress;
+          if (!masterKotPrinters.some(p => p.type === 'android-bt' && p.address === addr)) {
+            masterKotPrinters.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
+          }
+        } else if (prof.connectionType === 'WINDOWS_QUEUE' && prof.windowsPrinterName) {
+          if (!masterKotPrinters.some(p => p.type === 'winspool' && p.printerName === prof.windowsPrinterName)) {
+            masterKotPrinters.push({ type: 'winspool' as const, printerName: prof.windowsPrinterName });
+          }
+        }
+      }
+    });
 
     const stations: KitchenStation[] = (Array.isArray(legacyRoutes) ? legacyRoutes : [])
       .filter((r: any) => r && r.enabled !== false && Array.isArray(r.categories) && r.categories.length > 0)
       .map((r: any) => {
-        const printerTargets: PrinterTarget[] = (Array.isArray(r.printerNames) ? r.printerNames : [])
+        const printerTargets: PrinterTarget[] = [];
+
+        (Array.isArray(r.printerNames) ? r.printerNames : [])
           .filter(Boolean)
-          .map((name: string) => ({ type: 'winspool' as const, printerName: name }));
+          .forEach((name: string) => {
+            printerTargets.push({ type: 'winspool' as const, printerName: name });
+          });
+
+        (Array.isArray(r.btAddresses) ? r.btAddresses : [])
+          .filter(Boolean)
+          .forEach((addr: string) => {
+            if (!printerTargets.some(p => p.type === 'android-bt' && p.address === addr)) {
+              printerTargets.push({ type: 'android-bt' as const, address: addr });
+            }
+          });
+
+        (Array.isArray(r.profileIds) ? r.profileIds : [])
+          .filter(Boolean)
+          .forEach((id: string) => {
+            const prof = profileMap.get(id);
+            if (prof) {
+              if ((prof.connectionType === 'BLUETOOTH' || prof.connectionType === 'BLUETOOTH_COM') && (prof.btAddress || prof.macAddress)) {
+                const addr = prof.btAddress || prof.macAddress;
+                if (!printerTargets.some(p => p.type === 'android-bt' && p.address === addr)) {
+                  printerTargets.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
+                }
+              } else if (prof.connectionType === 'WINDOWS_QUEUE' && prof.windowsPrinterName) {
+                if (!printerTargets.some(p => p.type === 'winspool' && p.printerName === prof.windowsPrinterName)) {
+                  printerTargets.push({ type: 'winspool' as const, printerName: prof.windowsPrinterName });
+                }
+              }
+            }
+          });
+
         return {
           id: r.id || String(Math.random()),
           name: r.label || r.name || 'Kitchen Station',

@@ -771,7 +771,8 @@ export default function PosOrderTypeModal({
   config = null,
   onSelect,
   onClose,
-  onRefreshTables
+  onRefreshTables,
+  onPrintOrder
 }) {
   const router = useRouter();
   const { orgId, timezone, canCancelOrder, hasModule } = useAuth();
@@ -885,6 +886,15 @@ export default function PosOrderTypeModal({
   const [actionBusy, setActionBusy] = useState(null);
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
+
+  const handleLocalPrintDone = useCallback(() => {
+    const printedOrder = printOrder;
+    const printedKind = printKind;
+    setPrintOrder(null);
+    if (printedOrder?.id) {
+      markCloudPrintJobPrinted(printedOrder, printedKind).catch(() => {});
+    }
+  }, [printOrder, printKind]);
 
   // Available tables filtering state
   const [tableSearch, setTableSearch] = useState('');
@@ -1226,7 +1236,7 @@ export default function PosOrderTypeModal({
       } catch (e) {
         console.warn('Bill command notice:', e?.response?.data?.message || e.message);
       }
-    } else if ((!order.lines || order.lines.length === 0) && orderId) {
+    } else if (orderId) {
       try {
         const res = await api.get(`/api/v1/orders/${orderId}`);
         if (res.data?.data) {
@@ -1236,6 +1246,12 @@ export default function PosOrderTypeModal({
         console.warn('Failed to load full order for print:', err);
       }
     }
+
+    if (typeof onPrintOrder === 'function') {
+      onPrintOrder(activeOrder, 'bill');
+      return;
+    }
+
     if (!localPrintWillHandleKind('bill')) {
       try {
         await enqueueCloudPrintJob(activeOrder, 'bill');
@@ -1254,9 +1270,25 @@ export default function PosOrderTypeModal({
 
   // Print KOT handler
   const handlePrintKot = async (order) => {
+    if (typeof onPrintOrder === 'function') {
+      onPrintOrder(order, 'kot');
+      return;
+    }
+    let activeOrder = order;
+    const orderId = order.id || order.orderId;
+    if (orderId) {
+      try {
+        const res = await api.get(`/api/v1/orders/${orderId}`);
+        if (res.data?.data) {
+          activeOrder = res.data.data;
+        }
+      } catch (err) {
+        console.warn('Failed to load full order for KOT print:', err);
+      }
+    }
     if (!localPrintWillHandleKind('kot')) {
       try {
-        await enqueueCloudPrintJob(order, 'kot');
+        await enqueueCloudPrintJob(activeOrder, 'kot');
         notify('success', 'KOT print job enqueued to print station');
       } catch (e) {
         notify('error', 'Failed to queue print job: ' + (e.response?.data?.message || e.message));
@@ -1264,7 +1296,10 @@ export default function PosOrderTypeModal({
       return;
     }
     setPrintKind('kot');
-    setPrintOrder({ ...order, _manualPrint: true });
+    setPrintOrder({ ...activeOrder, _manualPrint: true });
+    if (activeOrder?.id) {
+      markCloudPrintJobPrinted(activeOrder, 'kot').catch(() => {});
+    }
   };
 
   // Update order operational status (e.g. READY, OUT_FOR_DELIVERY)
@@ -2178,6 +2213,7 @@ export default function PosOrderTypeModal({
           order={printOrder}
           kind={printKind}
           autoPrint={true}
+          onPrint={handleLocalPrintDone}
           onClose={() => setPrintOrder(null)}
         />
       )}

@@ -39,12 +39,16 @@ function isNativeAndroid() {
 
 function hasAndroidBluetoothConfig() {
   if (!isNativeAndroid()) return false;
-  return Boolean(
+  if (
     window.localStorage.getItem('BT_PRINTER_ADDR') ||
     window.localStorage.getItem('BT_PRINTER_ADDR_KOT') ||
     readJsonArray('BT_PRINTER_ADDRS_BILL').length ||
     readJsonArray('BT_PRINTER_ADDRS_KOT').length
-  );
+  ) {
+    return true;
+  }
+  const profiles = readJsonArray('PRINT_PROFILES');
+  return profiles.some(p => p && p.enabled !== false && (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress));
 }
 
 export function isAndroidPrintStationEnabled() {
@@ -79,12 +83,35 @@ export function hasActiveLocalPrinter(kind = 'kot') {
     return isReady;
   }
 
-  // Native Android Bluetooth check: Only valid on Native Android App with paired BT MAC address
+  // Native Android Bluetooth check: Valid with paired BT MAC address or Bluetooth Profile
   if (isNativeAndroid()) {
-    const hasBt = k === 'kot'
+    const hasLegacyBt = k === 'kot'
       ? Boolean(window.localStorage.getItem('BT_PRINTER_ADDR_KOT') || window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_KOT').length > 0)
       : Boolean(window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_BILL').length > 0);
-    return hasBt;
+    if (hasLegacyBt) return true;
+
+    const profiles = readJsonArray('PRINT_PROFILES');
+    const btProfiles = profiles.filter(p => p && p.enabled !== false && (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress));
+    if (!btProfiles.length) return false;
+
+    if (k === 'kot') {
+      const routingOn = window.localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
+      const masterOn = window.localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
+      if (routingOn || masterOn) return true;
+      return btProfiles.some(p => {
+        const docs = Array.isArray(p.documents) ? p.documents : [];
+        return docs.length === 0 || docs.includes('KOT');
+      });
+    }
+
+    if (k === 'bill' || k === 'invoice') {
+      return btProfiles.some(p => {
+        const docs = Array.isArray(p.documents) ? p.documents : [];
+        return docs.length === 0 || docs.includes('BILL');
+      });
+    }
+
+    return true;
   }
 
   // Native Print Service pairing
@@ -312,17 +339,39 @@ async function printClaimedJob(job) {
 
   // If this order was already printed recently on local POS, skip physical re-print
   if (orderId) {
-    const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
-    const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
-    const key = `${orderId}:${normalized.kind}`;
-    if (rawDedup.includes(key) || rawCloud.includes(key) || rawDedup.includes(String(orderId)) || rawCloud.includes(String(orderId))) {
-      console.log(`[cloud-print] Job ${normalized.id} (${normalized.kind}) for order ${orderId} was already printed locally, marking completed.`);
-      await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
-        backgroundSync: true,
-        skipAuthRedirect: true,
-        skipOfflineQueue: true,
-      });
-      return normalized;
+    const isEdited = Boolean(
+      normalized.payload?.is_edited ?? normalized.payload?.isEdited ??
+      normalized.order?.is_edited ?? normalized.order?.isEdited
+    );
+
+    // Edited orders must never be skipped by deduplication
+    if (!isEdited) {
+      const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
+      const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
+      let dedupMap = {};
+      let cloudMap = {};
+      try { dedupMap = JSON.parse(rawDedup); } catch {}
+      try { cloudMap = JSON.parse(rawCloud); } catch {}
+
+      const jobSubtype = normalized.printerProfileId ? `prof-${normalized.printerProfileId}` : (normalized.payload?.reason || 'main');
+      const specificKey = `${orderId}:${normalized.kind}:${jobSubtype}`;
+      const generalKey = `${orderId}:${normalized.kind}`;
+
+      const now = Date.now();
+      const dedupHit = (dedupMap[specificKey] && (now - Number(dedupMap[specificKey]) < 120_000)) ||
+                       (!isDirected && dedupMap[generalKey] && (now - Number(dedupMap[generalKey]) < 120_000));
+      const cloudHit = (cloudMap[specificKey] && (now - Number(cloudMap[specificKey]) < 120_000)) ||
+                       (!isDirected && cloudMap[generalKey] && (now - Number(cloudMap[generalKey]) < 120_000));
+
+      if (dedupHit || cloudHit) {
+        console.log(`[cloud-print] Job ${normalized.id} (${normalized.kind}:${jobSubtype}) for order ${orderId} was already printed locally, marking completed.`);
+        await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
+          backgroundSync: true,
+          skipAuthRedirect: true,
+          skipOfflineQueue: true,
+        });
+        return normalized;
+      }
     }
   }
 

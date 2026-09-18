@@ -102,7 +102,12 @@ export async function ensurePrintTemplatesSynced(force = false) {
     }
 
     const orgId = Cookies.get('orgId') || '';
-    const params = orgId && orgId !== '0' ? { orgId } : {};
+    const terminalId = Cookies.get('terminalId') ||
+      (typeof window !== 'undefined' ? (localStorage.getItem('terminalId') || localStorage.getItem('CAFEQR_SELECTED_TERMINAL')) : '');
+    const params = {
+      ...(orgId && orgId !== '0' ? { orgId } : {}),
+      ...(terminalId ? { terminalId } : {}),
+    };
     const { data } = await api.get('/api/v1/print-configurations/effective', {
       params,
       backgroundSync: true,
