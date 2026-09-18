@@ -77,7 +77,7 @@ export default function SalaryComponents({ embedded = false }) {
     if (isDuplicate) {
       setConfirmModal({
         title: 'Duplicate Rule Name',
-        message: `A salary rule with the name "${trimmedName}" already exists.`,
+        message: 'Rule Name already exists.',
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
@@ -251,7 +251,7 @@ export default function SalaryComponents({ embedded = false }) {
         <div className="modal-overlay">
           <div className="modal-content glass-panel">
             <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
-            <form onSubmit={handleSave}>
+            <form onSubmit={handleSaveComponent}>
               <div className="form-group mb-4">
                 <label>Rule Name (e.g., &quot;Health Insurance&quot;)</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} required />
