@@ -44,7 +44,9 @@ function getRouteNetworkTargets(route) {
 function kotRoutesEnabled() {
   try {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
+    if (localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1') return true;
+    const list = readJson('PRINT_KOT_ROUTES_V1', []);
+    return Array.isArray(list) && list.some(r => r && (r.enabled !== false || r.categories?.length > 0) && Array.isArray(r.categories) && r.categories.length > 0);
   } catch {
     return false;
   }
@@ -494,7 +496,12 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         return true;
       }
 
-      const routes = readJson('PRINT_KOT_ROUTES_V1', []).filter((r) => r && r.enabled);
+      const allRoutes = readJson('PRINT_KOT_ROUTES_V1', []);
+      const routes = allRoutes.filter((r) => r && (
+        r.enabled === true ||
+        (r.enabled !== false && (r.printerNames?.length > 0 || r.profileIds?.length > 0 || r.btAddresses?.length > 0)) ||
+        (Array.isArray(r.categories) && r.categories.length > 0 && (r.printerNames?.length > 0 || r.profileIds?.length > 0 || r.btAddresses?.length > 0))
+      ));
       const allOrderItems = rawItemsFromOrder(normalizedOrder);
       const allProfiles = readJson('PRINT_PROFILES', []);
       const profileMap = new Map(allProfiles.map(p => [p.id, p]));
@@ -690,6 +697,25 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       }
 
       for (const r of routes) {
+        // If route specifies orderTypes, verify this order matches (e.g. DINE_IN, TAKEAWAY, DELIVERY)
+        if (Array.isArray(r.orderTypes) && r.orderTypes.length > 0) {
+          const rawType = String(
+            normalizedOrder?.fulfillmentType ||
+            normalizedOrder?.fulfillment_type ||
+            normalizedOrder?.orderType ||
+            normalizedOrder?.order_type ||
+            (normalizedOrder?.tableNumber && normalizedOrder?.tableNumber !== 'COUNTER' ? 'DINE_IN' : 'TAKEAWAY')
+          ).toUpperCase();
+          const matchesOrderType = r.orderTypes.some((t) => {
+            const ot = String(t).toUpperCase();
+            if (ot === rawType) return true;
+            if (ot === 'DINE_IN' && (rawType === 'TABLE' || rawType === 'DINEIN')) return true;
+            if (ot === 'TAKEAWAY' && (rawType === 'PARCEL' || rawType === 'COUNTER')) return true;
+            return false;
+          });
+          if (!matchesOrderType) continue;
+        }
+
         const cats = Array.isArray(r.categories) ? r.categories : [];
         const norm = (s) => String(s || '').trim().toUpperCase();
         const catSet = new Set(cats.map(norm));

@@ -408,11 +408,14 @@ export const syncPrintConfigToLocalStorage = (config) => {
     const btAddresses = (Array.isArray(r.profileIds) ? r.profileIds : [])
       .map(getBtAddress)
       .filter(Boolean);
+    const hasTargets = printerNames.length > 0 || btAddresses.length > 0 || (Array.isArray(r.profileIds) && r.profileIds.length > 0);
+    const isRouteActive = r.enabled === true || (r.enabled !== false && hasTargets) || (hasTargets && Array.isArray(r.categories) && r.categories.length > 0);
     return {
       id: r.id || Math.random().toString(16).slice(2),
       label: r.name || 'Route',
-      enabled: r.enabled !== false,
+      enabled: isRouteActive,
       categories: Array.isArray(r.categories) ? r.categories : [],
+      orderTypes: Array.isArray(r.orderTypes) ? r.orderTypes : [],
       printerNames: printerNames,
       btAddresses: btAddresses,
       netPrinterIds: [],
@@ -1119,7 +1122,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
   const updateRoute = (id, changes) => setPrintConfig((previous) => ({
     ...previous,
-    routes: previous.routes.map((route) => route.id === id ? { ...route, ...changes } : route),
+    routes: previous.routes.map((route) => {
+      if (route.id !== id) return route;
+      const updated = { ...route, ...changes };
+      if (Array.isArray(updated.profileIds) && updated.profileIds.length > 0 && updated.enabled === false) {
+        updated.enabled = true;
+      }
+      return updated;
+    }),
   }));
 
   const routeConflicts = useMemo(() => {

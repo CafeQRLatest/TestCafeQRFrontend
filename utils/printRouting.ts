@@ -56,7 +56,8 @@ export function getPrintRouting(): PrintRoutingConfig {
     // 2. Fall back to converting PRINT_KOT_ROUTES_V1 & legacy localStorage settings
     const rawLegacyRoutes = localStorage.getItem('PRINT_KOT_ROUTES_V1');
     const legacyRoutes = rawLegacyRoutes ? JSON.parse(rawLegacyRoutes) : [];
-    const routingEnabled = localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
+    const routingEnabled = localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1' ||
+      ((Array.isArray(legacyRoutes) ? legacyRoutes : []).some((r: any) => r && (r.enabled !== false || r.categories?.length > 0) && Array.isArray(r.categories) && r.categories.length > 0));
 
     const rawProfiles = localStorage.getItem('PRINT_PROFILES');
     const profiles: any[] = rawProfiles ? JSON.parse(rawProfiles) : [];
@@ -133,7 +134,7 @@ export function getPrintRouting(): PrintRoutingConfig {
     });
 
     const stations: KitchenStation[] = (Array.isArray(legacyRoutes) ? legacyRoutes : [])
-      .filter((r: any) => r && r.enabled !== false && Array.isArray(r.categories) && r.categories.length > 0)
+      .filter((r: any) => r && (r.enabled !== false || (r.printerNames?.length > 0 || r.profileIds?.length > 0)) && Array.isArray(r.categories) && r.categories.length > 0)
       .map((r: any) => {
         const printerTargets: PrinterTarget[] = [];
 
