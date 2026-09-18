@@ -2178,7 +2178,15 @@ export default function PosOrderTypeModal({
             }}
             onSave={async (updatedOrder) => {
               try {
-                const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, updatedOrder);
+                const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
+                const payloadWithSkip = {
+                  ...updatedOrder,
+                  skipAutoPrintKinds: [
+                    ...(updatedOrder.skipAutoPrintKinds || []),
+                    ...(localKotPrint ? ['KOT'] : [])
+                  ]
+                };
+                const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
                 notify('success', 'Order updated successfully');
                 const savedOrder = res?.data?.data;
                 if (savedOrder) {

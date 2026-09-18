@@ -5,6 +5,7 @@
 export type PrinterTarget =
   | { type: 'winspool'; printerName: string }
   | { type: 'android-bt'; address: string; nameHint?: string }
+  | { type: 'network'; host: string; port: number; nameHint?: string }
   | { type: 'webusb'; vendorId: number; productId: number; serialNumber?: string | null }
   | { type: 'webserial'; portIndex: number };
 
@@ -84,6 +85,10 @@ export function getPrintRouting(): PrintRoutingConfig {
         if (!defaultKotPrinters.some(p => p.type === 'android-bt' && p.address === addr)) {
           defaultKotPrinters.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
         }
+      } else if (prof && prof.connectionType === 'NETWORK' && prof.host) {
+        if (!defaultKotPrinters.some(p => p.type === 'network' && p.host === prof.host)) {
+          defaultKotPrinters.push({ type: 'network' as const, host: prof.host, port: Number(prof.port || 9100), nameHint: prof.name });
+        }
       }
     });
 
@@ -125,6 +130,10 @@ export function getPrintRouting(): PrintRoutingConfig {
           if (!masterKotPrinters.some(p => p.type === 'android-bt' && p.address === addr)) {
             masterKotPrinters.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
           }
+        } else if (prof.connectionType === 'NETWORK' && prof.host) {
+          if (!masterKotPrinters.some(p => p.type === 'network' && p.host === prof.host)) {
+            masterKotPrinters.push({ type: 'network' as const, host: prof.host, port: Number(prof.port || 9100), nameHint: prof.name });
+          }
         } else if (prof.connectionType === 'WINDOWS_QUEUE' && prof.windowsPrinterName) {
           if (!masterKotPrinters.some(p => p.type === 'winspool' && p.printerName === prof.windowsPrinterName)) {
             masterKotPrinters.push({ type: 'winspool' as const, printerName: prof.windowsPrinterName });
@@ -161,6 +170,10 @@ export function getPrintRouting(): PrintRoutingConfig {
                 const addr = prof.btAddress || prof.macAddress;
                 if (!printerTargets.some(p => p.type === 'android-bt' && p.address === addr)) {
                   printerTargets.push({ type: 'android-bt' as const, address: addr, nameHint: prof.name });
+                }
+              } else if (prof.connectionType === 'NETWORK' && prof.host) {
+                if (!printerTargets.some(p => p.type === 'network' && p.host === prof.host)) {
+                  printerTargets.push({ type: 'network' as const, host: prof.host, port: Number(prof.port || 9100), nameHint: prof.name });
                 }
               } else if (prof.connectionType === 'WINDOWS_QUEUE' && prof.windowsPrinterName) {
                 if (!printerTargets.some(p => p.type === 'winspool' && p.printerName === prof.windowsPrinterName)) {

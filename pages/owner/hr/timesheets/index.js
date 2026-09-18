@@ -48,6 +48,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
     attendanceDate: todayStr,
     clockInTime: '',
     clockOutTime: '',
+    isNextDay: false,
     status: 'PRESENT',
     punchMethod: 'MANUAL'
   });
@@ -81,6 +82,60 @@ export default function TimesheetsDashboard({ embedded = false }) {
     }
   };
 
+  const getNextDateStr = (dateStr) => {
+    if (!dateStr) return dateStr;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const calculateShiftPreview = (currFormData = formData) => {
+    if (currFormData.status === 'ABSENT' || !currFormData.clockInTime || !currFormData.clockOutTime) {
+      return null;
+    }
+    const [inH, inM] = currFormData.clockInTime.split(':').map(Number);
+    const [outH, outM] = currFormData.clockOutTime.split(':').map(Number);
+    if (isNaN(inH) || isNaN(inM) || isNaN(outH) || isNaN(outM)) return null;
+
+    const inTotal = inH * 60 + inM;
+    const outTotal = outH * 60 + outM;
+
+    let diffMinutes = 0;
+    if (currFormData.isNextDay) {
+      diffMinutes = (1440 - inTotal) + outTotal;
+    } else {
+      diffMinutes = outTotal - inTotal;
+    }
+
+    const hours = diffMinutes / 60;
+    return {
+      hours,
+      isValid: diffMinutes > 0 && hours <= 16,
+      isOvernight: Boolean(currFormData.isNextDay)
+    };
+  };
+
+  const handleTimeChange = (field, value) => {
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      const inVal = field === 'clockInTime' ? value : next.clockInTime;
+      const outVal = field === 'clockOutTime' ? value : next.clockOutTime;
+      if (inVal && outVal && inVal.length === 5 && outVal.length === 5) {
+        if (outVal < inVal) {
+          next.isNextDay = true;
+        } else if (outVal > inVal && prev.isNextDay && field === 'clockOutTime') {
+          next.isNextDay = false;
+        }
+      }
+      return next;
+    });
+  };
+
   const handleOpenCreate = () => {
     setEditingRecord(null);
     const now = new Date();
@@ -91,6 +146,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
       attendanceDate: todayStr,
       clockInTime: currentTimeStr,
       clockOutTime: '',
+      isNextDay: false,
       status: 'PRESENT',
       punchMethod: 'MANUAL'
     });
@@ -99,11 +155,17 @@ export default function TimesheetsDashboard({ embedded = false }) {
 
   const handleOpenEdit = (record) => {
     setEditingRecord(record);
+    const isOvernight = Boolean(
+      record.clockInTime &&
+      record.clockOutTime &&
+      record.clockOutTime.substring(0, 10) !== record.clockInTime.substring(0, 10)
+    );
     setFormData({
       employeeId: record.employeeId,
       attendanceDate: record.attendanceDate || todayStr,
       clockInTime: record.clockInTime ? record.clockInTime.substring(11, 16) : '',
       clockOutTime: record.clockOutTime ? record.clockOutTime.substring(11, 16) : '',
+      isNextDay: isOvernight,
       status: record.status || 'PRESENT',
       punchMethod: record.punchMethod || 'MANUAL'
     });
@@ -115,8 +177,17 @@ export default function TimesheetsDashboard({ embedded = false }) {
     if (isSubmitting) return;
 
     if (formData.status !== 'ABSENT' && formData.clockInTime && formData.clockOutTime) {
-      if (formData.clockOutTime <= formData.clockInTime) {
+      if (!formData.isNextDay && formData.clockOutTime <= formData.clockInTime) {
         showToast("Clock Out time must be later than Clock In time.", "error");
+        return;
+      }
+      const preview = calculateShiftPreview();
+      if (preview && !preview.isValid) {
+        if (preview.hours <= 0) {
+          showToast("Clock Out time must be later than Clock In time.", "error");
+        } else {
+          showToast("Invalid shift duration: Continuous shift cannot exceed 16 hours.", "error");
+        }
         return;
       }
     }
@@ -130,11 +201,13 @@ export default function TimesheetsDashboard({ embedded = false }) {
         return `${dateStr}T${t}`;
       };
 
+      const outDate = formData.isNextDay ? getNextDateStr(formData.attendanceDate) : formData.attendanceDate;
+
       const payload = {
         employeeId: formData.employeeId,
         attendanceDate: formData.attendanceDate,
         clockInTime: formData.status === 'ABSENT' ? `${formData.attendanceDate}T00:00:00` : formatLocalIso(formData.clockInTime, formData.attendanceDate),
-        clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime, formData.attendanceDate),
+        clockOutTime: formData.status === 'ABSENT' ? null : formatLocalIso(formData.clockOutTime, outDate),
         status: formData.status,
         punchMethod: formData.punchMethod
       };
@@ -280,7 +353,14 @@ export default function TimesheetsDashboard({ embedded = false }) {
                             {record.status === 'ABSENT' 
                               ? '--' 
                               : (record.clockOutTime 
-                                  ? formatTime(record.clockOutTime) 
+                                  ? (
+                                    <>
+                                      {formatTime(record.clockOutTime)}
+                                      {record.clockInTime && record.clockOutTime.substring(0, 10) !== record.clockInTime.substring(0, 10) && (
+                                        <span className="next-day-tag" title="Ends next calendar day">+1d</span>
+                                      )}
+                                    </>
+                                  ) 
                                   : (record.status === 'PRESENT' ? 'Active' : '--')
                                 )
                             }
@@ -395,26 +475,61 @@ export default function TimesheetsDashboard({ embedded = false }) {
               </div>
 
               {formData.status !== 'ABSENT' && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Clock In Time</label>
-                    <input 
-                      type="time" 
-                      value={formData.clockInTime ? (formData.clockInTime.length > 5 ? formData.clockInTime.substring(11, 16) : formData.clockInTime) : ''} 
-                      onChange={(e) => setFormData({ ...formData, clockInTime: e.target.value })}
-                      required={formData.status !== 'ABSENT'} 
-                    />
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Clock In Time</label>
+                      <input 
+                        type="time" 
+                        value={formData.clockInTime ? (formData.clockInTime.length > 5 ? formData.clockInTime.substring(11, 16) : formData.clockInTime) : ''} 
+                        onChange={(e) => handleTimeChange('clockInTime', e.target.value)}
+                        required={formData.status !== 'ABSENT'} 
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Clock Out Time</label>
+                      <input 
+                        type="time" 
+                        value={formData.clockOutTime ? (formData.clockOutTime.length > 5 ? formData.clockOutTime.substring(11, 16) : formData.clockOutTime) : ''} 
+                        onChange={(e) => handleTimeChange('clockOutTime', e.target.value)}
+                      />
+                    </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>Clock Out Time</label>
-                    <input 
-                      type="time" 
-                      value={formData.clockOutTime ? (formData.clockOutTime.length > 5 ? formData.clockOutTime.substring(11, 16) : formData.clockOutTime) : ''} 
-                      onChange={(e) => setFormData({ ...formData, clockOutTime: e.target.value })}
-                    />
-                  </div>
-                </div>
+                  {formData.clockInTime && formData.clockOutTime && (
+                    <div className="shift-helper-box">
+                      <label className="checkbox-label">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.isNextDay} 
+                          onChange={(e) => setFormData({ ...formData, isNextDay: e.target.checked })} 
+                        />
+                        <span>
+                          <strong>Ends Next Day (+1 Day: {getNextDateStr(formData.attendanceDate)})</strong>
+                        </span>
+                      </label>
+                      
+                      {(() => {
+                        const preview = calculateShiftPreview();
+                        if (!preview) return null;
+                        if (!preview.isValid) {
+                          return (
+                            <div className="preview-pill error">
+                              ⚠️ {preview.hours <= 0 ? 'Clock Out time must be later than Clock In time.' : 'Continuous shift cannot exceed 16 hours.'}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className={`preview-pill ${preview.isOvernight ? 'overnight' : 'sameday'}`}>
+                            {preview.isOvernight ? '🌙 Overnight Shift: ' : '☀️ Shift Duration: '}
+                            <strong>{preview.hours.toFixed(2)} hrs</strong>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="form-grid">
@@ -532,7 +647,35 @@ export default function TimesheetsDashboard({ embedded = false }) {
         
         .time-badge { font-family: monospace; font-weight: 600; padding: 4px 8px; border-radius: 6px; }
         .time-badge.in { background: #dcfce7; color: #15803d; }
-        .time-badge.out { background: #f1f5f9; color: #475569; }
+        .time-badge.out { background: #f1f5f9; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
+        .next-day-tag {
+          font-size: 10px; font-weight: 800; background: #e0e7ff; color: #4338ca;
+          padding: 1px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        .shift-helper-box {
+          background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+          padding: 12px 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .checkbox-label {
+          display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #1e293b;
+        }
+        .checkbox-label input[type="checkbox"] {
+          width: 16px; height: 16px; accent-color: #f97316; cursor: pointer;
+        }
+        .preview-pill {
+          display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+          border-radius: 8px; font-size: 12px; font-weight: 600; width: fit-content;
+        }
+        .preview-pill.overnight {
+          background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+        }
+        .preview-pill.sameday {
+          background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+        }
+        .preview-pill.error {
+          background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+        }
 
         .overtime-flag {
           display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;

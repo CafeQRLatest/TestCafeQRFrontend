@@ -344,34 +344,35 @@ async function printClaimedJob(job) {
       normalized.order?.is_edited ?? normalized.order?.isEdited
     );
 
-    // Edited orders must never be skipped by deduplication
-    if (!isEdited) {
-      const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
-      const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
-      let dedupMap = {};
-      let cloudMap = {};
-      try { dedupMap = JSON.parse(rawDedup); } catch {}
-      try { cloudMap = JSON.parse(rawCloud); } catch {}
+    // Deduplicate recently printed orders so cloud print station doesn't re-print what local POS already printed
+    const rawDedup = typeof window !== 'undefined' ? window.localStorage.getItem('KOTPRINT_PRINTED_V1') || '{}' : '{}';
+    const rawCloud = typeof window !== 'undefined' ? window.localStorage.getItem('cafeqr_printed_jobs') || '{}' : '{}';
+    let dedupMap = {};
+    let cloudMap = {};
+    try { dedupMap = JSON.parse(rawDedup); } catch {}
+    try { cloudMap = JSON.parse(rawCloud); } catch {}
 
-      const jobSubtype = normalized.printerProfileId ? `prof-${normalized.printerProfileId}` : (normalized.payload?.reason || 'main');
-      const specificKey = `${orderId}:${normalized.kind}:${jobSubtype}`;
-      const generalKey = `${orderId}:${normalized.kind}`;
+    const jobSubtype = normalized.printerProfileId ? `prof-${normalized.printerProfileId}` : (normalized.payload?.reason || 'main');
+    const specificKey = `${orderId}:${normalized.kind}:${jobSubtype}`;
+    const generalKey = `${orderId}:${normalized.kind}`;
 
-      const now = Date.now();
-      const dedupHit = (dedupMap[specificKey] && (now - Number(dedupMap[specificKey]) < 120_000)) ||
-                       (!isDirected && dedupMap[generalKey] && (now - Number(dedupMap[generalKey]) < 120_000));
-      const cloudHit = (cloudMap[specificKey] && (now - Number(cloudMap[specificKey]) < 120_000)) ||
-                       (!isDirected && cloudMap[generalKey] && (now - Number(cloudMap[generalKey]) < 120_000));
+    const now = Date.now();
+    // For edited orders, use a 30s window so local print isn't duplicated by background claim,
+    // while subsequent edits after 30s can still be processed.
+    const dedupWindow = isEdited ? 30_000 : 120_000;
+    const dedupHit = (dedupMap[specificKey] && (now - Number(dedupMap[specificKey]) < dedupWindow)) ||
+                     (!isDirected && dedupMap[generalKey] && (now - Number(dedupMap[generalKey]) < dedupWindow));
+    const cloudHit = (cloudMap[specificKey] && (now - Number(cloudMap[specificKey]) < dedupWindow)) ||
+                     (!isDirected && cloudMap[generalKey] && (now - Number(cloudMap[generalKey]) < dedupWindow));
 
-      if (dedupHit || cloudHit) {
-        console.log(`[cloud-print] Job ${normalized.id} (${normalized.kind}:${jobSubtype}) for order ${orderId} was already printed locally, marking completed.`);
-        await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
-          backgroundSync: true,
-          skipAuthRedirect: true,
-          skipOfflineQueue: true,
-        });
-        return normalized;
-      }
+    if (dedupHit || cloudHit) {
+      console.log(`[cloud-print] Job ${normalized.id} (${normalized.kind}:${jobSubtype}) for order ${orderId} was already printed locally, marking completed.`);
+      await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
+        backgroundSync: true,
+        skipAuthRedirect: true,
+        skipOfflineQueue: true,
+      });
+      return normalized;
     }
   }
 
