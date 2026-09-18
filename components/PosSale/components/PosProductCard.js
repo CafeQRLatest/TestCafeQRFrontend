@@ -45,9 +45,10 @@ const CardWrapper = styled.div`
     transform: translateY(0) scale(0.99);
   }
 
-  @media (max-width: 480px) {
-    min-height: ${props => props.$hasImage ? '180px' : '98px'};
-    border-radius: 12px;
+  @media (max-width: 640px) {
+    min-height: ${props => props.$hasImage ? '142px' : '78px'};
+    border-radius: 9px;
+    border-width: 1px;
   }
 `;
 
@@ -64,9 +65,11 @@ const ImageHeader = styled.div`
   padding: 8px;
   border-bottom: 1px solid #f1f5f9;
 
-  @media (max-width: 480px) {
-    height: 80px;
-    padding: 6px;
+  @media (max-width: 640px) {
+    height: 56px;
+    padding: 3px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
   }
 `;
 
@@ -145,6 +148,20 @@ const VegIndicator = styled.div`
     border-radius: ${props => props.$nonVeg ? '1px' : '50%'};
     background: ${props => props.$nonVeg ? '#ef4444' : '#16a34a'};
   }
+
+  @media (max-width: 640px) {
+    top: 4px;
+    right: 4px;
+    width: 12px;
+    height: 12px;
+    border-width: 1.2px;
+    border-radius: 3px;
+
+    &::after {
+      width: 5px;
+      height: 5px;
+    }
+  }
 `;
 
 const CartCountCircle = styled.div`
@@ -166,6 +183,15 @@ const CartCountCircle = styled.div`
   z-index: 10;
   letter-spacing: -0.3px;
   font-variant-numeric: tabular-nums;
+
+  @media (max-width: 640px) {
+    top: -5px;
+    left: -5px;
+    width: 18px;
+    height: 18px;
+    font-size: 9.5px;
+    border-width: 1.5px;
+  }
 `;
 
 const CardBody = styled.div`
@@ -176,9 +202,9 @@ const CardBody = styled.div`
   justify-content: space-between;
   gap: 7px;
 
-  @media (max-width: 480px) {
-    padding: 8px 10px;
-    gap: 4px;
+  @media (max-width: 640px) {
+    padding: 4px 5px 6px;
+    gap: 2px;
   }
 `;
 
@@ -186,6 +212,10 @@ const MetaRow = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+
+  @media (max-width: 640px) {
+    gap: 2px;
+  }
 `;
 
 const ProductName = styled.div`
@@ -202,8 +232,12 @@ const ProductName = styled.div`
   min-height: 19px;
   padding-right: ${props => props.$noImage ? '22px' : '0'};
 
-  @media (max-width: 480px) {
-    font-size: 13px;
+  @media (max-width: 640px) {
+    font-size: 11px;
+    line-height: 1.2;
+    min-height: 14px;
+    max-height: 28px;
+    padding-right: ${props => props.$noImage ? '14px' : '0'};
   }
 `;
 
@@ -220,6 +254,12 @@ const CategoryPill = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  @media (max-width: 640px) {
+    font-size: 8.5px;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
 `;
 
 const PriceRow = styled.div`
@@ -227,6 +267,11 @@ const PriceRow = styled.div`
   align-items: baseline;
   gap: 6px;
   margin-top: 6px;
+
+  @media (max-width: 640px) {
+    margin-top: 2px;
+    gap: 3px;
+  }
 `;
 
 const PriceTag = styled.div`
@@ -235,14 +280,15 @@ const PriceTag = styled.div`
   gap: 5px;
 
   .price-val {
-    font-weight: 800;
-    font-size: 15.5px;
+    font-weight: 750;
+    font-size: 14px;
     color: #0f172a;
     letter-spacing: -0.3px;
     font-variant-numeric: tabular-nums;
 
-    @media (max-width: 480px) {
-      font-size: 14.5px;
+    @media (max-width: 640px) {
+      font-size: 10.5px;
+      font-weight: 700;
     }
   }
 
@@ -255,12 +301,21 @@ const PriceTag = styled.div`
     border-radius: 3px;
     text-transform: uppercase;
     letter-spacing: 0.4px;
+
+    @media (max-width: 640px) {
+      font-size: 7px;
+      padding: 1px 3px;
+    }
   }
 `;
 
 const ActionRow = styled.div`
   width: 100%;
   margin-top: 6px;
+
+  @media (max-width: 640px) {
+    margin-top: 2px;
+  }
 `;
 
 const AddButton = styled.button`
@@ -289,10 +344,11 @@ const AddButton = styled.button`
     transform: translateY(0);
   }
 
-  @media (max-width: 480px) {
-    height: 32px;
-    font-size: 12px;
-    border-radius: 8px;
+  @media (max-width: 640px) {
+    height: 25px;
+    font-size: 10px;
+    border-radius: 6px;
+    gap: 3px;
   }
 `;
 
@@ -322,10 +378,11 @@ const OptionsButton = styled.button`
     transform: translateY(0);
   }
 
-  @media (max-width: 480px) {
-    height: 32px;
-    font-size: 11.5px;
-    border-radius: 8px;
+  @media (max-width: 640px) {
+    height: 25px;
+    font-size: 9.5px;
+    border-radius: 6px;
+    gap: 3px;
   }
 `;
 
@@ -341,9 +398,10 @@ const StepperWrapper = styled.div`
   overflow: hidden;
   box-shadow: 0 2px 7px ${props => props.$themeColor ? `${props.$themeColor}20` : 'rgba(249, 115, 22, 0.15)'};
 
-  @media (max-width: 480px) {
-    height: 32px;
-    border-radius: 8px;
+  @media (max-width: 640px) {
+    height: 25px;
+    border-radius: 6px;
+    border-width: 1px;
   }
 `;
 
@@ -368,6 +426,11 @@ const StepperBtn = styled.button`
   &:active {
     background: rgba(0,0,0,0.12);
   }
+
+  @media (max-width: 640px) {
+    width: 22px;
+    font-size: 9px;
+  }
 `;
 
 const StepperInput = styled.input`
@@ -388,8 +451,8 @@ const StepperInput = styled.input`
     margin: 0;
   }
 
-  @media (max-width: 480px) {
-    font-size: 12.5px;
+  @media (max-width: 640px) {
+    font-size: 11px;
   }
 `;
 
@@ -485,7 +548,6 @@ const PosProductCard = React.memo(function PosProductCard({
           >
             {product.name}
           </ProductName>
-          <CategoryPill>{product.categoryName || 'General'}</CategoryPill>
         </MetaRow>
 
         <PriceRow>

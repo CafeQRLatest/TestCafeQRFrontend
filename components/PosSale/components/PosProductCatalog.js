@@ -394,9 +394,9 @@ const ProductGrid = styled.div`
   pointer-events: ${props => props.$loading ? 'none' : 'auto'};
 
   @media (max-width: 640px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    padding: 10px 2px 4px 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px 2px 75px 2px;
   }
 `;
 

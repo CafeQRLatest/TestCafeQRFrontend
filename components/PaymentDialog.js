@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag } from 'react-icons/fa';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag, FaUser, FaPhoneAlt, FaSearch } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import { isDiscountModuleEnabled, isLoyaltyModuleEnabled } from '../utils/moduleVisibility';
@@ -55,7 +55,8 @@ export default function PaymentDialog({
   onConfirm, 
   onCreditCustomerCreated,
   themeColor = 'orange',
-  disableEditDiscount = false
+  disableEditDiscount = false,
+  allowCustomerSelection = false
 }) {
   const dp = Number(config?.currencyDecimalPlaces ?? 2);
   const sym = config?.currencySymbol || '₹';
@@ -83,6 +84,16 @@ export default function PaymentDialog({
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
 
+  // ─── Customer Selection State (New Sales only) ─────────────────────────────
+  const [localCustomer, setLocalCustomer] = useState(null); // { id, name, phone } picked in dialog
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef(null);
+  const customerDropdownRef = useRef(null);
+
   // ─── Loyalty Points State & Fetching ──────────────────────────────────────
   const loyaltyEnabled = config?.loyaltyEnabled !== false && config?.pm_loyalty !== false;
   const [customerLoyalty, setCustomerLoyalty] = useState(null);
@@ -92,7 +103,17 @@ export default function PaymentDialog({
   const [loyaltyFetchError, setLoyaltyFetchError] = useState(null);
 
   // Extract selected customer info from order or customer prop (handles POS & Kitchen/Table orders)
+  // localCustomer (from in-dialog selection) takes precedence if set
   const customerInfo = useMemo(() => {
+    if (localCustomer) {
+      return {
+        id: localCustomer.id || null,
+        phone: localCustomer.phone || null,
+        name: localCustomer.name || null,
+        loyaltyPoints: null, // will be fetched live
+      };
+    }
+
     const id =
       order?.customerId ||
       order?.customer_id ||
@@ -139,7 +160,7 @@ export default function PaymentDialog({
       null;
 
     return { id, phone, name, loyaltyPoints };
-  }, [order, customer, creditCustomerId]);
+  }, [order, customer, creditCustomerId, localCustomer]);
 
   const hasAttachedCustomer = useMemo(() => {
     return Boolean(customerInfo.id || customerInfo.phone || customerInfo.name);
@@ -192,13 +213,14 @@ export default function PaymentDialog({
         .catch(err => console.error(err));
       return () => { active = false; };
     }
-  }, [customerInfo, allCustomers, customer]);
+  }, [customerInfo, allCustomers, customer, localCustomer]);
 
   const activeCustomerId = useMemo(() => {
+    if (localCustomer?.id && !String(localCustomer.id).startsWith('temp-')) return localCustomer.id;
     if (resolvedCustomerId) return resolvedCustomerId;
     if (customerInfo.id && !String(customerInfo.id).startsWith('temp-')) return customerInfo.id;
     return null;
-  }, [resolvedCustomerId, customerInfo]);
+  }, [resolvedCustomerId, customerInfo, localCustomer]);
 
   const [loyaltySecondaryMethod, setLoyaltySecondaryMethod] = useState('CASH');
 
@@ -242,6 +264,92 @@ export default function PaymentDialog({
   useEffect(() => {
     fetchLoyaltyData(false);
   }, [fetchLoyaltyData]);
+
+  // ─── Customer Search (debounced, for allowCustomerSelection mode) ──────────
+  useEffect(() => {
+    if (!allowCustomerSelection || hasAttachedCustomer || localCustomer) {
+      setSearchResults([]);
+      return;
+    }
+    const cleanPhone = String(customerPhone || '').trim();
+    const cleanName = String(customerName || '').trim();
+    const q = cleanPhone || cleanName;
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearchLoading(true);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        // in-memory first
+        const inMem = (Array.isArray(allCustomers) ? allCustomers : []).filter(c => {
+          const nm = (c.name || '').toLowerCase();
+          const ph = (c.phone || '');
+          return nm.includes(q.toLowerCase()) || ph.includes(q);
+        }).slice(0, 15);
+        if (inMem.length > 0) {
+          setSearchResults(inMem);
+          setSearchLoading(false);
+          // Auto-select if exact 10-digit phone match found
+          if (cleanPhone.length >= 10 && inMem.length === 1 && String(inMem[0].phone).trim() === cleanPhone) {
+            handleSelectCustomer(inMem[0]);
+          }
+          return;
+        }
+        // fallback: API search
+        const res = await api.get('/api/v1/pos/sale/customers/search', { params: { q, limit: 15 } });
+        const results = res.data?.data || [];
+        setSearchResults(results);
+        // Auto-select if exact 10-digit phone match found
+        if (cleanPhone.length >= 10 && results.length === 1 && String(results[0].phone).trim() === cleanPhone) {
+          handleSelectCustomer(results[0]);
+        }
+      } catch (err) {
+        console.warn('[PaymentDialog] Customer search error:', err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 250);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [customerName, customerPhone, allowCustomerSelection, hasAttachedCustomer, localCustomer, allCustomers]);
+
+  // Click outside to dismiss customer dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectCustomer = useCallback((c) => {
+    setLocalCustomer({ id: c.id, name: c.name, phone: c.phone });
+    setCustomerName(c.name || '');
+    setCustomerPhone(c.phone || '');
+    setSearchResults([]);
+    setShowCustomerDropdown(false);
+    setResolvedCustomerId(c.id);
+    // Reset loyalty state so it refetches for the new customer
+    setAppliedLoyaltyPoints(0);
+    setInputPoints('');
+  }, []);
+
+  const handleRemoveLocalCustomer = useCallback(() => {
+    setLocalCustomer(null);
+    setResolvedCustomerId(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setSearchResults([]);
+    setShowCustomerDropdown(false);
+    setAppliedLoyaltyPoints(0);
+    setInputPoints('');
+    setCustomerLoyalty(null);
+    setLoyaltyProgram(null);
+  }, []);
 
   const redemptionRules = useMemo(() => {
     if (!loyaltyProgram) return null;
@@ -765,6 +873,12 @@ export default function PaymentDialog({
           : 'DISABLED',
     } : null;
 
+    const effectiveCustomer = localCustomer || (
+      (customerName?.trim() || customerPhone?.trim())
+        ? { id: null, name: customerName?.trim() || null, phone: customerPhone?.trim() || null }
+        : null
+    );
+
     if (paymentMethod === 'LOYALTY') {
       const netPayable = Math.max(0, Number((payable - loyaltyDiscount).toFixed(dp)));
       const finalMethod = netPayable > 0 ? loyaltySecondaryMethod : 'LOYALTY';
@@ -780,6 +894,7 @@ export default function PaymentDialog({
         loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
         creditCustomerId: finalMethod === 'CREDIT' ? (activeCustomerId || creditCustomerId) : null,
         updatedOrder: finalOrder,
+        ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
       });
       return;
     }
@@ -797,6 +912,7 @@ export default function PaymentDialog({
         redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
         loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
         updatedOrder: finalOrder, // Send modified lines & totals back to host first!
+        ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
       });
       return;
     }
@@ -827,6 +943,7 @@ export default function PaymentDialog({
       redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
       loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
       updatedOrder: finalOrder, // Send modified lines & totals back to host first!
+      ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
     });
   };
 
@@ -1019,6 +1136,195 @@ export default function PaymentDialog({
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
                   {roundOff > 0 ? '+' : ''}{money(roundOff)}
                 </span>
+              </div>
+            )}
+
+            {/* ── Customer Selection (New Sales: no customer attached yet) ── */}
+            {allowCustomerSelection && !hasAttachedCustomer && !isCreditPayment && !localCustomer && (
+              <div
+                ref={customerDropdownRef}
+                style={{
+                  marginTop: '6px',
+                  padding: '10px 12px',
+                  background: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '10px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  position: 'relative'
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FaUser size={11} style={{ color: (theme.main && theme.main !== '#ffffff') ? theme.main : '#0284c7' }} /> Add Customer
+                  </div>
+                  {(customerName || customerPhone) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomerName('');
+                        setCustomerPhone('');
+                        setSearchResults([]);
+                        setShowCustomerDropdown(false);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        padding: '0 4px'
+                      }}
+                      title="Clear customer fields"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 8px',
+                  gap: '6px',
+                  height: '36px',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}>
+                  <div style={{ flex: 1.1, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                    <FaUser size={10} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                    <input
+                      type="text"
+                      placeholder="Customer Name"
+                      value={customerName}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        setShowCustomerDropdown(true);
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '11.5px',
+                        fontWeight: 500,
+                        color: '#0f172a',
+                        outline: 'none',
+                        padding: 0
+                      }}
+                    />
+                  </div>
+                  <div style={{ width: '1px', height: '18px', background: '#cbd5e1', flexShrink: 0 }} />
+                  <div style={{ flex: 0.9, display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                    <FaPhoneAlt size={9.5} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                    <input
+                      type="text"
+                      placeholder="Phone"
+                      value={customerPhone}
+                      onChange={(e) => {
+                        setCustomerPhone(e.target.value);
+                        setShowCustomerDropdown(true);
+                      }}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '11.5px',
+                        fontWeight: 500,
+                        color: '#0f172a',
+                        outline: 'none',
+                        padding: 0
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {searchLoading && (
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', fontStyle: 'italic' }}>
+                    Searching...
+                  </div>
+                )}
+
+                {/* Autocomplete dropdown for matched existing customers */}
+                {showCustomerDropdown && (customerName.trim().length >= 2 || customerPhone.trim().length >= 2) && searchResults.length > 0 && (
+                  <div style={{
+                    marginTop: '4px',
+                    maxHeight: '130px',
+                    overflowY: 'auto',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    background: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(15, 23, 42, 0.08)'
+                  }}>
+                    {searchResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectCustomer(c)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '7px 10px',
+                          border: 'none',
+                          borderBottom: '1px solid #f1f5f9',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          fontSize: '11.5px',
+                          textAlign: 'left',
+                          transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{c.name || 'Guest'}</span>
+                        <span style={{ color: '#94a3b8', fontSize: '10.5px' }}>{c.phone || '—'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Attached Customer Card (from local selection via allowCustomerSelection) ── */}
+            {allowCustomerSelection && localCustomer && !isCreditPayment && (
+              <div style={{
+                marginTop: '6px',
+                padding: '8px 12px',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <FaUser size={10} style={{ color: '#16a34a' }} />
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>{localCustomer.name || 'Guest'}</div>
+                    {localCustomer.phone && <div style={{ fontSize: '10.5px', color: '#4ade80' }}>{localCustomer.phone}</div>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveLocalCustomer}
+                  title="Change customer"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '5px',
+                    padding: '3px 8px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: '#16a34a',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Change
+                </button>
               </div>
             )}
 

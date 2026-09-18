@@ -199,6 +199,18 @@ function timeAgo(dateString) {
   return `${diffHours} hrs ago`;
 }
 
+function formatOrderTime(dateString) {
+  if (!dateString) return '';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+  } catch (e) {
+    return '';
+  }
+}
+
+
 /* ─── Table status color map ────────────────────────────────────────── */
 const STATUS_CUBE = {
   AVAILABLE:   { bg: '#ffffff', fg: '#0f172a', border: '#10b981', label: 'Available' },
@@ -344,7 +356,7 @@ function LiveOrderBoardView({
                 onClick={() => onSelectOrder && onSelectOrder(order)}
               >
                 {/* ── Section 1: Header (Token / Table + Status + Time) ── */}
-                <div style={{
+                <div className="board-card-header" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -357,7 +369,7 @@ function LiveOrderBoardView({
 
                     return (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{
+                        <span className="board-card-token" style={{
                           fontSize: 11.5,
                           fontWeight: 700,
                           color: '#0f172a',
@@ -370,7 +382,7 @@ function LiveOrderBoardView({
                           #{cleanToken}
                         </span>
                         {isTable && (
-                          <span style={{
+                          <span className="board-card-table" style={{
                             background: isBilled ? '#ecfdf5' : '#fff7ed',
                             color: isBilled ? '#047857' : '#c2410c',
                             border: isBilled ? '1px solid #a7f3d0' : '1px solid #fdba74',
@@ -392,7 +404,7 @@ function LiveOrderBoardView({
                   })()}
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{
+                    <span className="board-card-status" style={{
                       ...S.cardStatusBadge,
                       background: isBilled 
                         ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
@@ -425,7 +437,7 @@ function LiveOrderBoardView({
                         </>
                       )}
                     </span>
-                    <span style={{
+                    <span className="board-card-time" style={{
                       ...S.cardTimeBadge,
                       fontSize: 10,
                       fontWeight: 500,
@@ -439,7 +451,7 @@ function LiveOrderBoardView({
                       gap: 3,
                     }}>
                       <FaClock size={8.5} style={{ color: isBilled ? '#10b981' : '#f97316' }} />
-                      {timeAgo(order.createdAt || order.orderDate)}
+                      {formatOrderTime(order.updatedAt || order.updated_at || order.createdAt || order.orderDate)}
                     </span>
                   </div>
                 </div>
@@ -473,7 +485,7 @@ function LiveOrderBoardView({
 
                 {/* ── Section 2: Full Itemized Lines List ── */}
                 {Array.isArray(order.lines) && order.lines.length > 0 && (
-                  <div style={{
+                  <div className="board-card-items-box" style={{
                     ...S.boardItemsBox,
                     background: '#f8fafc',
                     borderRadius: 8,
@@ -484,7 +496,7 @@ function LiveOrderBoardView({
                     maxHeight: 80,
                   }}>
                     {order.lines.map((item, idx) => (
-                      <div key={idx} style={{
+                      <div key={idx} className="board-card-item-row" style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
@@ -492,7 +504,7 @@ function LiveOrderBoardView({
                         lineHeight: 1.3,
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, maxWidth: '72%' }}>
-                          <span style={{
+                          <span className="board-card-item-qty" style={{
                             background: '#e2e8f0',
                             color: '#1e293b',
                             fontSize: 9.5,
@@ -503,7 +515,7 @@ function LiveOrderBoardView({
                           }}>
                             {item.quantity || item.qty || 1}x
                           </span>
-                          <span style={{
+                          <span className="board-card-item-name" style={{
                             color: '#1e293b',
                             fontWeight: 600,
                             fontSize: 11.5,
@@ -514,7 +526,7 @@ function LiveOrderBoardView({
                             {item.productName || item.itemName || item.name || 'Item'}
                           </span>
                         </div>
-                        <span style={{
+                        <span className="board-card-item-price" style={{
                           color: '#334155',
                           fontWeight: 700,
                           fontSize: 11.5,
@@ -530,7 +542,7 @@ function LiveOrderBoardView({
 
                 {/* Special Notes / Instructions */}
                 {(order.notes || order.remarks || order.specialInstructions) && (
-                  <div style={{
+                  <div className="board-card-note-alert" style={{
                     ...S.boardNoteAlert,
                     borderRadius: 6,
                     padding: '3px 8px',
@@ -541,7 +553,7 @@ function LiveOrderBoardView({
                 )}
 
                 {/* ── Section 3: Summary & Total Amount ── */}
-                <div style={{
+                <div className="board-card-summary-row" style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -549,7 +561,7 @@ function LiveOrderBoardView({
                   borderTop: '1px solid #f1f5f9',
                   marginTop: 1,
                 }}>
-                  <span style={{
+                  <span className="board-card-item-count" style={{
                     fontSize: 10.5,
                     fontWeight: 600,
                     color: '#64748b',
@@ -561,8 +573,8 @@ function LiveOrderBoardView({
                     {itemCount} {itemCount === 1 ? 'item' : 'items'}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Total</span>
-                    <span style={{
+                    <span className="board-card-total-label" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Total</span>
+                    <span className="board-card-total-amount" style={{
                       fontSize: 16.5,
                       fontWeight: 800,
                       color: isBilled ? '#047857' : '#0f172a',
@@ -584,7 +596,7 @@ function LiveOrderBoardView({
                   borderTop: '1px solid #f8fafc',
                 }} onClick={e => e.stopPropagation()}>
                   {/* Row 1: Auxiliary action buttons (Bill, KOT, Invoice, Edit, Cancel) */}
-                  <div style={{
+                  <div className={`board-card-aux-row ${!canCancelOrder ? 'four-cols' : ''}`} style={{
                     display: 'grid',
                     gridTemplateColumns: canCancelOrder ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)',
                     gap: 4,
@@ -714,7 +726,7 @@ function LiveOrderBoardView({
                   </div>
 
                   {/* Row 2: Prominent Centered Settle Payment Button */}
-                  <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                  <div className="board-card-settle-wrap" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
                     <button
                       type="button"
                       className="pos-settle-primary-btn"
@@ -1309,7 +1321,11 @@ export default function PosOrderTypeModal({
       const payloadToSend = {
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
-        skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill']
+        skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
+        // Forward customer attachment from PaymentDialog (if cashier selected a customer)
+        ...(settlementPayload.customerId ? { customerId: settlementPayload.customerId } : {}),
+        ...(settlementPayload.customerName ? { customerName: settlementPayload.customerName } : {}),
+        ...(settlementPayload.customerPhone ? { customerPhone: settlementPayload.customerPhone } : {}),
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'
@@ -1941,7 +1957,7 @@ export default function PosOrderTypeModal({
                   <span style={{ color: '#cbd5e1' }}>•</span>
                   <span style={S.modalTimeText}>
                     <FaClock size={10} style={{ opacity: 0.7, marginRight: 4 }} />
-                    {timeAgo(selectedLiveOrder.createdAt || selectedLiveOrder.orderDate)}
+                    {formatOrderTime(selectedLiveOrder.updatedAt || selectedLiveOrder.updated_at || selectedLiveOrder.createdAt || selectedLiveOrder.orderDate)}
                   </span>
                   {(selectedLiveOrder.customerName || selectedLiveOrder.customerPhone) && (
                     <>
@@ -2107,6 +2123,7 @@ export default function PosOrderTypeModal({
             loading={actionBusy === 'settle'}
             config={config}
             creditCustomers={creditCustomers}
+            allowCustomerSelection={true}
             onClose={() => {
               setPaymentOrder(null);
             }}
@@ -2412,7 +2429,7 @@ export default function PosOrderTypeModal({
             grid-template-columns: repeat(5, 1fr) !important;
             gap: 4px !important;
           }
-          .pos-action-bar-btn {
+          .pos-modal-aux-grid .pos-action-bar-btn {
             flex-direction: column !important;
             padding: 7px 2px !important;
             font-size: 10.5px !important;
@@ -2558,55 +2575,216 @@ export default function PosOrderTypeModal({
             position: static !important;
             max-height: none !important;
             box-sizing: border-box !important;
-            padding: 8px 10px !important;
-            margin-bottom: 4px !important;
-            gap: 6px !important;
+            padding: 10px 12px !important;
+            margin-bottom: 8px !important;
+            border-radius: 14px !important;
+            gap: 8px !important;
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
           }
           .pos-board-left-tables-header {
             display: flex !important;
-            flex-direction: row !important;
-            align-items: center !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
             gap: 8px !important;
-            padding-bottom: 4px !important;
+            padding-bottom: 8px !important;
             border-bottom: 1px solid #f1f5f9 !important;
           }
           .pos-board-left-tables-header > div:first-child {
-            width: auto !important;
-            flex-shrink: 0 !important;
-            gap: 8px !important;
+            width: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
           }
           .pos-table-search-wrap-left {
-            flex: 1 !important;
-            min-width: 0 !important;
-            height: 30px !important;
+            width: 100% !important;
+            flex: none !important;
+            height: 34px !important;
+            background: #f8fafc !important;
+            border-radius: 9999px !important;
+            border: 1px solid #cbd5e1 !important;
+            padding: 2px 10px !important;
+            box-sizing: border-box !important;
           }
           .pos-board-tiny-boxes-grid {
-            display: flex !important;
-            flex-direction: row !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            max-height: 84px !important;
             gap: 6px !important;
-            padding: 3px 1px !important;
-            max-height: none !important;
+            padding: 2px 1px !important;
             width: 100% !important;
             box-sizing: border-box !important;
             -webkit-overflow-scrolling: touch !important;
           }
           .pos-board-tiny-boxes-grid .tiny-table-box {
-            flex: 0 0 48px !important;
-            height: 32px !important;
-            font-size: 11.5px !important;
+            width: 100% !important;
+            height: 34px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            border-radius: 8px !important;
+            border: 1.5px solid #10b981 !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+          }
+          .pos-board-tiny-boxes-grid .tiny-table-box:active {
+            background: #ecfdf5 !important;
+            transform: scale(0.96) !important;
           }
           .pos-board-right-orders {
             width: 100% !important;
             box-sizing: border-box !important;
           }
           /* Board Mode Cards & List Responsiveness */
+          .board-card-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+            width: 100% !important;
+            padding-bottom: 20px !important;
+          }
           .board-list-card {
-            padding: 10px 12px !important;
+            padding: 6px 8px !important;
+            border-radius: 9px !important;
+            gap: 3.5px !important;
             width: 100% !important;
             box-sizing: border-box !important;
           }
+          .board-card-header {
+            padding-bottom: 3.5px !important;
+          }
+          .board-card-token {
+            font-size: 9.5px !important;
+            padding: 1px 5px !important;
+            border-radius: 4px !important;
+          }
+          .board-card-table {
+            font-size: 9.5px !important;
+            padding: 1px 5px !important;
+            border-radius: 4px !important;
+          }
+          .board-card-status {
+            font-size: 8px !important;
+            padding: 1px 5px !important;
+          }
+          .board-card-time {
+            font-size: 8.5px !important;
+            padding: 1px 4px !important;
+          }
+          .board-card-items-box {
+            max-height: 44px !important;
+            padding: 2.5px 5px !important;
+            border-radius: 5px !important;
+            gap: 1.5px !important;
+          }
+          .board-card-item-row {
+            font-size: 9.5px !important;
+            line-height: 1.2 !important;
+          }
+          .board-card-item-qty {
+            font-size: 7.5px !important;
+            padding: 0 3px !important;
+            border-radius: 2px !important;
+          }
+          .board-card-item-name {
+            font-size: 9.5px !important;
+          }
+          .board-card-item-price {
+            font-size: 9.5px !important;
+          }
+          .board-card-note-alert {
+            padding: 1px 5px !important;
+            font-size: 9px !important;
+            border-radius: 4px !important;
+          }
+          .board-card-summary-row {
+            padding-top: 3px !important;
+            margin-top: 0 !important;
+          }
+          .board-card-item-count {
+            font-size: 8.5px !important;
+            padding: 1px 5px !important;
+          }
+          .board-card-total-label {
+            font-size: 9px !important;
+          }
+          .board-card-total-amount {
+            font-size: 12.5px !important;
+            font-weight: 800 !important;
+          }
+          .board-card-actions {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 3px !important;
+            width: 100% !important;
+            margin-top: auto !important;
+            padding-top: 3px !important;
+          }
+          .board-card-aux-row {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 2.5px !important;
+            width: 100% !important;
+          }
+          .board-card-aux-row.four-cols {
+            grid-template-columns: repeat(4, 1fr) !important;
+          }
+          .board-card-aux-row .pos-action-bar-btn {
+            display: inline-flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 23px !important;
+            font-size: 9px !important;
+            font-weight: 600 !important;
+            padding: 0 2px !important;
+            border-radius: 5px !important;
+            gap: 2px !important;
+            white-space: nowrap !important;
+            box-sizing: border-box !important;
+          }
+          .board-card-aux-row .pos-action-bar-btn svg {
+            width: 8.5px !important;
+            height: 8.5px !important;
+            flex-shrink: 0 !important;
+            margin: 0 !important;
+            vertical-align: middle !important;
+          }
+          .board-card-aux-row .pos-action-bar-btn span {
+            display: inline-block !important;
+            line-height: 1 !important;
+          }
+          .board-card-settle-wrap {
+            width: 100% !important;
+          }
+          .pos-settle-primary-btn {
+            display: inline-flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 26px !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            padding: 0 8px !important;
+            border-radius: 6px !important;
+            gap: 4px !important;
+            width: 100% !important;
+          }
+          .pos-settle-primary-btn svg {
+            width: 10px !important;
+            height: 10px !important;
+            flex-shrink: 0 !important;
+            margin: 0 !important;
+            vertical-align: middle !important;
+          }
+          .board-new-order-card {
+            min-height: 90px !important;
+            padding: 10px !important;
+            flex-direction: row !important;
+            gap: 10px !important;
+          }
+
           .board-row-single-line {
             display: flex !important;
             flex-direction: column !important;
@@ -2691,24 +2869,6 @@ export default function PosOrderTypeModal({
           }
           .board-list-btn-group .board-arrow-btn {
             display: none !important;
-          }
-          .board-card-grid {
-            grid-template-columns: 1fr !important;
-            width: 100% !important;
-          }
-          .board-card-actions {
-            display: flex !important;
-            flex-wrap: wrap !important;
-            gap: 5px !important;
-            width: 100% !important;
-          }
-          .board-card-actions button {
-            flex: 1 1 auto !important;
-            min-width: 0 !important;
-            height: 30px !important;
-            font-size: 11px !important;
-            padding: 0 6px !important;
-            justify-content: center !important;
           }
         }
 

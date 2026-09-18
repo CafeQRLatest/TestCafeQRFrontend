@@ -425,6 +425,37 @@ export default function usePosSaleController({
         }
       }
 
+      // Fallback: if no customer was selected on the cart but one was entered in the PaymentDialog
+      if (!primaryCustomer && paymentPayload) {
+        if (paymentPayload.customerId || paymentPayload.customerName || paymentPayload.customerPhone) {
+          if (!paymentPayload.customerId && (paymentPayload.customerName?.trim() || paymentPayload.customerPhone?.trim())) {
+            try {
+              const saved = await saveCustomer({
+                name: paymentPayload.customerName?.trim() || 'Guest',
+                phone: paymentPayload.customerPhone ? paymentPayload.customerPhone.trim() : null,
+                pricelistId: defaultPricelistId,
+                isactive: 'Y'
+              });
+              primaryCustomer = { id: saved.id, name: saved.name, phone: saved.phone };
+            } catch (err) {
+              console.warn('Could not auto-save customer before order placement:', err);
+              primaryCustomer = {
+                id: null,
+                name: paymentPayload.customerName || null,
+                phone: paymentPayload.customerPhone || null,
+              };
+            }
+          } else {
+            primaryCustomer = {
+              id: paymentPayload.customerId || null,
+              name: paymentPayload.customerName || null,
+              phone: paymentPayload.customerPhone || null,
+            };
+          }
+          customerSelections = [primaryCustomer];
+        }
+      }
+
       const rememberTrending = (items) => {
         if (typeof window === 'undefined') return;
         try {

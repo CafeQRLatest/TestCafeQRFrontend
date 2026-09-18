@@ -143,9 +143,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
             max-width: calc(100vw - 24px);
           }
           .cloud-print-station.pos-mode {
-            right: auto;
-            left: 12px;
-            bottom: 60px;
+            display: none !important;
           }
         }
       `}</style>

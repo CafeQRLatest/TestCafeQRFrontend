@@ -705,16 +705,34 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
         /* Mobile Sidebar Drawer */
         .mobile-sidebar {
           position: fixed; left: 0; top: 0; bottom: 0;
-          width: min(320px, 86vw); background: white; z-index: 1000;
+          width: min(260px, 78vw); background: white; z-index: 1200;
           transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-          box-shadow: 20px 0 50px rgba(0,0,0,0.1);
+          box-shadow: 20px 0 50px rgba(0,0,0,0.18);
           padding-top: env(safe-area-inset-top, 0px);
           padding-bottom: env(safe-area-inset-bottom, 0px);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
         }
         .mobile-sidebar.open { transform: translateX(0); }
+        .mobile-sidebar .sidebar-link {
+          padding: 8px 12px;
+          margin: 2px 8px;
+          border-radius: 9px;
+          font-size: 12.5px;
+          gap: 9px;
+        }
+        .mobile-sidebar .sidebar-icon {
+          font-size: 14px;
+        }
+        .mobile-sidebar .sidebar-section-title {
+          font-size: 9.5px;
+          margin: 12px 14px 4px;
+          letter-spacing: 0.08em;
+        }
         .mobile-sidebar-backdrop {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-          z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+          position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+          z-index: 1199; opacity: 0; pointer-events: none; transition: opacity 0.3s;
           backdrop-filter: blur(4px);
         }
         .mobile-sidebar-backdrop.visible { opacity: 1; pointer-events: auto; }
@@ -1239,13 +1257,36 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
   const STATIC_ACCOUNT_LINKS = [];
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '32px 24px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <img src="/logo.jpg" alt="Cafe QR Logo" style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover' }} />
-        <span style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.04em' }}>Cafe QR POS</span>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <img src="/logo.jpg" alt="Cafe QR Logo" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+          <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Cafe QR POS</span>
+        </div>
+        <button
+          type="button"
+          onClick={onNavigate}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            border: '1px solid #e2e8f0',
+            background: '#f8fafc',
+            color: '#64748b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+          aria-label="Close navigation"
+          title="Close menu"
+        >
+          <FaTimes size={12} />
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }} className="custom-scrollbar">
         {Object.entries(groupedMenus).map(([categoryName, items]) => {
           const staticItems = categoryName === 'ACCOUNT' ? STATIC_ACCOUNT_LINKS : [];
           const showExplore = categoryName === 'ADD ON' && showExploreAddons;
@@ -1288,9 +1329,27 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
         })}
       </div>
 
-      <div style={{ padding: '20px', borderTop: '1px solid #f1f5f9' }}>
-        <button onClick={logout} className="dropdown-item logout" style={{ padding: '14px', justifyContent: 'center', borderRadius: '12px', background: '#fef2f2' }}>
-          <FaSignOutAlt /> Sign Out
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #f1f5f9', flexShrink: 0 }}>
+        <button 
+          onClick={logout} 
+          className="dropdown-item logout" 
+          style={{ 
+            padding: '9px 12px', 
+            justifyContent: 'center', 
+            borderRadius: '8px', 
+            background: '#fef2f2',
+            color: '#ef4444',
+            fontSize: '12px',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            width: '100%',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          <FaSignOutAlt size={12} /> Sign Out
         </button>
       </div>
     </div>
