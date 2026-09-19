@@ -1751,22 +1751,28 @@ export default function DocumentViewerPopup({
         .disc-apply:disabled { opacity: 0.6; cursor: not-allowed; }
 
         @media(max-width:768px){
-          .dv { gap:10px; }
-          .dv-lbl { font-size: 8.5px; }
-          .dv-val { font-size: 12px; }
-          .dv-sub { font-size: 10.5px; }
-          .dv-mono { font-size: 11.5px; }
-          .dv-nil { font-size: 11.5px; }
-          .dv-muted { font-size: 11.5px; }
-          .dv-tbl { font-size: 11px; min-width: unset; }
-          .dv-tbl th { padding-bottom: 6px; font-size: 8.5px; }
-          .dv-tbl td { padding: 8px 8px 8px 0; }
+          .dv { gap:12px; padding-bottom:16px; }
+          .dv-lbl { font-size: 9px; }
+          .dv-val { font-size: 12.5px; }
+          .dv-sub { font-size: 11px; }
+          .dv-mono { font-size: 12px; }
+          .dv-nil { font-size: 12px; }
+          .dv-muted { font-size: 12px; }
+          .dv-tbl { font-size: 11.5px; min-width: 480px; }
+          .dv-tbl th { padding-bottom: 8px; font-size: 9px; }
+          .dv-tbl td { padding: 10px 10px 10px 0; }
           .dv-row4 { grid-template-columns:1fr 1fr; gap:12px; }
           .dv-row3 { grid-template-columns:1fr 1fr; gap:12px; }
           .dv-row2 { grid-template-columns:1fr 1fr; gap:12px; }
-          .dv-bottom { flex-direction:column-reverse; gap:12px; }
+          .dv-bottom { flex-direction:column-reverse; gap:16px; }
           .dv-totals { margin-left:0; width:100%; min-width:unset; }
-          .disc-panel { max-width:100%; min-width:unset; }
+          .disc-panel { max-width:100%; min-width:unset; width:100%; }
+        }
+        @media(max-width:480px){
+          .dv-row4, .dv-row3, .dv-row2 { grid-template-columns:1fr; gap:12px; }
+          .dv-tbl-wrap { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+          .dv-actions { justify-content: stretch; width: 100%; }
+          .dv-download-btn { width: 100%; }
         }
       `}</style>
     </CafeQRPopup>
