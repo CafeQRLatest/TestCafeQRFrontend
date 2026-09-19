@@ -91,7 +91,8 @@ export const Body = styled.div`
   padding: 16px;
 
   @media (max-width: 760px) {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     padding: 12px;
   }
@@ -105,6 +106,12 @@ export const Section = styled.section`
   overflow: hidden;
   display: flex;
   flex-direction: column;
+
+  @media (max-width: 760px) {
+    overflow: visible;
+    flex: none;
+    min-height: 250px;
+  }
 `;
 
 export const SectionHead = styled.div`
@@ -155,6 +162,10 @@ export const ScrollList = styled.div`
   padding: 12px;
   display: grid;
   gap: 8px;
+
+  @media (max-width: 760px) {
+    overflow-y: visible;
+  }
 `;
 
 export const ProductButton = styled.button`
