@@ -70,7 +70,12 @@ export default function PaymentDialog({
   };
 
   const theme = THEMES[themeColor] || THEMES.orange;
-  const creditEnabled = Boolean(config?.creditEnabled);
+  const [paymentTypes, setPaymentTypes] = useState([]);
+  const creditEnabled = Boolean(
+    config?.creditEnabled ||
+    (creditCustomers && creditCustomers.length > 0) ||
+    paymentTypes.some(pt => pt.paymentType === 'CREDIT' && (pt.isActive ?? pt.isactive ?? 'Y') === 'Y')
+  );
   const roundOffEnabled = Boolean(config?.roundOffEnabled);
   const roundOffMode = String(config?.roundOffMode || 'automatic').toLowerCase();
   const roundOffAutoFactor = Number(config?.roundOffAutoFactor ?? 1);
@@ -81,7 +86,7 @@ export default function PaymentDialog({
   const [paymentSplits, setPaymentSplits] = useState([]);
   const [creditCustomerId, setCreditCustomerId] = useState(order?.creditCustomerId || order?.credit_customer_id || '');
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
-  const [paymentTypes, setPaymentTypes] = useState([]);
+  const [localCreditCustomers, setLocalCreditCustomers] = useState(() => (Array.isArray(creditCustomers) ? creditCustomers : []));
   const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
 
   // ─── Customer Selection State (New Sales only) ─────────────────────────────
@@ -729,18 +734,41 @@ export default function PaymentDialog({
   const isMixedNotSplit = paymentMethod === 'MIXED' && activeSplitsCount < 2;
   const mixedInvalid = paymentMethod === 'MIXED'
     && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01 || isMixedNotSplit);
+  useEffect(() => {
+    if (Array.isArray(creditCustomers) && creditCustomers.length > 0) {
+      setLocalCreditCustomers(creditCustomers);
+    }
+  }, [creditCustomers]);
+
+  useEffect(() => {
+    if (creditEnabled && (!localCreditCustomers || localCreditCustomers.length === 0)) {
+      api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
+        .then(res => {
+          const list = res.data?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            setLocalCreditCustomers(list);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [creditEnabled, localCreditCustomers?.length]);
+
+  const effectiveCreditCustomers = (Array.isArray(localCreditCustomers) && localCreditCustomers.length > 0)
+    ? localCreditCustomers
+    : (Array.isArray(creditCustomers) ? creditCustomers : []);
+
   const creditInvalid = isCreditSelected && !creditCustomerId;
   const creditCustomerOptions = useMemo(
-    () => creditCustomers.map((customer) => ({
+    () => effectiveCreditCustomers.map((customer) => ({
       value: customer.id,
       label: `${customer.name || 'Credit Customer'}${customer.phone ? ` (${customer.phone})` : ''} - ${money(customer.balance)}`,
     })),
-    [creditCustomers, money]
+    [effectiveCreditCustomers, money]
   );
 
   const creditLimitWarning = useMemo(() => {
     if (!isCreditSelected || !creditCustomerId) return '';
-    const customer = creditCustomers.find(c => String(c.id) === String(creditCustomerId));
+    const customer = effectiveCreditCustomers.find(c => String(c.id) === String(creditCustomerId));
     if (!customer) return '';
     const limit = Number(customer.creditLimit || 0);
     if (limit <= 0) return '';
@@ -751,10 +779,11 @@ export default function PaymentDialog({
       return `Credit limit warning: projected balance ${sym}${projected.toFixed(dp)} exceeds ${sym}${limit.toFixed(dp)}.`;
     }
     return '';
-  }, [isCreditSelected, creditCustomerId, creditCustomers, payable, sym, dp]);
+  }, [isCreditSelected, creditCustomerId, effectiveCreditCustomers, payable, sym, dp]);
 
   const handleCreditCustomerCreated = (customer) => {
     if (!customer?.id) return;
+    setLocalCreditCustomers(prev => [customer, ...(prev || []).filter(c => String(c.id) !== String(customer.id))]);
     setCreditCustomerId(customer.id);
     onCreditCustomerCreated?.(customer);
   };

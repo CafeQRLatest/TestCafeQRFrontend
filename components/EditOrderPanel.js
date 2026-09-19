@@ -65,7 +65,13 @@ function normalizeDiscountType(type) {
 }
 
 function lineKey(line, index) {
-  return line.cartKey || line.id || `${line.productId || line.product_id || line.productName || 'line'}-${line.variantId || 'base'}-${index}`;
+  if (line.cartKey) return line.cartKey;
+  const pId = line.productId || line.product_id;
+  const vId = line.variantId || line.variant_id;
+  if (pId) {
+    return `${pId}:${vId || 'base'}`;
+  }
+  return line.id || `line-${index}`;
 }
 
 function normalizeLine(line, index) {
@@ -476,9 +482,19 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
   const upsertLine = (newLine) => {
     setLines((current) => {
-      const existing = current.find((line) => line.cartKey === newLine.cartKey);
+      const existing = current.find((line) => {
+        if (line.cartKey && newLine.cartKey && line.cartKey === newLine.cartKey) return true;
+        const p1 = String(line.productId || line.product_id || '');
+        const p2 = String(newLine.productId || newLine.product_id || '');
+        const v1 = String(line.variantId || line.variant_id || 'base');
+        const v2 = String(newLine.variantId || newLine.variant_id || 'base');
+        return Boolean(p1 && p2 && p1 === p2 && v1 === v2);
+      });
       if (existing) {
-        return current.map((line) => line.cartKey === newLine.cartKey ? { ...line, quantity: line.quantity + 1 } : line);
+        return current.map((line) => (line === existing || line.cartKey === existing.cartKey)
+          ? { ...line, quantity: line.quantity + (newLine.quantity || 1) }
+          : line
+        );
       }
       return [...current, newLine];
     });

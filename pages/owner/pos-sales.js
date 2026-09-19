@@ -204,6 +204,20 @@ export default function PosSalesPage() {
   const isTableManagementOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);
   const needsOrderTypeModal = true; // Always return to Board view in New Sales
 
+  // Fetch active credit customers if credit is enabled
+  useEffect(() => {
+    if (config?.creditEnabled) {
+      api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
+        .then(res => {
+          const list = res.data?.data || [];
+          if (Array.isArray(list) && isMountedRef.current) {
+            setCreditCustomers(list);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [config?.creditEnabled]);
+
   // Ensure that if no table is selected, we always stay on Board view
   useEffect(() => {
     if (activeView === 'billing' && !selectedTable) {

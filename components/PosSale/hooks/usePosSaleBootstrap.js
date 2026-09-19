@@ -170,10 +170,20 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
         }
 
         // ── Credit Customers (prefer prop if provided) ──
-        if (initialCreditCustomersRef.current) {
+        if (initialCreditCustomersRef.current && initialCreditCustomersRef.current.length > 0) {
           setCreditCustomers(initialCreditCustomersRef.current);
-        } else if (bootstrap.creditCustomers) {
+        } else if (bootstrap.creditCustomers && bootstrap.creditCustomers.length > 0) {
           setCreditCustomers(bootstrap.creditCustomers);
+        } else if (effectiveConfig?.creditEnabled) {
+          try {
+            const { data } = await api.get('/api/v1/credit/customers', {
+              params: { status: 'ACTIVE' },
+              signal: controller.signal
+            });
+            if (active && data?.data) {
+              setCreditCustomers(data.data);
+            }
+          } catch (_) {}
         }
 
         setLoading(false);
