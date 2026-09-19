@@ -47,6 +47,8 @@ import {
   isPrintStationEnabled,
   enqueueCloudPrintJob,
   localPrintWillHandleKind,
+  autoPrintNewRemoteOrders,
+  getRestaurantProfile,
 } from '../utils/cloudPrintStation';
 import PaymentDialog from './PaymentDialog';
 import KotPrint from './KotPrint';
@@ -928,6 +930,15 @@ export default function PosOrderTypeModal({
         const raw = res.data?.data || [];
         const onlyLive = raw.filter(isLiveOrder);
         setLiveOrders(onlyLive);
+
+        // Auto-print remote KOTs if enabled
+        if (typeof window !== 'undefined') {
+          getRestaurantProfile().then(profile => {
+            autoPrintNewRemoteOrders(onlyLive, profile).catch(err => {
+              console.error('[POS V2] Auto-print failed:', err);
+            });
+          }).catch(() => {});
+        }
       }
     } catch (err) {
       console.warn('Failed to fetch live sales orders:', err?.message || err);
