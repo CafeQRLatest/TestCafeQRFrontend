@@ -1082,11 +1082,29 @@ export default function PosOrderTypeModal({
       ? [...activeTables]
       : activeTables.filter(t => t.floor === floorFilter);
 
+    // Industry-standard natural alphanumeric sort:
+    // 1. Group by alphabetic prefix (e.g., O, T, VIP, etc.)
+    // 2. Sort groups alphabetically
+    // 3. Sort numerically within each group
+    // Result: O1, O2, O3, ..., T1, T2, T3, ..., VIP1, VIP2, ...
     return list.sort((a, b) => {
-      const numA = parseInt(String(a.tableNumber || '').replace(/\D/g, ''), 10);
-      const numB = parseInt(String(b.tableNumber || '').replace(/\D/g, ''), 10);
-      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB;
-      return String(a.tableNumber || '').localeCompare(String(b.tableNumber || ''), undefined, { numeric: true, sensitivity: 'base' });
+      const aStr = String(a.tableNumber || '');
+      const bStr = String(b.tableNumber || '');
+      const aMatch = aStr.match(/^([A-Za-z]*)\s*(\d+)(.*)$/);
+      const bMatch = bStr.match(/^([A-Za-z]*)\s*(\d+)(.*)$/);
+
+      if (aMatch && bMatch) {
+        const prefixA = (aMatch[1] || '').toUpperCase();
+        const prefixB = (bMatch[1] || '').toUpperCase();
+        if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
+        const numA = parseInt(aMatch[2], 10);
+        const numB = parseInt(bMatch[2], 10);
+        if (numA !== numB) return numA - numB;
+        return (aMatch[3] || '').localeCompare(bMatch[3] || '');
+      }
+
+      // Fallback: natural locale compare
+      return aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [activeTables, floorFilter]);
 
