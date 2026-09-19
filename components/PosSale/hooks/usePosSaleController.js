@@ -252,6 +252,23 @@ export default function usePosSaleController({
     }
   }, []);
 
+  // Reset current sale state when switching table / order type (while preserving catalog & categories in memory)
+  const currentTableKey = initialTable ? `${initialTable.id || ''}-${initialTable.tableNumber || ''}-${initialTable.orderType || ''}` : '';
+  const prevTableKeyRef = useRef(currentTableKey);
+
+  useEffect(() => {
+    if (prevTableKeyRef.current !== currentTableKey) {
+      prevTableKeyRef.current = currentTableKey;
+      setCart([]);
+      setOrderNote('');
+      clearCustomerSelection();
+      handleClearAllDiscounts();
+      setShowSettleDialog(false);
+      setVariantProduct(null);
+      setVariablePriceProduct(null);
+    }
+  }, [currentTableKey, setCart, setOrderNote, clearCustomerSelection, handleClearAllDiscounts, setShowSettleDialog, setVariantProduct, setVariablePriceProduct]);
+
   const handleZoom = useCallback((delta) => {
     setZoomLevel(prev => {
       const next = Number(Math.min(1.4, Math.max(0.8, prev + delta)).toFixed(1));

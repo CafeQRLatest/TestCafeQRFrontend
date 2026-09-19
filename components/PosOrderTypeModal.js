@@ -836,8 +836,11 @@ export default function PosOrderTypeModal({
   }, []);
 
   useEffect(() => {
+    if (Array.isArray(tables) && tables.length > 0) {
+      return;
+    }
     fetchActiveTables();
-  }, [fetchActiveTables]);
+  }, [tables, fetchActiveTables]);
 
   useEffect(() => {
     if (Array.isArray(tables) && tables.length > 0) {

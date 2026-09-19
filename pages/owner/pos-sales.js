@@ -492,7 +492,6 @@ export default function PosSalesPage() {
         }}>
           {selectedTable && (
             <PosSaleContainer
-              key={`${selectedTable.tableNumber}-${selectedTable.orderType}-${selectedTable.id || 'counter'}`}
               initialBootstrap={bootstrapData}
               initialTable={selectedTable}
               config={config}

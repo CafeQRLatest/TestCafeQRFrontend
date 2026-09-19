@@ -29,10 +29,12 @@ export default function usePosProductCatalog({
     || config?.posProductListingEnabled === false;
   const [productListingOn, setProductListingOn] = useState(() => !isCounterMode);
 
+  const hasInitialProducts = Array.isArray(initialProducts) && initialProducts.length > 0;
+
   // Server-side paginated products list
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState(() => (hasInitialProducts ? initialProducts : []));
   const [cursors, setCursors] = useState([]); // Array of cursors: index 1 is cursor for page 1, etc.
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(() => (hasInitialProducts && initialProducts.length >= 50));
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -40,9 +42,9 @@ export default function usePosProductCatalog({
   const requestIdRef = useRef(0);
   const initialFetchDoneRef = useRef(false);
 
-  // Keep in sync with initialProducts on mount
+  // Keep in sync with initialProducts if they arrive later (e.g. async bootstrap completion)
   useEffect(() => {
-    if (initialProducts && initialProducts.length > 0 && products.length === 0) {
+    if (Array.isArray(initialProducts) && initialProducts.length > 0 && products.length === 0) {
       setProducts(initialProducts);
       if (initialProducts.length >= 50) {
         setHasMore(true);
@@ -101,16 +103,19 @@ export default function usePosProductCatalog({
     }
   }, [activeCat, search, categoryBeans]);
 
-  // Fetch page 0 on mount to establish cursor, hasMore, and active catalog state
+  // Fetch page 0 on mount only if initialProducts were not already supplied
   useEffect(() => {
     if (!initialFetchDoneRef.current) {
       initialFetchDoneRef.current = true;
+      if (hasInitialProducts) {
+        return;
+      }
       const isCounter = config?.salesType === 'COUNTER' || config?.defaultBillingUiMode === 'counter';
       if (!isCounter) {
         loadProductPage({ cat: activeCat, query: search, cursor: null, pageIndex: 0 });
       }
     }
-  }, [loadProductPage, activeCat, search, config]);
+  }, [hasInitialProducts, loadProductPage, activeCat, search, config]);
 
   // Sync product listing visibility strictly from configuration
   useEffect(() => {

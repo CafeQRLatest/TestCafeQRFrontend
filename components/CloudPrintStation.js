@@ -79,13 +79,13 @@ export default function CloudPrintStation({ onJobsChanged }) {
       } finally {
         running = false;
         if (alive) {
-          const nextDelay = claimedCount > 0 ? 200 : 1000;
+          const nextDelay = claimedCount > 0 ? 200 : 3000;
           timerId = window.setTimeout(tick, nextDelay);
         }
       }
     };
 
-    timerId = window.setTimeout(tick, 1000);
+    timerId = window.setTimeout(tick, 3000);
 
     return () => {
       alive = false;
