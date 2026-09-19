@@ -3,6 +3,7 @@ import { FaChevronRight, FaMinus, FaPlus, FaSave, FaSearch, FaTimes, FaTrash, Fa
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import VariantSelector from './VariantSelector';
+import VariablePriceModal from './CounterSale/components/VariablePriceModal';
 import { useNotification } from '../context/NotificationContext';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import { useAuth } from '../context/AuthContext';
@@ -246,7 +247,6 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
   const [variablePriceProduct, setVariablePriceProduct] = useState(null);
-  const [variablePriceInput, setVariablePriceInput] = useState('');
 
   const [discountType, setDiscountType] = useState('amount');
   const [discountValue, setDiscountValue] = useState(0);
@@ -548,9 +548,9 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
   const addProduct = async (product) => {
     // Variable price: show a prompt for custom price
-    if (product.isVariablePrice) {
+    const isVariable = Boolean(product.isVariablePrice || product.is_variable_price || product.variablePrice);
+    if (isVariable) {
       setVariablePriceProduct(product);
-      setVariablePriceInput(String(Number(product.price || 0)));
       return;
     }
     const hasVariants = Boolean(product.hasVariants || product.has_variants || Number(product.variantCount || product.variant_count || 0) > 0);
@@ -563,18 +563,17 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     upsertLine(productToLine(product));
   };
 
-  const confirmVariablePrice = () => {
-    if (!variablePriceProduct) return;
-    const customPrice = parseFloat(variablePriceInput);
-    if (isNaN(customPrice) || customPrice < 0) return;
-    const uniqueKey = `${variablePriceProduct.id}:vp_${Date.now()}`;
+  const handleConfirmVariablePrice = (product, customPrice, customQty = 1) => {
+    if (!product || isNaN(customPrice) || customPrice < 0) return;
+    const qty = Number(customQty) || 1;
+    const uniqueKey = `${product.id}:vp_${customPrice}_${Date.now()}`;
     upsertLine({
-      ...productToLine(variablePriceProduct),
+      ...productToLine(product),
       cartKey: uniqueKey,
+      quantity: qty,
       unitPrice: customPrice,
     });
     setVariablePriceProduct(null);
-    setVariablePriceInput('');
   };
 
   const addOptions = (variant, additionalItems = []) => {
@@ -870,7 +869,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                       <div>
                         <strong>
                           {product.name}
-                          {product.isVariablePrice && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '6px', verticalAlign: 'middle' }}>OPEN</span>}
+                          {Boolean(product.isVariablePrice || product.is_variable_price || product.variablePrice) && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginLeft: '6px', verticalAlign: 'middle' }}>OPEN</span>}
                         </strong>
                         <span>{product.categoryName || 'Menu item'}</span>
                       </div>
@@ -1055,6 +1054,18 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
             themeColor="#f97316"
             themeSoftColor="#fff7ed"
             themeDarkColor="#ea580c"
+          />
+        </div>
+      )}
+      {variablePriceProduct && (
+        <div onMouseDown={(event) => event.stopPropagation()}>
+          <VariablePriceModal
+            product={variablePriceProduct}
+            onClose={() => setVariablePriceProduct(null)}
+            onConfirm={handleConfirmVariablePrice}
+            sym={sym}
+            themeColor="#ea580c"
+            currencyDecimalPlaces={dp}
           />
         </div>
       )}
