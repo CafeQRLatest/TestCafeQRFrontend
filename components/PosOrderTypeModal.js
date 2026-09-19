@@ -395,19 +395,20 @@ function LiveOrderBoardView({
                         </span>
                         {isTable && (
                           <span className="board-card-table" style={{
-                            background: isBilled ? '#ecfdf5' : '#fff7ed',
-                            color: isBilled ? '#047857' : '#c2410c',
-                            border: isBilled ? '1px solid #a7f3d0' : '1px solid #fdba74',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            padding: '2px 7px',
-                            borderRadius: 6,
+                            background: isBilled ? '#ecfdf5' : '#ffedd5',
+                            color: isBilled ? '#065f46' : '#9a3412',
+                            border: isBilled ? '1.5px solid #10b981' : '1.5px solid #f97316',
+                            fontSize: 14,
+                            fontWeight: 800,
+                            padding: '3px 10px',
+                            borderRadius: 8,
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 4,
+                            gap: 6,
                             whiteSpace: 'nowrap',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                           }}>
-                            <FaChair size={9} style={{ opacity: 0.85, flexShrink: 0 }} />
+                            <FaChair size={13} style={{ opacity: 0.9, flexShrink: 0 }} />
                             <span>{order.tableNumber}</span>
                           </span>
                         )}
