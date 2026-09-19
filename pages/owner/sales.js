@@ -1901,15 +1901,18 @@ function SalesContent() {
       const localKotPrint = localPrintWillHandleKind('kot');
       const payloadWithSkip = {
         ...payload,
-        skipAutoPrintKinds: [
+        skipAutoPrintKinds: Array.from(new Set([
           ...(payload.skipAutoPrintKinds || []),
           ...(localKotPrint ? ['KOT'] : [])
-        ]
+        ]))
       };
 
       const { data } = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
       const savedOrder = normalizeOrder(data.data || payload);
 
+      if (localKotPrint && savedOrder?.id) {
+        markCloudPrintJobPrinted({ id: savedOrder.id }, 'kot').catch(() => null);
+      }
       if (localKotPrint && savedOrder) {
         const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, savedOrder);
         if (addedLines.length > 0 || removedLines.length > 0) {
@@ -1920,7 +1923,6 @@ function SalesContent() {
             removedItems: removedLines,
             is_edited: true,
             isEdited: true,
-            _manualPrint: true,
           });
           setPrintKind('kot');
         }

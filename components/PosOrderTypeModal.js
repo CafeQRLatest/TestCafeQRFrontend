@@ -2181,15 +2181,18 @@ export default function PosOrderTypeModal({
                 const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
                 const payloadWithSkip = {
                   ...updatedOrder,
-                  skipAutoPrintKinds: [
+                  skipAutoPrintKinds: Array.from(new Set([
                     ...(updatedOrder.skipAutoPrintKinds || []),
                     ...(localKotPrint ? ['KOT'] : [])
-                  ]
+                  ]))
                 };
                 const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
                 notify('success', 'Order updated successfully');
                 const savedOrder = res?.data?.data;
-                if (savedOrder) {
+                if (localKotPrint && savedOrder?.id) {
+                  markCloudPrintJobPrinted({ id: savedOrder.id }, 'kot').catch(() => null);
+                }
+                if (localKotPrint && savedOrder) {
                   const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, savedOrder);
                   if (addedLines.length > 0 || removedLines.length > 0) {
                     setPrintOrder({
@@ -2199,7 +2202,6 @@ export default function PosOrderTypeModal({
                       removedItems: removedLines,
                       is_edited: true,
                       isEdited: true,
-                      _manualPrint: true,
                     });
                     setPrintKind('kot');
                   }

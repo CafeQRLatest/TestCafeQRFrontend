@@ -6,6 +6,7 @@ import VariantSelector from './VariantSelector';
 import { useNotification } from '../context/NotificationContext';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import { useAuth } from '../context/AuthContext';
+import { localPrintWillHandleKind } from '../utils/cloudPrintStation';
 import {
   Overlay,
   Panel,
@@ -764,7 +765,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
     onSave?.({
       ...fullOrder,
-      skipAutoPrintKinds: [], // Clear any skip instructions so the backend generates the KOT edit print job
+      skipAutoPrintKinds: (typeof localPrintWillHandleKind === 'function' && localPrintWillHandleKind('kot')) ? ['KOT'] : (fullOrder?.skipAutoPrintKinds || []),
       orderType: fullOrder?.orderType || 'SALE',
       orderStatus: fullOrder?.orderStatus || fullOrder?.order_status || 'KITCHEN',
       paymentStatus: fullOrder?.paymentStatus || fullOrder?.payment_status || 'PENDING',

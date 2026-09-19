@@ -290,16 +290,22 @@ function isNativeAndroid(): boolean {
       continue;
     }
 
+    const baseRestaurantName = String(restaurantProfile?.restaurant_name || order.restaurant_name || '').trim();
     const partialOrder: KotOrder = {
       ...order,
       order_lines: bucket.items,
       lines: bucket.items,
       restaurant_name: bucket.station
-        ? `${order.restaurant_name || ''} [${stationName}]`.trim()
-        : order.restaurant_name,
+        ? `${baseRestaurantName} [${stationName}]`.trim()
+        : baseRestaurantName,
     };
 
-    const text = buildKotText(partialOrder, restaurantProfile);
+    const stationProfile = {
+      ...restaurantProfile,
+      restaurant_name: partialOrder.restaurant_name,
+    };
+
+    const text = buildKotText(partialOrder, stationProfile);
 
     const winPrinterNames: string[] = [];
     const btAddresses: string[] = [];

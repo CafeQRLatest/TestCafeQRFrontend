@@ -1377,10 +1377,10 @@ export default function OrdersPage() {
       const localKotPrint = localPrintWillHandleKind('kot');
       const payloadWithSkip = {
         ...editedPayload,
-        skipAutoPrintKinds: [
+        skipAutoPrintKinds: Array.from(new Set([
           ...(editedPayload.skipAutoPrintKinds || []),
           ...(localKotPrint ? ['KOT'] : [])
-        ]
+        ]))
       };
 
       // Backend voids the old order and creates a new one with a fresh UUID.
@@ -1388,6 +1388,9 @@ export default function OrdersPage() {
       const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
       const newOrder = res?.data?.data;
 
+      if (localKotPrint && newOrder?.id) {
+        markCloudPrintJobPrinted({ id: newOrder.id }, 'kot').catch(() => null);
+      }
       if (localKotPrint && newOrder) {
         const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, newOrder);
         if (addedLines.length > 0 || removedLines.length > 0) {
@@ -1398,7 +1401,6 @@ export default function OrdersPage() {
             removedItems: removedLines,
             is_edited: true,
             isEdited: true,
-            _manualPrint: true,
           });
           setPrintKind('kot');
         }

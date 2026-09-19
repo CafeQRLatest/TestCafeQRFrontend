@@ -133,12 +133,13 @@ function mergeOrderForPrint(primary, fallback) {
   };
 }
 
-function hasPrintedRecently(orderId, kind = 'bill') {
+function hasPrintedRecently(orderId, kind = 'bill', isEdited = false) {
   if (!orderId) return false;
   try {
     if (typeof window === 'undefined') return false;
     const now = Date.now();
     const key = `${orderId}:${kind}`;
+    const ttl = isEdited ? 15_000 : PRINT_DEDUP_TTL_MS;
 
     // 1. Check KOTPRINT_PRINTED_V1 map
     const raw = localStorage.getItem(PRINT_DEDUP_KEY) || '{}';
@@ -151,12 +152,12 @@ function hasPrintedRecently(orderId, kind = 'bill') {
       }
     }
     if (dirty) localStorage.setItem(PRINT_DEDUP_KEY, JSON.stringify(map));
-    if (map[key]) return true;
+    if (map[key] && (now - Number(map[key]) < ttl)) return true;
 
     // 2. Check cafeqr_printed_jobs map
     const rawCloud = localStorage.getItem('cafeqr_printed_jobs') || '{}';
     const cloudMap = JSON.parse(rawCloud);
-    if (cloudMap[key]) return true;
+    if (cloudMap[key] && (now - Number(cloudMap[key]) < ttl)) return true;
 
     return false;
   } catch {
@@ -417,19 +418,19 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
 
     try {
       const normalizedOrder = mergeOrderForPrint(fullOrder, order);
-      const shouldDedupe = !order?._manualPrint;
-      if (shouldDedupe && autoPrint && normalizedOrder?.id && hasPrintedRecently(normalizedOrder.id, kind)) {
+      const isEdited = Boolean(normalizedOrder?.is_edited || normalizedOrder?.isEdited || order?.is_edited || order?.isEdited);
+      const isManual = Boolean(order?._manualPrint);
+      if (!isManual && autoPrint && normalizedOrder?.id && hasPrintedRecently(normalizedOrder.id, kind, isEdited)) {
         console.log('[kot-print] Order already printed recently, skipping autoPrint:', normalizedOrder.id);
         onPrint?.();
         closeAfterPrint();
         return true;
       }
 
-      if (shouldDedupe) {
-        markPrinted(normalizedOrder?.id, kind);
-        if (normalizedOrder?.id) {
-          markCloudPrintJobPrinted({ id: normalizedOrder.id }, kind).catch(() => null);
-        }
+      // Always mark printed locally and suppress cloud job once dispatched
+      if (normalizedOrder?.id) {
+        markPrinted(normalizedOrder.id, kind);
+        markCloudPrintJobPrinted({ id: normalizedOrder.id }, kind).catch(() => null);
       }
       
       const baseDocument = {
@@ -982,16 +983,25 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
     if (!autoPrint || !order?.id || loadingData) return;
 
     const id = order.id;
-    const shouldDedupe = !order?._manualPrint;
-    if (shouldDedupe && hasPrintedRecently(id, kind)) return;
+    const isEdited = Boolean(order?.is_edited || order?.isEdited);
+    const isManual = Boolean(order?._manualPrint);
+    if (!isManual && hasPrintedRecently(id, kind, isEdited)) return;
     if (ranRef.current) return;
     ranRef.current = true;
+
+    // Dispatch event to pause cloud print station while local print executes
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cafeqr-local-print-active'));
+    }
 
     (async () => {
       try {
         const printed = await doPrint();
         if (printed) {
-          if (shouldDedupe) markPrinted(id, kind);
+          markPrinted(id, kind);
+          if (id) {
+            markCloudPrintJobPrinted({ id }, kind).catch(() => null);
+          }
           // Notify cloud print station that local print is done
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('cafeqr-local-print-done'));
@@ -1003,7 +1013,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
         ranRef.current = false;
       }
     })();
-  }, [autoPrint, loadingData, order?.id, order?._manualPrint, kind, doPrint]);
+  }, [autoPrint, loadingData, order?.id, order?._manualPrint, order?.is_edited, order?.isEdited, kind, doPrint]);
 
   if (androidPwa) {
     const amount = Number(

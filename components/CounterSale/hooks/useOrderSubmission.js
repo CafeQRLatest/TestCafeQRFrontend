@@ -114,10 +114,13 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         ? 'kot'
         : (isSettleDirect || isCreditFinal || isOfflineFinal ? 'bill' : 'settle');
 
-      // Skip auto print check
-      const skipAutoPrintKinds = !knownOffline && localPrintWillHandleKind(plannedPrintKind)
-        ? [plannedPrintKind === 'kot' ? 'KOT' : 'BILL']
-        : [];
+      // Skip auto print check: if this terminal's local printers handle KOT and/or BILL,
+      // instruct the backend to skip enqueuing background cloud print jobs to prevent duplicates.
+      const skipAutoPrintKinds = [];
+      if (!knownOffline) {
+        if (localPrintWillHandleKind('kot')) skipAutoPrintKinds.push('KOT');
+        if (localPrintWillHandleKind('bill')) skipAutoPrintKinds.push('BILL');
+      }
 
       // 1. Build a business payload first to calculate the transaction fingerprint
       // We pass parsedDate: null if the date is not manually backdated, so that the auto-ticking time ticker

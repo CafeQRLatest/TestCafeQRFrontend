@@ -37,22 +37,27 @@ function isNativeAndroid() {
   }
 }
 
-function hasAndroidBluetoothConfig() {
+function hasAndroidPrinterConfig() {
   if (!isNativeAndroid()) return false;
   if (
     window.localStorage.getItem('BT_PRINTER_ADDR') ||
     window.localStorage.getItem('BT_PRINTER_ADDR_KOT') ||
     readJsonArray('BT_PRINTER_ADDRS_BILL').length ||
-    readJsonArray('BT_PRINTER_ADDRS_KOT').length
+    readJsonArray('BT_PRINTER_ADDRS_KOT').length ||
+    window.localStorage.getItem('PRINTER_IP') ||
+    window.localStorage.getItem('PRINTER_IP_KOT')
   ) {
     return true;
   }
   const profiles = readJsonArray('PRINT_PROFILES');
-  return profiles.some(p => p && p.enabled !== false && (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress));
+  return profiles.some(p => p && p.enabled !== false && (
+    ((p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress)) ||
+    (p.connectionType === 'NETWORK' && p.host)
+  ));
 }
 
 export function isAndroidPrintStationEnabled() {
-  return isNativeAndroid() && (hasExplicitPrintStationFlag() || hasAndroidBluetoothConfig());
+  return isNativeAndroid() && (hasExplicitPrintStationFlag() || hasAndroidPrinterConfig());
 }
 
 export function hasActiveLocalPrinter(kind = 'kot') {
@@ -63,19 +68,35 @@ export function hasActiveLocalPrinter(kind = 'kot') {
   const mode = window.localStorage.getItem('PRINTER_MODE');
   const isReady = window.localStorage.getItem('PRINTER_READY') === '1';
 
+  // Native Print Service pairing
+  if (isNativePrintServicePaired()) {
+    return true;
+  }
+
+  // Check KOT category routing or master KOT configurations
+  if (k === 'kot') {
+    const routingOn = window.localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
+    const masterOn = window.localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
+    const legacyRoutes = readJsonArray('PRINT_KOT_ROUTES_V1');
+    const hasActiveRoutes = legacyRoutes.some(r => r && r.enabled !== false && (r.printerNames?.length > 0 || r.profileIds?.length > 0 || r.btAddresses?.length > 0));
+    const masterPrinters = readJsonArray('PRINT_MASTER_KOT_PRINTERS');
+    const masterProfiles = readJsonArray('PRINT_MASTER_KOT_PROFILE_IDS');
+    const masterBt = readJsonArray('PRINT_MASTER_KOT_BT_ADDRESSES');
+    if ((routingOn && hasActiveRoutes) || (masterOn && (masterPrinters.length > 0 || masterProfiles.length > 0 || masterBt.length > 0))) {
+      return true;
+    }
+  }
+
   // Windows Spooler check: Only valid on Windows OS with an active printer configured
   const isWindowsOS = typeof navigator !== 'undefined' && /win/i.test(navigator.userAgent || navigator.platform || '');
-  if (mode === 'winspool') {
-    if (!isWindowsOS) return false;
-    if (!isReady) {
-      const hasWinPrinter = Boolean(
-        (k === 'kot' ? window.localStorage.getItem('WIN_PRINTER_KOT') : window.localStorage.getItem('WIN_PRINTER_BILL')) ||
-        window.localStorage.getItem('WIN_PRINTER_NAME') ||
-        readJsonArray('PRINT_PROFILES').length > 0
-      );
-      if (!hasWinPrinter) return false;
-    }
-    return true;
+  if (mode === 'winspool' || isWindowsOS) {
+    const hasWinPrinter = Boolean(
+      (k === 'kot' ? (window.localStorage.getItem('WIN_PRINTER_KOT') || window.localStorage.getItem('PRINT_WIN_PRINTER_NAME_KOT') || readJsonArray('PRINT_WIN_PRINTER_NAMES_KOT').length > 0)
+                   : (window.localStorage.getItem('WIN_PRINTER_BILL') || window.localStorage.getItem('PRINT_WIN_PRINTER_NAME') || readJsonArray('PRINT_WIN_PRINTER_NAMES_BILL').length > 0)) ||
+      window.localStorage.getItem('WIN_PRINTER_NAME') ||
+      readJsonArray('PRINT_PROFILES').some(p => p && p.enabled !== false && p.connectionType === 'WINDOWS_QUEUE' && p.windowsPrinterName)
+    );
+    if (hasWinPrinter) return true;
   }
 
   // WebUSB check
@@ -83,29 +104,37 @@ export function hasActiveLocalPrinter(kind = 'kot') {
     return isReady;
   }
 
-  // Native Android Bluetooth check: Valid with paired BT MAC address or Bluetooth Profile
+  // Native Android check: Valid with paired BT MAC address, Network IP, or active Profiles
   if (isNativeAndroid()) {
     const hasLegacyBt = k === 'kot'
       ? Boolean(window.localStorage.getItem('BT_PRINTER_ADDR_KOT') || window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_KOT').length > 0)
       : Boolean(window.localStorage.getItem('BT_PRINTER_ADDR') || readJsonArray('BT_PRINTER_ADDRS_BILL').length > 0);
     if (hasLegacyBt) return true;
 
+    const hasLegacyNet = k === 'kot'
+      ? Boolean(window.localStorage.getItem('PRINTER_IP_KOT') || window.localStorage.getItem('PRINTER_IP'))
+      : Boolean(window.localStorage.getItem('PRINTER_IP'));
+    if (hasLegacyNet) return true;
+
     const profiles = readJsonArray('PRINT_PROFILES');
-    const btProfiles = profiles.filter(p => p && p.enabled !== false && (p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress));
-    if (!btProfiles.length) return false;
+    const activeProfiles = profiles.filter(p => p && p.enabled !== false && (
+      ((p.connectionType === 'BLUETOOTH' || p.connectionType === 'BLUETOOTH_COM') && (p.btAddress || p.macAddress)) ||
+      (p.connectionType === 'NETWORK' && p.host)
+    ));
+    if (!activeProfiles.length) return false;
 
     if (k === 'kot') {
       const routingOn = window.localStorage.getItem('PRINT_KOT_CATEGORY_ROUTING') === '1';
       const masterOn = window.localStorage.getItem('PRINT_MASTER_KOT_ENABLED') === '1';
       if (routingOn || masterOn) return true;
-      return btProfiles.some(p => {
+      return activeProfiles.some(p => {
         const docs = Array.isArray(p.documents) ? p.documents : [];
         return docs.length === 0 || docs.includes('KOT');
       });
     }
 
     if (k === 'bill' || k === 'invoice') {
-      return btProfiles.some(p => {
+      return activeProfiles.some(p => {
         const docs = Array.isArray(p.documents) ? p.documents : [];
         return docs.length === 0 || docs.includes('BILL');
       });
@@ -114,8 +143,9 @@ export function hasActiveLocalPrinter(kind = 'kot') {
     return true;
   }
 
-  // Native Print Service pairing
-  if (isNativePrintServicePaired()) {
+  // Check general active profiles (e.g. NETWORK / LAN printers across desktop/web)
+  const profiles = readJsonArray('PRINT_PROFILES');
+  if (profiles.some(p => p && p.enabled !== false && p.connectionType === 'NETWORK' && p.host)) {
     return true;
   }
 
@@ -125,7 +155,6 @@ export function hasActiveLocalPrinter(kind = 'kot') {
 export function localPrintWillHandleKind(kind) {
   if (!isBrowser()) return false;
   if (!['kot', 'bill', 'invoice'].includes(String(kind).toLowerCase())) return false;
-  if (!isPrintStationEnabled() && !isNativePrintServicePaired()) return false;
   return hasActiveLocalPrinter(kind);
 }
 
