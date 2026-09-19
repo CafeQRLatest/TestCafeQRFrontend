@@ -65,7 +65,13 @@ function normalizeDiscountType(type) {
 }
 
 function lineKey(line, index) {
-  return line.cartKey || line.id || `${line.productId || line.product_id || line.productName || 'line'}-${line.variantId || 'base'}-${index}`;
+  if (line.cartKey) return line.cartKey;
+  const pId = line.productId || line.product_id;
+  const vId = line.variantId || line.variant_id || 'base';
+  if (pId) {
+    return `${pId}:${vId}`;
+  }
+  return line.id || `${line.productName || 'line'}-${vId}-${index}`;
 }
 
 function normalizeLine(line, index) {
@@ -141,6 +147,30 @@ function normalizeLine(line, index) {
   };
 }
 
+function consolidateLoadedLines(rawLines) {
+  const consolidated = [];
+  (rawLines || []).forEach((rawLine, index) => {
+    const normalized = normalizeLine(rawLine, index);
+    const existing = consolidated.find((line) => {
+      if (line.cartKey && normalized.cartKey && line.cartKey === normalized.cartKey) return true;
+      const linePid = String(line.productId || line.product_id || '');
+      const normPid = String(normalized.productId || normalized.product_id || '');
+      if (!linePid || linePid !== normPid) return false;
+      const lineVid = String(line.variantId || line.variant_id || 'base');
+      const normVid = String(normalized.variantId || normalized.variant_id || 'base');
+      return lineVid === normVid;
+    });
+
+    if (existing) {
+      existing.quantity += normalized.quantity;
+      existing.originalQuantity = (existing.originalQuantity || 0) + (normalized.originalQuantity || 0);
+    } else {
+      consolidated.push(normalized);
+    }
+  });
+  return consolidated;
+}
+
 function productToLine(product) {
   return {
     cartKey: `${product.id}:base`,
@@ -210,7 +240,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [config, setConfig] = useState(null);
   const sym = config?.currencySymbol || '₹';
   const [orderNote, setOrderNote] = useState(() => order?.remarks || order?.description || order?.comments || order?.note || '');
-  const [lines, setLines] = useState(() => (order?.lines || []).map(normalizeLine));
+  const [lines, setLines] = useState(() => consolidateLoadedLines(order?.lines));
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [variantProduct, setVariantProduct] = useState(null);
@@ -315,7 +345,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         const loadedOrder = orderRes.data.data || order;
         setFullOrder(loadedOrder);
         setOrderNote(loadedOrder?.remarks || loadedOrder?.description || loadedOrder?.comments || loadedOrder?.note || '');
-        setLines((loadedOrder?.lines || []).map(normalizeLine));
+        setLines(consolidateLoadedLines(loadedOrder?.lines));
         setProducts(productsRes.data.data || []);
         setConfig(configRes.data.data || null);
 
@@ -476,9 +506,21 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
   const upsertLine = (newLine) => {
     setLines((current) => {
-      const existing = current.find((line) => line.cartKey === newLine.cartKey);
+      const existing = current.find((line) => {
+        if (line.cartKey && newLine.cartKey && line.cartKey === newLine.cartKey) return true;
+        const linePid = String(line.productId || line.product_id || '');
+        const newPid = String(newLine.productId || newLine.product_id || '');
+        if (!linePid || linePid !== newPid) return false;
+        const lineVid = String(line.variantId || line.variant_id || 'base');
+        const newVid = String(newLine.variantId || newLine.variant_id || 'base');
+        return lineVid === newVid;
+      });
       if (existing) {
-        return current.map((line) => line.cartKey === newLine.cartKey ? { ...line, quantity: line.quantity + 1 } : line);
+        return current.map((line) =>
+          line === existing
+            ? { ...line, quantity: line.quantity + (newLine.quantity || 1) }
+            : line
+        );
       }
       return [...current, newLine];
     });
@@ -788,7 +830,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           ? roundOffMode.toUpperCase()
           : 'DISABLED',
       lines: processedLines,
-    });
+    }, fullOrder);
   };
 
   if (!order) return null;

@@ -111,26 +111,39 @@ function calculateKotDeltaJs(oldOrder, newOrder) {
   const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
   const newLines = newOrder?.lines || newOrder?.orderLines || newOrder?.order_items || [];
 
-  const oldMap = new Map();
+  const getLineKey = (line) => {
+    const pId = line.productId || line.product_id || line.name || line.productName || line.id || '';
+    const vId = line.variantId || line.variant_id || 'base';
+    return `${pId}:${vId}`;
+  };
+
+  const oldQtyMap = new Map();
+  const oldLineMap = new Map();
   oldLines.forEach(line => {
-    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
-    oldMap.set(key, (oldMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+    const key = getLineKey(line);
+    oldQtyMap.set(key, (oldQtyMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+    if (!oldLineMap.has(key)) {
+      oldLineMap.set(key, line);
+    }
   });
 
-  const newMap = new Map();
+  const newQtyMap = new Map();
+  const newLineMap = new Map();
   newLines.forEach(line => {
-    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
-    newMap.set(key, (newMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+    const key = getLineKey(line);
+    newQtyMap.set(key, (newQtyMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+    if (!newLineMap.has(key)) {
+      newLineMap.set(key, line);
+    }
   });
 
   const addedLines = [];
   const removedLines = [];
 
-  newLines.forEach(line => {
-    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
-    const oldQty = oldMap.get(key) || 0;
-    const newQty = Number(line.quantity || line.qty || 0);
+  newQtyMap.forEach((newQty, key) => {
+    const oldQty = oldQtyMap.get(key) || 0;
     if (newQty > oldQty) {
+      const line = newLineMap.get(key);
       const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
       const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
       addedLines.push({
@@ -145,11 +158,10 @@ function calculateKotDeltaJs(oldOrder, newOrder) {
     }
   });
 
-  oldLines.forEach(line => {
-    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
-    const oldQty = Number(line.quantity || line.qty || 0);
-    const newQty = newMap.get(key) || 0;
+  oldQtyMap.forEach((oldQty, key) => {
+    const newQty = newQtyMap.get(key) || 0;
     if (oldQty > newQty) {
+      const line = oldLineMap.get(key);
       const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
       const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
       removedLines.push({
@@ -2179,7 +2191,7 @@ export default function PosOrderTypeModal({
             onClose={() => {
               setEditingOrder(null);
             }}
-            onSave={async (updatedOrder) => {
+            onSave={async (updatedOrder, originalOrder) => {
               try {
                 const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
                 const payloadWithSkip = {
@@ -2196,7 +2208,8 @@ export default function PosOrderTypeModal({
                   markCloudPrintJobPrinted({ id: savedOrder.id }, 'kot').catch(() => null);
                 }
                 if (localKotPrint && savedOrder) {
-                  const { addedLines, removedLines } = calculateKotDeltaJs(editingOrder, savedOrder);
+                  const baseOrder = originalOrder || editingOrder;
+                  const { addedLines, removedLines } = calculateKotDeltaJs(baseOrder, savedOrder);
                   if (addedLines.length > 0 || removedLines.length > 0) {
                     setPrintOrder({
                       ...savedOrder,
