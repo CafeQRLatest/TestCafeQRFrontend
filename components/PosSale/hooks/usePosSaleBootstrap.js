@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '../services/posSaleApi';
+import httpApi from '../../../utils/api';
 import { extractUniqueCategories } from '../../CounterSale/domain/products';
 
 // Organization-scoped cache to persist bootstrap across mounts
@@ -176,7 +177,7 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
           setCreditCustomers(bootstrap.creditCustomers);
         } else if (effectiveConfig?.creditEnabled) {
           try {
-            const { data } = await api.get('/api/v1/credit/customers', {
+            const { data } = await httpApi.get('/api/v1/credit/customers', {
               params: { status: 'ACTIVE' },
               signal: controller.signal
             });
