@@ -469,7 +469,7 @@ function LiveOrderBoardView({
                       gap: 3,
                     }}>
                       <FaClock size={8.5} style={{ color: isBilled ? '#10b981' : '#f97316' }} />
-                      {formatOrderTime(order.updatedAt || order.updated_at || order.createdAt || order.orderDate, timezone)}
+                      {formatOrderTime(order.orderDate || order.order_date || order.createdAt || order.updatedAt, timezone)}
                     </span>
                   </div>
                 </div>
@@ -2032,7 +2032,7 @@ export default function PosOrderTypeModal({
                   <span style={{ color: '#cbd5e1' }}>•</span>
                   <span style={S.modalTimeText}>
                     <FaClock size={10} style={{ opacity: 0.7, marginRight: 4 }} />
-                    {formatOrderTime(selectedLiveOrder.updatedAt || selectedLiveOrder.updated_at || selectedLiveOrder.createdAt || selectedLiveOrder.orderDate, timezone)}
+                    {formatOrderTime(selectedLiveOrder.orderDate || selectedLiveOrder.order_date || selectedLiveOrder.createdAt || selectedLiveOrder.updatedAt, timezone)}
                   </span>
                   {(selectedLiveOrder.customerName || selectedLiveOrder.customerPhone) && (
                     <>
