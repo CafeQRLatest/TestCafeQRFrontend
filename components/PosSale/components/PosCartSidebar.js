@@ -527,7 +527,7 @@ export default function PosCartSidebar({
 }) {
   const { config } = bootstrap;
   const { 
-    items: cartItems, cartKeyFor, updateQty, handleEditProductFromCart, 
+    items: cartItems, cartKeyFor, updateQty, removeCartItem, setItemQty, handleEditProductFromCart, 
     setItemDescription, totals, roundOffPreview,
     orderNote, setOrderNote, clearCart
   } = cart;
@@ -691,6 +691,8 @@ export default function PosCartSidebar({
               currencyDecimalPlaces={currencyDecimalPlaces}
               theme={theme}
               updateQty={updateQty}
+              removeCartItem={removeCartItem}
+              setItemQty={setItemQty}
               discountsEnabled={discountsEnabled && activeOrderMode === 'settle'}
               handleEditProductFromCart={handleEditProductFromCart}
               setItemDescription={setItemDescription}

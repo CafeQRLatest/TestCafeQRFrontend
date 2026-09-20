@@ -289,6 +289,22 @@ export default function useCart({ notify }) {
     ));
   }, []);
 
+  const removeCartItem = useCallback((key) => {
+    setCart(prev => prev.filter(item => cartKeyFor(item) !== String(key)));
+  }, []);
+
+  const setItemQty = useCallback((key, newQty) => {
+    const qty = Math.max(0, parseInt(newQty, 10) || 0);
+    setCart(prev => {
+      if (qty === 0) {
+        return prev.filter(item => cartKeyFor(item) !== String(key));
+      }
+      return prev.map(item =>
+        cartKeyFor(item) === String(key) ? { ...item, qty } : item
+      );
+    });
+  }, []);
+
   const currentVariantQuantities = useMemo(() => {
     return variantProduct ? variantQuantityMap(variantProduct) : {};
   }, [variantProduct, variantQuantityMap]);
@@ -312,6 +328,8 @@ export default function useCart({ notify }) {
     addVariablePriceToCart,
     syncVariantCart,
     updateQty,
+    removeCartItem,
+    setItemQty,
     decrementProduct,
     incrementProduct,
     setProductQty,

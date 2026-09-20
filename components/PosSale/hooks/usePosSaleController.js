@@ -694,6 +694,8 @@ export default function usePosSaleController({
       addVariablePriceToCart,
       syncVariantCart,
       updateQty,
+      removeCartItem: cartHook.removeCartItem,
+      setItemQty: cartHook.setItemQty,
       decrementProduct,
       incrementProduct,
       setProductQty,

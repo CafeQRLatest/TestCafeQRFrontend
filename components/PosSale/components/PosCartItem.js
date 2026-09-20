@@ -57,14 +57,6 @@ const ItemTitle = styled.div`
   white-space: nowrap;
 `;
 
-const UnitPriceText = styled.span`
-  font-size: 11.5px;
-  color: #64748b;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-`;
-
 const DiscountTag = styled.span`
   color: #dc2626;
   font-weight: 700;
@@ -83,6 +75,11 @@ const StepperControl = styled.div`
   height: 24px;
   overflow: hidden;
   flex-shrink: 0;
+
+  &:focus-within {
+    border-color: ${props => props.$themeColor || '#f97316'};
+    background: #ffffff;
+  }
 `;
 
 const StepperMinusBtn = styled.button`
@@ -133,13 +130,34 @@ const StepperPlusBtn = styled.button`
   }
 `;
 
-const StepperQty = styled.span`
-  min-width: 20px;
+const StepperQtyInput = styled.input`
+  width: 28px;
+  min-width: 22px;
+  height: 20px;
+  border: none;
+  background: transparent;
   text-align: center;
   font-weight: 800;
-  font-size: 11.5px;
+  font-size: 12px;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  cursor: text;
+  -moz-appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  &:focus {
+    background: #ffffff;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px ${props => props.$themeColor || '#f97316'};
+  }
 `;
 
 const LineTotal = styled.div`
@@ -245,6 +263,25 @@ const EditProductBtn = styled.button`
   }
 `;
 
+const DeleteProductBtn = styled.button`
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+
+  &:hover {
+    color: #ef4444;
+    background: #fee2e2;
+  }
+`;
+
 // Compact Mode (Two Tight Lines)
 const CompactTopRow = styled.div`
   display: flex;
@@ -283,6 +320,8 @@ export default function PosCartItem({
   currencyDecimalPlaces = 2,
   theme,
   updateQty,
+  removeCartItem,
+  setItemQty,
   discountsEnabled,
   handleEditProductFromCart,
   setItemDescription,
@@ -291,6 +330,7 @@ export default function PosCartItem({
   const key = cartKeyFor(item);
   const [noteOpen, setNoteOpen] = useState(false);
   const [localNote, setLocalNote] = useState(item.description || '');
+  const [localQty, setLocalQty] = useState(String(item.qty || 1));
   const inputRef = useRef(null);
 
   const hasNote = Boolean(item.description && item.description.trim());
@@ -298,6 +338,46 @@ export default function PosCartItem({
   useEffect(() => {
     setLocalNote(item.description || '');
   }, [item.description]);
+
+  useEffect(() => {
+    setLocalQty(String(item.qty || 1));
+  }, [item.qty]);
+
+  const handleQtyChange = (e) => {
+    const val = e.target.value;
+    setLocalQty(val);
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      if (typeof setItemQty === 'function') {
+        setItemQty(key, parsed);
+      } else if (typeof updateQty === 'function') {
+        updateQty(key, parsed - item.qty);
+      }
+    }
+  };
+
+  const handleQtyBlur = () => {
+    const parsed = parseInt(localQty, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      setLocalQty(String(item.qty || 1));
+      if (typeof setItemQty === 'function') {
+        setItemQty(key, item.qty || 1);
+      }
+    } else {
+      if (typeof setItemQty === 'function') {
+        setItemQty(key, parsed);
+      }
+    }
+  };
+
+  const handleDelete = (e) => {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (typeof removeCartItem === 'function') {
+      removeCartItem(key);
+    } else if (typeof updateQty === 'function') {
+      updateQty(key, -item.qty);
+    }
+  };
 
   const handleNoteToggle = (e) => {
     e.stopPropagation();
@@ -351,8 +431,6 @@ export default function PosCartItem({
               {item.displayName || item.name}
             </ItemTitle>
 
-
-
             {hasDiscount && <DiscountTag>-{discountLabel}</DiscountTag>}
 
             {!noteOpen ? (
@@ -388,7 +466,7 @@ export default function PosCartItem({
             )}
           </WideLeft>
 
-          <StepperControl>
+          <StepperControl $themeColor={theme?.main}>
             <StepperMinusBtn 
               type="button" 
               onClick={() => updateQty(key, -1)}
@@ -397,7 +475,17 @@ export default function PosCartItem({
             >
               {item.qty === 1 ? <FaTrashAlt size={7.5} /> : <FaMinus size={7.5} />}
             </StepperMinusBtn>
-            <StepperQty>{item.qty}</StepperQty>
+            <StepperQtyInput
+              type="number"
+              min="1"
+              max="9999"
+              value={localQty}
+              onChange={handleQtyChange}
+              onBlur={handleQtyBlur}
+              onFocus={(e) => e.target.select()}
+              $themeColor={theme?.main}
+              title="Click or type to edit quantity"
+            />
             <StepperPlusBtn 
               type="button" 
               onClick={() => updateQty(key, 1)}
@@ -418,9 +506,17 @@ export default function PosCartItem({
               onClick={() => handleEditProductFromCart(item)}
               title="Edit product"
             >
-              <FaEdit size={10} />
+              <FaEdit size={10.5} />
             </EditProductBtn>
           )}
+
+          <DeleteProductBtn 
+            type="button" 
+            onClick={handleDelete}
+            title="Remove item from cart"
+          >
+            <FaTrashAlt size={10.5} />
+          </DeleteProductBtn>
         </WideRow>
       </ItemWrapper>
     );
@@ -440,8 +536,6 @@ export default function PosCartItem({
 
       <CompactBottomRow>
         <CompactLeftGroup>
-
-
           {hasDiscount && <DiscountTag>-{discountLabel}</DiscountTag>}
 
           {!noteOpen ? (
@@ -478,7 +572,7 @@ export default function PosCartItem({
         </CompactLeftGroup>
 
         <CompactRightGroup>
-          <StepperControl>
+          <StepperControl $themeColor={theme?.main}>
             <StepperMinusBtn 
               type="button" 
               onClick={() => updateQty(key, -1)}
@@ -487,7 +581,17 @@ export default function PosCartItem({
             >
               {item.qty === 1 ? <FaTrashAlt size={7.5} /> : <FaMinus size={7.5} />}
             </StepperMinusBtn>
-            <StepperQty>{item.qty}</StepperQty>
+            <StepperQtyInput
+              type="number"
+              min="1"
+              max="9999"
+              value={localQty}
+              onChange={handleQtyChange}
+              onBlur={handleQtyBlur}
+              onFocus={(e) => e.target.select()}
+              $themeColor={theme?.main}
+              title="Click or type to edit quantity"
+            />
             <StepperPlusBtn 
               type="button" 
               onClick={() => updateQty(key, 1)}
@@ -504,9 +608,17 @@ export default function PosCartItem({
               onClick={() => handleEditProductFromCart(item)}
               title="Edit product"
             >
-              <FaEdit size={10} />
+              <FaEdit size={10.5} />
             </EditProductBtn>
           )}
+
+          <DeleteProductBtn 
+            type="button" 
+            onClick={handleDelete}
+            title="Remove item from cart"
+          >
+            <FaTrashAlt size={10.5} />
+          </DeleteProductBtn>
         </CompactRightGroup>
       </CompactBottomRow>
     </ItemWrapper>
