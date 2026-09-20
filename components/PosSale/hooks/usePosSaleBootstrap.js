@@ -62,6 +62,8 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
     const def = pl.find((p) => p.isDefault === true || p.is_default === true) || pl[0];
     return def?.id || null;
   });
+  const [nextCursor, setNextCursor] = useState(() => cached?.nextCursor || null);
+  const [hasMore, setHasMore] = useState(() => Boolean(cached?.hasMore));
   const [loading, setLoading] = useState(() => !cached);
   const [loadError, setLoadError] = useState('');
   const [metadataWarnings, setMetadataWarnings] = useState([]);
@@ -130,6 +132,9 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
           })
         );
         setProducts(sortedProducts);
+
+        setNextCursor(bootstrap.nextCursor || null);
+        setHasMore(Boolean(bootstrap.hasMore));
 
         // ── Categories ──
         if (bootstrap.categories && bootstrap.categories.length > 0) {
@@ -265,6 +270,8 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
   return {
     products,
     setProducts,
+    nextCursor,
+    hasMore,
     config,
     allCustomers,
     setAllCustomers,

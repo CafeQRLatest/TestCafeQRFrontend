@@ -710,32 +710,34 @@ export default function PosProductCatalog({
           </ScrollableBody>
 
           {/* Sticky Pagination & Catalog Footer */}
-          <CatalogFooter>
-            <PageBtn
-              type="button"
-              disabled={productPage === 0 || loadingMore || loadingProducts}
-              onClick={() => onPrevPage ? onPrevPage() : setProductPage((p) => p - 1)}
-              title="Go to previous page"
-            >
-              ← Prev
-            </PageBtn>
+          {(hasMore || productPage > 0) && (
+            <CatalogFooter>
+              <PageBtn
+                type="button"
+                disabled={productPage === 0 || loadingMore || loadingProducts}
+                onClick={() => onPrevPage ? onPrevPage() : setProductPage((p) => p - 1)}
+                title="Go to previous page"
+              >
+                ← Prev
+              </PageBtn>
 
-            <PageInfoText>
-              Page {productPage + 1}
-              <span className="item-count">
-                ({visibleProducts.length} product{visibleProducts.length === 1 ? '' : 's'}{hasMore ? '+' : ''})
-              </span>
-            </PageInfoText>
+              <PageInfoText>
+                Page {productPage + 1}
+                <span className="item-count">
+                  ({visibleProducts.length} product{visibleProducts.length === 1 ? '' : 's'}{hasMore ? '+' : ''})
+                </span>
+              </PageInfoText>
 
-            <PageBtn
-              type="button"
-              disabled={!hasMore || loadingMore || loadingProducts}
-              onClick={() => onNextPage ? onNextPage() : setProductPage((p) => p + 1)}
-              title={hasMore ? "Load next products" : "No more products"}
-            >
-              {loadingMore ? 'Loading...' : 'Next →'}
-            </PageBtn>
-          </CatalogFooter>
+              <PageBtn
+                type="button"
+                disabled={!hasMore || loadingMore || loadingProducts}
+                onClick={() => onNextPage ? onNextPage() : setProductPage((p) => p + 1)}
+                title={hasMore ? "Load next 50 products" : "No more products"}
+              >
+                {loadingMore ? 'Loading...' : 'Next →'}
+              </PageBtn>
+            </CatalogFooter>
+          )}
         </>
       )}
 

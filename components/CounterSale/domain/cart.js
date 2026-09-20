@@ -4,7 +4,18 @@ export function cartKeyFor(item) {
 }
 
 export function hasExtendedOptions(product) {
-  return Boolean(product?.hasVariants) || Number(product?.variantCount || 0) > 0 || Boolean(product?.hasUpsells);
+  if (!product) return false;
+  return Boolean(product.hasVariants) ||
+    Boolean(product.has_variants) ||
+    Boolean(product.isVariant) ||
+    Boolean(product.is_variant) ||
+    Number(product.variantCount || product.variant_count || 0) > 0 ||
+    Boolean(product.hasUpsells) ||
+    Boolean(product.has_upsells) ||
+    Number(product.upsellCount || product.upsell_count || 0) > 0 ||
+    (Array.isArray(product.variantMappings) && product.variantMappings.length > 0) ||
+    (Array.isArray(product.variantPricings) && product.variantPricings.length > 0) ||
+    (Array.isArray(product.upsells) && product.upsells.length > 0);
 }
 
 export function isNonVegProduct(product) {

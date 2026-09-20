@@ -110,6 +110,8 @@ export default function usePosSaleController({
   // 3. Catalog Keyset Filtering & Pagination (V2)
   const catalogHook = usePosProductCatalog({
     initialProducts: products,
+    initialNextCursor: bootstrap.nextCursor,
+    initialHasMore: bootstrap.hasMore,
     trendingProductIds: bootstrap.trendingProductIds || [],
     config,
     categoryBeans: categoryBeans || []
