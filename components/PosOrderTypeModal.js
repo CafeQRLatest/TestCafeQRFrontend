@@ -2302,11 +2302,18 @@ export default function PosOrderTypeModal({
               </button>
               <button
                 type="button"
-                style={S.actionBtnDangerConfirm}
+                style={{
+                  ...S.actionBtnDangerConfirm,
+                  ...((!cancelReason.trim() || actionBusy === cancelOrder.id) ? {
+                    opacity: 0.5,
+                    cursor: 'not-allowed',
+                    background: '#94a3b8'
+                  } : {})
+                }}
                 onClick={handleTriggerCancel}
                 disabled={!cancelReason.trim() || actionBusy === cancelOrder.id}
               >
-                Confirm Cancel
+                {actionBusy === cancelOrder.id ? 'Cancelling...' : 'Confirm Cancel'}
               </button>
             </div>
           </div>
