@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag, FaUser, FaPhoneAlt, FaSearch } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
-import { isDiscountModuleEnabled, isLoyaltyModuleEnabled } from '../utils/moduleVisibility';
+import { isDiscountModuleEnabled, isLoyaltyModuleEnabled, isCustomersModuleEnabled } from '../utils/moduleVisibility';
 import NiceSelect from './NiceSelect';
 import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import { fetchSalesPaymentTypes } from '../services/paymentApi';
@@ -81,6 +81,7 @@ export default function PaymentDialog({
   const roundOffAutoFactor = Number(config?.roundOffAutoFactor ?? 1);
   const roundOffManualLimit = Number(config?.roundOffManualLimit ?? 10);
   const discountsEnabled = isDiscountModuleEnabled(config);
+  const customersEnabled = isCustomersModuleEnabled(config);
 
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paymentSplits, setPaymentSplits] = useState([]);
@@ -1169,7 +1170,7 @@ export default function PaymentDialog({
             )}
 
             {/* ── Customer Selection (New Sales: no customer attached yet) ── */}
-            {allowCustomerSelection && !hasAttachedCustomer && !isCreditPayment && !localCustomer && (
+            {customersEnabled && allowCustomerSelection && !hasAttachedCustomer && !isCreditPayment && !localCustomer && (
               <div
                 ref={customerDropdownRef}
                 style={{
@@ -1319,7 +1320,7 @@ export default function PaymentDialog({
             )}
 
             {/* ── Attached Customer Card (from local selection via allowCustomerSelection) ── */}
-            {allowCustomerSelection && localCustomer && !isCreditPayment && (
+            {customersEnabled && allowCustomerSelection && localCustomer && !isCreditPayment && (
               <div style={{
                 marginTop: '6px',
                 padding: '8px 12px',
