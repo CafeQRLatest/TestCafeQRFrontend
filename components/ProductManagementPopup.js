@@ -205,16 +205,9 @@ export default function ProductManagementPopup({
     };
   };
 
-  const normalizeProductForDrawer = (p = {}) => {
-    if (!p) {
-      return {
-        name: '', description: '', price: 0, isAvailable: true, imageUrl: '',
-        productType: 'VEG', isVariant: false, isPackagedGood: false, isIngredient: false, productCode: '',
-        taxRate: 0, taxCode: '', mrp: 0, costPrice: 0, barcode: '', minStockLevel: 0,
-        kdsStation: '', uom: null, category: categories[0] || null, isActive: true,
-        variantMappings: [], variantPricings: [], upsells: [], pricelistProducts: [], recipeLines: []
-      };
-    }
+  const normalizeProductForDrawer = (rawProduct = {}) => {
+    const isEvent = Boolean(rawProduct && (rawProduct.nativeEvent || rawProduct.target || typeof rawProduct.stopPropagation === 'function' || rawProduct._reactName));
+    const p = (!isEvent && rawProduct && typeof rawProduct === 'object') ? rawProduct : {};
 
     const variantMappings = Array.isArray(p.variantMappings)
       ? p.variantMappings
@@ -226,7 +219,7 @@ export default function ProductManagementPopup({
             );
             if (!variantGroup) return null;
             return {
-              ...mapping,
+              id: mapping.id || null,
               variantGroup,
               isRequired: toBoolean(mapping.isRequired, true)
             };
@@ -236,7 +229,7 @@ export default function ProductManagementPopup({
 
     const variantPricings = Array.isArray(p.variantPricings)
       ? p.variantPricings.map(pricing => ({
-          ...pricing,
+          id: pricing.id || null,
           variantOption: pricing.variantOption
             || pricing.option
             || (pricing.variantOptionId ? { id: pricing.variantOptionId, name: 'Variant Option' } : null),
@@ -257,7 +250,7 @@ export default function ProductManagementPopup({
               || (upsell.upsellProductId ? { id: upsell.upsellProductId, name: 'Upsell Product' } : null);
             if (!upsellProduct) return null;
             return {
-              ...upsell,
+              id: upsell.id || null,
               upsellProduct,
               isActive: upsell.isActive ?? upsell.isactive ?? 'Y'
             };
@@ -267,7 +260,7 @@ export default function ProductManagementPopup({
 
     const pricelistProducts = Array.isArray(p.pricelistProducts)
       ? p.pricelistProducts.map(item => ({
-          ...item,
+          id: item.id || null,
           pricelistId: item.pricelistId || item.pricelist?.id,
           price: toNumber(item.price, 0),
           isActive: item.isActive ?? item.isactive ?? 'Y'
@@ -281,7 +274,7 @@ export default function ProductManagementPopup({
                || (line.ingredientId ? { id: line.ingredientId, name: line.ingredientName || 'Ingredient Product' } : null);
              if (!ingredient) return null;
              return {
-               ...line,
+               id: line.id || null,
                ingredient,
                quantity: toNumber(line.quantity, 1),
                isActive: line.isActive ?? line.isactive ?? true
@@ -291,7 +284,7 @@ export default function ProductManagementPopup({
       : [];
 
     return {
-      ...p,
+      ...(p.id ? { id: p.id } : {}),
       name: p.name || '',
       description: p.description || '',
       price: toNumber(p.price ?? p.salePrice, 0),
@@ -415,7 +408,21 @@ export default function ProductManagementPopup({
       });
 
       const payload = {
-        ...selectedProduct,
+        ...(selectedProduct.id ? { id: selectedProduct.id } : {}),
+        name: (selectedProduct.name || '').trim(),
+        description: selectedProduct.description || '',
+        imageUrl: selectedProduct.imageUrl || '',
+        barcode: selectedProduct.barcode || '',
+        productCode: selectedProduct.productCode || '',
+        taxCode: selectedProduct.taxCode || '',
+        kdsStation: selectedProduct.kdsStation || '',
+        productType: selectedProduct.productType || 'VEG',
+        isAvailable: selectedProduct.isAvailable !== false,
+        isActive: selectedProduct.isActive !== false,
+        isVariant: Boolean(selectedProduct.isVariant),
+        isPackagedGood: Boolean(selectedProduct.isPackagedGood),
+        isIngredient: Boolean(selectedProduct.isIngredient),
+        isVariablePrice: Boolean(selectedProduct.isVariablePrice),
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
         costPrice: baseCostPrice,
         mrp: selectedProduct.mrp === '' || selectedProduct.mrp === null || selectedProduct.mrp === undefined || isNaN(selectedProduct.mrp) ? 0 : Number(selectedProduct.mrp),
@@ -424,6 +431,14 @@ export default function ProductManagementPopup({
         category: selectedProduct.category?.id ? { id: selectedProduct.category.id } : null,
         uom: selectedProduct.uom?.id ? { id: selectedProduct.uom.id } : null,
         defaultPricelist: selectedProduct.defaultPricelistId ? { id: selectedProduct.defaultPricelistId } : null,
+        pricelistProducts: (selectedProduct.pricelistProducts || [])
+          .filter(pp => pp && (pp.pricelistId || pp.pricelist?.id))
+          .map(pp => ({
+            id: pp.id || null,
+            pricelistId: pp.pricelistId || pp.pricelist?.id,
+            price: Number(pp.price) || 0,
+            isActive: pp.isActive || 'Y'
+          })),
         variantMappings: (selectedProduct.variantMappings || [])
           .filter(vm => vm.variantGroup?.id)
           .map(vm => ({ ...vm, variantGroup: { id: vm.variantGroup.id } })),
@@ -447,7 +462,8 @@ export default function ProductManagementPopup({
         onClose();
       }
     } catch (err) {
-      notify('error', err.response?.data?.message || "Failed to save product");
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || "Failed to save product";
+      notify('error', errMsg);
     } finally {
       setSaving(false);
     }

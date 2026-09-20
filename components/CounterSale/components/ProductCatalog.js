@@ -118,7 +118,7 @@ export default function ProductCatalog({
 
         <S.CsAddProductButton
           type="button" 
-          onClick={startNewProductForPopup}
+          onClick={() => startNewProductForPopup()}
           $themeColor={theme.main}
         >
           <FaPlus size={10} /> Add Product

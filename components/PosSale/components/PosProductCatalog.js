@@ -626,7 +626,7 @@ export default function PosProductCatalog({
           )}
         </SearchWrapper>
 
-        <AddProductBtn type="button" onClick={startNewProductForPopup}>
+        <AddProductBtn type="button" onClick={() => startNewProductForPopup()}>
           <FaPlus size={10} /> Add Product
         </AddProductBtn>
       </HeaderToolbar>

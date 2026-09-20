@@ -646,7 +646,8 @@ export default function SalesHistoryPage() {
                 onClick={() => handleToggleViewMode('table')}
                 title="Table View"
               >
-                <FaList style={{ fontSize: 10, marginRight: 5 }} /> Table
+                <FaList size={11} />
+                <span>Table</span>
               </ModeToggleBtn>
               <ModeToggleBtn
                 type="button"
@@ -654,7 +655,8 @@ export default function SalesHistoryPage() {
                 onClick={() => handleToggleViewMode('board')}
                 title="Board View"
               >
-                <FaThLarge style={{ fontSize: 10, marginRight: 5 }} /> Board
+                <FaThLarge size={11} />
+                <span>Board</span>
               </ModeToggleBtn>
             </HeaderModeSwitch>
           </div>

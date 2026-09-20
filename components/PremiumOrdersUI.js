@@ -1363,7 +1363,12 @@ export const HeaderModeSwitch = styled.div`
 `;
 
 export const ModeToggleBtn = styled.button`
-  padding: 5px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 6px;
+  padding: 6px 14px;
   border-radius: 6px;
   border: 1px solid ${props => props.$active ? '#ea580c' : 'transparent'};
   background: ${props => props.$active ? '#f97316' : 'transparent'};

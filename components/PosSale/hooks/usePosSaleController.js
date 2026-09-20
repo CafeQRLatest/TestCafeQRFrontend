@@ -601,7 +601,9 @@ export default function usePosSaleController({
   }, [bootstrap, setCart]);
 
   const startNewProductForPopup = useCallback((initialData = null) => {
-    const hasBarcode = Boolean(initialData && initialData.barcode);
+    const isEvent = Boolean(initialData && (initialData.nativeEvent || initialData.target || typeof initialData.stopPropagation === 'function' || initialData._reactName));
+    const safeData = (!isEvent && initialData && typeof initialData === 'object') ? initialData : {};
+    const hasBarcode = Boolean(safeData.barcode);
     setSelectedProductForPopup({
       name: '',
       price: '',
@@ -610,7 +612,7 @@ export default function usePosSaleController({
       hasVariants: false,
       productType: 'VEG',
       isPackagedGood: hasBarcode,
-      ...(initialData && typeof initialData === 'object' ? initialData : {})
+      ...safeData
     });
     setPopupViewOnly(false);
   }, [activeCat]);
