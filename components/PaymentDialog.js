@@ -741,7 +741,7 @@ export default function PaymentDialog({
   }, [creditCustomers]);
 
   useEffect(() => {
-    if (creditEnabled && (!localCreditCustomers || localCreditCustomers.length === 0)) {
+    if ((creditEnabled || isCreditSelected) && (!localCreditCustomers || localCreditCustomers.length === 0)) {
       api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
         .then(res => {
           const list = res.data?.data || [];
@@ -751,7 +751,7 @@ export default function PaymentDialog({
         })
         .catch(() => {});
     }
-  }, [creditEnabled, localCreditCustomers?.length]);
+  }, [creditEnabled, isCreditSelected, localCreditCustomers?.length]);
 
   const effectiveCreditCustomers = (Array.isArray(localCreditCustomers) && localCreditCustomers.length > 0)
     ? localCreditCustomers
