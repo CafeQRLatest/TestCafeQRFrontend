@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaTimes, FaSearch, FaReceipt, FaSpinner, FaChevronRight, FaCalendarAlt, FaPrint } from 'react-icons/fa';
 import usePosSalesHistory from '../hooks/usePosSalesHistory';
+import { useAuth } from '../../../context/AuthContext';
+import { formatTzDate } from '../../../utils/timezoneUtils';
 
 const ModalBackdrop = styled.div`
   position: fixed;
@@ -235,6 +237,7 @@ const LoadMoreBtn = styled.button`
 `;
 
 export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹', onPrint }) {
+  const { timezone } = useAuth();
   const { orders, loading, hasMore, fetchHistory, searchHistoryDebounced, loadMore } = usePosSalesHistory();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -306,11 +309,11 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
                     <td style={{ fontWeight: 600, color: '#0f172a' }}>
                       {ord.orderNo}
                       <div className="mobile-only-date" style={{ color: '#64748b', fontSize: '0.72rem', fontWeight: 400 }}>
-                        {ord.orderDate ? new Date(ord.orderDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                        {ord.orderDate ? formatTzDate(ord.orderDate, timezone, { format: 'time' }) : ''}
                       </div>
                     </td>
                     <td className="col-optional" style={{ color: '#64748b', fontSize: '0.8rem' }}>
-                      {ord.orderDate ? new Date(ord.orderDate).toLocaleString() : '—'}
+                      {ord.orderDate ? formatTzDate(ord.orderDate, timezone, { format: 'datetime' }) : '—'}
                     </td>
                     <td>
                       {ord.customerName || 'Walk-in'}

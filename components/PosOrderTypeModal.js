@@ -200,8 +200,13 @@ function isLiveOrder(order) {
 
 function timeAgo(dateString) {
   if (!dateString) return '';
+  let strVal = String(dateString);
+  if (typeof dateString === 'string' && dateString.length >= 19 && dateString.includes('T') && !dateString.includes('Z') && !dateString.match(/[+-]\d{2}:\d{2}$/)) {
+    strVal = dateString + 'Z';
+  }
   const now = new Date();
-  const date = new Date(dateString);
+  const date = new Date(strVal);
+  if (isNaN(date.getTime())) return '';
   const diffMinutes = Math.floor((now - date) / (1000 * 60));
   if (diffMinutes < 1) return 'Just now';
   if (diffMinutes === 1) return '1 min ago';
@@ -211,12 +216,11 @@ function timeAgo(dateString) {
   return `${diffHours} hrs ago`;
 }
 
-function formatOrderTime(dateString) {
+function formatOrderTime(dateString, tz = null) {
   if (!dateString) return '';
   try {
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const formatted = formatTzDate(dateString, tz, { format: 'time' });
+    return formatted === '—' ? '' : formatted;
   } catch (e) {
     return '';
   }
@@ -270,6 +274,7 @@ function LiveOrderBoardView({
   sym = '₹',
   actionBusy,
   canCancelOrder,
+  timezone = null,
   onSelectOrder,
   onPrintKot,
   onPrintBill,
@@ -464,7 +469,7 @@ function LiveOrderBoardView({
                       gap: 3,
                     }}>
                       <FaClock size={8.5} style={{ color: isBilled ? '#10b981' : '#f97316' }} />
-                      {formatOrderTime(order.updatedAt || order.updated_at || order.createdAt || order.orderDate)}
+                      {formatOrderTime(order.updatedAt || order.updated_at || order.createdAt || order.orderDate, timezone)}
                     </span>
                   </div>
                 </div>
@@ -1529,6 +1534,7 @@ export default function PosOrderTypeModal({
         sym={sym}
         actionBusy={actionBusy}
         canCancelOrder={canCancelOrder}
+        timezone={timezone}
         onNewOrder={onNewOrder}
         newOrderLabel={newOrderLabel}
         onSelectOrder={setSelectedLiveOrder}
@@ -2026,7 +2032,7 @@ export default function PosOrderTypeModal({
                   <span style={{ color: '#cbd5e1' }}>•</span>
                   <span style={S.modalTimeText}>
                     <FaClock size={10} style={{ opacity: 0.7, marginRight: 4 }} />
-                    {formatOrderTime(selectedLiveOrder.updatedAt || selectedLiveOrder.updated_at || selectedLiveOrder.createdAt || selectedLiveOrder.orderDate)}
+                    {formatOrderTime(selectedLiveOrder.updatedAt || selectedLiveOrder.updated_at || selectedLiveOrder.createdAt || selectedLiveOrder.orderDate, timezone)}
                   </span>
                   {(selectedLiveOrder.customerName || selectedLiveOrder.customerPhone) && (
                     <>
