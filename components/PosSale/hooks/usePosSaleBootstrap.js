@@ -219,6 +219,49 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
     }
   }, [initialCreditCustomers]);
 
+  const refreshCategories = async () => {
+    try {
+      const resp = await httpApi.get('/api/v1/products/categories');
+      if (resp.data?.success && Array.isArray(resp.data?.data)) {
+        const catList = resp.data.data.filter(c => c && c.isActive !== false);
+        setCategoryBeans(catList);
+        const names = catList.map(c => c.name).filter(Boolean);
+        setCategories(['ALL', ...new Set(names)]);
+      }
+    } catch (err) {
+      console.warn("Failed to refresh categories:", err);
+    }
+  };
+
+  const refreshBootstrap = async () => {
+    try {
+      sessionBootstrapCache.delete(orgKey);
+      const bootstrap = await api.fetchSalesScreenDetails();
+      if (bootstrap) {
+        sessionBootstrapCache.set(orgKey, bootstrap);
+        if (bootstrap.categories && bootstrap.categories.length > 0) {
+          setCategoryBeans(bootstrap.categories);
+          const names = bootstrap.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
+          setCategories(['ALL', ...new Set(names)]);
+        }
+        if (bootstrap.products) {
+          const sortedProducts = [...bootstrap.products].sort((a, b) =>
+            String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
+          );
+          setProducts(sortedProducts);
+        }
+        if (bootstrap.tables) {
+          setTables(bootstrap.tables);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to refresh bootstrap:", err);
+    }
+  };
+
   return {
     products,
     setProducts,
@@ -231,10 +274,13 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
     categories,
     setCategories,
     categoryBeans,
+    setCategoryBeans,
     tables,
     paymentModes,
     loading,
     loadError,
     metadataWarnings,
+    refreshCategories,
+    refreshBootstrap,
   };
 }

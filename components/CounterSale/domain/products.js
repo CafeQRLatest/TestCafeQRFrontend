@@ -17,7 +17,10 @@ export function filterAndSearchProducts({ products, activeCat, dietFilter, searc
       return false;
     }
 
-    const matchesCategory = activeCat === 'ALL' || p.categoryName === activeCat;
+    const catStr = String(activeCat || 'ALL').trim().toLowerCase();
+    const pCatName = String(p.categoryName || p.category?.name || '').trim().toLowerCase();
+    const pCatId = String(p.categoryId || p.category?.id || '').trim().toLowerCase();
+    const matchesCategory = catStr === 'all' || pCatName === catStr || pCatId === catStr;
     const nameMatch = String(p.name || '').toLowerCase().includes(term);
     const codeMatch = String(p.productCode || '').toLowerCase().includes(term);
     const barcodeMatch = String(p.barcode || '').toLowerCase().includes(term);

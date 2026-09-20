@@ -549,8 +549,28 @@ export default function usePosSaleController({
           const sorted = nextList.sort((a, b) =>
             String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' })
           );
-          const cats = extractUniqueCategories(sorted);
-          bootstrap.setCategories(cats);
+          const catName = updatedProduct.categoryName || updatedProduct.category?.name;
+          const catId = updatedProduct.categoryId || updatedProduct.category?.id;
+          if (catName) {
+            bootstrap.setCategories(prev => {
+              if (prev && !prev.includes(catName)) {
+                return [...prev, catName];
+              }
+              return prev;
+            });
+            if (catId) {
+              bootstrap.setCategoryBeans?.(prev => {
+                const list = Array.isArray(prev) ? prev : [];
+                if (!list.some(b => b.id === catId || b.name === catName)) {
+                  return [...list, { id: String(catId), name: catName }];
+                }
+                return list;
+              });
+            }
+          } else {
+            const cats = extractUniqueCategories(sorted);
+            bootstrap.setCategories(cats);
+          }
           return sorted;
         });
 
@@ -593,8 +613,14 @@ export default function usePosSaleController({
       );
       bootstrap.setProducts(sortedProducts);
       
-      const cats = extractUniqueCategories(sortedProducts);
-      bootstrap.setCategories(cats);
+      if (freshBootstrap.categories && freshBootstrap.categories.length > 0) {
+        bootstrap.setCategoryBeans?.(freshBootstrap.categories);
+        const names = freshBootstrap.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
+        bootstrap.setCategories(['ALL', ...new Set(names)]);
+      } else {
+        const cats = extractUniqueCategories(sortedProducts);
+        bootstrap.setCategories(cats);
+      }
     } catch (err) {
       console.warn("Failed to refresh product list:", err);
     }
