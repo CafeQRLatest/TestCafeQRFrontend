@@ -34,7 +34,9 @@ import {
   FaChevronRight,
   FaChevronDown,
   FaChevronUp,
-  FaHistory
+  FaHistory,
+  FaBell,
+  FaBellSlash
 } from 'react-icons/fa';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +54,11 @@ import PaymentDialog from './PaymentDialog';
 import KotPrint from './KotPrint';
 import EditOrderPanel from './EditOrderPanel';
 import { isKitchenModuleEnabled } from '../utils/moduleVisibility';
+import { getFCMToken } from '../lib/firebase/messaging';
+import {
+  getStoredPushToken,
+  arePushAlertsDisabled
+} from '../lib/push/tokenStore';
 
 /* ─── Helpers ──────────────────────────────────────────────────────── */
 
@@ -805,13 +812,98 @@ export default function PosOrderTypeModal({
 
   // Sound Alerts state
   const [soundEnabled, setSoundEnabled] = useState(true);
+  
+  // Push Notifications state
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifyKitchen, setNotifyKitchen] = useState(true);
+  const [notifyTakeaway, setNotifyTakeaway] = useState(true);
+  const [notifyDelivery, setNotifyDelivery] = useState(true);
+  const [notifySettled, setNotifySettled] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('cafeqr_sound_enabled');
       setSoundEnabled(stored !== 'false');
+      
+      const notifPref = localStorage.getItem('cafeqr_notifications_enabled');
+      const isDisabled = notifPref === 'false' || arePushAlertsDisabled();
+      setNotifEnabled(!isDisabled && (notifPref === 'true' || !!getStoredPushToken()));
+      setNotifyKitchen(localStorage.getItem('push_notify_kitchen') !== '0');
+      setNotifyTakeaway(localStorage.getItem('push_notify_takeaway') !== '0');
+      setNotifyDelivery(localStorage.getItem('push_notify_delivery') !== '0');
+      setNotifySettled(localStorage.getItem('push_notify_settled') !== '0');
     }
   }, []);
+
+  const updatePushPreferences = async (updates) => {
+    const token = getStoredPushToken();
+    if (token) {
+      try {
+        await api.put('/api/v1/push/preferences', {
+          deviceToken: token,
+          notifyKitchen: updates.kitchen ?? notifyKitchen,
+          notifyTakeaway: updates.takeaway ?? notifyTakeaway,
+          notifyDelivery: updates.delivery ?? notifyDelivery,
+          notifySettled: updates.settled ?? notifySettled,
+        });
+      } catch (err) {
+        console.warn('Failed to sync preferences:', err);
+      }
+    }
+  };
+
+  const toggleKitchenPref = () => {
+    const val = !notifyKitchen;
+    setNotifyKitchen(val);
+    localStorage.setItem('push_notify_kitchen', val ? '1' : '0');
+    updatePushPreferences({ kitchen: val });
+  };
+  const toggleTakeawayPref = () => {
+    const val = !notifyTakeaway;
+    setNotifyTakeaway(val);
+    localStorage.setItem('push_notify_takeaway', val ? '1' : '0');
+    updatePushPreferences({ takeaway: val });
+  };
+  const toggleDeliveryPref = () => {
+    const val = !notifyDelivery;
+    setNotifyDelivery(val);
+    localStorage.setItem('push_notify_delivery', val ? '1' : '0');
+    updatePushPreferences({ delivery: val });
+  };
+  const toggleSettledPref = () => {
+    const val = !notifySettled;
+    setNotifySettled(val);
+    localStorage.setItem('push_notify_settled', val ? '1' : '0');
+    updatePushPreferences({ settled: val });
+  };
+
+  const toggleNotif = async () => {
+    if (!notifEnabled) {
+      try {
+        const token = await getFCMToken({ requestPermission: true });
+        if (token) {
+          setNotifEnabled(true);
+          localStorage.setItem('cafeqr_notifications_enabled', 'true');
+          await updatePushPreferences({
+            kitchen: notifyKitchen,
+            takeaway: notifyTakeaway,
+            delivery: notifyDelivery,
+            settled: notifySettled
+          });
+          notify('success', 'Push notifications enabled!');
+        } else {
+          notify('error', 'Push permission denied or unsupported');
+        }
+      } catch (err) {
+        console.error(err);
+        notify('error', 'Failed to enable push notifications');
+      }
+    } else {
+      setNotifEnabled(false);
+      localStorage.setItem('cafeqr_notifications_enabled', 'false');
+      notify('info', 'Push notifications disabled on this device');
+    }
+  };
 
   const handleToggleSound = (enable) => {
     setSoundEnabled(enable);
@@ -1587,6 +1679,87 @@ export default function PosOrderTypeModal({
           >
             <FaVolumeMute size={15} style={{ color: !soundEnabled ? '#dc2626' : '#94a3b8' }} />
           </button>
+
+          {/* Push Notification Toggles */}
+          <button
+            type="button"
+            style={{
+              ...S.soundBtnInactive,
+              background: notifEnabled ? '#0ea5e9' : '#ffffff',
+              color: notifEnabled ? '#ffffff' : '#94a3b8',
+              borderColor: notifEnabled ? '#0ea5e9' : '#e2e8f0',
+              marginLeft: 6
+            }}
+            onClick={toggleNotif}
+            title={notifEnabled ? "Disable Push Notifications" : "Enable Push Notifications"}
+          >
+            {notifEnabled ? <FaBell size={15} /> : <FaBellSlash size={15} />}
+          </button>
+          
+          {notifEnabled && (
+            <>
+              <button
+                type="button"
+                style={{
+                  ...S.soundBtnInactive,
+                  background: notifyKitchen ? '#16a34a' : '#ffffff',
+                  color: notifyKitchen ? '#ffffff' : '#94a3b8',
+                  borderColor: notifyKitchen ? '#16a34a' : '#e2e8f0',
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                }}
+                onClick={toggleKitchenPref}
+                title={notifyKitchen ? "Disable Kitchen Push Alerts" : "Enable Kitchen Push Alerts"}
+              >
+                Kit
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...S.soundBtnInactive,
+                  background: notifyTakeaway ? '#ea580c' : '#ffffff',
+                  color: notifyTakeaway ? '#ffffff' : '#94a3b8',
+                  borderColor: notifyTakeaway ? '#ea580c' : '#e2e8f0',
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                }}
+                onClick={toggleTakeawayPref}
+                title={notifyTakeaway ? "Disable Takeaway Push Alerts" : "Enable Takeaway Push Alerts"}
+              >
+                Tak
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...S.soundBtnInactive,
+                  background: notifyDelivery ? '#0284c7' : '#ffffff',
+                  color: notifyDelivery ? '#ffffff' : '#94a3b8',
+                  borderColor: notifyDelivery ? '#0284c7' : '#e2e8f0',
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                }}
+                onClick={toggleDeliveryPref}
+                title={notifyDelivery ? "Disable Delivery Push Alerts" : "Enable Delivery Push Alerts"}
+              >
+                Del
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...S.soundBtnInactive,
+                  background: notifySettled ? '#8b5cf6' : '#ffffff',
+                  color: notifySettled ? '#ffffff' : '#94a3b8',
+                  borderColor: notifySettled ? '#8b5cf6' : '#e2e8f0',
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                }}
+                onClick={toggleSettledPref}
+                title={notifySettled ? "Disable Settled Push Alerts" : "Enable Settled Push Alerts"}
+              >
+                Set
+              </button>
+            </>
+          )}
         </div>
 
         {/* 2. Center: Segmented Order Filter Tabs */}
