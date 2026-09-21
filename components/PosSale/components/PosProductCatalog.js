@@ -261,10 +261,10 @@ const FilterRow = styled.div`
   padding: 8px 16px;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow: hidden;
 
-  @media (max-width: 900px) {
+  @media (max-width: 1300px) {
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
@@ -282,10 +282,15 @@ const SegmentedTabs = styled.div`
   gap: 3px;
   flex-shrink: 0;
 
-  @media (max-width: 640px) {
+  @media (max-width: 1300px) {
     width: 100%;
     display: flex;
-    justify-content: space-around;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 `;
 
@@ -344,7 +349,7 @@ const FilterDivider = styled.div`
   background: #e2e8f0;
   flex-shrink: 0;
 
-  @media (max-width: 900px) {
+  @media (max-width: 1300px) {
     display: none;
   }
 `;
