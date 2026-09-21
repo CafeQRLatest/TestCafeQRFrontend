@@ -25,10 +25,14 @@ const FilterContainer = styled.div`
   align-items: center;
   gap: 8px;
   position: relative;
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 300px;
+  min-width: 300px;
   margin: 0;
   width: auto;
+
+  @media (max-width: 640px) {
+    min-width: 0;
+  }
 `;
 
 const ScrollTrack = styled.div`
