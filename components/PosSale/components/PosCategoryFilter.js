@@ -25,13 +25,14 @@ const FilterContainer = styled.div`
   align-items: center;
   gap: 8px;
   position: relative;
-  flex: 1 1 300px;
+  flex: 1;
   min-width: 300px;
   margin: 0;
-  width: auto;
+  width: 100%;
 
-  @media (max-width: 640px) {
+  @media (max-width: 1300px) {
     min-width: 0;
+    flex: none;
   }
 `;
 
