@@ -27,7 +27,7 @@ import {
   FaThLarge,
   FaList,
   FaColumns,
-  FaVolumeUp,
+  FaVolumeUp, 
   FaVolumeMute,
   FaSearch,
   FaChevronLeft,
