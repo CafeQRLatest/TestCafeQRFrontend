@@ -3144,25 +3144,39 @@ export default function PosOrderTypeModal({
             padding: 6px 8px 60px 8px !important;
           }
           .pos-top-control-bar {
-            padding: 5px 8px !important;
-            gap: 5px !important;
+            padding: 5px 6px !important;
+            gap: 4px !important;
+            justify-content: space-between !important;
+          }
+          .pos-sound-toggle-group {
+            order: 1 !important;
+            gap: 3px !important;
+            flex-wrap: nowrap !important;
           }
           .pos-sound-toggle-group button {
-            width: 28px !important;
-            height: 28px !important;
+            width: 25px !important;
+            height: 25px !important;
+            min-width: 25px !important;
             border-radius: 50% !important;
+            font-size: 9px !important;
+            margin-left: 0 !important;
           }
           .pos-sound-toggle-group button svg {
-            width: 12px !important;
-            height: 12px !important;
+            width: 11px !important;
+            height: 11px !important;
+          }
+          .pos-right-ctrl-group {
+            order: 2 !important;
+            gap: 4px !important;
+            flex-shrink: 0 !important;
           }
           .pos-viewmode-toggle-box {
             padding: 2px !important;
             border-radius: 9999px !important;
           }
           .pos-viewmode-toggle-box button {
-            padding: 3px 10px !important;
-            font-size: 10.5px !important;
+            padding: 3px 6px !important;
+            font-size: 9.5px !important;
             border-radius: 9999px !important;
           }
           .pos-header-new-order-btn {
@@ -3179,11 +3193,6 @@ export default function PosOrderTypeModal({
             border-radius: 9999px !important;
             margin-top: 1px !important;
           }
-          .pos-sound-toggle-group {
-            order: 1 !important;
-          }
-          .pos-right-ctrl-group {
-            order: 2 !important;
           }
           .pos-segmented-container .pos-segmented-tab {
             padding: 4px 6px !important;
