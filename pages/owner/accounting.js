@@ -147,10 +147,16 @@ function AccountingContent() {
   // Superadmin org/terminal filter states
   const [organizations, setOrganizations] = useState([]);
   const [allTerminals, setAllTerminals] = useState([]);
-  const [selectedOrgId, setSelectedOrgId] = useState('');
+  const [selectedOrgId, setSelectedOrgId] = useState(() => orgId || '');
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
   const SYM = config?.currencySymbol || getCurrencySymbol(currency);
+
+  useEffect(() => {
+    if (orgId && !selectedOrgId) {
+      setSelectedOrgId(orgId);
+    }
+  }, [orgId, selectedOrgId]);
 
   // Load organizations and terminals for superadmin
   useEffect(() => {
