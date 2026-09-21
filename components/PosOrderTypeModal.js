@@ -36,7 +36,8 @@ import {
   FaChevronUp,
   FaHistory,
   FaBell,
-  FaBellSlash
+  FaBellSlash,
+  FaExchangeAlt
 } from 'react-icons/fa';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -290,6 +291,7 @@ function LiveOrderBoardView({
   onSettleOrder,
   onEditOrder,
   onCancelOrder,
+  onChangeTable,
   onNewOrder,
   newOrderLabel = '+ New Order',
 }) {
@@ -406,22 +408,37 @@ function LiveOrderBoardView({
                           #{cleanToken}
                         </span>
                         {isTable && (
-                          <span className="board-card-table" style={{
-                            background: isBilled ? '#ecfdf5' : '#ffedd5',
-                            color: isBilled ? '#065f46' : '#9a3412',
-                            border: isBilled ? '1.5px solid #10b981' : '1.5px solid #f97316',
-                            fontSize: 14,
-                            fontWeight: 800,
-                            padding: '3px 10px',
-                            borderRadius: 8,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            whiteSpace: 'nowrap',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                          }}>
-                            <FaChair size={13} style={{ opacity: 0.9, flexShrink: 0 }} />
+                          <span
+                            className="board-card-table"
+                            style={{
+                              background: isBilled ? '#ecfdf5' : '#ffedd5',
+                              color: isBilled ? '#065f46' : '#9a3412',
+                              border: isBilled ? '1.5px solid #10b981' : '1.5px solid #f97316',
+                              fontSize: 13.5,
+                              fontWeight: 800,
+                              padding: '2px 8px',
+                              borderRadius: 7,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              whiteSpace: 'nowrap',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                              cursor: onChangeTable && !['COMPLETED', 'CANCELLED', 'VOID'].includes(String(order.orderStatus || '').toUpperCase()) ? 'pointer' : 'default',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onClick={(e) => {
+                              if (onChangeTable && !['COMPLETED', 'CANCELLED', 'VOID'].includes(String(order.orderStatus || '').toUpperCase())) {
+                                e.stopPropagation();
+                                onChangeTable(order);
+                              }
+                            }}
+                            title={onChangeTable && !['COMPLETED', 'CANCELLED', 'VOID'].includes(String(order.orderStatus || '').toUpperCase()) ? `Click to change table (Current: Table ${order.tableNumber})` : `Table ${order.tableNumber}`}
+                          >
+                            <FaChair size={12} style={{ opacity: 0.9, flexShrink: 0 }} />
                             <span>{order.tableNumber}</span>
+                            {onChangeTable && !['COMPLETED', 'CANCELLED', 'VOID'].includes(String(order.orderStatus || '').toUpperCase()) && (
+                              <FaExchangeAlt size={9} style={{ opacity: 0.7, marginLeft: 2, flexShrink: 0 }} />
+                            )}
                           </span>
                         )}
                       </div>
@@ -1000,6 +1017,12 @@ export default function PosOrderTypeModal({
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
 
+  // Change Table state (for transferring live table orders)
+  const [changeTableOrder, setChangeTableOrder] = useState(null);
+  const [changeTableSearch, setChangeTableSearch] = useState('');
+  const [changeTableFloor, setChangeTableFloor] = useState('ALL');
+  const [changeTableBusy, setChangeTableBusy] = useState(false);
+
   const handleLocalPrintDone = useCallback(() => {
     const printedOrder = printOrder;
     const printedKind = printKind;
@@ -1262,6 +1285,95 @@ export default function PosOrderTypeModal({
       return num.includes(q) || `table ${num}`.includes(q) || `t${num}`.includes(q);
     });
   }, [availableTables, tableSearch]);
+
+  // Available tables for moving/transferring a specific table order
+  const availableMoveTables = useMemo(() => {
+    if (!changeTableOrder) return [];
+    const currentTableNum = String(changeTableOrder.tableNumber || '').trim().toLowerCase();
+    const currentTableId = String(changeTableOrder.tableId || '').trim().toLowerCase();
+
+    return activeTables.filter(table => {
+      if (table.isactive === 'N' || table.is_active === 'N' || table.isActive === false || table.is_active === false) {
+        return false;
+      }
+      const status = String(table.status || 'AVAILABLE').toUpperCase();
+      if (status !== 'AVAILABLE') {
+        return false;
+      }
+      const tId = String(table.id || '').trim().toLowerCase();
+      const tNum = String(table.tableNumber || '').trim().toLowerCase();
+
+      // Exclude current table
+      if (tId && currentTableId && tId === currentTableId) return false;
+      if (tNum && currentTableNum && tNum === currentTableNum) return false;
+
+      // Exclude tables with active live orders
+      const activeOrder = resolveActiveOrderForTable(table);
+      if (activeOrder && String(activeOrder.id) !== String(changeTableOrder.id)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [changeTableOrder, activeTables, resolveActiveOrderForTable]);
+
+  // Filtered available move tables (by search query and floor)
+  const filteredMoveTables = useMemo(() => {
+    let list = changeTableFloor === 'ALL'
+      ? [...availableMoveTables]
+      : availableMoveTables.filter(t => t.floor === changeTableFloor);
+
+    if (changeTableSearch.trim()) {
+      const q = changeTableSearch.trim().toLowerCase();
+      list = list.filter(t => {
+        const num = String(t.tableNumber || '').toLowerCase();
+        return num.includes(q) || `table ${num}`.includes(q) || `t${num}`.includes(q);
+      });
+    }
+
+    return list.sort((a, b) => {
+      const aStr = String(a.tableNumber || '');
+      const bStr = String(b.tableNumber || '');
+      const aMatch = aStr.match(/^([A-Za-z]*)\s*(\d+)(.*)$/);
+      const bMatch = bStr.match(/^([A-Za-z]*)\s*(\d+)(.*)$/);
+      if (aMatch && bMatch) {
+        const prefixA = (aMatch[1] || '').toUpperCase();
+        const prefixB = (bMatch[1] || '').toUpperCase();
+        if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
+        const numA = parseInt(aMatch[2], 10);
+        const numB = parseInt(bMatch[2], 10);
+        if (numA !== numB) return numA - numB;
+        return (aMatch[3] || '').localeCompare(bMatch[3] || '');
+      }
+      return aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [availableMoveTables, changeTableFloor, changeTableSearch]);
+
+  // Handle table change / transfer execution
+  const handleMoveTable = async (order, targetTable) => {
+    if (!order || !targetTable) return;
+    setChangeTableBusy(true);
+    try {
+      await api.post(`/api/v1/orders/${order.id}/move-table`, {
+        tableId: targetTable.id,
+        tableNumber: targetTable.tableNumber,
+      });
+      notify('success', `Order moved to Table ${targetTable.tableNumber}`);
+      setChangeTableOrder(null);
+      setChangeTableSearch('');
+      setChangeTableFloor('ALL');
+      if (selectedLiveOrder && String(selectedLiveOrder.id) === String(order.id)) {
+        setSelectedLiveOrder(prev => prev ? { ...prev, tableId: targetTable.id, tableNumber: targetTable.tableNumber } : null);
+      }
+      fetchLiveOrders();
+      fetchActiveTables();
+      onRefreshTables?.();
+    } catch (err) {
+      notify('error', 'Failed to move table: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setChangeTableBusy(false);
+    }
+  };
 
   // Table click handler:
   // - Available tables -> start new order
@@ -1653,6 +1765,7 @@ export default function PosOrderTypeModal({
           setCancelReason('');
           setCancelOrder(order);
         }}
+        onChangeTable={setChangeTableOrder}
       />
     );
   };
@@ -2165,10 +2278,35 @@ export default function PosOrderTypeModal({
                   )}
                   <span style={S.modalMainTitle}>
                     {selectedLiveOrder.tableNumber ? (
-                      <>
-                        <FaChair size={15} style={{ color: '#059669', opacity: 0.9, marginRight: 4 }} />
-                        Table {String(selectedLiveOrder.tableNumber).replace(/^t/i, '')}
-                      </>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: '#fff7ed',
+                          color: '#c2410c',
+                          border: '1.5px solid #fdba74',
+                          padding: '3px 10px',
+                          borderRadius: 8,
+                          cursor: !['COMPLETED', 'CANCELLED', 'VOID'].includes(String(selectedLiveOrder.orderStatus || '').toUpperCase()) ? 'pointer' : 'default',
+                          fontSize: 14,
+                          fontWeight: 800,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onClick={() => {
+                          if (!['COMPLETED', 'CANCELLED', 'VOID'].includes(String(selectedLiveOrder.orderStatus || '').toUpperCase())) {
+                            setChangeTableOrder(selectedLiveOrder);
+                          }
+                        }}
+                        title={!['COMPLETED', 'CANCELLED', 'VOID'].includes(String(selectedLiveOrder.orderStatus || '').toUpperCase()) ? 'Click to change table' : `Table ${selectedLiveOrder.tableNumber}`}
+                      >
+                        <FaChair size={14} style={{ color: '#ea580c', opacity: 0.9 }} />
+                        <span>Table {String(selectedLiveOrder.tableNumber).replace(/^t/i, '')}</span>
+                        {!['COMPLETED', 'CANCELLED', 'VOID'].includes(String(selectedLiveOrder.orderStatus || '').toUpperCase()) && (
+                          <FaExchangeAlt size={10} style={{ opacity: 0.75, marginLeft: 2 }} />
+                        )}
+                      </span>
                     ) : (
                       selectedLiveOrder.fulfillmentType || 'Takeaway'
                     )}
@@ -2493,7 +2631,315 @@ export default function PosOrderTypeModal({
         </div>
       )}
 
+      {/* ── Change Table Modal (Transfer Live Order to New Table) ── */}
+      {changeTableOrder && (
+        <div
+          style={{ ...S.modalBackdrop, zIndex: 10010 }}
+          onClick={() => {
+            if (!changeTableBusy) {
+              setChangeTableOrder(null);
+              setChangeTableSearch('');
+              setChangeTableFloor('ALL');
+            }
+          }}
+        >
+          <div
+            className="pos-modal-dialog-responsive"
+            style={{
+              ...S.modalDialog,
+              maxWidth: 520,
+              borderRadius: 18,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: '#ffffff'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 10,
+                  background: '#fff7ed',
+                  border: '1px solid #fed7aa',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ea580c',
+                  flexShrink: 0
+                }}>
+                  <FaExchangeAlt size={14} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: '#0f172a' }}>
+                    Change Table
+                  </h3>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    Order #{changeTableOrder.dailyBillNo || changeTableOrder.orderNo || changeTableOrder.order_no || String(changeTableOrder.id).slice(0, 8)} · Currently at <strong style={{ color: '#ea580c' }}>Table {changeTableOrder.tableNumber}</strong>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="pos-modal-close-btn"
+                style={S.modalCloseIcon}
+                disabled={changeTableBusy}
+                onClick={() => {
+                  setChangeTableOrder(null);
+                  setChangeTableSearch('');
+                  setChangeTableFloor('ALL');
+                }}
+                title="Close"
+              >
+                <FaTimes size={15} />
+              </button>
+            </div>
+
+            {/* Modal Search and Filters */}
+            <div style={{ padding: '14px 20px 10px 20px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: '#ffffff',
+                border: '1.5px solid #e2e8f0',
+                borderRadius: 10,
+                padding: '6px 12px',
+                gap: 8,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+              }}>
+                <FaSearch size={13} style={{ color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder="Search available table #..."
+                  value={changeTableSearch}
+                  onChange={e => setChangeTableSearch(e.target.value)}
+                  style={{
+                    border: 'none',
+                    outline: 'none',
+                    width: '100%',
+                    fontSize: 13,
+                    color: '#0f172a',
+                    fontWeight: 500,
+                    background: 'transparent'
+                  }}
+                  autoFocus
+                />
+                {changeTableSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setChangeTableSearch('')}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      padding: 2
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Floor Filter pills if multiple floors exist */}
+              {floors.length > 1 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+                  <button
+                    type="button"
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 100,
+                      border: `1px solid ${changeTableFloor === 'ALL' ? '#0f172a' : '#e2e8f0'}`,
+                      background: changeTableFloor === 'ALL' ? '#0f172a' : '#ffffff',
+                      color: changeTableFloor === 'ALL' ? '#ffffff' : '#64748b',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setChangeTableFloor('ALL')}
+                  >
+                    All Floors
+                  </button>
+                  {floors.map(f => (
+                    <button
+                      key={f}
+                      type="button"
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 100,
+                        border: `1px solid ${changeTableFloor === f ? '#0f172a' : '#e2e8f0'}`,
+                        background: changeTableFloor === f ? '#0f172a' : '#ffffff',
+                        color: changeTableFloor === f ? '#ffffff' : '#64748b',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setChangeTableFloor(f)}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tables Grid */}
+            <div style={{
+              padding: '16px 20px',
+              maxHeight: '340px',
+              overflowY: 'auto',
+              minHeight: '160px'
+            }}>
+              {filteredMoveTables.length > 0 ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))',
+                  gap: 10
+                }}>
+                  {filteredMoveTables.map(targetTable => (
+                    <button
+                      key={targetTable.id}
+                      type="button"
+                      disabled={changeTableBusy}
+                      onClick={() => handleMoveTable(changeTableOrder, targetTable)}
+                      className="pos-move-table-cell"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '12px 6px',
+                        background: '#ffffff',
+                        border: '1.5px solid #e2e8f0',
+                        borderRadius: 12,
+                        cursor: changeTableBusy ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        gap: 4
+                      }}
+                      title={`Transfer to Table ${targetTable.tableNumber}${targetTable.seatingCapacity ? ` (${targetTable.seatingCapacity} seats)` : ''}`}
+                    >
+                      <FaChair size={15} style={{ color: '#059669', opacity: 0.85 }} />
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                        {targetTable.tableNumber}
+                      </span>
+                      {targetTable.floor && (
+                        <span style={{ fontSize: 9.5, color: '#94a3b8', fontWeight: 600 }}>
+                          {targetTable.floor}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '36px 16px',
+                  color: '#94a3b8',
+                  textAlign: 'center',
+                  gap: 8
+                }}>
+                  <FaChair size={28} style={{ opacity: 0.4 }} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b' }}>
+                    {changeTableSearch ? `No tables matching "${changeTableSearch}"` : 'No other tables currently available'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    Only unassigned, available tables can be selected.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer / Cancel */}
+            <div style={{
+              padding: '12px 20px',
+              background: '#f8fafc',
+              borderTop: '1px solid #f1f5f9',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: 11.5, color: '#64748b', fontWeight: 600 }}>
+                {filteredMoveTables.length} available {filteredMoveTables.length === 1 ? 'table' : 'tables'}
+              </span>
+              <button
+                type="button"
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#475569',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                disabled={changeTableBusy}
+                onClick={() => {
+                  setChangeTableOrder(null);
+                  setChangeTableSearch('');
+                  setChangeTableFloor('ALL');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Loading Overlay when busy */}
+            {changeTableBusy && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(255, 255, 255, 0.88)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 18,
+                zIndex: 10,
+                gap: 10
+              }}>
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  border: '3px solid #fdba74',
+                  borderTopColor: '#ea580c',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#c2410c' }}>
+                  Moving order to table...
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
+        .pos-move-table-cell:hover {
+          border-color: #f97316 !important;
+          background: #fff7ed !important;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15) !important;
+        }
+        .board-card-table:hover {
+          filter: brightness(0.96);
+          transform: translateY(-1px);
+          box-shadow: 0 3px 8px rgba(249, 115, 22, 0.22) !important;
+        }
         @keyframes _ots_in {
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
