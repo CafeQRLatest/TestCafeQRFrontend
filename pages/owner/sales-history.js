@@ -68,6 +68,66 @@ import {
 
 const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
 
+function calculateKotDeltaJs(oldOrder, newOrder) {
+  const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
+  const newLines = newOrder?.lines || newOrder?.orderLines || newOrder?.order_items || [];
+
+  const oldMap = new Map();
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    oldMap.set(key, (oldMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const newMap = new Map();
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    newMap.set(key, (newMap.get(key) || 0) + Number(line.quantity || line.qty || 0));
+  });
+
+  const addedLines = [];
+  const removedLines = [];
+
+  newLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = oldMap.get(key) || 0;
+    const newQty = Number(line.quantity || line.qty || 0);
+    if (newQty > oldQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
+      addedLines.push({
+        ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
+        quantity: newQty - oldQty,
+        qty: newQty - oldQty
+      });
+    }
+  });
+
+  oldLines.forEach(line => {
+    const key = `${line.productId || line.product_id || ''}:${line.variantId || line.variant_id || ''}`;
+    const oldQty = Number(line.quantity || line.qty || 0);
+    const newQty = newMap.get(key) || 0;
+    if (oldQty > newQty) {
+      const catName = line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || line.product?.category_name || '';
+      const catId = line.categoryId || line.category_id || line.category?.id || line.product?.category_id || '';
+      removedLines.push({
+        ...line,
+        categoryName: catName,
+        category_name: catName,
+        categoryId: catId,
+        category_id: catId,
+        quantity: oldQty - newQty,
+        qty: oldQty - newQty
+      });
+    }
+  });
+
+  return { addedLines, removedLines };
+}
+
 function histOrderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
 }
@@ -556,14 +616,42 @@ export default function SalesHistoryPage() {
   };
 
   // Save Edited Order Handler
-  const handleSaveEditedOrder = async (updatedOrderData) => {
+  const handleSaveEditedOrder = async (updatedOrderData, originalOrder) => {
     if (!editingOrder?.id) return;
     setActionBusy(editingOrder.id);
     try {
-      await api.put(`/api/v1/orders/${editingOrder.id}`, updatedOrderData);
-      setEditingOrder(null);
+      const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
+      const payloadWithSkip = {
+        ...updatedOrderData,
+        skipAutoPrintKinds: Array.from(new Set([
+          ...(updatedOrderData?.skipAutoPrintKinds || []),
+          ...(localKotPrint ? ['KOT'] : [])
+        ]))
+      };
+      const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
       notify('success', 'Order updated successfully');
+      const savedOrder = res?.data?.data;
+      if (localKotPrint && savedOrder?.id) {
+        markCloudPrintJobPrinted({ id: savedOrder.id }, 'kot').catch(() => null);
+      }
+      if (localKotPrint && savedOrder) {
+        const baseOrder = originalOrder || editingOrder;
+        const { addedLines, removedLines } = calculateKotDeltaJs(baseOrder, savedOrder);
+        if (addedLines.length > 0 || removedLines.length > 0) {
+          setPrintOrder({
+            ...savedOrder,
+            lines: addedLines,
+            removed_items: removedLines,
+            removedItems: removedLines,
+            is_edited: true,
+            isEdited: true,
+          });
+          setPrintKind('kot');
+        }
+      }
+      setEditingOrder(null);
       fetchHistoryOrders(historyPage.number || 0);
+      fetchLiveOrders();
     } catch (e) {
       notify('error', 'Failed to update order: ' + (e.response?.data?.message || e.message));
     } finally {
