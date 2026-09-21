@@ -3172,9 +3172,18 @@ export default function PosOrderTypeModal({
             border-radius: 9999px !important;
           }
           .pos-segmented-container {
+            order: 3 !important;
+            width: 100% !important;
+            justify-content: center !important;
             padding: 2px !important;
             border-radius: 9999px !important;
             margin-top: 1px !important;
+          }
+          .pos-sound-toggle-group {
+            order: 1 !important;
+          }
+          .pos-right-ctrl-group {
+            order: 2 !important;
           }
           .pos-segmented-container .pos-segmented-tab {
             padding: 4px 6px !important;
