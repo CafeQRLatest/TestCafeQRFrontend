@@ -45,7 +45,7 @@ export default function ExpensesPage() {
     // Filter
     filters, dispatch,
     // Data
-    expenses: records, categories, formCategories, loading, branches,
+    expenses: records, categories, formCategories, loading, branches, paymentTypes,
     // Form
     showForm, setShowForm, editing, setEditing,
     saving, handleSubmit, openAdd, openEdit, handleDelete,
@@ -114,6 +114,7 @@ export default function ExpensesPage() {
               dispatch={dispatch}
               categories={categories}
               branches={branches}
+              paymentTypes={paymentTypes}
               isSuperAdmin={isSuperAdmin}
             />
 

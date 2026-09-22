@@ -87,6 +87,7 @@ export function useExpenses() {
   const [formCategories, setFormCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState([]);
+  const [paymentTypes, setPaymentTypes] = useState([]);
 
   // Pagination state
   const [expPage, setExpPage] = useState(0);
@@ -96,12 +97,26 @@ export function useExpenses() {
   const [allExpensesPeriodBreakdown, setAllExpensesPeriodBreakdown] = useState({});
   const EXP_PAGE_SIZE = 10;
 
-
-
   const isSuperAdmin = useMemo(() => {
     const role = userRole?.toUpperCase() || '';
     return role.includes('SUPER_ADMIN') || role.includes('ADMIN');
   }, [userRole]);
+
+  useEffect(() => {
+    let active = true;
+    const targetBranch = isSuperAdmin ? (filters.branch === SCOPE_ALL ? null : filters.branch) : orgId;
+    const orgParam = (targetBranch && targetBranch !== SCOPE_GLOBAL) ? `&orgId=${targetBranch}` : '';
+    api.get(`/api/v1/payment-types?applicableFor=EXPENSES${orgParam}`)
+      .then(res => {
+        if (active && res?.data?.success && res?.data?.data) {
+          setPaymentTypes(res.data.data || []);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load expense payment types:', err);
+      });
+    return () => { active = false; };
+  }, [filters.branch, orgId, isSuperAdmin]);
 
   const toScopeParams = useCallback((value) => {
     if (value === SCOPE_GLOBAL) return { scope: 'GLOBAL' };
@@ -360,6 +375,7 @@ export function useExpenses() {
     saving,
     catSaving,
     branches,
+    paymentTypes,
     isSuperAdmin,
     totalAll,
     totalExpensesAllPages,

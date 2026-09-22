@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
 import { PAY_METHODS } from '../../constants/payMethods';
@@ -10,13 +10,33 @@ export default function ExpenseFilters({
   dispatch,
   categories,
   branches,
-  isSuperAdmin
+  isSuperAdmin,
+  paymentTypes = []
 }) {
   const branchFilterOptions = [
     { value: SCOPE_ALL,    label: 'All Branches' },
     { value: SCOPE_GLOBAL, label: 'Organization' },
     ...branches.map(b => ({ value: b.id, label: b.name }))
   ];
+
+  const paymentOptions = useMemo(() => {
+    if (!paymentTypes || paymentTypes.length === 0) {
+      return [
+        { value: '', label: 'All Payments' },
+        ...PAY_METHODS
+      ];
+    }
+    const activeTypes = paymentTypes
+      .filter(pt => (pt.isActive ?? pt.isactive ?? 'Y') === 'Y')
+      .map(pt => ({
+        value: (pt.displayName || pt.name || '').toUpperCase(),
+        label: pt.displayName || pt.name
+      }));
+    return [
+      { value: '', label: 'All Payments' },
+      ...activeTypes
+    ];
+  }, [paymentTypes]);
 
   return (
     <div className={styles['exp-filter-bar']}>
@@ -52,10 +72,7 @@ export default function ExpenseFilters({
       />
 
       <NiceSelect
-        options={[
-          { value: '', label: 'All Payments' },
-          ...PAY_METHODS
-        ]}
+        options={paymentOptions}
         value={filters.payMethod}
         onChange={val => dispatch({ field: 'payMethod', value: val })}
       />
