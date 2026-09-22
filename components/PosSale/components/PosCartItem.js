@@ -172,13 +172,13 @@ const LineTotal = styled.div`
 `;
 
 const NoteToggleBtn = styled.button`
-  border: 1px dashed ${props => props.$hasNote ? (props.$themeColor || '#f97316') : '#cbd5e1'};
+  border: 1px dashed ${props => props.$hasNote ? (props.$themeColor || '#f97316') : '#94a3b8'};
   background: ${props => props.$hasNote 
     ? (props.$themeColor ? `${props.$themeColor}12` : '#fff7ed') 
-    : 'transparent'};
-  color: ${props => props.$hasNote ? (props.$themeColor || '#ea580c') : '#94a3b8'};
+    : '#f8fafc'};
+  color: ${props => props.$hasNote ? (props.$themeColor || '#ea580c') : '#1e293b'};
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: 700;
   border-radius: 5px;
   padding: 2px 6px;
   cursor: pointer;
@@ -193,8 +193,8 @@ const NoteToggleBtn = styled.button`
   flex-shrink: 0;
 
   &:hover {
-    border-color: ${props => props.$themeColor || '#f97316'};
-    color: ${props => props.$themeColor || '#ea580c'};
+    border-color: ${props => props.$hasNote ? (props.$themeColor || '#ea580c') : '#0f172a'};
+    color: ${props => props.$hasNote ? (props.$themeColor || '#ea580c') : '#0f172a'};
     background: #ffffff;
   }
 
@@ -264,21 +264,26 @@ const EditProductBtn = styled.button`
 `;
 
 const DeleteProductBtn = styled.button`
-  border: none;
-  background: transparent;
-  color: #cbd5e1;
+  border: 1px solid #fee2e2;
+  background: #fef2f2;
+  color: #ef4444;
   cursor: pointer;
-  padding: 3px;
+  padding: 3px 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 5px;
   transition: all 0.15s ease;
   flex-shrink: 0;
 
   &:hover {
-    color: #ef4444;
+    color: #dc2626;
     background: #fee2e2;
+    border-color: #fecaca;
+  }
+
+  &:active {
+    background: #fca5a5;
   }
 `;
 

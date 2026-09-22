@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { 
   FaTimes, FaFire, FaWallet, FaTrashAlt, FaUser, FaPhoneAlt, 
-  FaStickyNote, FaShoppingBag, FaStar, FaChevronLeft, FaChevronRight,
+  FaStickyNote, FaShoppingBag, FaStar, 
   FaPercentage 
 } from 'react-icons/fa';
 import PosCartItem from './PosCartItem';
@@ -11,16 +11,16 @@ import { isLoyaltyModuleEnabled } from '../../../utils/moduleVisibility';
 // ── Styled Components ──
 
 const SidebarContainer = styled.aside`
-  width: ${props => props.$isCounterMode ? '100%' : (props.$isWide ? '50%' : '380px')};
-  min-width: ${props => props.$isCounterMode ? '100%' : (props.$isWide ? '480px' : '380px')};
-  max-width: ${props => props.$isCounterMode ? '100%' : (props.$isWide ? '50%' : '380px')};
+  width: ${props => props.$isCounterMode ? '100%' : '280px'};
+  min-width: ${props => props.$isCounterMode ? '100%' : '280px'};
+  max-width: ${props => props.$isCounterMode ? '100%' : '280px'};
   border-left: ${props => props.$isCounterMode ? 'none' : '1px solid #e2e8f0'};
   background: #ffffff;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  flex: 1;
+  flex-shrink: 0;
   position: relative;
   z-index: 20;
   transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.24s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.24s cubic-bezier(0.16, 1, 0.3, 1);
@@ -61,38 +61,6 @@ const HeaderTitleGroup = styled.div`
     color: #0f172a;
     margin: 0;
     letter-spacing: -0.01em;
-  }
-`;
-
-const EdgeResizeTab = styled.button`
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  left: -13px;
-  width: 24px;
-  height: 50px;
-  border-radius: 8px;
-  border: 1.5px solid #cbd5e1;
-  background: #ffffff;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 35;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &:hover {
-    background: ${props => props.$themeColor ? `${props.$themeColor}15` : '#fff7ed'};
-    border-color: ${props => props.$themeColor || '#f97316'};
-    color: ${props => props.$themeColor || '#ea580c'};
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.16);
-  }
-
-  @media (max-width: 900px) {
-    display: none;
   }
 `;
 
@@ -416,15 +384,15 @@ const KitchenNoteBox = styled.div`
   gap: 7px;
   height: 32px;
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   border-radius: 7px;
   padding: 0 9px;
   transition: all 0.16s ease;
 
   &:focus-within {
     background: #ffffff;
-    border-color: ${props => props.$themeColor || '#f97316'};
-    box-shadow: 0 0 0 2px ${props => props.$themeColor ? `${props.$themeColor}18` : 'rgba(249, 115, 22, 0.12)'};
+    border-color: ${props => props.$themeColor || '#0f172a'};
+    box-shadow: 0 0 0 2px ${props => props.$themeColor ? `${props.$themeColor}18` : 'rgba(15, 23, 42, 0.12)'};
   }
 
   input {
@@ -432,19 +400,19 @@ const KitchenNoteBox = styled.div`
     border: none;
     background: transparent;
     font-size: 11.5px;
-    font-weight: 500;
+    font-weight: 600;
     color: #0f172a;
     outline: none;
 
     &::placeholder {
-      color: #94a3b8;
+      color: #64748b;
     }
   }
 
   .clear-btn {
     border: none;
     background: transparent;
-    color: #94a3b8;
+    color: #64748b;
     cursor: pointer;
     padding: 2px;
     display: flex;
@@ -544,21 +512,6 @@ export default function PosCartSidebar({
   const currencyDecimalPlaces = config?.currencyDecimalPlaces ?? 2;
   const totalQty = cartItems.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const loyaltyActive = Boolean(isLoyaltyModuleEnabled(config) || config?.loyaltyEnabled === true);
-  const [isWide, setIsWide] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('pos_cart_wide');
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, []);
-
-  const toggleWide = () => {
-    setIsWide(prev => !prev);
-  };
 
   const hasTax = config?.taxEnabled && (totals.total_tax_added > 0 || totals.total_tax_included > 0);
   const taxAmount = (totals.total_tax_added || 0) + (totals.total_tax_included || 0);
@@ -571,19 +524,7 @@ export default function PosCartSidebar({
     : totals.total_inc_tax;
 
   return (
-    <SidebarContainer $mobileOpen={mobileCartOpen} $isWide={isWide} $isCounterMode={isCounterMode}>
-      {/* Expand / Collapse Border Tab on Center of Divider (only in standard mode) */}
-      {!isCounterMode && (
-        <EdgeResizeTab
-          type="button"
-          onClick={toggleWide}
-          title={isWide ? "Restore normal cart width (380px) >" : "Expand cart to half screen (50%) <"}
-          $themeColor={theme?.main}
-        >
-          {isWide ? <FaChevronRight size={11} /> : <FaChevronLeft size={11} />}
-        </EdgeResizeTab>
-      )}
-
+    <SidebarContainer $mobileOpen={mobileCartOpen} $isCounterMode={isCounterMode}>
       {/* 1. Header Bar */}
       <HeaderBar>
         <HeaderTitleGroup>
@@ -696,7 +637,7 @@ export default function PosCartSidebar({
               discountsEnabled={discountsEnabled && activeOrderMode === 'settle'}
               handleEditProductFromCart={handleEditProductFromCart}
               setItemDescription={setItemDescription}
-              isWide={isWide || isCounterMode}
+              isWide={isCounterMode}
             />
           ))
         )}
@@ -704,11 +645,11 @@ export default function PosCartSidebar({
 
       {/* 4. Bottom Order Summary & Actions */}
       <CartBottomSection>
-            {cartItems.length > 0 && (isWide || isCounterMode) ? (
+            {cartItems.length > 0 && isCounterMode ? (
               <WideActionGrid>
                 <div>
                   <KitchenNoteBox $themeColor={theme.main}>
-                    <FaStickyNote size={10.5} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                    <FaStickyNote size={10.5} style={{ color: '#475569', flexShrink: 0 }} />
                     <input
                       type="text"
                       placeholder="Kitchen note (e.g. less spicy)..."
@@ -847,7 +788,7 @@ export default function PosCartSidebar({
 
             {/* 5. Sleek Kitchen Note */}
             <KitchenNoteBox $themeColor={theme.main}>
-              <FaStickyNote size={11} style={{ color: '#94a3b8', flexShrink: 0 }} />
+              <FaStickyNote size={11} style={{ color: '#475569', flexShrink: 0 }} />
               <input
                 type="text"
                 placeholder="Kitchen note (e.g. less spicy)..."
