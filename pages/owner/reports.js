@@ -3,6 +3,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import NiceSelect from '../../components/NiceSelect';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
+import PaymentTypeBalanceReport from '../../components/reports/PaymentTypeBalanceReport';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -22,6 +23,7 @@ const TABS = [
   { key: 'salesInvoices', label: 'Sales & Invoices', icon: <FaReceipt /> },
   { key: 'items', label: 'Item Sales', icon: <FaBoxes /> },
   { key: 'payments', label: 'Payment Methods', icon: <FaCreditCard /> },
+  { key: 'paymentBalances', label: 'Payment Balances', icon: <FaCoins /> },
   { key: 'tax', label: 'Tax Report', icon: <FaFileInvoice /> },
   { key: 'pnl', label: 'Profit & Loss', icon: <FaChartLine /> },
   { key: 'hourly', label: 'Hourly Trends', icon: <FaClock /> },
@@ -1306,7 +1308,28 @@ export default function Reports() {
     );
   };
 
-  const tabContent = { summary: renderSummary, salesInvoices: renderSalesInvoices, items: renderItems, payments: renderPayments, tax: renderTax, pnl: renderPnL, hourly: renderHourly, credit: renderCredit };
+  const renderPaymentBalances = () => (
+    <PaymentTypeBalanceReport
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      selectedOrgId={selectedOrgId}
+      selectedTerminalId={selectedTerminalId}
+      config={config}
+      isSuperAdmin={isSuperAdmin}
+    />
+  );
+
+  const tabContent = {
+    summary: renderSummary,
+    salesInvoices: renderSalesInvoices,
+    items: renderItems,
+    payments: renderPayments,
+    paymentBalances: renderPaymentBalances,
+    tax: renderTax,
+    pnl: renderPnL,
+    hourly: renderHourly,
+    credit: renderCredit
+  };
 
   return (
     <DashboardLayout title="Reports & Billing">
@@ -1341,7 +1364,13 @@ export default function Reports() {
         </div>
         <div className="rpt-tabs">
           {visibleTabs.map(t => (
-            <button key={t.key} className={`rpt-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            <button
+              key={t.key}
+              className={`rpt-tab ${tab === t.key ? 'active' : ''}`}
+              onClick={() => setTab(t.key)}
+              title={t.label}
+              aria-label={t.label}
+            >
               {t.icon}<span>{t.label}</span>
             </button>
           ))}
