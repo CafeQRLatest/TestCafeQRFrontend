@@ -555,8 +555,14 @@ export default function usePosSaleController({
           const catId = updatedProduct.categoryId || updatedProduct.category?.id;
           if (catName) {
             bootstrap.setCategories(prev => {
-              if (prev && !prev.includes(catName)) {
-                return [...prev, catName];
+              const currentList = Array.isArray(prev) ? prev : ['ALL'];
+              if (!currentList.includes(catName)) {
+                const nonAll = currentList.filter(c => c !== 'ALL');
+                nonAll.push(catName);
+                nonAll.sort((a, b) =>
+                  String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+                );
+                return ['ALL', ...new Set(nonAll)];
               }
               return prev;
             });
@@ -564,7 +570,10 @@ export default function usePosSaleController({
               bootstrap.setCategoryBeans?.(prev => {
                 const list = Array.isArray(prev) ? prev : [];
                 if (!list.some(b => b.id === catId || b.name === catName)) {
-                  return [...list, { id: String(catId), name: catName }];
+                  const updated = [...list, { id: String(catId), name: catName }];
+                  return updated.sort((a, b) =>
+                    String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' })
+                  );
                 }
                 return list;
               });
@@ -616,9 +625,14 @@ export default function usePosSaleController({
       bootstrap.setProducts(sortedProducts);
       
       if (freshBootstrap.categories && freshBootstrap.categories.length > 0) {
-        bootstrap.setCategoryBeans?.(freshBootstrap.categories);
-        const names = freshBootstrap.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-        bootstrap.setCategories(['ALL', ...new Set(names)]);
+        const sortedBeans = [...freshBootstrap.categories].sort((a, b) =>
+          String(a?.name || a || '').localeCompare(String(b?.name || b || ''), undefined, { numeric: true, sensitivity: 'base' })
+        );
+        bootstrap.setCategoryBeans?.(sortedBeans);
+        const names = Array.from(
+          new Set(sortedBeans.map(c => typeof c === 'string' ? c : c?.name).filter(Boolean))
+        ).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
+        bootstrap.setCategories(['ALL', ...names]);
       } else {
         const cats = extractUniqueCategories(sortedProducts);
         bootstrap.setCategories(cats);

@@ -14,6 +14,22 @@ function isAbortError(err) {
   );
 }
 
+function formatSortedCategories(list) {
+  if (!Array.isArray(list) || list.length === 0) return ['ALL'];
+  const names = list.map(c => (typeof c === 'string' ? c : c?.name)).filter(Boolean);
+  const sortedUnique = Array.from(new Set(names)).sort((a, b) =>
+    String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+  );
+  return ['ALL', ...sortedUnique];
+}
+
+function sortCategoryBeans(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) =>
+    String(a?.name || a || '').localeCompare(String(b?.name || b || ''), undefined, { numeric: true, sensitivity: 'base' })
+  );
+}
+
 /**
  * POS Sale V2 Bootstrap Hook
  * 
@@ -36,11 +52,10 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
       String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' })
     );
   });
-  const [categoryBeans, setCategoryBeans] = useState(() => cached?.categories || []);
+  const [categoryBeans, setCategoryBeans] = useState(() => sortCategoryBeans(cached?.categories));
   const [categories, setCategories] = useState(() => {
     if (cached?.categories && cached.categories.length > 0) {
-      const names = cached.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-      return ['ALL', ...new Set(names)];
+      return formatSortedCategories(cached.categories);
     }
     if (cached?.products && cached.products.length > 0) {
       return extractUniqueCategories(cached.products);
@@ -138,9 +153,9 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
 
         // ── Categories ──
         if (bootstrap.categories && bootstrap.categories.length > 0) {
-          setCategoryBeans(bootstrap.categories);
-          const names = bootstrap.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-          setCategories(['ALL', ...new Set(names)]);
+          const sortedBeans = sortCategoryBeans(bootstrap.categories);
+          setCategoryBeans(sortedBeans);
+          setCategories(formatSortedCategories(sortedBeans));
         } else {
           setCategoryBeans([]);
           setCategories(extractUniqueCategories(sortedProducts));
@@ -229,9 +244,9 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
       const resp = await httpApi.get('/api/v1/products/categories');
       if (resp.data?.success && Array.isArray(resp.data?.data)) {
         const catList = resp.data.data.filter(c => c && c.isActive !== false);
-        setCategoryBeans(catList);
-        const names = catList.map(c => c.name).filter(Boolean);
-        setCategories(['ALL', ...new Set(names)]);
+        const sortedBeans = sortCategoryBeans(catList);
+        setCategoryBeans(sortedBeans);
+        setCategories(formatSortedCategories(sortedBeans));
       }
     } catch (err) {
       console.warn("Failed to refresh categories:", err);
@@ -245,9 +260,9 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
       if (bootstrap) {
         sessionBootstrapCache.set(orgKey, bootstrap);
         if (bootstrap.categories && bootstrap.categories.length > 0) {
-          setCategoryBeans(bootstrap.categories);
-          const names = bootstrap.categories.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-          setCategories(['ALL', ...new Set(names)]);
+          const sortedBeans = sortCategoryBeans(bootstrap.categories);
+          setCategoryBeans(sortedBeans);
+          setCategories(formatSortedCategories(sortedBeans));
         }
         if (bootstrap.products) {
           const sortedProducts = [...bootstrap.products].sort((a, b) =>
