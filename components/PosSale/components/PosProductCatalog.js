@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { FaPlus, FaMinus, FaSearch, FaCamera, FaBarcode, FaFire, FaLeaf, FaTimes, FaLayerGroup, FaChevronRight } from 'react-icons/fa';
+import { FaPlus, FaMinus, FaSearch, FaCamera, FaBarcode, FaTimes, FaLayerGroup, FaChevronRight } from 'react-icons/fa';
 import PosProductCard from './PosProductCard';
 import PosCategoryFilter from './PosCategoryFilter';
 import { hasExtendedOptions } from '../../CounterSale/domain/cart';
@@ -258,17 +258,13 @@ const FilterRow = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
+  padding: 6px 16px;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
-  flex-wrap: wrap;
   overflow: hidden;
 
-  @media (max-width: 1300px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 8px 10px;
+  @media (max-width: 640px) {
+    padding: 6px 10px;
   }
 `;
 
@@ -278,19 +274,28 @@ const SegmentedTabs = styled.div`
   background: #f1f5f9;
   border: 1.5px solid #e2e8f0;
   border-radius: 12px;
-  padding: 3px;
+  padding: 2.5px;
   gap: 3px;
   flex-shrink: 0;
+  height: 42px;
+`;
 
-  @media (max-width: 1300px) {
-    width: 100%;
+const DesktopSegmentedTabs = styled(SegmentedTabs)`
+  @media (max-width: 900px) {
+    display: none !important;
+  }
+`;
+
+const MobileDietFilterBar = styled.div`
+  display: none;
+  padding: 6px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+
+  @media (max-width: 900px) {
     display: flex;
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
+    align-items: center;
+    width: 100%;
   }
 `;
 
@@ -302,7 +307,7 @@ const SegmentTab = styled.button`
     return '#e2e8f0';
   }};
   border-radius: 9px;
-  padding: 6px 13px;
+  padding: 5px 12px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -318,28 +323,38 @@ const SegmentTab = styled.button`
     if (props.$type === 'TRENDING') return '#c2410c';
     return '#0f172a';
   }};
-  box-shadow: ${props => props.$active ? '0 2px 5px rgba(15, 23, 42, 0.08)' : 'none'};
+  box-shadow: ${props => props.$active ? '0 1px 3px rgba(15, 23, 42, 0.08)' : 'none'};
   transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   white-space: nowrap;
 
   &:hover {
     color: #0f172a;
-    background: ${props => props.$active ? '' : 'rgba(255, 255, 255, 0.65)'};
+    background: ${props => props.$active ? '' : '#e2e8f0'};
   }
 
   &:active {
     transform: scale(0.98);
   }
+`;
 
-  @media (max-width: 640px) {
+const MobileSegmentedTabs = styled(SegmentedTabs)`
+  width: 100%;
+  display: flex;
+  justify-content: stretch;
+  height: 36px;
+  padding: 2px;
+  border-radius: 9px;
+
+  ${SegmentTab} {
     flex: 1;
     justify-content: center;
-    padding: 5px 8px;
-    font-size: 11px;
-    gap: 4px;
+    text-align: center;
+    padding: 4px 6px;
+    font-size: 11.5px;
+    border-radius: 7px;
   }
 `;
 
@@ -631,6 +646,35 @@ export default function PosProductCatalog({
           )}
         </SearchWrapper>
 
+        {productListingOn && (
+          <DesktopSegmentedTabs>
+            <SegmentTab
+              type="button"
+              $active={dietFilter === 'ALL'}
+              $type="ALL"
+              onClick={() => setDietFilter('ALL')}
+            >
+              All
+            </SegmentTab>
+            <SegmentTab
+              type="button"
+              $active={dietFilter === 'VEG'}
+              $type="VEG"
+              onClick={() => setDietFilter('VEG')}
+            >
+              Veg Only
+            </SegmentTab>
+            <SegmentTab
+              type="button"
+              $active={dietFilter === 'TRENDING'}
+              $type="TRENDING"
+              onClick={() => setDietFilter('TRENDING')}
+            >
+              Trending
+            </SegmentTab>
+          </DesktopSegmentedTabs>
+        )}
+
         <AddProductBtn type="button" onClick={() => startNewProductForPopup()}>
           <FaPlus size={10} /> Add Product
         </AddProductBtn>
@@ -639,9 +683,9 @@ export default function PosProductCatalog({
       {/* Product Listing (Filters, Categories, Product Cards) ONLY shown when productListingOn is true */}
       {productListingOn && (
         <>
-          {/* Filter Tabs (All, Veg, Trending) & Categories */}
-          <FilterRow>
-            <SegmentedTabs>
+          {/* Mobile Diet Filter Row (shown below search bar on mobile screens) */}
+          <MobileDietFilterBar>
+            <MobileSegmentedTabs>
               <SegmentTab
                 type="button"
                 $active={dietFilter === 'ALL'}
@@ -656,7 +700,7 @@ export default function PosProductCatalog({
                 $type="VEG"
                 onClick={() => setDietFilter('VEG')}
               >
-                <FaLeaf size={11} style={{ color: '#16a34a' }} /> Veg Only
+                Veg Only
               </SegmentTab>
               <SegmentTab
                 type="button"
@@ -664,12 +708,13 @@ export default function PosProductCatalog({
                 $type="TRENDING"
                 onClick={() => setDietFilter('TRENDING')}
               >
-                <FaFire size={11} style={{ color: '#ea580c' }} /> Trending
+                Trending
               </SegmentTab>
-            </SegmentedTabs>
+            </MobileSegmentedTabs>
+          </MobileDietFilterBar>
 
-            <FilterDivider />
-
+          {/* Categories Horizontal Row */}
+          <FilterRow>
             {/* Category Horizontal Carousel */}
             <PosCategoryFilter
               categories={categories}

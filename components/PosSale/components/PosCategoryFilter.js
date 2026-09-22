@@ -1,24 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
-import { FaChevronLeft, FaChevronRight, FaLayerGroup, FaCoffee, FaUtensils, FaHamburger, FaTag, FaIceCream } from 'react-icons/fa';
-
-function getCategoryIcon(cat) {
-  if (!cat || cat === 'ALL') return <FaLayerGroup size={11} />;
-  const lower = cat.toLowerCase();
-  if (lower.includes('drink') || lower.includes('tea') || lower.includes('coffee') || lower.includes('juice') || lower.includes('shake') || lower.includes('beverage') || lower.includes('soda') || lower.includes('water')) {
-    return <FaCoffee size={11} />;
-  }
-  if (lower.includes('burger') || lower.includes('sandwich') || lower.includes('snack') || lower.includes('fry') || lower.includes('fries') || lower.includes('pizza') || lower.includes('wrap')) {
-    return <FaHamburger size={11} />;
-  }
-  if (lower.includes('dessert') || lower.includes('ice') || lower.includes('sweet') || lower.includes('cake') || lower.includes('pastry')) {
-    return <FaIceCream size={11} />;
-  }
-  if (lower.includes('food') || lower.includes('meal') || lower.includes('rice') || lower.includes('mandhi') || lower.includes('biryani') || lower.includes('curry') || lower.includes('chicken') || lower.includes('mutton') || lower.includes('beef') || lower.includes('fish')) {
-    return <FaUtensils size={11} />;
-  }
-  return <FaTag size={10} style={{ opacity: 0.8 }} />;
-}
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 const FilterContainer = styled.div`
   display: flex;
@@ -198,8 +180,7 @@ export default function PosCategoryFilter({
               $themeDark={theme?.dark || '#ea580c'}
               onClick={() => setActiveCat(cat)}
             >
-              {getCategoryIcon(cat)}
-              <span>{isAll ? 'Everything' : cat}</span>
+              <span>{isAll ? 'All' : cat}</span>
             </CategoryPill>
           );
         })}
