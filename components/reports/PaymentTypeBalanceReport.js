@@ -128,7 +128,15 @@ export default function PaymentTypeBalanceReport({
     };
   };
 
-  const rawBalances = data?.balances || [];
+  // Filter out composite / split tender modes ("Mixed"), because mixed payments
+  // are already split and accounted for within the Cash and Online balances.
+  const rawBalances = useMemo(() => {
+    return (data?.balances || []).filter(b => {
+      const m = String(b.paymentMethod || '').toUpperCase();
+      const d = String(b.displayName || '').toUpperCase();
+      return !m.includes('MIXED') && !m.includes('SPLIT') && !d.includes('MIXED') && !d.includes('SPLIT');
+    });
+  }, [data]);
 
   // Filtered balances by live search
   const balances = useMemo(() => {
