@@ -289,6 +289,7 @@ export default function ProductManagementPopup({
       description: p.description || '',
       price: toNumber(p.price ?? p.salePrice, 0),
       isAvailable: toBoolean(p.isAvailable ?? p.available, true),
+      isDeliveryVisible: toBoolean(p.isDeliveryVisible ?? true, true),
       imageUrl: p.imageUrl || '',
       productType: p.productType || 'VEG',
       isVariant: toBoolean(p.isVariant, false),
@@ -418,6 +419,7 @@ export default function ProductManagementPopup({
         kdsStation: selectedProduct.kdsStation || '',
         productType: selectedProduct.productType || 'VEG',
         isAvailable: selectedProduct.isAvailable !== false,
+        isDeliveryVisible: selectedProduct.isDeliveryVisible !== false,
         isActive: selectedProduct.isActive !== false,
         isVariant: Boolean(selectedProduct.isVariant),
         isPackagedGood: Boolean(selectedProduct.isPackagedGood),
@@ -647,24 +649,30 @@ export default function ProductManagementPopup({
                </div>
              </div>
 
-             <div className="info-options-row" style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: inventoryEnabled ? '1fr 1fr 1fr' : '1fr 1fr', gap: '16px' }}>
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+             <div className="info-options-row" style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
+                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
                    <label style={{ margin: 0 }}>Packaged Good</label>
                    <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
                       <div className="switch-knob"></div>
                    </div>
                 </div>
                 {inventoryEnabled && (
-                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
                      <label style={{ margin: 0 }}>Is Ingredient</label>
                      <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
                        <div className="switch-knob"></div>
                      </div>
                   </div>
                 )}
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
                    <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Variable Price</label>
                    <div className={`erp-switch ${selectedProduct.isVariablePrice ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isVariablePrice: !selectedProduct.isVariablePrice})}>
+                     <div className="switch-knob"></div>
+                   </div>
+                </div>
+                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px' }}>
+                   <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Show in Delivery Website</label>
+                   <div className={`erp-switch ${selectedProduct.isDeliveryVisible ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isDeliveryVisible: !selectedProduct.isDeliveryVisible})}>
                      <div className="switch-knob"></div>
                    </div>
                 </div>
