@@ -11,7 +11,8 @@ import PrintPlatformSetup from '../../components/PrintPlatformSetup';
 import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
-import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable } from 'react-icons/fa';
+import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb';
+import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
 // ═════════════════════════════════════════════════════════════════════════════
@@ -430,6 +431,7 @@ function ConfigurationsContent() {
   const [showSecret, setShowSecret] = useState(false);
   const [logoSaving, setLogoSaving] = useState(false);
   const [logoMsg, setLogoMsg]       = useState('');
+  const [cacheClearing, setCacheClearing] = useState(false);
 
   const handleLogoFile = async (e) => {
     const file = e.target.files?.[0];
@@ -1076,10 +1078,71 @@ function ConfigurationsContent() {
                           </div>
                         </div>
                       </div>
+
+                      {/* CLEAR LOCAL POS CACHE (INDEXEDDB) */}
+                      <div style={{
+                        marginTop: '16px',
+                        padding: '14px 16px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '16px',
+                        flexWrap: 'wrap'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <FaBroom style={{ color: '#ea580c' }} />
+                            <span>Local Device Catalog Cache (IndexedDB)</span>
+                          </div>
+                          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                            Wipe all saved products, categories, and settings from this browser&apos;s local database. Forces a fresh download from the server on next POS open.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={cacheClearing}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            setCacheClearing(true);
+                            try {
+                              await clearAllPosCache();
+                              setMsgType('success');
+                              setMessage('Local POS cache wiped successfully. A fresh catalog will load on next POS visit.');
+                            } catch (err) {
+                              setMsgType('error');
+                              setMessage('Failed to clear local cache: ' + (err.message || String(err)));
+                            } finally {
+                              setCacheClearing(false);
+                            }
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            background: cacheClearing ? '#cbd5e1' : '#ffffff',
+                            color: cacheClearing ? '#64748b' : '#dc2626',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '8px',
+                            fontWeight: 600,
+                            fontSize: '12px',
+                            cursor: cacheClearing ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          <FaTrashAlt size={12} />
+                          {cacheClearing ? 'Clearing...' : 'Clear Local Cache'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
+
               
               <div className="dense-grid">
                 {MODULES.map(m => {

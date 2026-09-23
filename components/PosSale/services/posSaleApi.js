@@ -113,3 +113,20 @@ export async function saveCustomer(payload, options = {}) {
   const { data } = await api.post('/api/v1/purchasing/customers', payload, options);
   return data?.data || null;
 }
+
+/**
+ * Lightweight catalog sync check against server namespace versions.
+ * Returns { stale, serverVersion, serverTimestamp }.
+ * GET /api/v1/pos/sale/sync-check
+ */
+export async function checkCatalogSync(clientVersion, options = {}) {
+  const { data } = await api.get('/api/v1/pos/sale/sync-check', {
+    ...options,
+    params: {
+      version: clientVersion || undefined,
+      ...(options.params || {}),
+    },
+  });
+  return data?.data || { stale: true, serverVersion: 0 };
+}
+

@@ -81,6 +81,93 @@ export default function PosSaleContainer(props) {
     );
   }
 
+  if (bootstrap.loadError) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100%',
+        background: '#f8fafc',
+        padding: '24px',
+        boxSizing: 'border-box',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: '#fee2e2',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '16px'
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+          </svg>
+        </div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
+          Network Connection Required
+        </h2>
+        <p style={{ maxWidth: '420px', fontSize: '0.875rem', color: '#64748b', margin: '0 0 24px', lineHeight: '1.5' }}>
+          {bootstrap.loadError}
+        </p>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {props.onBack && (
+            <button
+              type="button"
+              onClick={props.onBack}
+              style={{
+                padding: '10px 18px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                background: '#ffffff',
+                color: '#475569',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Go Back
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (bootstrap.refreshBootstrap) {
+                bootstrap.refreshBootstrap();
+              } else if (typeof window !== 'undefined') {
+                window.location.reload();
+              }
+            }}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: 'none',
+              background: '#ea580c',
+              color: '#ffffff',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(234, 88, 12, 0.3)'
+            }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <S.CsModalOverlay onClick={props.onBack} $zoom={ui.zoomLevel}>
       <S.CsModalContent onClick={e => e.stopPropagation()}>
@@ -110,6 +197,7 @@ export default function PosSaleContainer(props) {
               {bootstrap.loadError}
             </div>
           ) : (
+
             <>
               {catalog.productListingOn ? (
                 <>
