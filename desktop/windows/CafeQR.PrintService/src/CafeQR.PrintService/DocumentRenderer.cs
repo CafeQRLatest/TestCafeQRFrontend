@@ -2030,7 +2030,7 @@ namespace CafeQR.PrintService
             {
                 PushWrappedCenteredText(lines, billFooterText, W, layout);
             }
-            PushWrappedCenteredText(lines, "Powered by Cafe QR", W, layout);
+            PushWrappedCenteredText(lines, "Powered by Cafe QR POS", W, layout);
             lines.Add("");
 
             return EscposPageSetup(layout) + BuildLogoEscPos(restaurantProfile) + string.Join("\n", lines);

@@ -56,25 +56,25 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
     <div className={`preview-container ${activePreview === 'regular' ? 'is-regular' : ''}`}>
       {/* Selector Tabs */}
       <div className="preview-tabs">
-        <button 
+        <button
           className={`preview-tab-btn ${activePreview === 'receipt' ? 'active' : ''}`}
           onClick={() => handleTabChange('receipt')}
         >
           <FaReceipt /> Receipt
         </button>
-        <button 
+        <button
           className={`preview-tab-btn ${activePreview === 'kot' ? 'active' : ''}`}
           onClick={() => handleTabChange('kot')}
         >
           <FaUtensils /> KOT
         </button>
-        <button 
+        <button
           className={`preview-tab-btn ${activePreview === 'label' ? 'active' : ''}`}
           onClick={() => handleTabChange('label')}
         >
           <FaBarcode /> Label
         </button>
-        <button 
+        <button
           className={`preview-tab-btn ${activePreview === 'regular' ? 'active' : ''}`}
           onClick={() => handleTabChange('regular')}
         >
@@ -89,12 +89,12 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
           style={activePreview === 'regular' ? undefined : { maxWidth: paperMaxWidth }}
         >
           {activePreview !== 'regular' && <div className="paper-edge-top"></div>}
-          
+
           <div className="paper-content">
             {activePreview === 'receipt' && (
               /* ================= RECEIPT VIEW ================= */
               <div className="receipt-view">
-                
+
                 {/* Logo */}
                 {logoSrc && (
                   <div className="receipt-logo-container">
@@ -187,7 +187,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <span className="col-rate text-right">250.00</span>
                     <span className="col-total text-right">250.00</span>
                   </div>
-                  
+
                   <div className="items-row">
                     <div className="col-item text-left">
                       Paneer Butter Masala
@@ -196,7 +196,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <span className="col-rate text-right">180.00</span>
                     <span className="col-total text-right">360.00</span>
                   </div>
-                  
+
                   <div className="items-row">
                     <div className="col-item text-left">
                       Garlic Naan
@@ -224,7 +224,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <span>Subtotal:</span>
                     <span>693.00</span>
                   </div>
-                  
+
                   {receiptTemplate.showGstBreakdown !== false && (() => {
                     const taxLabel = String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase();
                     if (taxLabel === 'GST') {
@@ -254,9 +254,9 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <span>Round Off:</span>
                     <span>+0.34</span>
                   </div>
-                  
+
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
-                  
+
                   <div className="grand-total-row">
                     <span>TOTAL:</span>
                     <span>₹728.00</span>
@@ -266,11 +266,11 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {receiptTemplate.showUpiQr !== false && (
-                  <div className="upi-qr-preview-section text-center" style={{ margin: '8px 0' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                  <div className="upi-qr-preview-section text-center" style={{ margin: '4px 0 2px 0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px', marginBottom: '3px' }}>
                       SCAN & PAY VIA UPI
                     </div>
-                    <div style={{ display: 'inline-block', padding: '4px', background: '#ffffff', border: '1px solid #000000' }}>
+                    <div style={{ display: 'inline-block', padding: '3px', background: '#ffffff', border: '1px solid #000000' }}>
                       <UpiQrCodeSvg
                         value={buildUpiUri({
                           upiId: receiptTemplate.upiId || config?.upiId || 'merchant@upi',
@@ -282,7 +282,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                         margin={1}
                       />
                     </div>
-                    <div className="receipt-divider" style={{ marginTop: '6px' }}>- - - - - - - - - - - - - - - - - - - -</div>
+                    <div className="receipt-divider" style={{ marginTop: '3px' }}>- - - - - - - - - - - - - - - - - - - -</div>
                   </div>
                 )}
 
@@ -292,7 +292,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     {receiptFooter}
                   </div>
                 )}
-                
+
                 {config.bill_footer && (
                   <div className="bill-footer-msg text-center font-small">
                     {config.bill_footer}
@@ -300,7 +300,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 )}
 
                 <div className="powered-by text-center font-small">
-                  Powered by Cafe QR
+                  Powered by Cafe QR POS
                 </div>
 
               </div>
@@ -309,7 +309,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
             {activePreview === 'kot' && (
               /* ================= KOT VIEW ================= */
               <div className="kot-view">
-                
+
                 {/* Restaurant Name on KOT */}
                 {kotTemplate.showRestaurantName !== false && (
                   <div className={`restaurant-name ${getFontClass(kotTitleFont)}`}>
@@ -318,14 +318,14 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 )}
 
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
-                
+
                 {/* KOT Custom Header */}
                 {kotHeader && (
                   <div className="custom-header-text text-center">
                     {kotHeader}
                   </div>
                 )}
-                
+
                 {kotHeader && (
                   <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                 )}
@@ -378,7 +378,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                   <span className="col-item text-left">ITEM</span>
                   <span className="col-qty text-right">QTY</span>
                 </div>
-                
+
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
 
                 {/* KOT Items Table Body */}
@@ -390,14 +390,14 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     </div>
                     <span className="col-qty text-right">1</span>
                   </div>
-                  
+
                   <div className="items-row font-bold">
                     <div className="col-item text-left">
                       Paneer Butter Masala
                     </div>
                     <span className="col-qty text-right">2</span>
                   </div>
-                  
+
                   <div className="items-row font-bold">
                     <div className="col-item text-left">
                       Garlic Naan
@@ -432,9 +432,9 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <div className="regular-restaurant-sub">Phone: +91 98765 43210</div>
                   </div>
                 </div>
-                
+
                 <div className="regular-title">TAX INVOICE</div>
-                
+
                 <div className="regular-meta-grid">
                   <div>
                     <strong>Invoice To:</strong>
@@ -449,7 +449,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <div><strong>Date:</strong> 16 Jun 2026</div>
                   </div>
                 </div>
-                
+
                 <div className="regular-table-container">
                   <table className="regular-items-table">
                     <thead>
@@ -491,7 +491,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     </tbody>
                   </table>
                 </div>
-                
+
                 <div className="regular-totals-section">
                   <div className="regular-totals-left">
                     {regularTemplate.showTerms && (
@@ -545,13 +545,13 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     )}
                   </div>
                 </div>
-                
+
                 {regularTemplate.showSignature && (
                   <div className="regular-signature">
                     <div className="sig-line">Authorized Signatory</div>
                   </div>
                 )}
-                
+
                 {regularTemplate.showFooter && (
                   <div className="regular-footer">
                     {regularTemplate.footer || 'Thank you for your business.'}
@@ -567,7 +567,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
               const showMrp = labelTpl.showMrp !== false;
               const widthMm = labelTpl.widthMm || 50;
               const heightMm = labelTpl.heightMm || 25;
-              
+
               return (
                 <div className="label-view" style={{
                   width: '100%',

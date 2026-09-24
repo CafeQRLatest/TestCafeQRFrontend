@@ -107,11 +107,11 @@ function parseDeliveryDetails(description) {
   const phoneMatch = description.match(/phone:(.*?)(?=\s+\w+:|$)/);
   const addressMatch = description.match(/address:(.*?)(?=\s+\w+:|$)/);
   const noteMatch = description.match(/note:(.*?)(?=\s+\w+:|$)/);
-  
+
   if (!emailMatch && !nameMatch && !phoneMatch && !addressMatch && !noteMatch) {
     return null;
   }
-  
+
   return {
     email: emailMatch ? emailMatch[1].trim() : '',
     name: nameMatch ? nameMatch[1].trim() : '',
@@ -897,18 +897,17 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       });
 
       if (upiUri) {
-        lines.push(ALIGN_CENTER);
-        lines.push(MODE_BOLD + withMargins("SCAN & PAY VIA UPI", layout) + MODE_NO_BOLD);
+        lines.push(ALIGN_CENTER + MODE_BOLD + withMargins("SCAN & PAY VIA UPI", layout) + MODE_NO_BOLD);
         const qrCmd = buildEscposQrCommands(upiUri, { is80, moduleSize: is80 ? 6 : 5 });
-        lines.push(qrCmd);
-        lines.push(ALIGN_LEFT);
-        lines.push(withMargins(dashes(), layout));
+        const SET_TIGHT_FEED = ESC + "3" + b(8); // Tight 8-dot line feed (~1mm) for post-symbol advance
+        const RESET_FEED = ESC + "2";            // Reset to default line spacing (~30 dots)
+        lines.push(SET_TIGHT_FEED + qrCmd + ALIGN_LEFT + RESET_FEED + withMargins(dashes(), layout));
       }
     }
 
     if (receiptFooter) pushWrappedCenteredText(lines, receiptFooter, W, layout);
     if (billFooterText) pushWrappedCenteredText(lines, billFooterText, W, layout);
-    pushWrappedCenteredText(lines, "Powered by Cafe QR", W, layout);
+    pushWrappedCenteredText(lines, "Powered by Cafe QR POS", W, layout);
     lines.push("");
 
     return escposPageSetup(layout) + buildLogoEscPos(restaurantProfile) + lines.join("\n");
