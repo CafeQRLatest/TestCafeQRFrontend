@@ -539,16 +539,18 @@ export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', st
       </g>
       {showLogo && (
         <g transform={`translate(${badgeX}, ${badgeY})`}>
-          <rect x="0" y="0" width={badgeModules} height={badgeModules} rx="0.5" fill="#ffffff" />
+          <rect x="0" y="0" width={badgeModules} height={badgeModules} rx={badgeModules * 0.18} fill="#ffffff" />
           <g transform={`scale(${scale})`}>
-            {/* Steam plume */}
-            <path d="M18 5 C16 9 20 11 17.5 14 C16.5 11 19.5 9 18.5 5 Z" fill="#000000" />
-            {/* Coffee cup rim & body */}
-            <path d="M8 17 H27 C27 24 23 29 17.5 29 C12 29 8 24 8 17 Z" fill="#000000" />
-            {/* Cup handle */}
-            <path d="M26 19 C31 19 33 21 33 24 C33 27 30 28 26 28" fill="none" stroke="#000000" strokeWidth="2.4" strokeLinecap="round" />
-            {/* Saucer */}
-            <rect x="6.5" y="31" width="22" height="2.5" rx="1.2" fill="#000000" />
+            {/* Signature S-shaped rising steam plume in brand gold */}
+            <path d="M17.5 4 C15 8 19.5 10 17 14 C16 11 19 9 18 4 Z" fill="#F2B035" />
+            {/* Coffee cup bowl fill in brand amber */}
+            <path d="M8.5 16.5 H25.5 C25.5 23 22 27.5 17 27.5 C12 27.5 8.5 23 8.5 16.5 Z" fill="#EAA32A" />
+            {/* Coffee cup rim & dark outline */}
+            <path d="M8 16 H26 C26 23.5 22.2 28.5 17 28.5 C11.8 28.5 8 23.5 8 16 Z" fill="none" stroke="#403930" strokeWidth="2.2" strokeLinejoin="round" />
+            {/* Saucer baseline bar */}
+            <rect x="6.5" y="30.5" width="21" height="2.6" rx="1.3" fill="#403930" />
+            {/* C-loop handle with hole */}
+            <path d="M25 18 C29.5 18 31.5 20.2 31.5 22.8 C31.5 25.5 29 27 25 27" fill="none" stroke="#403930" strokeWidth="2.4" strokeLinecap="round" />
           </g>
         </g>
       )}
