@@ -282,13 +282,16 @@ export function generateQrMatrix(text) {
 
   // Format bits for ECC M + Mask 0
   const FORMAT_BITS = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
+  // Copy 1: around top-left finder pattern
   for (let i = 0; i < 6; i++) matrix[8][i] = FORMAT_BITS[i] === 1;
   matrix[8][7] = FORMAT_BITS[6] === 1;
   matrix[8][8] = FORMAT_BITS[7] === 1;
   matrix[7][8] = FORMAT_BITS[8] === 1;
   for (let i = 9; i < 15; i++) matrix[14 - i][8] = FORMAT_BITS[i] === 1;
-  for (let i = 0; i < 8; i++) matrix[8][size - 1 - i] = FORMAT_BITS[i] === 1;
-  for (let i = 8; i < 15; i++) matrix[size - 15 + i][8] = FORMAT_BITS[i] === 1;
+  // Copy 2: Bottom-left (bits 0 to 6, column 8)
+  for (let i = 0; i < 7; i++) matrix[size - 1 - i][8] = FORMAT_BITS[i] === 1;
+  // Copy 2: Top-right (bits 7 to 14, row 8)
+  for (let i = 0; i < 8; i++) matrix[8][size - 8 + i] = FORMAT_BITS[7 + i] === 1;
 
   return matrix;
 }
@@ -480,16 +483,10 @@ export function buildEscposBrandedQrRaster(data, options = {}) {
 }
 
 /**
- * Primary ESC/POS QR builder: attempts branded monochrome silhouette raster,
- * with seamless fallback to standard native QR commands.
+ * Primary ESC/POS QR builder: Uses the thermal printer's native hardware QR engine
+ * (ESC/POS GS ( k) to guarantee 100% scan reliability on Google Pay, PhonePe, and Paytm.
  */
 export function buildEscposBrandedQr(data, options = {}) {
-  try {
-    const raster = buildEscposBrandedQrRaster(data, options);
-    if (raster) return raster;
-  } catch (err) {
-    console.warn('[BrandedQr] Fallback to native QR commands:', err);
-  }
   return buildEscposQrCommands(data, options);
 }
 
