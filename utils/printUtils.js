@@ -3,7 +3,7 @@ const ESC = "\x1b";
 const GS = "\x1d";
 
 import { formatTzDate } from './timezoneUtils';
-import { buildUpiUri, buildEscposQrCommands, buildEscposBrandedQr } from './upiQrGenerator';
+import { buildUpiUri, buildEscposQrCommands } from './upiQrGenerator';
 
 function b(n) {
   return String.fromCharCode(n & 0xff);
@@ -898,9 +898,10 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
       if (upiUri) {
         lines.push(ALIGN_CENTER + MODE_BOLD + withMargins("SCAN & PAY VIA UPI", layout) + MODE_NO_BOLD);
-        const qrCmd = buildEscposBrandedQr(upiUri, { is80 });
-        lines.push(ALIGN_CENTER + qrCmd + ALIGN_LEFT);
-        lines.push(withMargins(dashes(), layout));
+        const qrCmd = buildEscposQrCommands(upiUri, { is80, moduleSize: is80 ? 6 : 5 });
+        const SET_TIGHT_FEED = ESC + "3" + b(8); // Tight 8-dot line feed (~1mm) for post-symbol advance
+        const RESET_FEED = ESC + "2";            // Reset to default line spacing (~30 dots)
+        lines.push(SET_TIGHT_FEED + qrCmd + ALIGN_LEFT + RESET_FEED + withMargins(dashes(), layout));
       }
     }
 

@@ -282,16 +282,13 @@ export function generateQrMatrix(text) {
 
   // Format bits for ECC M + Mask 0
   const FORMAT_BITS = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
-  // Copy 1: around top-left finder pattern
   for (let i = 0; i < 6; i++) matrix[8][i] = FORMAT_BITS[i] === 1;
   matrix[8][7] = FORMAT_BITS[6] === 1;
   matrix[8][8] = FORMAT_BITS[7] === 1;
   matrix[7][8] = FORMAT_BITS[8] === 1;
   for (let i = 9; i < 15; i++) matrix[14 - i][8] = FORMAT_BITS[i] === 1;
-  // Copy 2: Bottom-left (bits 0 to 6, column 8)
-  for (let i = 0; i < 7; i++) matrix[size - 1 - i][8] = FORMAT_BITS[i] === 1;
-  // Copy 2: Top-right (bits 7 to 14, row 8)
-  for (let i = 0; i < 8; i++) matrix[8][size - 8 + i] = FORMAT_BITS[7 + i] === 1;
+  for (let i = 0; i < 8; i++) matrix[8][size - 1 - i] = FORMAT_BITS[i] === 1;
+  for (let i = 8; i < 15; i++) matrix[size - 15 + i][8] = FORMAT_BITS[i] === 1;
 
   return matrix;
 }
@@ -343,154 +340,6 @@ export function buildEscposQrCommands(data, options = {}) {
 }
 
 /**
- * Renders the Cafe QR coffee-cup silhouette into a 1-bit monochrome bitmap buffer.
- */
-function renderCoffeeCupSilhouette(setPixel, badgePixelX, badgePixelY, badgeSizeDots) {
-  for (let py = 0; py < badgeSizeDots; py++) {
-    const v = py / badgeSizeDots; // 0.0 (top) to 1.0 (bottom)
-    for (let px = 0; px < badgeSizeDots; px++) {
-      const u = px / badgeSizeDots; // 0.0 (left) to 1.0 (right)
-      let isBlack = false;
-
-      // 1. Steam plume rising from cup (v: 0.10 to 0.35)
-      if (v >= 0.10 && v <= 0.35) {
-        const steamCenter = 0.44 + 0.04 * Math.sin((v - 0.10) * 16);
-        if (Math.abs(u - steamCenter) <= 0.04) {
-          isBlack = true;
-        }
-      }
-
-      // 2. Coffee cup rim (v: 0.39 to 0.43, u: 0.20 to 0.68)
-      if (v >= 0.39 && v <= 0.43 && u >= 0.20 && u <= 0.68) {
-        isBlack = true;
-      }
-
-      // 3. Coffee cup bowl (v: 0.43 to 0.73)
-      if (v > 0.43 && v <= 0.73) {
-        const prog = (v - 0.43) / 0.30;
-        const halfW = 0.24 * (1 - 0.35 * Math.pow(prog, 1.7));
-        if (Math.abs(u - 0.44) <= halfW) {
-          isBlack = true;
-        }
-      }
-
-      // 4. Handle on right (v: 0.45 to 0.68, u: 0.62 to 0.81)
-      if (v >= 0.45 && v <= 0.68 && u >= 0.62 && u <= 0.81) {
-        const isHole = (v >= 0.51 && v <= 0.62 && u >= 0.66 && u <= 0.76);
-        if (!isHole) {
-          isBlack = true;
-        }
-      }
-
-      // 5. Saucer base line (v: 0.78 to 0.85, u: 0.15 to 0.73)
-      if (v >= 0.78 && v <= 0.85 && u >= 0.15 && u <= 0.73) {
-        isBlack = true;
-      }
-
-      if (isBlack) {
-        setPixel(badgePixelX + px, badgePixelY + py);
-      }
-    }
-  }
-}
-
-/**
- * Builds high-contrast ESC/POS monochrome raster bitmap (GS v 0) with
- * the Cafe QR coffee-cup silhouette cleanly embedded in the center.
- * Perfectly centered on thermal paper (58mm = 384 dots, 80mm = 576 dots).
- */
-export function buildEscposBrandedQrRaster(data, options = {}) {
-  if (!data) return '';
-  const matrix = generateQrMatrix(data);
-  if (!matrix || !matrix.length) return '';
-
-  const is80 = options.is80 || false;
-  const moduleDots = options.moduleDots || (is80 ? 6 : 5);
-  const totalPaperDots = is80 ? 576 : 384;
-
-  const matrixSize = matrix.length;
-  const quietModules = 3;
-  const qrTotalModules = matrixSize + quietModules * 2;
-  const qrTotalDots = qrTotalModules * moduleDots;
-
-  // Exact horizontal centering within paper width
-  const totalWidthDots = totalPaperDots;
-  const widthBytes = Math.ceil(totalWidthDots / 8);
-  const startX = Math.max(0, Math.floor((totalWidthDots - qrTotalDots) / 2));
-  const heightDots = qrTotalDots;
-
-  const bitmap = new Uint8Array(widthBytes * heightDots);
-
-  function setPixel(x, y) {
-    if (x < 0 || x >= totalWidthDots || y < 0 || y >= heightDots) return;
-    const byteIdx = y * widthBytes + (x >> 3);
-    bitmap[byteIdx] |= (0x80 >> (x & 7));
-  }
-
-  function clearPixel(x, y) {
-    if (x < 0 || x >= totalWidthDots || y < 0 || y >= heightDots) return;
-    const byteIdx = y * widthBytes + (x >> 3);
-    bitmap[byteIdx] &= ~(0x80 >> (x & 7));
-  }
-
-  // 1. Draw all QR modules
-  for (let r = 0; r < matrixSize; r++) {
-    for (let c = 0; c < matrixSize; c++) {
-      if (matrix[r][c]) {
-        const baseX = startX + (c + quietModules) * moduleDots;
-        const baseY = (r + quietModules) * moduleDots;
-        for (let dy = 0; dy < moduleDots; dy++) {
-          for (let dx = 0; dx < moduleDots; dx++) {
-            setPixel(baseX + dx, baseY + dy);
-          }
-        }
-      }
-    }
-  }
-
-  // 2. Center badge area (~20% of QR code width, well within Level M recovery limits)
-  const badgeModules = Math.min(9, Math.max(7, (Math.floor(matrixSize * 0.22) | 1)));
-  const halfBadge = Math.floor(badgeModules / 2);
-  const centerMod = Math.floor(matrixSize / 2);
-  const badgeStartModX = centerMod - halfBadge;
-  const badgeStartModY = centerMod - halfBadge;
-  const badgePixelX = startX + (badgeStartModX + quietModules) * moduleDots;
-  const badgePixelY = (badgeStartModY + quietModules) * moduleDots;
-  const badgeSizeDots = badgeModules * moduleDots;
-
-  // 3. Clear center badge to pure white (quiet zone around silhouette)
-  for (let y = badgePixelY; y < badgePixelY + badgeSizeDots; y++) {
-    for (let x = badgePixelX; x < badgePixelX + badgeSizeDots; x++) {
-      clearPixel(x, y);
-    }
-  }
-
-  // 4. Render coffee-cup silhouette in the center badge
-  renderCoffeeCupSilhouette(setPixel, badgePixelX, badgePixelY, badgeSizeDots);
-
-  // 5. Build ESC/POS GS v 0 raster command
-  const GS = '\x1d';
-  const xL = String.fromCharCode(widthBytes % 256);
-  const xH = String.fromCharCode(Math.floor(widthBytes / 256));
-  const yL = String.fromCharCode(heightDots % 256);
-  const yH = String.fromCharCode(Math.floor(heightDots / 256));
-
-  let escpos = GS + 'v0\x00' + xL + xH + yL + yH;
-  for (let i = 0; i < bitmap.length; i++) {
-    escpos += String.fromCharCode(bitmap[i]);
-  }
-  return escpos;
-}
-
-/**
- * Primary ESC/POS QR builder: Uses the thermal printer's native hardware QR engine
- * (ESC/POS GS ( k) to guarantee 100% scan reliability on Google Pay, PhonePe, and Paytm.
- */
-export function buildEscposBrandedQr(data, options = {}) {
-  return buildEscposQrCommands(data, options);
-}
-
-/**
  * Builds an SVG path string from a QR matrix.
  */
 export function generateQrSvgPath(matrix) {
@@ -508,22 +357,15 @@ export function generateQrSvgPath(matrix) {
 }
 
 /**
- * React Component for rendering standalone QR code as high-performance SVG
- * with the Cafe QR coffee-cup silhouette cleanly embedded in the center.
+ * React Component for rendering standalone QR code as high-performance SVG.
  */
-export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', style = {}, showLogo = true }) {
+export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', style = {} }) {
   if (!value) return null;
   const matrix = generateQrMatrix(value);
   if (!matrix.length) return null;
   const matrixSize = matrix.length;
   const viewBoxSize = matrixSize + margin * 2;
   const path = generateQrSvgPath(matrix);
-
-  const badgeModules = Math.min(9, Math.max(7, (Math.floor(matrixSize * 0.22) | 1)));
-  const center = viewBoxSize / 2;
-  const badgeX = center - badgeModules / 2;
-  const badgeY = center - badgeModules / 2;
-  const scale = badgeModules / 40;
 
   return (
     <svg
@@ -537,23 +379,6 @@ export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', st
       <g transform={`translate(${margin}, ${margin})`}>
         <path d={path} fill="#000000" />
       </g>
-      {showLogo && (
-        <g transform={`translate(${badgeX}, ${badgeY})`}>
-          <rect x="0" y="0" width={badgeModules} height={badgeModules} rx={badgeModules * 0.18} fill="#ffffff" />
-          <g transform={`scale(${scale})`}>
-            {/* Signature S-shaped rising steam plume in brand gold */}
-            <path d="M17.5 4 C15 8 19.5 10 17 14 C16 11 19 9 18 4 Z" fill="#F2B035" />
-            {/* Coffee cup bowl fill in brand amber */}
-            <path d="M8.5 16.5 H25.5 C25.5 23 22 27.5 17 27.5 C12 27.5 8.5 23 8.5 16.5 Z" fill="#EAA32A" />
-            {/* Coffee cup rim & dark outline */}
-            <path d="M8 16 H26 C26 23.5 22.2 28.5 17 28.5 C11.8 28.5 8 23.5 8 16 Z" fill="none" stroke="#403930" strokeWidth="2.2" strokeLinejoin="round" />
-            {/* Saucer baseline bar */}
-            <rect x="6.5" y="30.5" width="21" height="2.6" rx="1.3" fill="#403930" />
-            {/* C-loop handle with hole */}
-            <path d="M25 18 C29.5 18 31.5 20.2 31.5 22.8 C31.5 25.5 29 27 25 27" fill="none" stroke="#403930" strokeWidth="2.4" strokeLinecap="round" />
-          </g>
-        </g>
-      )}
     </svg>
   );
 }
