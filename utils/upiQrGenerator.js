@@ -340,6 +340,160 @@ export function buildEscposQrCommands(data, options = {}) {
 }
 
 /**
+ * Renders the Cafe QR coffee-cup silhouette into a 1-bit monochrome bitmap buffer.
+ */
+function renderCoffeeCupSilhouette(setPixel, badgePixelX, badgePixelY, badgeSizeDots) {
+  for (let py = 0; py < badgeSizeDots; py++) {
+    const v = py / badgeSizeDots; // 0.0 (top) to 1.0 (bottom)
+    for (let px = 0; px < badgeSizeDots; px++) {
+      const u = px / badgeSizeDots; // 0.0 (left) to 1.0 (right)
+      let isBlack = false;
+
+      // 1. Steam plume rising from cup (v: 0.10 to 0.35)
+      if (v >= 0.10 && v <= 0.35) {
+        const steamCenter = 0.44 + 0.04 * Math.sin((v - 0.10) * 16);
+        if (Math.abs(u - steamCenter) <= 0.04) {
+          isBlack = true;
+        }
+      }
+
+      // 2. Coffee cup rim (v: 0.39 to 0.43, u: 0.20 to 0.68)
+      if (v >= 0.39 && v <= 0.43 && u >= 0.20 && u <= 0.68) {
+        isBlack = true;
+      }
+
+      // 3. Coffee cup bowl (v: 0.43 to 0.73)
+      if (v > 0.43 && v <= 0.73) {
+        const prog = (v - 0.43) / 0.30;
+        const halfW = 0.24 * (1 - 0.35 * Math.pow(prog, 1.7));
+        if (Math.abs(u - 0.44) <= halfW) {
+          isBlack = true;
+        }
+      }
+
+      // 4. Handle on right (v: 0.45 to 0.68, u: 0.62 to 0.81)
+      if (v >= 0.45 && v <= 0.68 && u >= 0.62 && u <= 0.81) {
+        const isHole = (v >= 0.51 && v <= 0.62 && u >= 0.66 && u <= 0.76);
+        if (!isHole) {
+          isBlack = true;
+        }
+      }
+
+      // 5. Saucer base line (v: 0.78 to 0.85, u: 0.15 to 0.73)
+      if (v >= 0.78 && v <= 0.85 && u >= 0.15 && u <= 0.73) {
+        isBlack = true;
+      }
+
+      if (isBlack) {
+        setPixel(badgePixelX + px, badgePixelY + py);
+      }
+    }
+  }
+}
+
+/**
+ * Builds high-contrast ESC/POS monochrome raster bitmap (GS v 0) with
+ * the Cafe QR coffee-cup silhouette cleanly embedded in the center.
+ * Perfectly centered on thermal paper (58mm = 384 dots, 80mm = 576 dots).
+ */
+export function buildEscposBrandedQrRaster(data, options = {}) {
+  if (!data) return '';
+  const matrix = generateQrMatrix(data);
+  if (!matrix || !matrix.length) return '';
+
+  const is80 = options.is80 || false;
+  const moduleDots = options.moduleDots || (is80 ? 6 : 5);
+  const totalPaperDots = is80 ? 576 : 384;
+
+  const matrixSize = matrix.length;
+  const quietModules = 3;
+  const qrTotalModules = matrixSize + quietModules * 2;
+  const qrTotalDots = qrTotalModules * moduleDots;
+
+  // Exact horizontal centering within paper width
+  const totalWidthDots = totalPaperDots;
+  const widthBytes = Math.ceil(totalWidthDots / 8);
+  const startX = Math.max(0, Math.floor((totalWidthDots - qrTotalDots) / 2));
+  const heightDots = qrTotalDots;
+
+  const bitmap = new Uint8Array(widthBytes * heightDots);
+
+  function setPixel(x, y) {
+    if (x < 0 || x >= totalWidthDots || y < 0 || y >= heightDots) return;
+    const byteIdx = y * widthBytes + (x >> 3);
+    bitmap[byteIdx] |= (0x80 >> (x & 7));
+  }
+
+  function clearPixel(x, y) {
+    if (x < 0 || x >= totalWidthDots || y < 0 || y >= heightDots) return;
+    const byteIdx = y * widthBytes + (x >> 3);
+    bitmap[byteIdx] &= ~(0x80 >> (x & 7));
+  }
+
+  // 1. Draw all QR modules
+  for (let r = 0; r < matrixSize; r++) {
+    for (let c = 0; c < matrixSize; c++) {
+      if (matrix[r][c]) {
+        const baseX = startX + (c + quietModules) * moduleDots;
+        const baseY = (r + quietModules) * moduleDots;
+        for (let dy = 0; dy < moduleDots; dy++) {
+          for (let dx = 0; dx < moduleDots; dx++) {
+            setPixel(baseX + dx, baseY + dy);
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Center badge area (~20% of QR code width, well within Level M recovery limits)
+  const badgeModules = Math.min(9, Math.max(7, (Math.floor(matrixSize * 0.22) | 1)));
+  const halfBadge = Math.floor(badgeModules / 2);
+  const centerMod = Math.floor(matrixSize / 2);
+  const badgeStartModX = centerMod - halfBadge;
+  const badgeStartModY = centerMod - halfBadge;
+  const badgePixelX = startX + (badgeStartModX + quietModules) * moduleDots;
+  const badgePixelY = (badgeStartModY + quietModules) * moduleDots;
+  const badgeSizeDots = badgeModules * moduleDots;
+
+  // 3. Clear center badge to pure white (quiet zone around silhouette)
+  for (let y = badgePixelY; y < badgePixelY + badgeSizeDots; y++) {
+    for (let x = badgePixelX; x < badgePixelX + badgeSizeDots; x++) {
+      clearPixel(x, y);
+    }
+  }
+
+  // 4. Render coffee-cup silhouette in the center badge
+  renderCoffeeCupSilhouette(setPixel, badgePixelX, badgePixelY, badgeSizeDots);
+
+  // 5. Build ESC/POS GS v 0 raster command
+  const GS = '\x1d';
+  const xL = String.fromCharCode(widthBytes % 256);
+  const xH = String.fromCharCode(Math.floor(widthBytes / 256));
+  const yL = String.fromCharCode(heightDots % 256);
+  const yH = String.fromCharCode(Math.floor(heightDots / 256));
+
+  let escpos = GS + 'v0\x00' + xL + xH + yL + yH;
+  for (let i = 0; i < bitmap.length; i++) {
+    escpos += String.fromCharCode(bitmap[i]);
+  }
+  return escpos;
+}
+
+/**
+ * Primary ESC/POS QR builder: attempts branded monochrome silhouette raster,
+ * with seamless fallback to standard native QR commands.
+ */
+export function buildEscposBrandedQr(data, options = {}) {
+  try {
+    const raster = buildEscposBrandedQrRaster(data, options);
+    if (raster) return raster;
+  } catch (err) {
+    console.warn('[BrandedQr] Fallback to native QR commands:', err);
+  }
+  return buildEscposQrCommands(data, options);
+}
+
+/**
  * Builds an SVG path string from a QR matrix.
  */
 export function generateQrSvgPath(matrix) {
@@ -357,15 +511,22 @@ export function generateQrSvgPath(matrix) {
 }
 
 /**
- * React Component for rendering standalone QR code as high-performance SVG.
+ * React Component for rendering standalone QR code as high-performance SVG
+ * with the Cafe QR coffee-cup silhouette cleanly embedded in the center.
  */
-export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', style = {} }) {
+export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', style = {}, showLogo = true }) {
   if (!value) return null;
   const matrix = generateQrMatrix(value);
   if (!matrix.length) return null;
   const matrixSize = matrix.length;
   const viewBoxSize = matrixSize + margin * 2;
   const path = generateQrSvgPath(matrix);
+
+  const badgeModules = Math.min(9, Math.max(7, (Math.floor(matrixSize * 0.22) | 1)));
+  const center = viewBoxSize / 2;
+  const badgeX = center - badgeModules / 2;
+  const badgeY = center - badgeModules / 2;
+  const scale = badgeModules / 40;
 
   return (
     <svg
@@ -379,6 +540,21 @@ export function UpiQrCodeSvg({ value, size = 160, margin = 2, className = '', st
       <g transform={`translate(${margin}, ${margin})`}>
         <path d={path} fill="#000000" />
       </g>
+      {showLogo && (
+        <g transform={`translate(${badgeX}, ${badgeY})`}>
+          <rect x="0" y="0" width={badgeModules} height={badgeModules} rx="0.5" fill="#ffffff" />
+          <g transform={`scale(${scale})`}>
+            {/* Steam plume */}
+            <path d="M18 5 C16 9 20 11 17.5 14 C16.5 11 19.5 9 18.5 5 Z" fill="#000000" />
+            {/* Coffee cup rim & body */}
+            <path d="M8 17 H27 C27 24 23 29 17.5 29 C12 29 8 24 8 17 Z" fill="#000000" />
+            {/* Cup handle */}
+            <path d="M26 19 C31 19 33 21 33 24 C33 27 30 28 26 28" fill="none" stroke="#000000" strokeWidth="2.4" strokeLinecap="round" />
+            {/* Saucer */}
+            <rect x="6.5" y="31" width="22" height="2.5" rx="1.2" fill="#000000" />
+          </g>
+        </g>
+      )}
     </svg>
   );
 }
