@@ -282,9 +282,6 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                         margin={1}
                       />
                     </div>
-                    <div style={{ fontSize: '10px', marginTop: '3px', fontWeight: '500' }}>
-                      UPI ID: {receiptTemplate.upiId || config?.upiId || 'merchant@upi'}
-                    </div>
                     <div className="receipt-divider" style={{ marginTop: '6px' }}>- - - - - - - - - - - - - - - - - - - -</div>
                   </div>
                 )}

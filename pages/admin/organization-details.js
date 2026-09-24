@@ -11,7 +11,8 @@ import {
   FaTruckMoving, FaPowerOff, FaLocationArrow, FaCity,
   FaShieldAlt, FaInfoCircle, FaChevronRight, FaSearch, FaTag,
   FaImage, FaTrash, FaUpload, FaGlobe, FaCopy, FaExternalLinkAlt,
-  FaInstagram, FaWhatsapp, FaTwitter, FaFacebook, FaStar, FaIdBadge
+  FaInstagram, FaWhatsapp, FaTwitter, FaFacebook, FaStar, FaIdBadge,
+  FaBolt
 } from 'react-icons/fa';
 
 /**
@@ -232,7 +233,9 @@ function OrganizationSettingsContent() {
       latitude: null,
       longitude: null,
       timezone: 'Asia/Kolkata',
-      reviewsEnabled: true
+      reviewsEnabled: true,
+      upiId: '',
+      upiPayeeName: ''
     });
   };
 
@@ -518,6 +521,50 @@ function OrganizationSettingsContent() {
                           onChange={(e) => setSelectedOrg({...selectedOrg, phone: e.target.value})}
                           placeholder="+91 99000 00000"
                         />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 2.5. UPI Direct Bank Payment (Receipt QR Code) */}
+                <section className="v2-data-block full">
+                  <div className="block-header">
+                    <FaBolt className="block-icon" style={{ color: '#f59e0b' }} />
+                    <h4>UPI Direct Bank Payment (Receipt QR Code)</h4>
+                  </div>
+                  <div className="block-content">
+                    <p style={{
+                      margin: '0 0 16px 0',
+                      fontSize: '12.5px',
+                      color: '#9a3412',
+                      background: '#fff7ed',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #fed7aa',
+                      lineHeight: '1.5'
+                    }}>
+                      ⚡ Customers scan this QR code on printed bill to pay directly to your bank account with zero transaction fees.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                      <div className="v2-input-group">
+                        <label>UPI ID (VPA) <span style={{ color: 'red' }}>*</span></label>
+                        <input 
+                          type="text" 
+                          value={selectedOrg.upiId || ''}
+                          onChange={(e) => setSelectedOrg({ ...selectedOrg, upiId: e.target.value.trim() })}
+                          placeholder="e.g. merchant@okhdfcbank or 9876543210@paytm"
+                        />
+                        <small>Directly credited to this branch&apos;s UPI-linked bank account (Zero PG fees)</small>
+                      </div>
+                      <div className="v2-input-group">
+                        <label>Payee / Business Name</label>
+                        <input 
+                          type="text" 
+                          value={selectedOrg.upiPayeeName || ''}
+                          onChange={(e) => setSelectedOrg({ ...selectedOrg, upiPayeeName: e.target.value })}
+                          placeholder={selectedOrg.name || "e.g. Cafe Delight Main Outlet"}
+                        />
+                        <small>Payee name displayed to customer upon scanning in GPay / PhonePe / Paytm / BHIM</small>
                       </div>
                     </div>
                   </div>

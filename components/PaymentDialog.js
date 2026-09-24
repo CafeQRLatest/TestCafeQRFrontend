@@ -1663,12 +1663,14 @@ export default function PaymentDialog({
                     </div>
 
                     <div style={{ textAlign: 'center', width: '100%' }}>
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
+                      <div style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
                         {money(payable)}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
-                        UPI ID: <strong style={{ color: '#0284c7' }}>{effectiveUpiId}</strong>
-                      </div>
+                      {effectiveUpiPayeeName && (
+                        <div style={{ fontSize: '12px', fontWeight: '600', color: '#0369a1', marginTop: '2px' }}>
+                          {effectiveUpiPayeeName}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ width: '100%', marginTop: '2px' }}>

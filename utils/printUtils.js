@@ -901,7 +901,6 @@ export function buildReceiptText(order, bill, restaurantProfile) {
         lines.push(MODE_BOLD + withMargins("SCAN & PAY VIA UPI", layout) + MODE_NO_BOLD);
         const qrCmd = buildEscposQrCommands(upiUri, { is80, moduleSize: is80 ? 6 : 5 });
         lines.push(qrCmd);
-        lines.push(withMargins(`UPI ID: ${upiId}`, layout));
         lines.push(ALIGN_LEFT);
         lines.push(withMargins(dashes(), layout));
       }
