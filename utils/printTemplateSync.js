@@ -28,6 +28,9 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   showRestaurantName: true, showDailyBillNo: true, showCustomerDetails: true,
   showTableLabel: true, showFssai: true, showGstBreakdown: true,
   showRemarks: true,
+  showUpiQr: true,
+  upiId: '',
+  upiPayeeName: '',
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** TAX INVOICE ***', footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -50,6 +53,9 @@ function mergeReceiptTemplate(template) {
   return {
     ...DEFAULT_RECEIPT_TEMPLATE, ...src,
     showRemarks: src.showRemarks !== false,
+    showUpiQr: src.showUpiQr !== false,
+    upiId: src.upiId ?? '',
+    upiPayeeName: src.upiPayeeName ?? '',
     titleFontSize: src.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
@@ -79,6 +85,9 @@ function syncTemplateToLS(documentKey, template) {
     localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
   } else {
     localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
+    localStorage.setItem(`${prefix}SHOW_UPI_QR`, template.showUpiQr !== false ? '1' : '0');
+    if (template.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(template.upiId || ''));
+    if (template.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(template.upiPayeeName || ''));
   }
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
@@ -139,6 +148,9 @@ export async function ensurePrintTemplatesSynced(force = false) {
     localStorage.setItem('PRINT_SHOW_FSSAI', receipt.showFssai !== false ? '1' : '0');
     localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receipt.showGstBreakdown !== false ? '1' : '0');
     localStorage.setItem('PRINT_SHOW_REMARKS', receipt.showRemarks !== false ? '1' : '0');
+    localStorage.setItem('PRINT_SHOW_UPI_QR', receipt.showUpiQr !== false ? '1' : '0');
+    if (receipt.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(receipt.upiId || ''));
+    if (receipt.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(receipt.upiPayeeName || ''));
     localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? '1' : '0');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');

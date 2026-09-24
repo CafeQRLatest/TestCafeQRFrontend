@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FaPrint, FaUtensils, FaReceipt, FaBarcode } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
+import { UpiQrCodeSvg, buildUpiUri } from '../utils/upiQrGenerator';
 
 export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
   const [internalPreview, setInternalPreview] = useState('receipt'); // 'receipt', 'kot', 'regular', 'label'
@@ -263,6 +264,30 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 </div>
 
                 <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
+
+                {receiptTemplate.showUpiQr !== false && (
+                  <div className="upi-qr-preview-section text-center" style={{ margin: '8px 0' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                      SCAN & PAY VIA UPI
+                    </div>
+                    <div style={{ display: 'inline-block', padding: '4px', background: '#ffffff', border: '1px solid #000000' }}>
+                      <UpiQrCodeSvg
+                        value={buildUpiUri({
+                          upiId: receiptTemplate.upiId || config?.upiId || 'merchant@upi',
+                          payeeName: receiptTemplate.upiPayeeName || config?.upiPayeeName || 'Cafe QR',
+                          amount: 728.00,
+                          billRef: '1042',
+                        })}
+                        size={84}
+                        margin={1}
+                      />
+                    </div>
+                    <div style={{ fontSize: '10px', marginTop: '3px', fontWeight: '500' }}>
+                      UPI ID: {receiptTemplate.upiId || config?.upiId || 'merchant@upi'}
+                    </div>
+                    <div className="receipt-divider" style={{ marginTop: '6px' }}>- - - - - - - - - - - - - - - - - - - -</div>
+                  </div>
+                )}
 
                 {/* Footer Custom Texts */}
                 {receiptFooter && (

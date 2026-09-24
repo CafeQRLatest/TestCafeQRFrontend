@@ -111,6 +111,9 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: true,
   showRemarks: true,
+  showUpiQr: true,
+  upiId: '',
+  upiPayeeName: '',
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
@@ -212,6 +215,9 @@ const mergeReceiptTemplate = (template) => {
     ...DEFAULT_RECEIPT_TEMPLATE,
     ...source,
     showRemarks: source.showRemarks !== false,
+    showUpiQr: source.showUpiQr !== false,
+    upiId: source.upiId ?? '',
+    upiPayeeName: source.upiPayeeName ?? '',
     titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
@@ -290,6 +296,9 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
     localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
   } else {
     localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
+    localStorage.setItem(`${prefix}SHOW_UPI_QR`, template.showUpiQr !== false ? '1' : '0');
+    if (template.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(template.upiId || ''));
+    if (template.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(template.upiPayeeName || ''));
   }
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
@@ -313,6 +322,9 @@ function syncPrintSettingsToLocalStorage(config) {
     localStorage.setItem('PRINT_SHOW_FSSAI', receipt.showFssai !== false ? 'true' : 'false');
     localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receipt.showGstBreakdown !== false ? 'true' : 'false');
     localStorage.setItem('PRINT_SHOW_REMARKS', receipt.showRemarks !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_SHOW_UPI_QR', receipt.showUpiQr !== false ? 'true' : 'false');
+    if (receipt.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(receipt.upiId || ''));
+    if (receipt.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(receipt.upiPayeeName || ''));
     localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? 'true' : 'false');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
@@ -570,8 +582,18 @@ function ConfigurationsContent() {
             print_win_list_url: d.printWinListUrl || 'http://127.0.0.1:3333/printers',
             print_win_post_url: d.printWinPostUrl || 'http://127.0.0.1:3333/printRaw',
 
+            upiId: d.upiId || '',
+            upiPayeeName: d.upiPayeeName || '',
+            upiQrOnBillEnabled: d.upiQrOnBillEnabled !== false,
+            upiQrOnPosEnabled: d.upiQrOnPosEnabled !== false,
+
             kotTemplate: kot,
-            receiptTemplate: receipt,
+            receiptTemplate: {
+              ...receipt,
+              upiId: receipt.upiId || d.upiId || '',
+              upiPayeeName: receipt.upiPayeeName || d.upiPayeeName || '',
+              showUpiQr: receipt.showUpiQr !== false && d.upiQrOnBillEnabled !== false,
+            },
             thermalTemplate: thermal,
             regularTemplate: regular,
             labelTemplate: label,
@@ -697,6 +719,11 @@ function ConfigurationsContent() {
         printLogoBitmap: config.print_logo_bitmap,
         printLogoCols: config.print_logo_cols,
         printLogoRows: config.print_logo_rows,
+
+        upiId: (config.receiptTemplate?.upiId ?? config.upiId ?? '') ? String(config.receiptTemplate?.upiId ?? config.upiId).trim() : null,
+        upiPayeeName: (config.receiptTemplate?.upiPayeeName ?? config.upiPayeeName ?? '') ? String(config.receiptTemplate?.upiPayeeName ?? config.upiPayeeName).trim() : null,
+        upiQrOnBillEnabled: config.receiptTemplate?.showUpiQr !== false,
+        upiQrOnPosEnabled: config.upiQrOnPosEnabled !== false,
       };
 
       const existingPrintSettings = stripPrintMeta(printConfigRaw);
@@ -707,6 +734,9 @@ function ConfigurationsContent() {
       const receiptTemplate = mergeReceiptTemplate({
         ...(existingPrintSettings.receiptTemplate || {}),
         ...(config.receiptTemplate || {}),
+        upiId: config.receiptTemplate?.upiId ?? config.upiId ?? '',
+        upiPayeeName: config.receiptTemplate?.upiPayeeName ?? config.upiPayeeName ?? '',
+        showUpiQr: config.receiptTemplate?.showUpiQr !== false,
       });
       const printSettings = {
         ...existingPrintSettings,
@@ -775,7 +805,7 @@ function ConfigurationsContent() {
       ['showTableLabel', 'Table / order type'],
       ['showFssai', 'FSSAI license'],
       ...(kind === 'kotTemplate' ? [['showInstructions', 'Instructions']] : []),
-      ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown'], ['showRemarks', 'Remarks']] : []),
+      ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown'], ['showRemarks', 'Remarks'], ['showUpiQr', 'UPI Payment QR Code']] : []),
     ];
 
     return (
@@ -861,6 +891,75 @@ function ConfigurationsContent() {
             );
           })}
         </div>
+
+        {kind === 'receiptTemplate' && template.showUpiQr !== false && (
+          <div
+            className="upi-config-card"
+            style={{
+              background: '#fff7ed',
+              border: '1.5px solid #fdba74',
+              borderRadius: '10px',
+              padding: '16px',
+              marginTop: '10px',
+              marginBottom: '10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>⚡</span>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: '#9a3412' }}>
+                    UPI Direct Bank Payment (Receipt QR Code)
+                  </h4>
+                  <span style={{ fontSize: '11.5px', color: '#c2410c' }}>
+                    Customers scan this QR code on printed bill to pay directly to your bank account with zero transaction fees.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="template-grid-fields" style={{ marginTop: '4px' }}>
+              <div className="input-group">
+                <label className="group-lbl" style={{ color: '#9a3412', fontWeight: '700' }}>
+                  UPI ID (VPA) *
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={template.upiId ?? config?.upiId ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTemplate(kind, 'upiId', v);
+                    setConfig(prev => ({ ...prev, upiId: v }));
+                  }}
+                  placeholder="e.g. merchant@okaxis or 9876543210@paytm"
+                  style={{ borderColor: '#fdba74', background: '#ffffff', fontWeight: '600' }}
+                />
+              </div>
+
+              <div className="input-group">
+                <label className="group-lbl" style={{ color: '#9a3412', fontWeight: '700' }}>
+                  Payee / Business Name
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={template.upiPayeeName ?? config?.upiPayeeName ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setTemplate(kind, 'upiPayeeName', v);
+                    setConfig(prev => ({ ...prev, upiPayeeName: v }));
+                  }}
+                  placeholder="e.g. Cafe Delight Restaurant"
+                  style={{ borderColor: '#fdba74', background: '#ffffff' }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="template-grid-fields">
           {[

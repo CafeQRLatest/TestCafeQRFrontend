@@ -3,6 +3,7 @@ const ESC = "\x1b";
 const GS = "\x1d";
 
 import { formatTzDate } from './timezoneUtils';
+import { buildUpiUri, buildEscposQrCommands } from './upiQrGenerator';
 
 function b(n) {
   return String.fromCharCode(n & 0xff);
@@ -876,6 +877,35 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     lines.push(MODE_BOLD + totalSizeCmd + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, totalScale), layout) + SIZE_1X + MODE_NO_BOLD);
 
     lines.push(withMargins(dashes(), layout));
+
+    const showUpiQr = getDocumentBool("RECEIPT", "SHOW_UPI_QR", "PRINT_SHOW_UPI_QR", true);
+    const upiId = String(
+      pickValue(restaurantProfile, ["upi_id", "upiId"], getLocalString("PRINT_UPI_ID", "")) || ""
+    ).trim();
+    const upiPayeeName = String(
+      pickValue(restaurantProfile, ["upi_payee_name", "upiPayeeName"], getLocalString("PRINT_UPI_PAYEE_NAME", restaurantName)) || ""
+    ).trim() || restaurantName;
+
+    if (showUpiQr && upiId && upiId.includes('@')) {
+      const billRef = invoiceNo || billNo || order?.order_no || order?.orderNo || (order?.id ? String(order.id).slice(0, 8).toUpperCase() : '');
+      const upiUri = buildUpiUri({
+        upiId,
+        payeeName: upiPayeeName,
+        amount: oGrandTotal,
+        billRef,
+        note: `Bill ${billRef}`.trim(),
+      });
+
+      if (upiUri) {
+        lines.push(ALIGN_CENTER);
+        lines.push(MODE_BOLD + withMargins("SCAN & PAY VIA UPI", layout) + MODE_NO_BOLD);
+        const qrCmd = buildEscposQrCommands(upiUri, { is80, moduleSize: is80 ? 6 : 5 });
+        lines.push(qrCmd);
+        lines.push(withMargins(`UPI ID: ${upiId}`, layout));
+        lines.push(ALIGN_LEFT);
+        lines.push(withMargins(dashes(), layout));
+      }
+    }
 
     if (receiptFooter) pushWrappedCenteredText(lines, receiptFooter, W, layout);
     if (billFooterText) pushWrappedCenteredText(lines, billFooterText, W, layout);

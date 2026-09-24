@@ -8,6 +8,7 @@ import CreditCustomerQuickCreateModal from './CreditCustomerQuickCreateModal';
 import { fetchSalesPaymentTypes } from '../services/paymentApi';
 import { fetchCustomerLoyalty, fetchLoyaltyPrograms, invalidateCustomerLoyalty } from '../services/loyaltyApi';
 import { cartKeyFor } from './CounterSale/domain/cart';
+import { UpiQrCodeSvg, buildUpiUri } from '../utils/upiQrGenerator';
 import {
   THEMES,
   Overlay, Card, DialogBody, DialogColumn,
@@ -89,6 +90,10 @@ export default function PaymentDialog({
   const [showNewCreditCustomer, setShowNewCreditCustomer] = useState(false);
   const [localCreditCustomers, setLocalCreditCustomers] = useState(() => (Array.isArray(creditCustomers) ? creditCustomers : []));
   const [resolvedCustomerId, setResolvedCustomerId] = useState(null);
+  const [onlineRefNo, setOnlineRefNo] = useState('');
+  const isOnlineOrUpi = paymentMethod === 'ONLINE' || paymentMethod === 'UPI' || String(paymentMethod).toUpperCase().includes('UPI');
+  const effectiveUpiId = config?.upiId || (typeof window !== 'undefined' ? localStorage.getItem('PRINT_UPI_ID') : '') || '';
+  const effectiveUpiPayeeName = config?.upiPayeeName || (typeof window !== 'undefined' ? localStorage.getItem('PRINT_UPI_PAYEE_NAME') : '') || config?.restaurantName || 'Cafe QR';
 
   // ─── Customer Selection State (New Sales only) ─────────────────────────────
   const [localCustomer, setLocalCustomer] = useState(null); // { id, name, phone } picked in dialog
@@ -968,6 +973,7 @@ export default function PaymentDialog({
       cashAmount: paymentMethod === 'MIXED' ? Number(cashAmount.toFixed(dp)) : null,
       onlineAmount: paymentMethod === 'MIXED' ? Number(nonCashAmount.toFixed(dp)) : null,
       paymentSplits: normalizedSplits,
+      referenceNo: isOnlineOrUpi ? (onlineRefNo?.trim() || null) : null,
       discountAmount: Number(disc.toFixed(dp)),
       roundOffAmount: Number(finalRoundOff.toFixed(dp)),
       redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
@@ -1595,6 +1601,105 @@ export default function PaymentDialog({
                 })}
               </MethodGrid>
             </Field>
+
+            {isOnlineOrUpi && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  marginBottom: '10px',
+                  background: '#f0f9ff',
+                  border: '1.5px solid #bae6fd',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {effectiveUpiId ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '15px' }}>📱</span>
+                        <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#0369a1' }}>
+                          Scan to Pay with Any UPI App
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        color: '#0284c7',
+                        background: '#e0f2fe',
+                        padding: '2px 7px',
+                        borderRadius: '12px',
+                        border: '1px solid #7dd3fc'
+                      }}>
+                        Direct Bank • 0% Fee
+                      </span>
+                    </div>
+
+                    <div style={{
+                      background: '#ffffff',
+                      padding: '6px',
+                      borderRadius: '8px',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.12)',
+                      border: '1px solid #e0f2fe',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}>
+                      <UpiQrCodeSvg
+                        value={buildUpiUri({
+                          upiId: effectiveUpiId,
+                          payeeName: effectiveUpiPayeeName,
+                          amount: payable,
+                          billRef: order?.order_no || order?.orderNo || (order?.id ? String(order.id).slice(0, 8).toUpperCase() : ''),
+                          note: `POS Order ${order?.order_no || order?.orderNo || ''}`.trim()
+                        })}
+                        size={140}
+                        margin={2}
+                      />
+                    </div>
+
+                    <div style={{ textAlign: 'center', width: '100%' }}>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
+                        {money(payable)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>
+                        UPI ID: <strong style={{ color: '#0284c7' }}>{effectiveUpiId}</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ width: '100%', marginTop: '2px' }}>
+                      <input
+                        type="text"
+                        value={onlineRefNo}
+                        onChange={(e) => setOnlineRefNo(e.target.value)}
+                        placeholder="UPI Ref / UTR No. (Optional)"
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '12px',
+                          background: '#ffffff',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '6px 0', color: '#64748b', fontSize: '11.5px', lineHeight: '1.4' }}>
+                    <div style={{ fontSize: '18px', marginBottom: '2px' }}>💡</div>
+                    <strong style={{ color: '#0369a1' }}>Direct UPI QR Code</strong>
+                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px' }}>
+                      To display dynamic payment QR codes on this screen and print them on receipts, enter your UPI ID in <em>Settings &gt; Templates &amp; Paper</em>.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {isCreditSelected && (
               <CreditPanel>
