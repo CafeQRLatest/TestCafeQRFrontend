@@ -8,7 +8,8 @@ import {
   FaBoxOpen, FaUtensils, FaCheckCircle, 
   FaTimes, FaCamera, FaLayerGroup, FaClock,
   FaWeightHanging, FaBarcode, FaUtensilSpoon, FaCogs, FaSlidersH,
-  FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave, FaPrint
+  FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave, FaPrint,
+  FaSpinner
 } from 'react-icons/fa';
 
 export default function ProductManagementPopup({
@@ -29,6 +30,10 @@ export default function ProductManagementPopup({
   const [formTab, setFormTab] = useState('basic'); // 'basic', 'inventory', 'pricing', 'variants', 'upsells'
   const [pricingView, setPricingView] = useState('sales'); // 'sales', 'purchase'
   const [recipeSearch, setRecipeSearch] = useState('');
+  const [serverIngredientResults, setServerIngredientResults] = useState([]);
+  const [isSearchingRecipe, setIsSearchingRecipe] = useState(false);
+  const [showRecipeDropdown, setShowRecipeDropdown] = useState(false);
+  const recipeDropdownRef = useRef(null);
   const [inventoryEnabled, setInventoryEnabled] = useState(true);
   const [purchasingEnabled, setPurchasingEnabled] = useState(true);
   const [taxEnabled, setTaxEnabled] = useState(true);
@@ -104,7 +109,10 @@ export default function ProductManagementPopup({
         }
         if (!propProducts || propProducts.length === 0) {
           const resp = await api.get('/api/v1/products');
-          if (active && resp.data.success) setProducts(resp.data.data || []);
+          if (active && resp.data.success) {
+            const items = Array.isArray(resp.data.data) ? resp.data.data : (resp.data.data?.content || []);
+            setProducts(items);
+          }
         }
         if (!propVariantGroups || propVariantGroups.length === 0) {
           const resp = await api.get('/api/v1/products/variants/groups');
@@ -152,6 +160,87 @@ export default function ProductManagementPopup({
     })();
     return () => { active = false; };
   }, [config]);
+
+  // Live debounced server search for ingredients across all categories/pages
+  useEffect(() => {
+    if (!recipeSearch || !recipeSearch.trim()) {
+      setServerIngredientResults([]);
+      setIsSearchingRecipe(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingRecipe(true);
+        const resp = await api.get('/api/v1/products', {
+          params: {
+            page: 0,
+            size: 50,
+            search: recipeSearch.trim(),
+            status: 'ACTIVE'
+          }
+        });
+        if (resp.data?.success) {
+          const results = resp.data.data?.content || (Array.isArray(resp.data.data) ? resp.data.data : []);
+          setServerIngredientResults(results);
+          // Merge discovered products into popup state so full metadata is preserved
+          setProducts(prev => {
+            const existingIds = new Set((prev || []).map(p => p.id));
+            const newItems = results.filter(r => r && r.id && !existingIds.has(r.id));
+            return newItems.length > 0 ? [...(prev || []), ...newItems] : prev;
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to search recipe ingredients:", err);
+      } finally {
+        setIsSearchingRecipe(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [recipeSearch]);
+
+  // Click outside to close recipe ingredient dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (recipeDropdownRef.current && !recipeDropdownRef.current.contains(event.target)) {
+        setShowRecipeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Compute ingredient suggestions combining loaded catalog and live server search results
+  const ingredientSuggestions = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
+    (serverIngredientResults || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
+    const allCandidates = Array.from(map.values());
+
+    const term = (recipeSearch || '').trim().toLowerCase();
+    const existingRecipeIngredientIds = new Set(
+      (selectedProduct?.recipeLines || []).map(r => r.ingredient?.id || r.ingredientId).filter(Boolean)
+    );
+
+    return allCandidates.filter(p => {
+      if (!p || !p.id) return false;
+      if (p.id === selectedProduct?.id) return false;
+      if (existingRecipeIngredientIds.has(p.id)) return false;
+
+      if (!term) return true;
+      const nameMatch = (p.name || '').toLowerCase().includes(term);
+      const codeMatch = (p.productCode || '').toLowerCase().includes(term);
+      const catMatch = (p.category?.name || '').toLowerCase().includes(term);
+      return nameMatch || codeMatch || catMatch;
+    }).sort((a, b) => {
+      // Prioritize explicit ingredients first
+      const aIsIng = a.isIngredient ? 1 : 0;
+      const bIsIng = b.isIngredient ? 1 : 0;
+      if (aIsIng !== bIsIng) return bIsIng - aIsIng;
+      return (a.name || '').localeCompare(b.name || '');
+    }).slice(0, 50);
+  }, [products, serverIngredientResults, recipeSearch, selectedProduct?.recipeLines, selectedProduct?.id]);
 
   // Conversion/Normalizer utilities
   const toNumber = (value, fallback = 0) => {
@@ -715,56 +804,98 @@ export default function ProductManagementPopup({
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '7px' }}>
                            <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px' }} /> Add Recipe Ingredient
                         </label>
-                        <div style={{ position: 'relative' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '7px', padding: '5px 9px', gap: '7px', transition: 'border-color 0.2s' }}>
+                        <div style={{ position: 'relative' }} ref={recipeDropdownRef}>
+                          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: showRecipeDropdown ? '1.5px solid #ea580c' : '1.5px solid #e2e8f0', borderRadius: '7px', padding: '5px 9px', gap: '7px', transition: 'border-color 0.2s' }}>
                             <FaSearch style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }} />
                             <input
                               type="text"
-                              placeholder="Type to search ingredients..."
+                              placeholder="Type to search ingredients across catalog..."
                               value={recipeSearch}
-                              onChange={e => setRecipeSearch(e.target.value)}
+                              onFocus={() => setShowRecipeDropdown(true)}
+                              onChange={e => {
+                                setRecipeSearch(e.target.value);
+                                setShowRecipeDropdown(true);
+                              }}
                               style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '12px', fontWeight: 500, color: '#0f172a', width: '100%' }}
                             />
+                            {isSearchingRecipe && (
+                              <FaSpinner className="fa-spin" style={{ color: '#ea580c', fontSize: '11px', flexShrink: 0 }} />
+                            )}
                             {recipeSearch && (
-                              <button onClick={() => setRecipeSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setRecipeSearch('');
+                                  setServerIngredientResults([]);
+                                }} 
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}
+                              >
                                 <FaTimes style={{ fontSize: '10px' }} />
                               </button>
                             )}
                           </div>
-                          {recipeSearch.trim().length > 0 && (() => {
-                            const suggestions = products.filter(p =>
-                              p.id !== selectedProduct.id &&
-                              !(selectedProduct.recipeLines || []).some(r => (r.ingredient?.id || r.ingredientId) === p.id) &&
-                              p.name.toLowerCase().includes(recipeSearch.toLowerCase())
-                            );
-                            return (
-                              <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #e2e8f0', borderRadius: '8px', boxShadow: '0 8px 20px rgba(15,23,42,0.1)', zIndex: 100, overflow: 'hidden', maxHeight: '180px', overflowY: 'auto' }}>
-                                {suggestions.length === 0 ? (
-                                  <div style={{ padding: '10px 12px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>No ingredients found</div>
-                                ) : suggestions.map(p => (
-                                  <div key={p.id}
-                                    onMouseDown={e => {
-                                      e.preventDefault();
-                                      const ing = { ...p, isIngredient: true };
-                                      setSelectedProduct({
-                                        ...selectedProduct,
-                                        recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
-                                      });
-                                      setRecipeSearch('');
-                                    }}
-
-                                    style={{ padding: '7px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
-                                    onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
-                                    onMouseLeave={e => e.currentTarget.style.background = 'white'}
-                                  >
-                                    <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px', flexShrink: 0 }} />
-                                    <span style={{ flex: 1 }}>{p.name}</span>
-                                    {p.uom?.shortName && <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '999px', textTransform: 'uppercase' }}>{p.uom.shortName}</span>}
-                                  </div>
-                                ))}
+                          {showRecipeDropdown && (
+                            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #fed7aa', borderRadius: '8px', boxShadow: '0 10px 25px rgba(15,23,42,0.12)', zIndex: 100, overflow: 'hidden', maxHeight: '220px', overflowY: 'auto' }}>
+                              <div style={{ padding: '6px 10px', background: '#fff7ed', borderBottom: '1px solid #ffedd5', fontSize: '10px', fontWeight: 700, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{recipeSearch ? 'Matching Ingredients' : 'Available Ingredients'}</span>
+                                {isSearchingRecipe ? (
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', fontWeight: 600 }}>
+                                    <FaSpinner className="fa-spin" /> Searching server...
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '9px', fontWeight: 600, color: '#9a3412' }}>{ingredientSuggestions.length} found</span>
+                                )}
                               </div>
-                            );
-                          })()}
+                              {ingredientSuggestions.length === 0 ? (
+                                <div style={{ padding: '14px 12px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
+                                  {isSearchingRecipe ? 'Searching ingredients...' : 'No ingredients found'}
+                                </div>
+                              ) : ingredientSuggestions.map(p => (
+                                <div key={p.id}
+                                  onMouseDown={e => {
+                                    e.preventDefault();
+                                    const ing = {
+                                      ...p,
+                                      id: p.id,
+                                      name: p.name,
+                                      productCode: p.productCode || '',
+                                      uomName: p.uom?.name || p.uomName || 'units',
+                                      uomShortName: p.uom?.shortName || p.uomShortName || p.uom?.name || '',
+                                      isIngredient: true
+                                    };
+                                    setSelectedProduct({
+                                      ...selectedProduct,
+                                      recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
+                                    });
+                                    setRecipeSearch('');
+                                    setServerIngredientResults([]);
+                                    setShowRecipeDropdown(false);
+                                  }}
+                                  style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                >
+                                  <FaUtensilSpoon style={{ color: p.isIngredient ? '#ea580c' : '#94a3b8', fontSize: '10px', flexShrink: 0 }} />
+                                  <span style={{ flex: 1 }}>{p.name}</span>
+                                  {p.productCode && (
+                                    <span style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>
+                                      #{p.productCode}
+                                    </span>
+                                  )}
+                                  {p.category?.name && (
+                                    <span style={{ fontSize: '9px', fontWeight: 600, color: '#7c3aed', background: '#f5f3ff', padding: '1px 5px', borderRadius: '4px' }}>
+                                      {p.category.name}
+                                    </span>
+                                  )}
+                                  {(p.uom?.shortName || p.uomName) && (
+                                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '999px', textTransform: 'uppercase' }}>
+                                      {p.uom?.shortName || p.uomName}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                      </div>
 

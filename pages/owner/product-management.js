@@ -932,7 +932,6 @@ function ProductManagementContent() {
             uoms={uoms}
             variantGroups={variantGroups}
             pricelists={pricelists}
-            products={products}
             config={config}
           />
         )}
