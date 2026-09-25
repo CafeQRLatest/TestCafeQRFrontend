@@ -376,12 +376,17 @@ export default function ProductManagementPopup({
 
   const [selectedProduct, setSelectedProduct] = useState(() => normalizeProductForDrawer(initialProduct));
 
-  // Sync prop changes
+  // Sync prop changes safely when a different product is selected
+  const lastInitialProductIdRef = useRef(initialProduct?.id);
   useEffect(() => {
-    setSelectedProduct(normalizeProductForDrawer(initialProduct));
-  }, [initialProduct, categories, uoms, variantGroups]);
+    if (initialProduct?.id !== lastInitialProductIdRef.current) {
+      lastInitialProductIdRef.current = initialProduct?.id;
+      setSelectedProduct(normalizeProductForDrawer(initialProduct));
+    }
+  }, [initialProduct]);
 
   // Compute ingredient suggestions combining loaded catalog and live server search results
+  // STRICT REQUIREMENT: Only products marked as ingredients are loaded/suggested in inventory recipes
   const ingredientSuggestions = useMemo(() => {
     const map = new Map();
     (products || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
@@ -398,16 +403,21 @@ export default function ProductManagementPopup({
       if (p.id === selectedProduct?.id) return false;
       if (existingRecipeIngredientIds.has(p.id)) return false;
 
+      // Only items designated as raw ingredients can compose a product recipe
+      const isIng = p.isIngredient === true ||
+        p.is_ingredient === true ||
+        String(p.isIngredient).trim().toUpperCase() === 'Y' ||
+        String(p.isIngredient).trim().toUpperCase() === 'TRUE' ||
+        String(p.is_ingredient).trim().toUpperCase() === 'Y' ||
+        String(p.is_ingredient).trim().toUpperCase() === 'TRUE';
+      if (!isIng) return false;
+
       if (!term) return true;
       const nameMatch = (p.name || '').toLowerCase().includes(term);
       const codeMatch = (p.productCode || '').toLowerCase().includes(term);
-      const catMatch = (p.category?.name || '').toLowerCase().includes(term);
+      const catMatch = (p.category?.name || p.categoryName || '').toLowerCase().includes(term);
       return nameMatch || codeMatch || catMatch;
     }).sort((a, b) => {
-      // Prioritize explicit ingredients first
-      const aIsIng = a.isIngredient ? 1 : 0;
-      const bIsIng = b.isIngredient ? 1 : 0;
-      if (aIsIng !== bIsIng) return bIsIng - aIsIng;
       return (a.name || '').localeCompare(b.name || '');
     }).slice(0, 50);
   }, [products, serverIngredientResults, recipeSearch, selectedProduct?.recipeLines, selectedProduct?.id]);
@@ -835,20 +845,29 @@ export default function ProductManagementPopup({
                             )}
                           </div>
                           {showRecipeDropdown && (
-                            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #fed7aa', borderRadius: '8px', boxShadow: '0 10px 25px rgba(15,23,42,0.12)', zIndex: 100, overflow: 'hidden', maxHeight: '220px', overflowY: 'auto' }}>
-                              <div style={{ padding: '6px 10px', background: '#fff7ed', borderBottom: '1px solid #ffedd5', fontSize: '10px', fontWeight: 700, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>{recipeSearch ? 'Matching Ingredients' : 'Available Ingredients'}</span>
-                                {isSearchingRecipe ? (
-                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', fontWeight: 600 }}>
-                                    <FaSpinner className="fa-spin" /> Searching server...
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: '9px', fontWeight: 600, color: '#9a3412' }}>{ingredientSuggestions.length} found</span>
-                                )}
+                            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #fed7aa', borderRadius: '8px', boxShadow: '0 10px 25px rgba(15,23,42,0.12)', zIndex: 100, overflow: 'hidden', maxHeight: '240px', overflowY: 'auto' }}>
+                              <div style={{ padding: '7px 12px', background: '#fff7ed', borderBottom: '1px solid #ffedd5', fontSize: '11px', fontWeight: 700, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{recipeSearch ? 'Matching Raw Ingredients' : 'Available Ingredients (Click to Add)'}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {isSearchingRecipe ? (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', fontWeight: 600 }}>
+                                      <FaSpinner className="fa-spin" /> Searching...
+                                    </span>
+                                  ) : (
+                                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#9a3412' }}>{ingredientSuggestions.length} available</span>
+                                  )}
+                                  <button 
+                                    type="button" 
+                                    onClick={(e) => { e.preventDefault(); setShowRecipeDropdown(false); }}
+                                    style={{ border: 'none', background: '#ea580c', color: 'white', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+                                  >
+                                    Done
+                                  </button>
+                                </div>
                               </div>
                               {ingredientSuggestions.length === 0 ? (
-                                <div style={{ padding: '14px 12px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
-                                  {isSearchingRecipe ? 'Searching ingredients...' : 'No ingredients found'}
+                                <div style={{ padding: '16px 12px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
+                                  {isSearchingRecipe ? 'Searching ingredients...' : 'No raw ingredients found'}
                                 </div>
                               ) : ingredientSuggestions.map(p => (
                                 <div key={p.id}
@@ -863,19 +882,19 @@ export default function ProductManagementPopup({
                                       uomShortName: p.uom?.shortName || p.uomShortName || p.uom?.name || '',
                                       isIngredient: true
                                     };
-                                    setSelectedProduct({
-                                      ...selectedProduct,
-                                      recipeLines: [...(selectedProduct.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
-                                    });
+                                    setSelectedProduct(prev => ({
+                                      ...prev,
+                                      recipeLines: [...(prev?.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
+                                    }));
+                                    notify('success', `Added "${p.name}" to recipe`);
                                     setRecipeSearch('');
                                     setServerIngredientResults([]);
-                                    setShowRecipeDropdown(false);
                                   }}
                                   style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
                                   onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'white'}
                                 >
-                                  <FaUtensilSpoon style={{ color: p.isIngredient ? '#ea580c' : '#94a3b8', fontSize: '10px', flexShrink: 0 }} />
+                                  <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px', flexShrink: 0 }} />
                                   <span style={{ flex: 1 }}>{p.name}</span>
                                   {p.productCode && (
                                     <span style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>
@@ -892,6 +911,9 @@ export default function ProductManagementPopup({
                                       {p.uom?.shortName || p.uomName}
                                     </span>
                                   )}
+                                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '4px', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    <FaPlus style={{ fontSize: '8px' }} /> Add
+                                  </span>
                                 </div>
                               ))}
                             </div>
