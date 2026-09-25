@@ -211,37 +211,6 @@ export default function ProductManagementPopup({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Compute ingredient suggestions combining loaded catalog and live server search results
-  const ingredientSuggestions = useMemo(() => {
-    const map = new Map();
-    (products || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
-    (serverIngredientResults || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
-    const allCandidates = Array.from(map.values());
-
-    const term = (recipeSearch || '').trim().toLowerCase();
-    const existingRecipeIngredientIds = new Set(
-      (selectedProduct?.recipeLines || []).map(r => r.ingredient?.id || r.ingredientId).filter(Boolean)
-    );
-
-    return allCandidates.filter(p => {
-      if (!p || !p.id) return false;
-      if (p.id === selectedProduct?.id) return false;
-      if (existingRecipeIngredientIds.has(p.id)) return false;
-
-      if (!term) return true;
-      const nameMatch = (p.name || '').toLowerCase().includes(term);
-      const codeMatch = (p.productCode || '').toLowerCase().includes(term);
-      const catMatch = (p.category?.name || '').toLowerCase().includes(term);
-      return nameMatch || codeMatch || catMatch;
-    }).sort((a, b) => {
-      // Prioritize explicit ingredients first
-      const aIsIng = a.isIngredient ? 1 : 0;
-      const bIsIng = b.isIngredient ? 1 : 0;
-      if (aIsIng !== bIsIng) return bIsIng - aIsIng;
-      return (a.name || '').localeCompare(b.name || '');
-    }).slice(0, 50);
-  }, [products, serverIngredientResults, recipeSearch, selectedProduct?.recipeLines, selectedProduct?.id]);
-
   // Conversion/Normalizer utilities
   const toNumber = (value, fallback = 0) => {
     const numberValue = Number(value);
@@ -411,6 +380,37 @@ export default function ProductManagementPopup({
   useEffect(() => {
     setSelectedProduct(normalizeProductForDrawer(initialProduct));
   }, [initialProduct, categories, uoms, variantGroups]);
+
+  // Compute ingredient suggestions combining loaded catalog and live server search results
+  const ingredientSuggestions = useMemo(() => {
+    const map = new Map();
+    (products || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
+    (serverIngredientResults || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
+    const allCandidates = Array.from(map.values());
+
+    const term = (recipeSearch || '').trim().toLowerCase();
+    const existingRecipeIngredientIds = new Set(
+      (selectedProduct?.recipeLines || []).map(r => r.ingredient?.id || r.ingredientId).filter(Boolean)
+    );
+
+    return allCandidates.filter(p => {
+      if (!p || !p.id) return false;
+      if (p.id === selectedProduct?.id) return false;
+      if (existingRecipeIngredientIds.has(p.id)) return false;
+
+      if (!term) return true;
+      const nameMatch = (p.name || '').toLowerCase().includes(term);
+      const codeMatch = (p.productCode || '').toLowerCase().includes(term);
+      const catMatch = (p.category?.name || '').toLowerCase().includes(term);
+      return nameMatch || codeMatch || catMatch;
+    }).sort((a, b) => {
+      // Prioritize explicit ingredients first
+      const aIsIng = a.isIngredient ? 1 : 0;
+      const bIsIng = b.isIngredient ? 1 : 0;
+      if (aIsIng !== bIsIng) return bIsIng - aIsIng;
+      return (a.name || '').localeCompare(b.name || '');
+    }).slice(0, 50);
+  }, [products, serverIngredientResults, recipeSearch, selectedProduct?.recipeLines, selectedProduct?.id]);
 
   const normalizeById = (items = [], item) => {
     if (!item?.id) return items;
@@ -1297,15 +1297,15 @@ export default function ProductManagementPopup({
                     <label>Link Product (Upsell)</label>
                     <NiceSelect 
                       placeholder="Search product to link..."
-                      options={products
-                        .filter(p => p.id !== selectedProduct.id && !(selectedProduct.upsells || []).some(u => u.upsellProduct?.id === p.id))
+                      options={(products || [])
+                        .filter(p => p && p.id !== selectedProduct?.id && !(selectedProduct?.upsells || []).some(u => u.upsellProduct?.id === p.id))
                         .map(p => ({ value: p.id, label: p.name }))}
                       value=""
                       onChange={pid => {
-                        const prod = products.find(p => p.id === pid);
+                        const prod = (products || []).find(p => p.id === pid);
                         setSelectedProduct({
                            ...selectedProduct,
-                           upsells: [...selectedProduct.upsells, { upsellProduct: prod, isActive: true }]
+                           upsells: [...(selectedProduct?.upsells || []), { upsellProduct: prod, isActive: true }]
                         });
                       }}
                     />
