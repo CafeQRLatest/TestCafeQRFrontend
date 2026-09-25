@@ -822,6 +822,7 @@ export default function ProductManagementPopup({
                               placeholder="Type to search ingredients across catalog..."
                               value={recipeSearch}
                               onFocus={() => setShowRecipeDropdown(true)}
+                              onClick={() => setShowRecipeDropdown(true)}
                               onChange={e => {
                                 setRecipeSearch(e.target.value);
                                 setShowRecipeDropdown(true);
@@ -833,7 +834,7 @@ export default function ProductManagementPopup({
                             )}
                             {recipeSearch && (
                               <button 
-                                type="button"
+                                type="button" 
                                 onClick={() => {
                                   setRecipeSearch('');
                                   setServerIngredientResults([]);
@@ -859,9 +860,10 @@ export default function ProductManagementPopup({
                                   <button 
                                     type="button" 
                                     onClick={(e) => { e.preventDefault(); setShowRecipeDropdown(false); }}
-                                    style={{ border: 'none', background: '#ea580c', color: 'white', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+                                    style={{ border: 'none', background: 'none', color: '#c2410c', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                    title="Close list"
                                   >
-                                    Done
+                                    <FaTimes style={{ fontSize: '11px' }} />
                                   </button>
                                 </div>
                               </div>
@@ -889,6 +891,7 @@ export default function ProductManagementPopup({
                                     notify('success', `Added "${p.name}" to recipe`);
                                     setRecipeSearch('');
                                     setServerIngredientResults([]);
+                                    setShowRecipeDropdown(false);
                                   }}
                                   style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
                                   onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
