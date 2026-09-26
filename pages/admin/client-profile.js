@@ -212,17 +212,29 @@ function ClientProfileContent() {
 
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  const toSlug = (input) => {
+    if (!input) return '';
+    return String(input)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
   const getStoreUrl = () => {
     let baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL;
     if (!baseUrl) {
       if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
         baseUrl = 'http://localhost:3002';
-      } else {
+      } else if (typeof window !== 'undefined' && (window.location.hostname.includes('test') || window.location.hostname.includes('cafe-test-qr'))) {
         baseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
+      } else {
+        baseUrl = 'https://cafeqr-delivery-website.pages.dev';
       }
     }
-    if (formData.slug) {
-      return `${baseUrl}/${formData.slug}`;
+    const clientSlug = formData.slug?.trim() || toSlug(formData.name) || '';
+    if (clientSlug) {
+      return `${baseUrl}/${clientSlug}`;
     }
     return `${baseUrl}/order?r=${formData.id || ''}&t=DELIVERY`;
   };

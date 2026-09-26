@@ -97,21 +97,30 @@ function OrganizationSettingsContent() {
 
   const [clientData, setClientData] = useState(null);
 
+  const toSlug = (input) => {
+    if (!input) return '';
+    return String(input)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
   const getDeliveryUrl = (org) => {
     let baseUrl = process.env.NEXT_PUBLIC_DELIVERY_SITE_URL;
     if (!baseUrl) {
       if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
         baseUrl = 'http://localhost:3002';
-      } else if (typeof window !== 'undefined' && !window.location.hostname.includes('test')) {
-        baseUrl = 'https://cafeqr-delivery-website.vercel.app';
-      } else {
+      } else if (typeof window !== 'undefined' && (window.location.hostname.includes('test') || window.location.hostname.includes('cafe-test-qr'))) {
         baseUrl = 'https://test-cafe-qr-delivery-website.vercel.app';
+      } else {
+        baseUrl = 'https://cafeqr-delivery-website.pages.dev';
       }
     }
     if (!org) return baseUrl;
 
-    const branchSlug = org.slug || '';
-    const clientSlug = clientData?.slug || user?.clientSlug || user?.slug || '';
+    const branchSlug = org.slug?.trim() || toSlug(org.name) || org.branchCode?.toLowerCase() || '';
+    const clientSlug = clientData?.slug?.trim() || user?.clientSlug || user?.slug || toSlug(clientData?.name) || toSlug(user?.name) || '';
 
     if (clientSlug && branchSlug) {
       if (clientSlug === branchSlug) {
