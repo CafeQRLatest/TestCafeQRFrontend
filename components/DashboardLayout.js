@@ -14,7 +14,7 @@ import {
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
 import CloudPrintStation from './CloudPrintStation';
-import { isMenuVisibleForConfig, isPosV2Enabled } from '../utils/moduleVisibility';
+import { isMenuVisibleForConfig, isPosV2Enabled, isFeatureEnabled } from '../utils/moduleVisibility';
 import { getNetworkStatus } from '../utils/networkState';
 
 /**
@@ -774,7 +774,9 @@ const MENU_CONFIG = {
   "Sales": { name: "POS", icon: <FaCashRegister /> },
   "Table Management": { name: "Table Management", icon: <FaTable /> },
 
-  "Purchase Orders": { name: "Purchase Orders", icon: <FaShoppingCart /> },
+  "Purchase Orders": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
+  "Purchases & Reports": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
+  "Purchases": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
   "Stock": { name: "Stock and Inventory", icon: <FaBoxes /> },
   "QR Availability": { name: "QR Availability", icon: <FaClock /> },
   "Delivery Hours": { name: "Delivery Hours", icon: <FaTruck /> },
@@ -822,6 +824,8 @@ const CATEGORY_MAPPING = {
   "Table Management": "OPERATIONS",
 
   "Purchase Orders": "ADD ON",
+  "Purchases & Reports": "ADD ON",
+  "Purchases": "ADD ON",
   "Stock": "ADD ON",
   "QR Availability": "ADD ON",
   "Delivery Hours": "ADD ON",
@@ -855,7 +859,7 @@ const CATEGORY_MAPPING = {
 
 const MENU_ORDER = [
   "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
-  "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
+  "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
   "Customers", "Loyalty",
   "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
@@ -898,7 +902,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
     // Strict Sachet Gate: cashier/manager cannot see unsubscribed features, owners see them to prompt upgrading
     if (userRole !== 'OWNER' && userRole !== 'SUPER_ADMIN' && userRole !== 'ROLE_SUPER_ADMIN') {
-      if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
+      if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Purchases & Reports" || m.name === "Purchases" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
         return false;
       }
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {
@@ -1094,7 +1098,9 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Sales": { name: "POS", icon: <FaCashRegister /> },
     "Table Management": { name: "Table Management", icon: <FaTable /> },
 
-    "Purchase Orders": { name: "Purchase Orders", icon: <FaShoppingCart /> },
+    "Purchase Orders": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
+    "Purchases & Reports": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
+    "Purchases": { name: "Purchase Orders", icon: <FaShoppingCart />, url: "/owner/purchase-orders" },
     "Stock": { name: "Stock and Inventory", icon: <FaBoxes /> },
     "QR Availability": { name: "QR Availability", icon: <FaClock /> },
     "Delivery Hours": { name: "Delivery Hours", icon: <FaTruck /> },
@@ -1141,6 +1147,8 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Table Management": "OPERATIONS",
 
     "Purchase Orders": "ADD ON",
+    "Purchases & Reports": "ADD ON",
+    "Purchases": "ADD ON",
     "Stock": "ADD ON",
     "QR Availability": "ADD ON",
     "Delivery Hours": "ADD ON",
@@ -1174,7 +1182,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
   const menuOrder = [
     "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
-    "Purchase Orders", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
+    "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
     "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
@@ -1205,7 +1213,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
     // Strict Sachet Gate: cashier/manager cannot see unsubscribed features, owners see them to prompt upgrading
     if (userRole !== 'OWNER' && userRole !== 'SUPER_ADMIN' && userRole !== 'ROLE_SUPER_ADMIN') {
-      if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
+      if ((m.name === "Stock" || m.name === "Purchase Orders" || m.name === "Purchases & Reports" || m.name === "Purchases" || m.name === "Waste Management") && !hasModule('INVENTORY')) {
         return false;
       }
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {

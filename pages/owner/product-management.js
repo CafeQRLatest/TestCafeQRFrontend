@@ -396,11 +396,28 @@ function ProductManagementContent() {
       ? product.recipeLines
           .map(line => {
              const ingredient = line.ingredient
-               || (line.ingredientId ? { id: line.ingredientId, name: line.ingredientName || 'Ingredient Product' } : null);
+               || (line.ingredientId ? {
+                    id: line.ingredientId,
+                    name: line.ingredientName || 'Ingredient Product',
+                    productCode: line.ingredientProductCode || '',
+                    uomName: line.uomName || '',
+                    uomShortName: line.uomName || '',
+                    isIngredient: true
+                  } : null);
              if (!ingredient) return null;
+
+             const variantOption = line.variantOption
+               || (line.variantOptionId ? { id: line.variantOptionId, name: line.variantOptionName || 'Variant' } : null);
+
              return {
                ...line,
                ingredient,
+               ingredientId: ingredient.id,
+               ingredientName: ingredient.name,
+               variantOption,
+               variantOptionId: variantOption?.id || null,
+               variantOptionName: variantOption?.name || line.variantOptionName || null,
+               uomName: line.uomName || ingredient.uomName || ingredient.uom?.name || '',
                quantity: toNumber(line.quantity, 1),
                isActive: line.isActive ?? line.isactive ?? true
              };
@@ -416,7 +433,7 @@ function ProductManagementContent() {
       isAvailable: toBoolean(product.isAvailable ?? product.available, true),
       imageUrl: product.imageUrl || '',
       productType: product.productType || 'VEG',
-      isVariant: toBoolean(product.isVariant, false),
+      isVariant: toBoolean(product.isVariant || (variantMappings && variantMappings.length > 0) || (variantPricings && variantPricings.length > 0) || product.hasVariants, false),
       isPackagedGood: toBoolean(product.isPackagedGood, false),
       isIngredient: toBoolean(product.isIngredient, false),
       isVariablePrice: toBoolean(product.isVariablePrice, false),
@@ -469,9 +486,10 @@ function ProductManagementContent() {
           .map(u => ({ ...u, upsellProduct: { id: u.upsellProduct?.id || u.upsellProductId } })),
         recipeLines: (selectedProduct.recipeLines || [])
           .filter(r => r && (r.ingredient?.id || r.ingredientId))
-          .map(({ id, ingredient, ingredientId, quantity, isActive }) => ({
+          .map(({ id, ingredient, ingredientId, variantOption, variantOptionId, quantity, isActive }) => ({
             id: id || null,
             ingredient: { id: ingredient?.id || ingredientId },
+            variantOption: variantOption?.id ? { id: variantOption.id } : (variantOptionId ? { id: variantOptionId } : null),
             quantity: parseFloat(quantity) || 1,
             isActive: isActive !== false
           }))

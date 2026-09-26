@@ -9,7 +9,7 @@ import {
   FaTimes, FaCamera, FaLayerGroup, FaClock,
   FaWeightHanging, FaBarcode, FaUtensilSpoon, FaCogs, FaSlidersH,
   FaPlus, FaMinus, FaSearch, FaChevronRight, FaTags, FaMoneyBillWave, FaPrint,
-  FaSpinner
+  FaSpinner, FaAlignLeft, FaTrashAlt
 } from 'react-icons/fa';
 
 export default function ProductManagementPopup({
@@ -34,6 +34,7 @@ export default function ProductManagementPopup({
   const [isSearchingRecipe, setIsSearchingRecipe] = useState(false);
   const [showRecipeDropdown, setShowRecipeDropdown] = useState(false);
   const recipeDropdownRef = useRef(null);
+  const [recipeVariantTab, setRecipeVariantTab] = useState('all'); // 'all' = base/common ingredients, or variantOptionId
   const [inventoryEnabled, setInventoryEnabled] = useState(true);
   const [purchasingEnabled, setPurchasingEnabled] = useState(true);
   const [taxEnabled, setTaxEnabled] = useState(true);
@@ -89,6 +90,40 @@ export default function ProductManagementPopup({
   const [variantGroups, setVariantGroups] = useState(propVariantGroups || []);
   const [pricelists, setPricelists] = useState(propPricelists || []);
   const [products, setProducts] = useState(propProducts || []);
+
+  // Sync props into local state when parent finishes loading or updates
+  useEffect(() => {
+    if (propCategories && propCategories.length > 0) setCategories(propCategories);
+  }, [propCategories]);
+
+  useEffect(() => {
+    if (propUoms && propUoms.length > 0) setUoms(propUoms);
+  }, [propUoms]);
+
+  useEffect(() => {
+    if (propVariantGroups && propVariantGroups.length > 0) {
+      setVariantGroups(prev => {
+        const map = new Map(prev.map(g => [String(g.id), g]));
+        propVariantGroups.forEach(g => {
+          const existing = map.get(String(g.id));
+          if (!existing || (!existing.options?.length && g.options?.length)) {
+            map.set(String(g.id), g);
+          } else {
+            map.set(String(g.id), { ...existing, ...g, options: g.options?.length ? g.options : (existing.options || []) });
+          }
+        });
+        return Array.from(map.values());
+      });
+    }
+  }, [propVariantGroups]);
+
+  useEffect(() => {
+    if (propPricelists && propPricelists.length > 0) setPricelists(propPricelists);
+  }, [propPricelists]);
+
+  useEffect(() => {
+    if (propProducts && propProducts.length > 0) setProducts(propProducts);
+  }, [propProducts]);
 
   // Fetch missing dropdown lists passively if not passed as props
   useEffect(() => {
@@ -232,11 +267,11 @@ export default function ProductManagementPopup({
     const productCategoryId = p.category?.id || p.categoryId;
     const productCategoryName = p.category?.name || p.categoryName;
 
-    return categories.find(c => c.id === productCategoryId)
+    return categories.find(c => String(c.id) === String(productCategoryId))
       || categories.find(c => productCategoryName && c.name?.toLowerCase() === productCategoryName.toLowerCase())
-      || categories[0]
-      || p.category
-      || (productCategoryId || productCategoryName ? { id: productCategoryId || null, name: productCategoryName || 'Selected Category' } : null);
+      || (p.category ? p.category : null)
+      || (productCategoryId || productCategoryName ? { id: productCategoryId || null, name: productCategoryName || 'Selected Category' } : null)
+      || categories[0];
   };
 
   const findUomForProduct = (p) => {
@@ -244,22 +279,23 @@ export default function ProductManagementPopup({
     const productUomName = p.uom?.name || p.uomName;
     const productUomShortName = p.uom?.shortName || p.uomShortName;
 
-    return uoms.find(u => u.id === productUomId)
+    return uoms.find(u => String(u.id) === String(productUomId))
       || uoms.find(u => productUomName && (u.name?.toLowerCase() === productUomName.toLowerCase() || u.shortName?.toLowerCase() === productUomName.toLowerCase()))
-      || uoms[0]
-      || p.uom
-      || (productUomId || productUomName ? { id: productUomId || null, name: productUomName || 'Selected Unit', shortName: productUomShortName } : null);
+      || (p.uom ? p.uom : null)
+      || (productUomId || productUomName ? { id: productUomId || null, name: productUomName || 'Selected Unit', shortName: productUomShortName } : null)
+      || uoms[0];
   };
 
   const normalizeVariantGroup = (group) => {
     if (!group) return null;
-    const cachedGroup = variantGroups.find(g => g.id === group.id);
+    const cachedGroup = variantGroups.find(g => String(g.id) === String(group.id));
+    const options = (Array.isArray(group.options) && group.options.length > 0)
+      ? group.options
+      : (Array.isArray(cachedGroup?.options) && cachedGroup.options.length > 0 ? cachedGroup.options : (group.options || []));
     return {
-      ...cachedGroup,
+      ...(cachedGroup || {}),
       ...group,
-      options: Array.isArray(group.options) && group.options.length > 0
-        ? group.options
-        : (cachedGroup?.options || [])
+      options
     };
   };
 
@@ -286,18 +322,26 @@ export default function ProductManagementPopup({
       : [];
 
     const variantPricings = Array.isArray(p.variantPricings)
-      ? p.variantPricings.map(pricing => ({
-          id: pricing.id || null,
-          variantOption: pricing.variantOption
+      ? p.variantPricings.map(pricing => {
+          const variantOption = pricing.variantOption
             || pricing.option
-            || (pricing.variantOptionId ? { id: pricing.variantOptionId, name: 'Variant Option' } : null),
-          additionalPrice: toNumber(pricing.additionalPrice, 0),
-          price: pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price, 0) : null,
-          overridePrice: pricing.overridePrice !== undefined && pricing.overridePrice !== null ? toNumber(pricing.overridePrice) : (pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price) : null),
-          costPrice: pricing.costPrice !== undefined && pricing.costPrice !== null ? toNumber(pricing.costPrice) : null,
-          isAvailable: pricing.isAvailable !== false,
-          isActive: pricing.isActive ?? pricing.isactive ?? 'Y'
-        }))
+            || (pricing.variantOptionId ? { id: pricing.variantOptionId, name: 'Variant Option' } : null);
+          return {
+            id: pricing.id || null,
+            variantOption: variantOption ? {
+              id: variantOption.id,
+              name: variantOption.name,
+              additionalPrice: toNumber(variantOption.additionalPrice, 0)
+            } : null,
+            variantOptionId: variantOption?.id || null,
+            additionalPrice: toNumber(pricing.additionalPrice ?? variantOption?.additionalPrice, 0),
+            price: pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price, 0) : null,
+            overridePrice: pricing.overridePrice !== undefined && pricing.overridePrice !== null ? toNumber(pricing.overridePrice) : (pricing.price !== undefined && pricing.price !== null ? toNumber(pricing.price) : null),
+            costPrice: pricing.costPrice !== undefined && pricing.costPrice !== null ? toNumber(pricing.costPrice) : null,
+            isAvailable: pricing.isAvailable !== false,
+            isActive: pricing.isActive ?? pricing.isactive ?? 'Y'
+          };
+        })
       : [];
 
     const upsells = Array.isArray(p.upsells)
@@ -329,17 +373,36 @@ export default function ProductManagementPopup({
       ? p.recipeLines
           .map(line => {
              const ingredient = line.ingredient
-               || (line.ingredientId ? { id: line.ingredientId, name: line.ingredientName || 'Ingredient Product' } : null);
+               || (line.ingredientId ? {
+                    id: line.ingredientId,
+                    name: line.ingredientName || 'Ingredient Product',
+                    productCode: line.ingredientProductCode || '',
+                    uomName: line.uomName || '',
+                    uomShortName: line.uomName || '',
+                    isIngredient: true
+                  } : null);
              if (!ingredient) return null;
+
+             const variantOption = line.variantOption
+               || (line.variantOptionId ? { id: line.variantOptionId, name: line.variantOptionName || 'Variant' } : null);
+
              return {
                id: line.id || null,
                ingredient,
+               ingredientId: ingredient.id,
+               ingredientName: ingredient.name,
+               variantOption,
+               variantOptionId: variantOption?.id || null,
+               variantOptionName: variantOption?.name || line.variantOptionName || null,
+               uomName: line.uomName || ingredient.uomName || ingredient.uom?.name || '',
                quantity: toNumber(line.quantity, 1),
                isActive: line.isActive ?? line.isactive ?? true
              };
           })
           .filter(Boolean)
       : [];
+
+    const hasVariants = variantMappings.length > 0 || variantPricings.length > 0 || Boolean(p.hasVariants);
 
     return {
       ...(p.id ? { id: p.id } : {}),
@@ -350,7 +413,7 @@ export default function ProductManagementPopup({
       isDeliveryVisible: toBoolean(p.isDeliveryVisible ?? true, true),
       imageUrl: p.imageUrl || '',
       productType: p.productType || 'VEG',
-      isVariant: toBoolean(p.isVariant, false),
+      isVariant: toBoolean(p.isVariant || hasVariants, false),
       isPackagedGood: toBoolean(p.isPackagedGood, false),
       isIngredient: toBoolean(p.isIngredient, false),
       isVariablePrice: toBoolean(p.isVariablePrice, false),
@@ -375,33 +438,89 @@ export default function ProductManagementPopup({
   };
 
   const [selectedProduct, setSelectedProduct] = useState(() => normalizeProductForDrawer(initialProduct));
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // Sync prop changes safely when a different product is selected
-  const lastInitialProductIdRef = useRef(initialProduct?.id);
+  // Sync prop changes from parent immediately
   useEffect(() => {
-    if (initialProduct?.id !== lastInitialProductIdRef.current) {
-      lastInitialProductIdRef.current = initialProduct?.id;
-      setSelectedProduct(normalizeProductForDrawer(initialProduct));
-    }
+    if (!initialProduct) return;
+    setSelectedProduct(prev => {
+      // If we don't have a product yet, or ID changed, or parent passed loaded sub-entities
+      const hasSubEntities = (initialProduct.variantMappings && initialProduct.variantMappings.length > 0) ||
+        (initialProduct.recipeLines && initialProduct.recipeLines.length > 0) ||
+        (initialProduct.variantPricings && initialProduct.variantPricings.length > 0);
+      if (!prev?.id || prev.id !== initialProduct.id || hasSubEntities) {
+        return normalizeProductForDrawer(initialProduct);
+      }
+      return prev;
+    });
   }, [initialProduct]);
+
+  // Automatically fetch full product details (including variantMappings, pricings, recipes) from API
+  useEffect(() => {
+    if (!initialProduct?.id) return;
+
+    let isMounted = true;
+    setLoadingDetails(true);
+
+    api.get(`/api/v1/products/${initialProduct.id}`)
+      .then(resp => {
+        if (isMounted && resp.data?.success && resp.data?.data) {
+          const detail = resp.data.data;
+
+          // Ensure any variant groups associated with this product are present in variantGroups state with options
+          if (Array.isArray(detail.variantMappings)) {
+            setVariantGroups(prev => {
+              const map = new Map(prev.map(g => [String(g.id), g]));
+              detail.variantMappings.forEach(m => {
+                if (m.variantGroup?.id) {
+                  const existing = map.get(String(m.variantGroup.id));
+                  if (!existing || (!existing.options?.length && m.variantGroup.options?.length)) {
+                    map.set(String(m.variantGroup.id), m.variantGroup);
+                  }
+                }
+              });
+              return Array.from(map.values());
+            });
+          }
+
+          setSelectedProduct(normalizeProductForDrawer(detail));
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load complete product details in popup:', err);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingDetails(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [initialProduct?.id]);
 
   // Compute ingredient suggestions combining loaded catalog and live server search results
   // STRICT REQUIREMENT: Only products marked as ingredients are loaded/suggested in inventory recipes
   const ingredientSuggestions = useMemo(() => {
     const map = new Map();
-    (products || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
-    (serverIngredientResults || []).forEach(p => { if (p && p.id) map.set(p.id, p); });
+    (products || []).forEach(p => { if (p && p.id) map.set(String(p.id), p); });
+    (serverIngredientResults || []).forEach(p => { if (p && p.id) map.set(String(p.id), p); });
     const allCandidates = Array.from(map.values());
 
-    const term = (recipeSearch || '').trim().toLowerCase();
+    const activeVoId = (selectedProduct?.isVariant && recipeVariantTab !== 'all') ? String(recipeVariantTab) : null;
     const existingRecipeIngredientIds = new Set(
-      (selectedProduct?.recipeLines || []).map(r => r.ingredient?.id || r.ingredientId).filter(Boolean)
+      (selectedProduct?.recipeLines || [])
+        .filter(r => {
+          if (!selectedProduct?.isVariant) return true;
+          const lineVoId = r.variantOption?.id || r.variantOptionId || null;
+          if (!activeVoId) return !lineVoId;
+          return String(lineVoId) === activeVoId;
+        })
+        .map(r => String(r.ingredient?.id || r.ingredientId))
+        .filter(Boolean)
     );
 
     return allCandidates.filter(p => {
       if (!p || !p.id) return false;
-      if (p.id === selectedProduct?.id) return false;
-      if (existingRecipeIngredientIds.has(p.id)) return false;
+      if (String(p.id) === String(selectedProduct?.id)) return false;
+      if (existingRecipeIngredientIds.has(String(p.id))) return false;
 
       // Only items designated as raw ingredients can compose a product recipe
       const isIng = p.isIngredient === true ||
@@ -410,17 +529,23 @@ export default function ProductManagementPopup({
         String(p.isIngredient).trim().toUpperCase() === 'TRUE' ||
         String(p.is_ingredient).trim().toUpperCase() === 'Y' ||
         String(p.is_ingredient).trim().toUpperCase() === 'TRUE';
-      if (!isIng) return false;
-
-      if (!term) return true;
-      const nameMatch = (p.name || '').toLowerCase().includes(term);
-      const codeMatch = (p.productCode || '').toLowerCase().includes(term);
-      const catMatch = (p.category?.name || p.categoryName || '').toLowerCase().includes(term);
-      return nameMatch || codeMatch || catMatch;
+      return isIng;
     }).sort((a, b) => {
       return (a.name || '').localeCompare(b.name || '');
-    }).slice(0, 50);
-  }, [products, serverIngredientResults, recipeSearch, selectedProduct?.recipeLines, selectedProduct?.id]);
+    });
+  }, [products, serverIngredientResults, selectedProduct?.recipeLines, selectedProduct?.id, selectedProduct?.isVariant, recipeVariantTab]);
+
+  const ingredientOptions = useMemo(() => {
+    return ingredientSuggestions.map(p => {
+      const uom = p.uom?.shortName || p.uomName || p.uom?.name || '';
+      const code = p.productCode ? ` [#${p.productCode}]` : '';
+      const cat = p.category?.name ? ` • ${p.category.name}` : '';
+      return {
+        value: p.id,
+        label: `${p.name}${uom ? ` (${uom})` : ''}${cat}${code}`
+      };
+    });
+  }, [ingredientSuggestions]);
 
   const normalizeById = (items = [], item) => {
     if (!item?.id) return items;
@@ -431,6 +556,8 @@ export default function ProductManagementPopup({
     if (e) e.preventDefault();
 
     const isIngredient = Boolean(selectedProduct.isIngredient);
+    const baseSalePrice = isIngredient ? 0 : Number(selectedProduct.price || 0);
+    const baseCostPrice = Number(selectedProduct.costPrice || 0);
 
     // 1. Mandatory Field Validation
     if (!selectedProduct.name || !selectedProduct.name.trim()) {
@@ -479,13 +606,18 @@ export default function ProductManagementPopup({
       const url = isNew ? '/api/v1/products' : `/api/v1/products/${selectedProduct.id}`;
       const allMappedGroupOptions = (selectedProduct.variantMappings || [])
         .filter(vm => vm.variantGroup?.id)
-        .flatMap(vm => vm.variantGroup?.options || []);
-
-      const baseSalePrice = isIngredient ? 0 : Number(selectedProduct.price || 0);
-      const baseCostPrice = selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? 0 : Number(selectedProduct.costPrice);
+        .flatMap(vm => {
+          const g = vm.variantGroup;
+          const cached = variantGroups.find(x => String(x.id) === String(g.id));
+          return (Array.isArray(g.options) && g.options.length > 0)
+            ? g.options
+            : (Array.isArray(cached?.options) && cached.options.length > 0 ? cached.options : (g.options || []));
+        });
 
       const finalVariantPricings = allMappedGroupOptions.map(opt => {
-        const existingVP = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
+        const existingVP = (selectedProduct.variantPricings || []).find(vp => 
+          String(vp.variantOption?.id || vp.variantOptionId || '') === String(opt.id)
+        );
         const addPrice = Number(opt.additionalPrice || 0);
 
         const overridePrice = (existingVP && existingVP.overridePrice !== null && existingVP.overridePrice !== undefined && existingVP.overridePrice !== '' && !isNaN(existingVP.overridePrice))
@@ -507,6 +639,8 @@ export default function ProductManagementPopup({
         };
       });
 
+      const hasVariants = (selectedProduct.variantMappings || []).filter(vm => vm.variantGroup?.id).length > 0;
+
       const payload = {
         ...(selectedProduct.id ? { id: selectedProduct.id } : {}),
         name: (selectedProduct.name || '').trim(),
@@ -520,7 +654,7 @@ export default function ProductManagementPopup({
         isAvailable: selectedProduct.isAvailable !== false,
         isDeliveryVisible: selectedProduct.isDeliveryVisible !== false,
         isActive: selectedProduct.isActive !== false,
-        isVariant: Boolean(selectedProduct.isVariant),
+        isVariant: hasVariants || Boolean(selectedProduct.isVariant),
         isPackagedGood: Boolean(selectedProduct.isPackagedGood),
         isIngredient: Boolean(selectedProduct.isIngredient),
         isVariablePrice: Boolean(selectedProduct.isVariablePrice),
@@ -549,9 +683,10 @@ export default function ProductManagementPopup({
           .map(u => ({ ...u, upsellProduct: { id: u.upsellProduct?.id || u.upsellProductId } })),
         recipeLines: (selectedProduct.recipeLines || [])
           .filter(r => r && (r.ingredient?.id || r.ingredientId))
-          .map(({ id, ingredient, ingredientId, quantity, isActive }) => ({
+          .map(({ id, ingredient, ingredientId, variantOption, variantOptionId, quantity, isActive }) => ({
             id: id || null,
             ingredient: { id: ingredient?.id || ingredientId },
+            variantOption: (variantOption?.id || variantOptionId) ? { id: variantOption?.id || variantOptionId } : null,
             quantity: parseFloat(quantity) || 1,
             isActive: isActive !== false
           }))
@@ -591,11 +726,28 @@ export default function ProductManagementPopup({
       icon={FaBoxOpen}
     >
       <div className="drawer-tabs">
-         <button className={`drawer-tab ${formTab === 'basic' ? 'active' : ''}`} onClick={() => setFormTab('basic')}>General</button>
-         {inventoryEnabled && <button className={`drawer-tab ${formTab === 'inventory' ? 'active' : ''}`} onClick={() => setFormTab('inventory')}>Inventory</button>}
-         <button className={`drawer-tab ${formTab === 'pricing' ? 'active' : ''}`} onClick={() => setFormTab('pricing')}>Pricing</button>
-         <button className={`drawer-tab ${formTab === 'variants' ? 'active' : ''}`} onClick={() => setFormTab('variants')}>Variants</button>
-         <button className={`drawer-tab ${formTab === 'upsells' ? 'active' : ''}`} onClick={() => setFormTab('upsells')}>Upsells</button>
+         <button type="button" className={`drawer-tab ${formTab === 'basic' ? 'active' : ''}`} onClick={() => setFormTab('basic')}>
+            <FaBoxOpen />
+            <span>General</span>
+         </button>
+         {inventoryEnabled && (
+            <button type="button" className={`drawer-tab ${formTab === 'inventory' ? 'active' : ''}`} onClick={() => setFormTab('inventory')}>
+               <FaWeightHanging />
+               <span>Inventory</span>
+            </button>
+         )}
+         <button type="button" className={`drawer-tab ${formTab === 'pricing' ? 'active' : ''}`} onClick={() => setFormTab('pricing')}>
+            <FaTags />
+            <span>Pricing</span>
+         </button>
+         <button type="button" className={`drawer-tab ${formTab === 'variants' ? 'active' : ''}`} onClick={() => setFormTab('variants')}>
+            <FaSlidersH />
+            <span>Variants</span>
+         </button>
+         <button type="button" className={`drawer-tab ${formTab === 'upsells' ? 'active' : ''}`} onClick={() => setFormTab('upsells')}>
+            <FaLayerGroup />
+            <span>Upsells</span>
+         </button>
       </div>
 
       <div className={`drawer-form ${viewOnly ? 'view-mode' : ''}`}>
@@ -647,10 +799,7 @@ export default function ProductManagementPopup({
                    <div className="input-group"><label>Name <span style={{ color: '#ef4444' }}>*</span></label><input value={selectedProduct.name} onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})} placeholder="e.g. Chicken Burger" /></div>
                    <div className="input-group"><label>Item Code</label><input value={selectedProduct.productCode || ''} onChange={e => setSelectedProduct({...selectedProduct, productCode: e.target.value})} placeholder="e.g. CB001" /></div>
                 </div>
-               <div className="input-group" style={{ marginTop: '16px' }}>
-                  <label>Description</label>
-                  <textarea value={selectedProduct.description || ''} onChange={e => setSelectedProduct({...selectedProduct, description: e.target.value})} placeholder="Describe product details..." rows={2} style={{ width: '100%', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px', resize: 'vertical' }} />
-               </div>
+               
                 <div className="input-row" style={{ marginTop: '16px' }}>
                    <div className="input-group">
                       <label>Category <span style={{ color: '#ef4444' }}>*</span></label>
@@ -746,7 +895,17 @@ export default function ProductManagementPopup({
                     </div>
                   )}
                </div>
-             </div>
+               <div className="input-group" style={{ marginTop: '14px' }}>
+                   <label>Description</label>
+                   <textarea 
+                     value={selectedProduct.description || ''} 
+                     onChange={e => setSelectedProduct({...selectedProduct, description: e.target.value})} 
+                     placeholder="Describe product details, ingredients, or preparation notes..." 
+                     rows={2} 
+                     style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '7px', fontSize: '12px', resize: 'vertical' }} 
+                   />
+                </div>
+              </div>
 
              <div className="info-options-row" style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
@@ -800,215 +959,365 @@ export default function ProductManagementPopup({
 
              {!selectedProduct.isIngredient && (
                 <div className="erp-section" style={{ marginTop: '16px' }}>
-                   <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaCogs /> Product Recipe (Ingredients)</span>
+                   <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaCogs /> Recipe / Bill of Materials</span>
                       {(selectedProduct.recipeLines || []).length > 0 && (
-                         <span style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#ea580c', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>
-                            {(selectedProduct.recipeLines || []).length} {(selectedProduct.recipeLines || []).length === 1 ? 'Ingredient' : 'Ingredients'} Added
+                         <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
+                            {(selectedProduct.recipeLines || []).length} {(selectedProduct.recipeLines || []).length === 1 ? 'item' : 'items'}
                          </span>
                       )}
                    </div>
-                   <p className="section-desc">Add raw ingredients that compose this product. Products with recipes cannot be purchased directly.</p>
-                   
-                   <div className="recipe-selector-card">
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '7px' }}>
-                           <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px' }} /> Add Recipe Ingredient
-                        </label>
-                        <div style={{ position: 'relative' }} ref={recipeDropdownRef}>
-                          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: showRecipeDropdown ? '1.5px solid #ea580c' : '1.5px solid #e2e8f0', borderRadius: '7px', padding: '5px 9px', gap: '7px', transition: 'border-color 0.2s' }}>
-                            <FaSearch style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }} />
-                            <input
-                              type="text"
-                              placeholder="Type to search ingredients across catalog..."
-                              value={recipeSearch}
-                              onFocus={() => setShowRecipeDropdown(true)}
-                              onClick={() => setShowRecipeDropdown(true)}
-                              onChange={e => {
-                                setRecipeSearch(e.target.value);
-                                setShowRecipeDropdown(true);
-                              }}
-                              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '12px', fontWeight: 500, color: '#0f172a', width: '100%' }}
-                            />
-                            {isSearchingRecipe && (
-                              <FaSpinner className="fa-spin" style={{ color: '#ea580c', fontSize: '11px', flexShrink: 0 }} />
-                            )}
-                            {recipeSearch && (
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  setRecipeSearch('');
-                                  setServerIngredientResults([]);
-                                }} 
-                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}
-                              >
-                                <FaTimes style={{ fontSize: '10px' }} />
-                              </button>
-                            )}
-                          </div>
-                          {showRecipeDropdown && (
-                            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'white', border: '1.5px solid #fed7aa', borderRadius: '8px', boxShadow: '0 10px 25px rgba(15,23,42,0.12)', zIndex: 100, overflow: 'hidden', maxHeight: '240px', overflowY: 'auto' }}>
-                              <div style={{ padding: '7px 12px', background: '#fff7ed', borderBottom: '1px solid #ffedd5', fontSize: '11px', fontWeight: 700, color: '#c2410c', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>{recipeSearch ? 'Matching Raw Ingredients' : 'Available Ingredients (Click to Add)'}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {isSearchingRecipe ? (
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', fontWeight: 600 }}>
-                                      <FaSpinner className="fa-spin" /> Searching...
-                                    </span>
-                                  ) : (
-                                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#9a3412' }}>{ingredientSuggestions.length} available</span>
-                                  )}
-                                  <button 
-                                    type="button" 
-                                    onClick={(e) => { e.preventDefault(); setShowRecipeDropdown(false); }}
-                                    style={{ border: 'none', background: 'none', color: '#c2410c', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                    title="Close list"
+
+                   {/* Variant Recipe Tabs */}
+                   {selectedProduct.isVariant && (selectedProduct.variantMappings || []).length > 0 && (() => {
+                      const allVariantOptions = (selectedProduct.variantMappings || []).flatMap(vm => {
+                         const gOptions = (Array.isArray(vm.variantGroup?.options) && vm.variantGroup.options.length > 0)
+                           ? vm.variantGroup.options
+                           : (variantGroups.find(g => String(g.id) === String(vm.variantGroup?.id))?.options || []);
+                         return gOptions.map(opt => ({
+                            id: opt.id,
+                            name: opt.name,
+                            groupName: vm.variantGroup?.name || 'Variant'
+                         }));
+                      });
+                      return allVariantOptions.length > 0 ? (
+                         <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginBottom: '12px',
+                            padding: '4px',
+                            background: '#ffffff',
+                            borderRadius: '14px',
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+                            overflowX: 'auto',
+                            scrollbarWidth: 'none'
+                         }}>
+                            <button
+                               type="button"
+                               onClick={() => setRecipeVariantTab('all')}
+                               style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '7px 16px',
+                                  height: '34px',
+                                  borderRadius: '10px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  border: 'none',
+                                  background: recipeVariantTab === 'all' ? '#f97316' : 'transparent',
+                                  color: recipeVariantTab === 'all' ? 'white' : '#64748b',
+                                  boxShadow: recipeVariantTab === 'all' ? '0 4px 12px rgba(249, 115, 22, 0.25)' : 'none',
+                                  transition: 'all 0.2s ease',
+                                  whiteSpace: 'nowrap'
+                               }}
+                            >
+                               <FaSlidersH style={{ fontSize: '11px', color: recipeVariantTab === 'all' ? 'white' : '#64748b' }} />
+                               <span>Base Recipe</span>
+                            </button>
+                            {allVariantOptions.map(opt => {
+                               const count = (selectedProduct.recipeLines || []).filter(r =>
+                                  String(r.variantOption?.id || r.variantOptionId || '') === String(opt.id)
+                               ).length;
+                               const isSelected = String(recipeVariantTab) === String(opt.id);
+                               return (
+                                  <button
+                                     key={opt.id}
+                                     type="button"
+                                     onClick={() => setRecipeVariantTab(opt.id)}
+                                     style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '7px 16px',
+                                        height: '34px',
+                                        borderRadius: '10px',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        border: 'none',
+                                        background: isSelected ? '#f97316' : 'transparent',
+                                        color: isSelected ? 'white' : '#64748b',
+                                        boxShadow: isSelected ? '0 4px 12px rgba(249, 115, 22, 0.25)' : 'none',
+                                        textTransform: 'capitalize',
+                                        transition: 'all 0.2s ease',
+                                        whiteSpace: 'nowrap'
+                                     }}
                                   >
-                                    <FaTimes style={{ fontSize: '11px' }} />
+                                     <span>{opt.name}</span>
+                                     {count > 0 && (
+                                        <span style={{
+                                           background: isSelected ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                                           color: isSelected ? 'white' : '#334155',
+                                           borderRadius: '999px',
+                                           padding: '1px 6px',
+                                           fontSize: '9px',
+                                           fontWeight: 800
+                                        }}>
+                                           {count}
+                                        </span>
+                                     )}
                                   </button>
-                                </div>
-                              </div>
-                              {ingredientSuggestions.length === 0 ? (
-                                <div style={{ padding: '16px 12px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
-                                  {isSearchingRecipe ? 'Searching ingredients...' : 'No raw ingredients found'}
-                                </div>
-                              ) : ingredientSuggestions.map(p => (
-                                <div key={p.id}
-                                  onMouseDown={e => {
-                                    e.preventDefault();
-                                    const ing = {
-                                      ...p,
-                                      id: p.id,
-                                      name: p.name,
-                                      productCode: p.productCode || '',
-                                      uomName: p.uom?.name || p.uomName || 'units',
-                                      uomShortName: p.uom?.shortName || p.uomShortName || p.uom?.name || '',
-                                      isIngredient: true
-                                    };
-                                    setSelectedProduct(prev => ({
-                                      ...prev,
-                                      recipeLines: [...(prev?.recipeLines || []), { ingredient: ing, quantity: 1, isActive: true }]
-                                    }));
-                                    notify('success', `Added "${p.name}" to recipe`);
-                                    setRecipeSearch('');
-                                    setServerIngredientResults([]);
-                                    setShowRecipeDropdown(false);
-                                  }}
-                                  style={{ padding: '8px 12px', fontSize: '12px', fontWeight: 600, color: '#0f172a', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.15s' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = '#fff7ed'}
-                                  onMouseLeave={e => e.currentTarget.style.background = 'white'}
-                                >
-                                  <FaUtensilSpoon style={{ color: '#ea580c', fontSize: '10px', flexShrink: 0 }} />
-                                  <span style={{ flex: 1 }}>{p.name}</span>
-                                  {p.productCode && (
-                                    <span style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 4px', borderRadius: '4px' }}>
-                                      #{p.productCode}
-                                    </span>
-                                  )}
-                                  {p.category?.name && (
-                                    <span style={{ fontSize: '9px', fontWeight: 600, color: '#7c3aed', background: '#f5f3ff', padding: '1px 5px', borderRadius: '4px' }}>
-                                      {p.category.name}
-                                    </span>
-                                  )}
-                                  {(p.uom?.shortName || p.uomName) && (
-                                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 5px', borderRadius: '999px', textTransform: 'uppercase' }}>
-                                      {p.uom?.shortName || p.uomName}
-                                    </span>
-                                  )}
-                                  <span style={{ fontSize: '10px', fontWeight: 700, color: '#ea580c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '4px', padding: '2px 7px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                    <FaPlus style={{ fontSize: '8px' }} /> Add
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                     </div>
+                               );
+                            })}
+                         </div>
+                      ) : null;
+                   })()}
+
+                   {/* NiceSelect Ingredient Dropdown */}
+                   <div className="mapping-selector" style={{ marginBottom: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Add Ingredient</label>
+                      <NiceSelect
+                        placeholder="Search ingredient to add..."
+                        options={ingredientOptions}
+                        value=""
+                        onChange={ingId => {
+                          const p = ingredientSuggestions.find(item => String(item.id) === String(ingId)) || (products || []).find(item => String(item.id) === String(ingId));
+                          if (!p) return;
+
+                          const allGroupOptions = (selectedProduct.variantMappings || []).flatMap(vm => {
+                             const gOptions = (Array.isArray(vm.variantGroup?.options) && vm.variantGroup.options.length > 0)
+                               ? vm.variantGroup.options
+                               : (variantGroups.find(g => String(g.id) === String(vm.variantGroup?.id))?.options || []);
+                             return gOptions;
+                          });
+
+                          const activeVariantOption = recipeVariantTab !== 'all'
+                            ? allGroupOptions.find(o => String(o.id) === String(recipeVariantTab))
+                            : null;
+
+                          const targetVoId = activeVariantOption?.id || null;
+                          const isAlreadyAdded = (selectedProduct.recipeLines || []).some(r => {
+                            const lineIngId = r.ingredient?.id || r.ingredientId;
+                            const lineVoId = r.variantOption?.id || r.variantOptionId || null;
+                            return String(lineIngId) === String(p.id) && String(lineVoId) === String(targetVoId);
+                          });
+
+                          if (isAlreadyAdded) {
+                            notify('warning', `"${p.name}" is already in this recipe`);
+                            return;
+                          }
+
+                          const ing = {
+                            ...p,
+                            id: p.id,
+                            name: p.name,
+                            productCode: p.productCode || '',
+                            uomName: p.uom?.name || p.uomName || 'units',
+                            uomShortName: p.uom?.shortName || p.uomShortName || p.uom?.name || '',
+                            isIngredient: true
+                          };
+
+                          const newLine = {
+                            ingredient: ing,
+                            ingredientId: p.id,
+                            ingredientName: p.name,
+                            variantOption: activeVariantOption ? { id: activeVariantOption.id, name: activeVariantOption.name } : null,
+                            variantOptionId: activeVariantOption?.id || null,
+                            variantOptionName: activeVariantOption?.name || null,
+                            quantity: 1,
+                            isActive: true
+                          };
+
+                          setSelectedProduct(prev => ({
+                            ...prev,
+                            recipeLines: [...(prev?.recipeLines || []), newLine]
+                          }));
+                          notify('success', `Added "${p.name}"`);
+                        }}
+                      />
+                   </div>
+
+                   {/* Subtitle / Context for Variant */}
+                   {recipeVariantTab !== 'all' && (() => {
+                      const curOpt = (selectedProduct.variantMappings || []).flatMap(vm => {
+                         const gOptions = (Array.isArray(vm.variantGroup?.options) && vm.variantGroup.options.length > 0)
+                           ? vm.variantGroup.options
+                           : (variantGroups.find(g => String(g.id) === String(vm.variantGroup?.id))?.options || []);
+                         return gOptions;
+                      }).find(o => String(o.id) === String(recipeVariantTab));
+                      return (
+                         <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 600, color: '#334155' }}>{curOpt?.name || 'Variant'} Recipe:</span>
+                            <span>Specific items deducted for this variant. Base recipe items also apply.</span>
+                         </div>
+                      );
+                   })()}
 
                    <div className="mappings-list">
-                      {(selectedProduct.recipeLines || []).map((r, idx) => (
-                        <div key={idx} className="recipe-glass-card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(226,232,240,0.6)', paddingBottom: '12px', marginBottom: '12px' }}>
-                               <div style={{ display: 'flex', alignItems: 'center' }}>
-                                  <span className="recipe-index-badge">{idx + 1}</span>
-                                  <div>
-                                    <strong style={{ fontSize: '14px', color: '#0f172a', fontWeight: 700 }}>{r.ingredient?.name}</strong>
-                                    <span className="recipe-uom-pill">
-                                      {r.ingredient?.uomName || 'units'}
-                                    </span>
+                      {(() => {
+                        const hasProductVariants = Boolean(selectedProduct.isVariant || (selectedProduct.variantMappings && selectedProduct.variantMappings.length > 0));
+                        const filteredLines = (selectedProduct.recipeLines || []).filter(r => {
+                          if (!hasProductVariants) return true;
+                          const lineVoId = r.variantOption?.id || r.variantOptionId || null;
+                          if (recipeVariantTab === 'all') {
+                            return !lineVoId;
+                          }
+                          return String(lineVoId) === String(recipeVariantTab);
+                        });
+
+                        if (filteredLines.length === 0) {
+                          const curOpt = (selectedProduct.variantMappings || []).flatMap(vm => {
+                             const gOptions = (Array.isArray(vm.variantGroup?.options) && vm.variantGroup.options.length > 0)
+                               ? vm.variantGroup.options
+                               : (variantGroups.find(g => String(g.id) === String(vm.variantGroup?.id))?.options || []);
+                             return gOptions;
+                          }).find(o => String(o.id) === String(recipeVariantTab));
+                          return (
+                            <div className="recipe-empty-state">
+                               <div className="empty-icon-circle">
+                                  <FaCogs style={{ color: '#94a3b8', fontSize: '15px' }} />
+                               </div>
+                               <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '2px' }}>
+                                  {recipeVariantTab === 'all' || !selectedProduct.isVariant ? 'No recipe ingredients added' : `No specific ingredients for ${curOpt?.name || 'variant'}`}
+                               </div>
+                               <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                  {recipeVariantTab === 'all' || !selectedProduct.isVariant
+                                    ? 'Search and add raw ingredients above to configure consumption.'
+                                    : 'Inherits base recipe ingredients.'}
+                               </div>
+                            </div>
+                          );
+                        }
+
+                        return filteredLines.map((r, idx) => {
+                          const rIngId = r.ingredient?.id || r.ingredientId;
+                          const rVoId = r.variantOption?.id || r.variantOptionId || null;
+
+                          return (
+                            <div key={idx} className="recipe-item-row">
+                               <div className="recipe-item-info">
+                                  <span className="recipe-item-index">{idx + 1}</span>
+                                  <div className="recipe-item-name-group">
+                                     <strong className="recipe-item-title">{r.ingredient?.name || r.ingredientName}</strong>
+                                     {r.ingredient?.productCode && (
+                                       <span className="recipe-item-code">#{r.ingredient.productCode}</span>
+                                     )}
+                                     <span className="recipe-item-uom">
+                                       {r.ingredient?.uomShortName || r.ingredient?.uomName || r.uomName || 'units'}
+                                     </span>
+                                     {r.variantOptionName && (
+                                       <span className="recipe-item-variant">
+                                         {r.variantOptionName}
+                                       </span>
+                                     )}
                                   </div>
                                </div>
-                               <button className="text-red" style={{ transition: 'transform 0.2s', padding: '6px', borderRadius: '50%' }} onClick={() => {
-                                  setSelectedProduct({
-                                     ...selectedProduct,
-                                     recipeLines: selectedProduct.recipeLines.filter((_, i) => i !== idx)
-                                  });
-                               }}><FaTimes style={{ fontSize: '14px' }} /></button>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-                               <div style={{ flex: '1 1 200px' }}>
-                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '6px' }}>Quantity Required</label>
-                                  <div className="qty-controls-container">
-                                     <button className="qty-btn" type="button" onClick={() => {
-                                        const newLines = [...selectedProduct.recipeLines];
-                                        newLines[idx].quantity = Math.max(0, parseFloat((Math.max(0, r.quantity) - 1).toFixed(3)));
-                                        setSelectedProduct({...selectedProduct, recipeLines: newLines});
-                                     }}>
+
+                               <div className="recipe-item-actions">
+                                  <div className="recipe-stepper">
+                                     <button 
+                                       type="button" 
+                                       className="stepper-btn"
+                                       onClick={() => {
+                                          setSelectedProduct(prev => ({
+                                             ...prev,
+                                             recipeLines: (prev.recipeLines || []).map(line => {
+                                                const lIngId = line.ingredient?.id || line.ingredientId;
+                                                const lVoId = line.variantOption?.id || line.variantOptionId || null;
+                                                if (String(lIngId) === String(rIngId) && String(lVoId) === String(rVoId)) {
+                                                   return { ...line, quantity: Math.max(0, parseFloat((Math.max(0, line.quantity) - 1).toFixed(3))) };
+                                                }
+                                                return line;
+                                             })
+                                          }));
+                                       }}
+                                       title="Decrease quantity"
+                                     >
                                         <FaMinus />
                                      </button>
-                                     <div className="qty-input-wrapper">
-                                        <input 
-                                          type="number" 
-                                          step="any"
-                                          value={r.quantity} 
-                                          onChange={e => {
-                                             const qty = parseFloat(e.target.value) || 0;
-                                             const newLines = [...selectedProduct.recipeLines];
-                                             newLines[idx].quantity = qty;
-                                             setSelectedProduct({...selectedProduct, recipeLines: newLines});
-                                          }}
-                                          className="qty-styled-input"
-                                        />
-                                        <span className="qty-floating-badge">{r.ingredient?.uomShortName || r.ingredient?.uomName || 'qty'}</span>
-                                     </div>
-                                     <button className="qty-btn" type="button" onClick={() => {
-                                        const newLines = [...selectedProduct.recipeLines];
-                                        newLines[idx].quantity = parseFloat((Math.max(0, r.quantity) + 1).toFixed(3));
-                                        setSelectedProduct({...selectedProduct, recipeLines: newLines});
-                                     }}>
+                                     <input 
+                                       type="number" 
+                                       step="any"
+                                       value={r.quantity} 
+                                       onChange={e => {
+                                          const qty = parseFloat(e.target.value) || 0;
+                                          setSelectedProduct(prev => ({
+                                             ...prev,
+                                             recipeLines: (prev.recipeLines || []).map(line => {
+                                                const lIngId = line.ingredient?.id || line.ingredientId;
+                                                const lVoId = line.variantOption?.id || line.variantOptionId || null;
+                                                if (String(lIngId) === String(rIngId) && String(lVoId) === String(rVoId)) {
+                                                   return { ...line, quantity: qty };
+                                                }
+                                                return line;
+                                             })
+                                          }));
+                                       }}
+                                       className="stepper-input"
+                                     />
+                                     <button 
+                                       type="button" 
+                                       className="stepper-btn"
+                                       onClick={() => {
+                                          setSelectedProduct(prev => ({
+                                             ...prev,
+                                             recipeLines: (prev.recipeLines || []).map(line => {
+                                                const lIngId = line.ingredient?.id || line.ingredientId;
+                                                const lVoId = line.variantOption?.id || line.variantOptionId || null;
+                                                if (String(lIngId) === String(rIngId) && String(lVoId) === String(rVoId)) {
+                                                   return { ...line, quantity: parseFloat((Math.max(0, line.quantity) + 1).toFixed(3)) };
+                                                }
+                                                return line;
+                                             })
+                                          }));
+                                       }}
+                                       title="Increase quantity"
+                                     >
                                         <FaPlus />
                                      </button>
-                                  </div>
-                               </div>
-                               <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'flex-end', height: '40px' }}>
-                                  <div className="recipe-switch-row">
-                                     <div 
-                                        className={`erp-switch ${r.isActive !== false ? 'active' : ''}`} 
-                                        onClick={() => {
-                                           const newLines = [...selectedProduct.recipeLines];
-                                           newLines[idx].isActive = r.isActive === false;
-                                           setSelectedProduct({...selectedProduct, recipeLines: newLines});
-                                        }}
-                                     >
-                                        <div className="switch-knob"></div>
-                                     </div>
-                                     <span className="recipe-switch-label" style={{ color: r.isActive !== false ? '#22c55e' : '#94a3b8' }}>
-                                        {r.isActive !== false ? 'Active' : 'Inactive'}
+                                     <span className="stepper-unit">
+                                       {r.ingredient?.uomShortName || r.ingredient?.uomName || r.uomName || 'qty'}
                                      </span>
                                   </div>
+
+                                  <div className="recipe-v-divider" />
+
+                                  <div 
+                                     className={`erp-switch ${r.isActive !== false ? 'active' : ''}`} 
+                                     onClick={() => {
+                                        setSelectedProduct(prev => ({
+                                           ...prev,
+                                           recipeLines: (prev.recipeLines || []).map(line => {
+                                              const lIngId = line.ingredient?.id || line.ingredientId;
+                                              const lVoId = line.variantOption?.id || line.variantOptionId || null;
+                                              if (String(lIngId) === String(rIngId) && String(lVoId) === String(rVoId)) {
+                                                 return { ...line, isActive: line.isActive === false };
+                                              }
+                                              return line;
+                                           })
+                                        }));
+                                     }}
+                                     title={r.isActive !== false ? "Active in recipe" : "Inactive in recipe"}
+                                  >
+                                     <div className="switch-knob"></div>
+                                  </div>
+
+                                  <button 
+                                    type="button"
+                                    className="recipe-delete-btn" 
+                                    onClick={() => {
+                                       setSelectedProduct(prev => ({
+                                          ...prev,
+                                          recipeLines: (prev.recipeLines || []).filter(line => {
+                                             const lIngId = line.ingredient?.id || line.ingredientId;
+                                             const lVoId = line.variantOption?.id || line.variantOptionId || null;
+                                             return !(String(lIngId) === String(rIngId) && String(lVoId) === String(rVoId));
+                                          })
+                                       }));
+                                    }} 
+                                    title="Remove ingredient"
+                                  >
+                                     <FaTrashAlt style={{ fontSize: '11px' }} />
+                                  </button>
                                </div>
                             </div>
-                        </div>
-                      ))}
-                      {(selectedProduct.recipeLines || []).length === 0 && (
-                         <div className="recipe-empty-state">
-                            <div className="empty-icon-circle">
-                               <FaUtensilSpoon className="pulse-icon" />
-                            </div>
-                            <h3>Craft Your Recipe</h3>
-                            <p>Add raw ingredients that compose this product. You can customize quantities, toggle status, and build recipes easily.</p>
-                            <div className="empty-state-hint">Use the selector above to choose an ingredient to start.</div>
-                         </div>
-                      )}
+                          );
+                        });
+                      })()}
                    </div>
                 </div>
              )}
@@ -1150,10 +1459,12 @@ export default function ProductManagementPopup({
                          value=""
                          onChange={gid => {
                             const group = variantGroups.find(g => g.id === gid);
-                            setSelectedProduct({
-                               ...selectedProduct,
-                               variantMappings: [...selectedProduct.variantMappings, { variantGroup: group, isRequired: true }]
-                            });
+                            if (!group) return;
+                            setSelectedProduct(prev => ({
+                               ...prev,
+                               isVariant: true,
+                               variantMappings: [...(prev.variantMappings || []), { variantGroup: group, isRequired: true }]
+                            }));
                          }}
                        />
                     </div>
@@ -1161,7 +1472,9 @@ export default function ProductManagementPopup({
 
                 <div className="mappings-list">
                    {(selectedProduct.variantMappings || []).map((m, idx) => {
-                     const groupOptions = m.variantGroup?.options || [];
+                     const groupOptions = (Array.isArray(m.variantGroup?.options) && m.variantGroup.options.length > 0)
+                        ? m.variantGroup.options
+                        : (variantGroups.find(g => String(g.id) === String(m.variantGroup?.id))?.options || []);
                      return (
                      <div key={idx} className="mapping-item-card variant-mapping-card">
                          <div className="item-header">
@@ -1197,7 +1510,7 @@ export default function ProductManagementPopup({
                               </div>
                             ) : <div className="variant-options-list" style={{ display: 'grid', gap: '10px', marginTop: '10px' }}>
                                 {groupOptions.map(opt => {
-                                   const pricing = (selectedProduct.variantPricings || []).find(vp => vp.variantOption?.id === opt.id);
+                                   const pricing = (selectedProduct.variantPricings || []).find(vp => String(vp.variantOption?.id || vp.variantOptionId || '') === String(opt.id));
                                    const currentVal = pricing && pricing.overridePrice !== undefined && pricing.overridePrice !== null ? pricing.overridePrice : '';
                                    const currentCost = pricing && pricing.costPrice !== undefined && pricing.costPrice !== null ? pricing.costPrice : '';
                                    const isEnabled = pricing?.isAvailable !== false;
@@ -1212,7 +1525,7 @@ export default function ProductManagementPopup({
                                                  checked={isEnabled}
                                                  style={{ width: '16px', height: '16px', accentColor: '#ea580c', cursor: 'pointer' }}
                                                  onChange={e => {
-                                                   const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                   const otherPricings = (selectedProduct.variantPricings || []).filter(vp => String(vp.variantOption?.id || vp.variantOptionId || '') !== String(opt.id));
                                                    setSelectedProduct({
                                                      ...selectedProduct,
                                                      variantPricings: [...otherPricings, {
@@ -1251,7 +1564,7 @@ export default function ProductManagementPopup({
                                                   value={currentVal === 0 || currentVal === '' || currentVal === null || currentVal === undefined || isNaN(currentVal) ? '' : currentVal}
                                                   onChange={e => {
                                                      const newVal = e.target.value === '' ? '' : parseFloat(e.target.value);
-                                                     const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                     const otherPricings = (selectedProduct.variantPricings || []).filter(vp => String(vp.variantOption?.id || vp.variantOptionId || '') !== String(opt.id));
                                                      const existingCost = pricing?.costPrice !== undefined && pricing?.costPrice !== null ? pricing.costPrice : null;
                                                      setSelectedProduct({
                                                         ...selectedProduct,
@@ -1282,7 +1595,7 @@ export default function ProductManagementPopup({
                                                     value={currentCost === 0 || currentCost === '' || currentCost === null || currentCost === undefined || isNaN(currentCost) ? '' : currentCost}
                                                     onChange={e => {
                                                        const newCost = e.target.value === '' ? '' : parseFloat(e.target.value);
-                                                       const otherPricings = (selectedProduct.variantPricings || []).filter(vp => vp.variantOption?.id !== opt.id);
+                                                       const otherPricings = (selectedProduct.variantPricings || []).filter(vp => String(vp.variantOption?.id || vp.variantOptionId || '') !== String(opt.id));
                                                        const existingSale = pricing?.overridePrice !== undefined && pricing?.overridePrice !== null ? pricing.overridePrice : null;
                                                        setSelectedProduct({
                                                           ...selectedProduct,
@@ -1356,194 +1669,193 @@ export default function ProductManagementPopup({
       </div>
 
       <style jsx>{`
-        /* Premium Recipe Redesign Styles */
-        .recipe-glass-card {
-          background: rgba(255, 255, 255, 0.7) !important;
-          backdrop-filter: blur(12px) !important;
-          border: 1px solid rgba(226, 232, 240, 0.8) !important;
-          border-left: 3px solid #ea580c !important;
-          border-radius: 10px !important;
-          padding: 10px 12px !important;
-          margin-bottom: 8px !important;
-          box-shadow: 0 4px 10px rgba(15, 23, 42, 0.03) !important;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        /* Standard Recipe BOM Styles */
+        .recipe-item-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 8px 12px;
+          margin-bottom: 6px;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+          transition: all 0.15s ease;
         }
-        .recipe-glass-card:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.05) !important;
-          border-color: #ea580c !important;
+        .recipe-item-row:hover {
+          border-color: #cbd5e1;
+          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
         }
-        .recipe-index-badge {
+        .recipe-item-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          flex: 1;
+        }
+        .recipe-item-index {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: #0f172a;
-          color: white;
-          font-size: 9px;
+          width: 22px;
+          height: 22px;
+          border-radius: 6px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          color: #64748b;
+          font-size: 11px;
           font-weight: 700;
-          margin-right: 7px;
+          flex-shrink: 0;
         }
-        .recipe-uom-pill {
+        .recipe-item-name-group {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+          min-width: 0;
+        }
+        .recipe-item-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #0f172a;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .recipe-item-code {
+          font-size: 9px;
+          font-weight: 600;
+          color: #64748b;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 1px 5px;
+          border-radius: 4px;
+        }
+        .recipe-item-uom {
           display: inline-flex;
           align-items: center;
           padding: 1px 6px;
-          background: #f1f5f9;
-          border: 1px solid #cbd5e1;
-          color: #475569;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          color: #64748b;
           font-size: 9px;
           font-weight: 700;
-          border-radius: 999px;
+          border-radius: 4px;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
-          margin-left: 6px;
         }
-        .qty-controls-container {
+        .recipe-item-variant {
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
+          color: #ea580c;
+          font-size: 9px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 4px;
+          text-transform: capitalize;
+        }
+        .recipe-item-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+        .recipe-stepper {
           display: flex;
           align-items: center;
           background: #f8fafc;
           border: 1px solid #cbd5e1;
           border-radius: 8px;
           padding: 2px;
-          width: 100%;
-          max-width: 160px;
-          transition: all 0.2s;
+          transition: border-color 0.15s;
         }
-        .qty-controls-container:focus-within {
-          border-color: #ea580c;
-          box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.12);
+        .recipe-stepper:focus-within {
+          border-color: #f97316;
+          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.12);
         }
-        .qty-btn {
+        .stepper-btn {
           width: 24px;
           height: 24px;
           border: none;
-          background: white;
+          background: #ffffff;
           border-radius: 6px;
-          color: #475569;
+          color: #64748b;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 10px;
-          transition: all 0.2s;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+          font-size: 9px;
+          transition: all 0.15s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.04);
         }
-        .qty-btn:hover {
-          background: #ea580c;
-          color: white;
+        .stepper-btn:hover {
+          background: #f97316;
+          color: #ffffff;
         }
-        .qty-input-wrapper {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          position: relative;
-          padding: 0 4px;
-        }
-        .qty-styled-input {
-          width: 100%;
+        .stepper-input {
+          width: 46px;
           border: none;
           background: transparent;
-          font-size: 12px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #0f172a;
           text-align: center;
-          padding: 2px 24px 2px 2px;
           outline: none;
+          padding: 0 2px;
         }
-        .qty-floating-badge {
-          position: absolute;
-          right: 4px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 9px;
-          font-weight: 800;
-          color: #94a3b8;
+        .stepper-unit {
+          font-size: 10px;
+          font-weight: 700;
+          color: #64748b;
           text-transform: uppercase;
-          pointer-events: none;
-          letter-spacing: 0.05em;
+          padding: 0 6px 0 2px;
+          letter-spacing: 0.02em;
+          user-select: none;
+        }
+        .recipe-v-divider {
+          width: 1px;
+          height: 18px;
+          background: #e2e8f0;
+        }
+        .recipe-delete-btn {
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          border: none;
+          background: transparent;
+          color: #94a3b8;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+        }
+        .recipe-delete-btn:hover {
+          background: #fef2f2;
+          color: #ef4444;
         }
         .recipe-empty-state {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 24px 16px;
+          padding: 20px 16px;
           background: #f8fafc;
           border: 1px dashed #cbd5e1;
-          border-radius: 10px;
+          border-radius: 8px;
           text-align: center;
-          margin-top: 10px;
+          margin-top: 6px;
         }
         .empty-icon-circle {
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          background: #fff7ed;
-          border: 1.5px solid #ffedd5;
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 10px;
-          box-shadow: 0 4px 10px rgba(234, 88, 12, 0.06);
-        }
-        .pulse-icon {
-          color: #ea580c;
-          font-size: 18px;
-          animation: pulseIcon 2.5s infinite ease-in-out;
-        }
-        @keyframes pulseIcon {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.1); filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.4)); }
-          100% { transform: scale(1); }
-        }
-        .recipe-empty-state h3 {
-          font-size: 13px;
-          font-weight: 700;
-          color: #1e293b;
-          margin-bottom: 4px;
-        }
-        .recipe-empty-state p {
-          font-size: 11px;
-          color: #64748b;
-          max-width: 280px;
-          line-height: 1.4;
-          margin-bottom: 8px;
-        }
-        .empty-state-hint {
-          font-size: 10px;
-          color: #94a3b8;
-          font-weight: 500;
-          background: white;
-          padding: 3px 10px;
-          border-radius: 999px;
-          border: 1px solid #e2e8f0;
-        }
-        .recipe-selector-card {
-          background: white;
-          border: 1.5px solid #f97316;
-          border-radius: 10px;
-          padding: 10px 12px;
-          box-shadow: 0 2px 8px rgba(249, 115, 22, 0.04);
-          margin-bottom: 12px;
-          transition: all 0.3s;
-        }
-        .recipe-selector-card:hover {
-          border-color: #ea580c;
-          box-shadow: 0 4px 12px rgba(234, 88, 12, 0.08);
-        }
-        .recipe-switch-row {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-        }
-        .recipe-switch-label {
-          font-size: 10px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.02em;
-          transition: color 0.2s;
+          margin-bottom: 6px;
         }
 
         .drawer-form { display: flex; flex-direction: column; gap: 10px; }
@@ -1591,10 +1903,58 @@ export default function ProductManagementPopup({
         .text-red { color: #ef4444; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .hint-text { font-size: 11px; color: #64748b; margin-top: 6px; font-style: italic; }
 
-        .drawer-tabs { display: flex; gap: 3px; padding: 3px; background: #f1f5f9; border-radius: 10px; margin-bottom: 14px; position: sticky; top: -20px; z-index: 10; align-self: flex-start; }
-        .drawer-tab { padding: 5px 12px; border: none; background: none; font-size: 10px; font-weight: 700; color: #64748b; cursor: pointer; border-radius: 7px; text-transform: uppercase; transition: all 0.2s; }
-        .drawer-tab.active { background: white; color: #FF7A00; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .drawer-tab:hover:not(.active) { color: #0f172a; }
+        .drawer-tabs {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px;
+          background: #ffffff;
+          border-radius: 16px;
+          border: 1px solid #e2e8f0;
+          margin-bottom: 16px;
+          position: sticky;
+          top: -20px;
+          z-index: 10;
+          align-self: flex-start;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+          overflow-x: auto;
+          scrollbar-width: none;
+          max-width: 100%;
+        }
+        .drawer-tabs::-webkit-scrollbar {
+          display: none;
+        }
+        .drawer-tab {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 7px 16px;
+          height: 36px;
+          border: none;
+          background: transparent;
+          color: #64748b;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          border-radius: 12px;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .drawer-tab:hover:not(.active) {
+          color: #334155;
+          background: #f8fafc;
+        }
+        .drawer-tab.active {
+          background: #f97316;
+          color: white !important;
+          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);
+        }
+        .drawer-tab.active svg,
+        .drawer-tab.active span {
+          color: white !important;
+        }
 
         .mapping-selector { display: flex; flex-direction: column; gap: 6px; }
         .mappings-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }

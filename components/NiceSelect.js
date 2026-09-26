@@ -8,7 +8,7 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const current = options.find((o) => o.value === value);
+  const current = options.find((o) => String(o.value ?? '') === String(value ?? ''));
 
   const filteredOptions = options.filter(o => 
     o.label.toLowerCase().includes(search.toLowerCase())
