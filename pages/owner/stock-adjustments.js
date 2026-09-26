@@ -148,6 +148,7 @@ function AdjustmentContent() {
             hasVariantMap[rawPId] = true;
             hasVariantMap[pLower] = true;
 
+            variantSums[rawPId] = (variantSums[rawPId] || 0) + qty;
             variantSums[pLower] = (variantSums[pLower] || 0) + qty;
           }
         });
@@ -169,13 +170,12 @@ function AdjustmentContent() {
         });
 
         // Pass 3: Map calculated variant sums to parent product IDs
-        Object.keys(variantSums).forEach(pLower => {
-          const totalVariantQty = variantSums[pLower];
-          const sumObj = {
+        Object.keys(variantSums).forEach(key => {
+          const totalVariantQty = variantSums[key];
+          stockMap[key] = {
             currentStock: totalVariantQty,
             currentQuantity: totalVariantQty
           };
-          stockMap[pLower] = sumObj;
         });
 
         setSourceStock(stockMap);
@@ -188,7 +188,11 @@ function AdjustmentContent() {
   };
 
   useEffect(() => {
-    if (adjustment.warehouseId) fetchSourceStock(adjustment.warehouseId);
+    if (adjustment.warehouseId) {
+      fetchSourceStock(adjustment.warehouseId);
+    } else {
+      setSourceStock({});
+    }
   }, [adjustment.warehouseId]);
 
   const loadDraft = (d) => {
@@ -478,8 +482,11 @@ function AdjustmentContent() {
                         <div className="no-sug">No products found matching &quot;{productSearch}&quot;</div>
                      ) : (
                       filteredSuggestions.map(p => {
-                        const stockObj = sourceStock[p.id] || sourceStock[String(p.id).toLowerCase()];
-                        const currentStock = stockObj ? stockObj.currentStock : 0;
+                        const pIdStr = String(p.id || '');
+                        const stockObj = sourceStock[p.id] || sourceStock[pIdStr] || sourceStock[pIdStr.toLowerCase()];
+                        const currentStock = stockObj?.currentStock !== undefined 
+                          ? stockObj.currentStock 
+                          : (stockObj?.currentQuantity !== undefined ? stockObj.currentQuantity : 0);
                         const hasWarehouse = !!adjustment.warehouseId;
                         return (
                           <div key={p.id} className="sug-item" onClick={() => addProductToManifest(p)}>
@@ -489,7 +496,7 @@ function AdjustmentContent() {
                             </div>
                             {hasWarehouse && (
                               <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
-                                <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock > 0 ? `${currentStock} Available` : '0 Available'}
+                                <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock} Available
                               </div>
                             )}
                           </div>
