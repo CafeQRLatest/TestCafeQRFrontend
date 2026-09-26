@@ -327,10 +327,24 @@ function TerminalsContent() {
       <style jsx>{`
         .v2-layout-container {
           display: grid;
-          grid-template-columns: 320px 1fr;
+          grid-template-columns: 320px minmax(0, 1fr);
           gap: 24px;
           width: 100%;
-          padding: 0 20px;
+          max-width: 100%;
+          box-sizing: border-box;
+          min-width: 0;
+        }
+
+        .v2-workspace {
+          min-width: 0;
+          max-width: 100%;
+          width: 100%;
+        }
+
+        .v2-form-container {
+          min-width: 0;
+          max-width: 100%;
+          width: 100%;
         }
 
         .v2-sidebar {
@@ -345,6 +359,8 @@ function TerminalsContent() {
           height: calc(100vh - 180px);
           position: sticky;
           top: 24px;
+          min-width: 0;
+          box-sizing: border-box;
         }
 
         .sidebar-action-header {
@@ -389,6 +405,7 @@ function TerminalsContent() {
           font-size: 13px;
           font-weight: 600;
           color: #1e293b;
+          box-sizing: border-box;
         }
         .sidebar-search-box input:focus {
           outline: none;
@@ -397,41 +414,44 @@ function TerminalsContent() {
           box-shadow: 0 0 0 3px #fff7ed;
         }
 
-        .v2-branch-grid { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; }
+        .v2-branch-grid { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px; min-width: 0; }
         
         .v2-branch-card {
           padding: 12px 14px; border-radius: 12px; background: white; border: 1px solid #f1f5f9;
           display: flex; align-items: center; gap: 12px; cursor: pointer; position: relative;
+          min-width: 0; box-sizing: border-box;
         }
         .v2-branch-card:hover { border-color: #cbd5e1; }
         .v2-branch-card.selected { border-color: #f97316; background: #fffaf0; box-shadow: 0 8px 20px rgba(249, 115, 22, 0.08); }
 
-        .card-status-pip { width: 4px; height: 24px; border-radius: 2px; background: #e2e8f0; }
+        .card-status-pip { width: 4px; height: 24px; border-radius: 2px; background: #e2e8f0; flex-shrink: 0; }
         .card-status-pip[data-status="Y"] { background: #10b981; }
         .v2-branch-card.selected .card-status-pip { background: #f97316; height: 32px; }
 
-        .card-info { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
-        .card-title { font-size: 15px; font-weight: 800; color: #1e293b; line-height: 1.2; }
+        .card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+        .card-title { font-size: 15px; font-weight: 800; color: #1e293b; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .card-code { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; }
         .card-tag-row { margin-top: 2px; }
         .branch-tag { color: #f97316; font-weight: 800; background: #fff7ed; padding: 2px 8px; border-radius: 6px; font-size: 10px; text-transform: uppercase; border: 1px solid #ffedd5; display: inline-block; }
-        .card-chevron { font-size: 12px; color: #cbd5e1; transition: 0.3s; }
+        .card-chevron { font-size: 12px; color: #cbd5e1; transition: 0.3s; flex-shrink: 0; }
         .v2-branch-card.selected .card-chevron { color: #f97316; transform: translateX(4px); }
 
         .v2-hero-card {
           background: white; border-radius: 20px; padding: 24px; border: 1px solid #edf2f7;
           display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+          gap: 16px; min-width: 0; box-sizing: border-box;
         }
 
-        .hero-identity { display: flex; align-items: center; gap: 16px; }
-        .hero-icon-box { width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #64748b; }
-        .hero-text h2 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+        .hero-identity { display: flex; align-items: center; gap: 16px; min-width: 0; }
+        .hero-icon-box { width: 48px; height: 48px; background: #f1f5f9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #64748b; flex-shrink: 0; }
+        .hero-text { min-width: 0; }
+        .hero-text h2 { margin: 0; font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .hero-text p { margin: 2px 0 0; font-size: 12px; color: #94a3b8; font-weight: 600; }
 
-        .hero-actions { display: flex; align-items: center; gap: 16px; }
+        .hero-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
         .v2-status-pill {
           display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px;
-          font-size: 12px; font-weight: 800; text-transform: uppercase; cursor: pointer;
+          font-size: 12px; font-weight: 800; text-transform: uppercase; cursor: pointer; white-space: nowrap;
         }
         .v2-status-pill.active { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
         .v2-status-pill.inactive { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
@@ -439,18 +459,18 @@ function TerminalsContent() {
         .v2-prime-save {
           background: #f97316; color: white; border: none; padding: 12px 28px; border-radius: 12px;
           font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 10px;
-          box-shadow: 0 4px 10px rgba(249, 115, 22, 0.2);
+          box-shadow: 0 4px 10px rgba(249, 115, 22, 0.2); white-space: nowrap;
         }
         .v2-prime-save:hover { background: #ea580c; }
         
 
-        .v2-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-        .v2-data-block { background: white; border-radius: 16px; border: 1px solid #edf2f7; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+        .v2-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; min-width: 0; }
+        .v2-data-block { background: white; border-radius: 16px; border: 1px solid #edf2f7; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; box-sizing: border-box; }
         .block-header { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f8fafc; padding-bottom: 12px; }
-        .block-icon { font-size: 14px; color: #f97316; }
+        .block-icon { font-size: 14px; color: #f97316; flex-shrink: 0; }
         .block-header h4 { margin: 0; font-size: 13px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .v2-input-group { display: flex; flex-direction: column; gap: 6px; }
+        .v2-input-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
         .v2-input-group label { font-size: 11px; font-weight: 700; color: #64748b; }
         .v2-input-group input { 
           background: #fcfcfd; 
@@ -461,6 +481,7 @@ function TerminalsContent() {
           font-weight: 600; 
           color: #1e293b; 
           width: 100%;
+          box-sizing: border-box;
         }
         .v2-input-group input::placeholder { color: #cbd5e1; }
         .v2-input-group input:focus { outline: none; border-color: #f97316; background: white; box-shadow: 0 0 0 3px #fff7ed; }
@@ -489,9 +510,87 @@ function TerminalsContent() {
         .loading-state-premium { height: 100vh; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #64748b; }
 
         @media (max-width: 1024px) {
-          .v2-layout-container { grid-template-columns: 1fr; }
-          .v2-sidebar { height: auto; position: relative; top: 0; }
-          .v2-detail-grid { grid-template-columns: 1fr; }
+          .v2-layout-container { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+          .v2-sidebar { height: auto; max-height: 280px; position: static; top: 0; }
+          .v2-detail-grid { grid-template-columns: minmax(0, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+          .v2-hero-card {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 14px;
+            padding: 16px;
+            border-radius: 16px;
+          }
+          .hero-identity {
+            width: 100%;
+            gap: 12px;
+            min-width: 0;
+          }
+          .hero-icon-box {
+            width: 42px;
+            height: 42px;
+            font-size: 18px;
+            border-radius: 10px;
+            flex-shrink: 0;
+          }
+          .hero-text {
+            min-width: 0;
+            flex: 1;
+          }
+          .hero-text h2 {
+            font-size: 17px;
+          }
+          .hero-actions {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+          }
+          .v2-status-pill {
+            flex: 1;
+            justify-content: center;
+            padding: 10px 12px;
+            font-size: 11px;
+            min-width: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .v2-prime-save {
+            flex: 1;
+            justify-content: center;
+            padding: 11px 16px;
+            font-size: 13px;
+            min-width: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .v2-data-block {
+            padding: 16px;
+            border-radius: 14px;
+          }
+          .v2-sidebar {
+            padding: 16px;
+            border-radius: 16px;
+            max-height: none;
+          }
+          .v2-branch-grid {
+            max-height: 220px;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .hero-icon-box { width: 36px; height: 36px; font-size: 16px; }
+          .hero-text h2 { font-size: 15px; }
+          .v2-status-pill { font-size: 10px; padding: 8px 8px; gap: 6px; }
+          .v2-prime-save { font-size: 12px; padding: 10px 10px; gap: 6px; }
         }
       `}</style>
     </DashboardLayout>
