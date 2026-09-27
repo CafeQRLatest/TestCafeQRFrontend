@@ -361,17 +361,40 @@ export const SummaryDetails = styled.div`
 export const SaveButton = styled.button`
   border: 0;
   border-radius: 10px;
-  background: #f97316;
+  background: ${props => props.$isSubmitting ? '#ea580c' : '#f97316'};
   color: white;
   min-height: 40px;
   padding: 0 18px;
-  cursor: pointer;
+  cursor: ${props => props.$isSubmitting ? 'not-allowed' : 'pointer'};
   display: inline-flex;
   gap: 8px;
   align-items: center;
   font-size: 13px;
   font-weight: 500;
-  transition: background 0.2s, transform 0.1s;
+  transition: all 0.2s ease;
+  pointer-events: ${props => props.$isSubmitting ? 'none' : 'auto'};
+  position: relative;
+  user-select: none;
+
+  ${props => props.$isSubmitting && `
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.4);
+    opacity: 0.9;
+  `}
+
+  .save-btn-spinner {
+    animation: saveSpin 0.8s linear infinite;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  @keyframes saveSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
   &:hover:not(:disabled) {
     background: #ea580c;
@@ -387,7 +410,7 @@ export const SaveButton = styled.button`
   }
 
   &:disabled {
-    opacity: 0.5;
+    opacity: ${props => props.$isSubmitting ? 0.9 : 0.5};
     cursor: not-allowed;
   }
 `;

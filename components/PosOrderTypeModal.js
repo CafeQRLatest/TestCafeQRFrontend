@@ -2524,10 +2524,13 @@ export default function PosOrderTypeModal({
         <div style={{ position: 'relative', zIndex: 10005 }}>
           <EditOrderPanel
             order={editingOrder}
+            saving={actionBusy === 'edit_save' || actionBusy === editingOrder?.id}
             onClose={() => {
+              if (actionBusy === 'edit_save' || actionBusy === editingOrder?.id) return;
               setEditingOrder(null);
             }}
             onSave={async (updatedOrder, originalOrder) => {
+              setActionBusy('edit_save');
               try {
                 const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
                 const payloadWithSkip = {
@@ -2563,6 +2566,9 @@ export default function PosOrderTypeModal({
                 fetchLiveOrders();
               } catch (e) {
                 notify('error', 'Failed to update order: ' + (e.response?.data?.message || e.message));
+                throw e;
+              } finally {
+                setActionBusy(null);
               }
             }}
           />

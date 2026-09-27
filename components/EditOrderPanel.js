@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FaChevronRight, FaMinus, FaPlus, FaSave, FaSearch, FaTimes, FaTrash, FaUtensils } from 'react-icons/fa';
+import { FaChevronRight, FaMinus, FaPlus, FaSave, FaSearch, FaSpinner, FaTimes, FaTrash, FaUtensils } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import VariantSelector from './VariantSelector';
@@ -236,6 +236,8 @@ function deterministicUUID(str) {
 export default function EditOrderPanel({ order, onClose, onSave, saving = false }) {
   const { notify } = useNotification();
   const { canDeleteOrderItem, canDecrementOrderItem } = useAuth();
+  const [internalSaving, setInternalSaving] = useState(false);
+  const isBusy = Boolean(saving || internalSaving);
   const [fullOrder, setFullOrder] = useState(order);
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
@@ -769,7 +771,8 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     setLines((current) => current.filter((line) => line.cartKey !== cartKey));
   };
 
-  const submit = () => {
+  const submit = async () => {
+    if (isBusy || lines.length === 0) return;
     const dp = config?.currencyDecimalPlaces ?? 2;
 
     const processedLines = (totals.processedLines || []).map((line) => {
@@ -804,7 +807,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       };
     });
 
-    onSave?.({
+    const payload = {
       ...fullOrder,
       skipAutoPrintKinds: (typeof localPrintWillHandleKind === 'function' && localPrintWillHandleKind('kot')) ? ['KOT'] : (fullOrder?.skipAutoPrintKinds || []),
       orderType: fullOrder?.orderType || 'SALE',
@@ -835,20 +838,37 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       roundOffAmount: roundOff != null ? Number(roundOff.toFixed(dp)) : 0,
       grossAmount: totals ? Number((totals.grossTotal || 0).toFixed(dp)) : fullOrder?.grossAmount,
       lines: processedLines,
-    }, fullOrder);
+    };
+
+    setInternalSaving(true);
+    try {
+      if (onSave) {
+        await Promise.resolve(onSave(payload, fullOrder));
+      }
+    } catch (err) {
+      console.error('Failed to save order in EditOrderPanel:', err);
+    } finally {
+      setInternalSaving(false);
+    }
   };
 
   if (!order) return null;
 
   return (
-    <Overlay onMouseDown={onClose}>
+    <Overlay onMouseDown={isBusy ? undefined : onClose}>
       <Panel onMouseDown={(event) => event.stopPropagation()}>
         <Header>
           <div>
             <h2><FaUtensils /> Edit Order</h2>
             <span>{order.orderNo || order.order_no || `#${String(order.id || '').slice(0, 8)}`}</span>
           </div>
-          <CloseButton type="button" onClick={onClose} aria-label="Close edit order panel">
+          <CloseButton
+            type="button"
+            onClick={isBusy ? undefined : onClose}
+            disabled={isBusy}
+            aria-label="Close edit order panel"
+            style={isBusy ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
+          >
             <FaTimes />
           </CloseButton>
         </Header>
@@ -1042,8 +1062,23 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
               )}
             </FooterControls>
           )}
-          <SaveButton type="button" disabled={saving || lines.length === 0} onClick={submit}>
-            <FaSave /> {saving ? 'Saving...' : (isCompleted ? 'Save & Proceed to Payment' : 'Save Order')}
+          <SaveButton
+            type="button"
+            disabled={isBusy || lines.length === 0}
+            $isSubmitting={isBusy}
+            onClick={submit}
+          >
+            {isBusy ? (
+              <>
+                <FaSpinner className="save-btn-spinner" />
+                <span>{isCompleted ? 'Saving & Processing...' : 'Saving Order...'}</span>
+              </>
+            ) : (
+              <>
+                <FaSave />
+                <span>{isCompleted ? 'Save & Proceed to Payment' : 'Save Order'}</span>
+              </>
+            )}
           </SaveButton>
         </Footer>
       </Panel>
