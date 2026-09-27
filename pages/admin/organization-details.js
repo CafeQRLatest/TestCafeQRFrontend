@@ -124,6 +124,10 @@ function OrganizationSettingsContent() {
 
     if (clientSlug && branchSlug) {
       if (clientSlug === branchSlug) {
+        if (organizations && organizations.length > 1) {
+          const fallbackBranch = org.slug?.trim() || org.branchCode?.toLowerCase() || 'hq';
+          return `${baseUrl}/${clientSlug}/${fallbackBranch}`;
+        }
         return `${baseUrl}/${clientSlug}`;
       }
       return `${baseUrl}/${clientSlug}/${branchSlug}`;
