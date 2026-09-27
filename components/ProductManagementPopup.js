@@ -417,6 +417,8 @@ export default function ProductManagementPopup({
       isPackagedGood: toBoolean(p.isPackagedGood, false),
       isIngredient: toBoolean(p.isIngredient, false),
       isVariablePrice: toBoolean(p.isVariablePrice, false),
+      isClientWise: Boolean(p.isClientWise === true),
+      orgId: p.orgId || p.org_id || null,
       productCode: p.productCode || '',
       taxRate: toNumber(p.taxRate, 0),
       taxCode: p.taxCode || '',
@@ -658,6 +660,8 @@ export default function ProductManagementPopup({
         isPackagedGood: Boolean(selectedProduct.isPackagedGood),
         isIngredient: Boolean(selectedProduct.isIngredient),
         isVariablePrice: Boolean(selectedProduct.isVariablePrice),
+        isClientWise: Boolean(selectedProduct.isClientWise),
+        orgId: selectedProduct.isClientWise ? null : (selectedProduct.orgId || null),
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
         costPrice: baseCostPrice,
         mrp: selectedProduct.mrp === '' || selectedProduct.mrp === null || selectedProduct.mrp === undefined || isNaN(selectedProduct.mrp) ? 0 : Number(selectedProduct.mrp),
@@ -908,35 +912,41 @@ export default function ProductManagementPopup({
               </div>
 
              <div className="info-options-row" style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
-                   <label style={{ margin: 0 }}>Packaged Good</label>
-                   <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
-                      <div className="switch-knob"></div>
-                   </div>
-                </div>
-                {inventoryEnabled && (
-                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
-                     <label style={{ margin: 0 }}>Is Ingredient</label>
-                     <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
+                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
+                    <label style={{ margin: 0 }}>Packaged Good</label>
+                    <div className={`erp-switch ${selectedProduct.isPackagedGood ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isPackagedGood: !selectedProduct.isPackagedGood})}>
                        <div className="switch-knob"></div>
-                     </div>
-                  </div>
-                )}
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
-                   <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Variable Price</label>
-                   <div className={`erp-switch ${selectedProduct.isVariablePrice ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isVariablePrice: !selectedProduct.isVariablePrice})}>
-                     <div className="switch-knob"></div>
+                    </div>
+                 </div>
+                 {inventoryEnabled && (
+                   <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
+                      <label style={{ margin: 0 }}>Is Ingredient</label>
+                      <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
+                        <div className="switch-knob"></div>
+                      </div>
                    </div>
-                </div>
-                <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px' }}>
-                   <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Show in Delivery Website</label>
-                   <div className={`erp-switch ${selectedProduct.isDeliveryVisible ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isDeliveryVisible: !selectedProduct.isDeliveryVisible})}>
-                     <div className="switch-knob"></div>
-                   </div>
-                </div>
-             </div>
+                 )}
+                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
+                    <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Variable Price</label>
+                    <div className={`erp-switch ${selectedProduct.isVariablePrice ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isVariablePrice: !selectedProduct.isVariablePrice})}>
+                      <div className="switch-knob"></div>
+                    </div>
+                 </div>
+                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px' }}>
+                    <label style={{ margin: 0, whiteSpace: 'nowrap' }}>Show in Delivery Website</label>
+                    <div className={`erp-switch ${selectedProduct.isDeliveryVisible ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isDeliveryVisible: !selectedProduct.isDeliveryVisible})}>
+                      <div className="switch-knob"></div>
+                    </div>
+                 </div>
+                 <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
+                    <label style={{ margin: 0, whiteSpace: 'nowrap' }} title="Make this product visible and available across all branches under your client account">Client-Wise (All Branches)</label>
+                    <div className={`erp-switch ${selectedProduct.isClientWise ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isClientWise: !selectedProduct.isClientWise})}>
+                      <div className="switch-knob"></div>
+                    </div>
+                 </div>
+              </div>
 
-             {taxEnabled && selectedProduct.isPackagedGood && (
+              {taxEnabled && selectedProduct.isPackagedGood && (
                <div className="erp-section" style={{ marginTop: '12px' }}>
                   <div className="input-row">
                      <div className="input-group"><label>Tax (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>

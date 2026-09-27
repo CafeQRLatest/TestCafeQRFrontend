@@ -437,6 +437,8 @@ function ProductManagementContent() {
       isPackagedGood: toBoolean(product.isPackagedGood, false),
       isIngredient: toBoolean(product.isIngredient, false),
       isVariablePrice: toBoolean(product.isVariablePrice, false),
+      isClientWise: Boolean(product.isClientWise === true),
+      orgId: product.orgId || product.org_id || null,
       productCode: product.productCode || '',
       taxRate: toNumber(product.taxRate, 0),
       taxCode: product.taxCode || '',
@@ -472,6 +474,8 @@ function ProductManagementContent() {
       const url = isNew ? '/api/v1/products' : `/api/v1/products/${selectedProduct.id}`;
       const payload = {
         ...selectedProduct,
+        isClientWise: Boolean(selectedProduct.isClientWise),
+        orgId: selectedProduct.isClientWise ? null : (selectedProduct.orgId || null),
         price: isIngredient ? 0 : Number(selectedProduct.price || 0),
         category: selectedProduct.category?.id ? { id: selectedProduct.category.id } : null,
         uom: selectedProduct.uom?.id ? { id: selectedProduct.uom.id } : null,
