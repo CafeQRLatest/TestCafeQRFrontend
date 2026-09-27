@@ -13,7 +13,7 @@ import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
   FaExchangeAlt, FaTrash, FaSearch, FaSave,
   FaWarehouse, FaMapMarkerAlt, FaPlus, FaMinus,
-  FaFolderOpen, FaBoxOpen, FaHistory, FaTimes, FaTimesCircle, FaExclamationTriangle
+  FaFolderOpen, FaBoxOpen, FaHistory, FaTimes, FaTimesCircle, FaExclamationTriangle, FaBuilding
 } from 'react-icons/fa';
 
 export default function StockTransfersPage() {
@@ -28,13 +28,42 @@ export default function StockTransfersPage() {
   );
 }
 
+const isOrgIdZeroOrNull = (orgId) => {
+  if (orgId === null || orgId === undefined || orgId === '' || orgId === 0 || orgId === '0') return true;
+  const str = String(orgId).trim().toLowerCase();
+  return (
+    str === '' ||
+    str === '0' ||
+    str === 'null' ||
+    str === 'undefined' ||
+    str === '00000000-0000-0000-0000-000000000000'
+  );
+};
+
+const hasRecipeIngredients = (p) => {
+  if (!p) return false;
+  if (p.hasIngredients === true || p.hasIngredients === 'true' || p.hasIngredients === 'Y' ||
+      p.has_ingredients === true || p.has_ingredients === 'true' || p.has_ingredients === 'Y') {
+    return true;
+  }
+  if ((Array.isArray(p.recipeLines) && p.recipeLines.length > 0) ||
+      (Array.isArray(p.recipe_lines) && p.recipe_lines.length > 0)) {
+    return true;
+  }
+  return false;
+};
+
 function TransferContent() {
   const { timezone, userRole, clientId, orgId } = useAuth();
   const { notify } = useNotification();
   const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
   const [warehouses, setWarehouses] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
+  const [sourceBranchId, setSourceBranchId] = useState('');
+  const [destBranchId, setDestBranchId] = useState('');
   const [products, setProducts] = useState([]);
   const [sourceStock, setSourceStock] = useState({});
+  const [nonStockTransferPolicy, setNonStockTransferPolicy] = useState('NONE');
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,62 +113,144 @@ function TransferContent() {
     }
   }, [transfer.sourceWarehouseId]);
 
-  // Restrict BOTH Source & Target Warehouses ONLY to the active/logged-in organization's warehouses
-  const orgWarehouses = useMemo(() => {
-    return warehouses.filter(w => {
-      if (!currentOrgId) return true;
-      const wOrg = String(w.organizationId || w.organization_id || w.orgId || w.org_id || '');
-      return !wOrg || String(wOrg) === String(currentOrgId);
-    });
-  }, [warehouses, currentOrgId]);
+  const orgMap = useMemo(() => {
+    return Object.fromEntries(organizations.map(o => [String(o.id), o.name]));
+  }, [organizations]);
 
-  const sourceWarehouses = orgWarehouses;
+  const branchOptions = useMemo(() => {
+    return organizations.map(o => ({
+      value: o.id,
+      label: o.code ? `${o.name} (${o.code})` : o.name
+    }));
+  }, [organizations]);
+
+  const sourceWarehouseList = useMemo(() => {
+    if (!sourceBranchId) return warehouses;
+    return warehouses.filter(w => {
+      const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+      return !wOrg || wOrg === String(sourceBranchId);
+    });
+  }, [warehouses, sourceBranchId]);
 
   const sourceWarehouseOptions = useMemo(() => {
-    return orgWarehouses.map(w => ({ value: w.id, label: w.name }));
-  }, [orgWarehouses]);
+    return sourceWarehouseList.map(w => ({
+      value: w.id,
+      label: w.isDefault ? `${w.name} (Default)` : w.name
+    }));
+  }, [sourceWarehouseList]);
 
-  const warehouseOptions = useMemo(() => {
-    return orgWarehouses.map(w => ({ value: w.id, label: w.name }));
-  }, [orgWarehouses]);
+  const destWarehouseList = useMemo(() => {
+    if (!destBranchId) return warehouses;
+    return warehouses.filter(w => {
+      const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+      return !wOrg || wOrg === String(destBranchId);
+    });
+  }, [warehouses, destBranchId]);
 
-  useEffect(() => {
-    if (orgWarehouses.length > 0) {
-      const defaultWh = orgWarehouses.find(w => w.isDefault) || orgWarehouses[0];
-      setTransfer(prev => {
-        const isSourceValid = orgWarehouses.some(w => w.id === prev.sourceWarehouseId);
-        const isDestValid = orgWarehouses.some(w => w.id === prev.destWarehouseId);
-        return {
-          ...prev,
-          sourceWarehouseId: isSourceValid ? prev.sourceWarehouseId : (defaultWh ? defaultWh.id : ''),
-          destWarehouseId: isDestValid ? prev.destWarehouseId : ''
-        };
-      });
-    }
-  }, [orgWarehouses]);
+  const destWarehouseOptions = useMemo(() => {
+    return destWarehouseList.map(w => ({
+      value: w.id,
+      label: w.isDefault ? `${w.name} (Default)` : w.name
+    }));
+  }, [destWarehouseList]);
+
+  const handleSourceBranchChange = (branchId) => {
+    setSourceBranchId(branchId);
+    const branchWhs = warehouses.filter(w => {
+      const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+      return !wOrg || wOrg === String(branchId);
+    });
+    const def = branchWhs.find(w => w.isDefault) || branchWhs[0];
+    setTransfer(prev => ({
+      ...prev,
+      sourceWarehouseId: def ? def.id : ''
+    }));
+  };
+
+  const handleDestBranchChange = (branchId) => {
+    setDestBranchId(branchId);
+    const branchWhs = warehouses.filter(w => {
+      const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+      return !wOrg || wOrg === String(branchId);
+    });
+    const def = branchWhs.find(w => w.isDefault) || branchWhs[0];
+    setTransfer(prev => ({
+      ...prev,
+      destWarehouseId: def ? def.id : ''
+    }));
+  };
 
   const fetchInitialData = async () => {
     try {
-      const [wResp, pResp] = await Promise.all([
-        api.get('/api/v1/warehouses'),
-        api.get('/api/v1/products')
+      const [cResp, wResp, pResp, orgResp] = await Promise.all([
+        api.get('/api/v1/configurations').catch(() => null),
+        api.get('/api/v1/warehouses?all=true'),
+        api.get('/api/v1/products'),
+        api.get('/api/v1/organizations')
       ]);
-      if (wResp.data.success) {
+
+      if (cResp?.data?.data) {
+        const cfg = cResp.data.data;
+        const isInvOn = cfg.inventoryEnabled !== false && cfg.pm_inventory !== false;
+        if (isInvOn) {
+          setNonStockTransferPolicy(cfg.nonStockTransferPolicy || cfg.non_stock_transfer_policy || 'NONE');
+        } else {
+          setNonStockTransferPolicy('NONE');
+        }
+      }
+
+      let fetchedOrgs = [];
+      if (orgResp?.data?.success) {
+        fetchedOrgs = orgResp.data.data || [];
+        setOrganizations(fetchedOrgs);
+      }
+
+      if (wResp?.data?.success) {
         const allWh = wResp.data.data || [];
         setWarehouses(allWh);
 
-        // For non-SUPER_ADMIN: auto-select the branch's warehouse as source
-        if (userRole !== 'SUPER_ADMIN' && clientId) {
-          const branchWh = allWh.find(w =>
-            String(w.clientId || w.client_id || '') === String(clientId)
-          );
-          if (branchWh) {
-            setTransfer(prev => ({ ...prev, sourceWarehouseId: branchWh.id }));
-          }
+        // Determine default source branch & warehouse
+        let initialSourceBranch = currentOrgId;
+        if (!initialSourceBranch && fetchedOrgs.length > 0) {
+          initialSourceBranch = fetchedOrgs[0].id;
         }
+        setSourceBranchId(initialSourceBranch || '');
+
+        const srcWhs = allWh.filter(w => {
+          const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+          return !wOrg || wOrg === String(initialSourceBranch);
+        });
+        const defSrcWh = srcWhs.find(w => w.isDefault) || srcWhs[0];
+
+        // Determine default target branch & warehouse
+        const otherOrgs = fetchedOrgs.filter(o => String(o.id) !== String(initialSourceBranch));
+        const initialDestBranch = otherOrgs.length > 0 ? otherOrgs[0].id : '';
+        setDestBranchId(initialDestBranch || '');
+
+        const dstWhs = allWh.filter(w => {
+          const wOrg = String(w.orgId || w.org_id || w.organizationId || '');
+          return !wOrg || wOrg === String(initialDestBranch);
+        });
+        const defDstWh = dstWhs.find(w => w.isDefault) || dstWhs[0];
+
+        setTransfer(prev => ({
+          ...prev,
+          sourceWarehouseId: prev.sourceWarehouseId || (defSrcWh ? defSrcWh.id : ''),
+          destWarehouseId: prev.destWarehouseId || (defDstWh ? defDstWh.id : '')
+        }));
       }
-      if (pResp.data.success) {
-        setProducts((pResp.data.data || []).filter(p => p.isActive !== false && p.isactive !== 'N'));
+
+      if (pResp?.data?.success) {
+        const rawProducts = pResp.data.data || [];
+        const eligible = rawProducts.filter(p => {
+          if (p.isActive === false || p.isactive === 'N') return false;
+          // Only allow products with orgId 0 or null
+          if (!isOrgIdZeroOrNull(p.orgId)) return false;
+          // Exclude manufactured/recipe products that have ingredients
+          if (hasRecipeIngredients(p)) return false;
+          return true;
+        });
+        setProducts(eligible);
       }
     } catch (err) {
       console.error("Failed to load generics:", err);
@@ -172,6 +283,11 @@ function TransferContent() {
       status: d.status,
       lines: d.lines || []
     });
+    const sWh = warehouses.find(w => w.id === d.sourceWarehouseId);
+    if (sWh?.orgId) setSourceBranchId(sWh.orgId);
+    const dWh = warehouses.find(w => w.id === d.destWarehouseId);
+    if (dWh?.orgId) setDestBranchId(dWh.orgId);
+
     if (d.sourceWarehouseId) fetchSourceStock(d.sourceWarehouseId);
     setShowDraftModal(false);
     showToast(`Loaded ${d.transferNumber}`, "success");
@@ -219,8 +335,10 @@ function TransferContent() {
           if (!rawVId) {
             const pLower = rawPId.toLowerCase();
             if (!hasVariantMap[rawPId] && !hasVariantMap[pLower]) {
-              stockMap[rawPId] = entry;
-              stockMap[pLower] = entry;
+              const prev = stockMap[pLower] ? (Number(stockMap[pLower].currentStock) || 0) : 0;
+              const combined = { ...entry, currentStock: prev + qty, currentQuantity: prev + qty };
+              stockMap[rawPId] = combined;
+              stockMap[pLower] = combined;
             }
           }
         });
@@ -257,24 +375,34 @@ function TransferContent() {
     const invalidQtyLine = transfer.lines.find(l => !l.transferQuantity || Number(l.transferQuantity) <= 0);
     if (invalidQtyLine) return showToast("Transfer quantity for all items must be at least 1", "error");
 
-    const zeroStockItem = transfer.lines.find(l => {
-      const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
-      const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
-      return current <= 0;
+    const nonGlobalItem = transfer.lines.find(l => {
+      const p = products.find(prod => String(prod.id) === String(l.productId));
+      return p && !isOrgIdZeroOrNull(p.orgId);
     });
-
-    if (zeroStockItem && finalStatus !== 'DRAFT') {
-      return showToast(`Cannot transfer non-stock item "${zeroStockItem.productName || 'product'}". Source stock is 0.`, "error");
+    if (nonGlobalItem) {
+      return showToast(`Item "${nonGlobalItem.productName || 'product'}" cannot be transferred because only products with orgId 0 or null are allowed.`, "error");
     }
 
-    const overdraftItem = transfer.lines.find(l => {
-      const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
-      const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
-      return (Number(l.transferQuantity) || 0) > current;
-    });
+    if (nonStockTransferPolicy === 'BLOCK' && finalStatus !== 'DRAFT') {
+      const zeroStockItem = transfer.lines.find(l => {
+        const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
+        const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
+        return current <= 0;
+      });
 
-    if (overdraftItem && finalStatus !== 'DRAFT') {
-      return showToast(`Transfer quantity for "${overdraftItem.productName || 'product'}" exceeds available stock.`, "error");
+      if (zeroStockItem) {
+        return showToast(`Cannot transfer non-stock item "${zeroStockItem.productName || 'product'}". Source stock is 0.`, "error");
+      }
+
+      const overdraftItem = transfer.lines.find(l => {
+        const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
+        const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
+        return (Number(l.transferQuantity) || 0) > current;
+      });
+
+      if (overdraftItem) {
+        return showToast(`Transfer quantity for "${overdraftItem.productName || 'product'}" exceeds available stock.`, "error");
+      }
     }
 
     setSaving(true);
@@ -365,13 +493,29 @@ function TransferContent() {
       return;
     }
 
-    const stockObj = sourceStock[product.id] || sourceStock[String(product.id).toLowerCase()];
-    const currentStock = stockObj ? stockObj.currentStock : 0;
+    if (!isOrgIdZeroOrNull(product.orgId)) {
+      showToast(`Cannot transfer "${product.name}". Only products with orgId 0 or null are allowed.`, "error");
+      setShowSuggestions(false);
+      return;
+    }
 
-    if (currentStock <= 0) {
+    if (hasRecipeIngredients(product)) {
+      showToast(`Cannot transfer "${product.name}". Products with ingredients cannot be transferred.`, "error");
+      setShowSuggestions(false);
+      return;
+    }
+
+    const stockObj = sourceStock[product.id] || sourceStock[String(product.id).toLowerCase()];
+    const currentStock = stockObj ? (Number(stockObj.currentStock) || 0) : 0;
+
+    if (nonStockTransferPolicy === 'BLOCK' && currentStock <= 0) {
       showToast(`"${product.name}" is out of stock in the selected warehouse.`, "error");
       setShowSuggestions(false);
       return;
+    }
+
+    if (nonStockTransferPolicy === 'WARNING' && currentStock <= 0) {
+      showToast(`Warning: "${product.name}" is out of stock in source warehouse.`, "error");
     }
 
     const hasVars = Boolean(
@@ -409,6 +553,19 @@ function TransferContent() {
       return;
     }
 
+    if (!isOrgIdZeroOrNull(product.orgId)) {
+      showToast(`Cannot transfer "${product.name}". Only products with orgId 0 or null are allowed.`, "error");
+      setProductSearch("");
+      setShowSuggestions(false);
+      return;
+    }
+
+    if (hasRecipeIngredients(product)) {
+      showToast(`Cannot transfer "${product.name}". Products with ingredients cannot be transferred.`, "error");
+      setShowSuggestions(false);
+      return;
+    }
+
     const variantId = selectedVariant ? selectedVariant.id : null;
     const variantLabel = selectedVariant ? selectedVariant.label : null;
 
@@ -424,11 +581,15 @@ function TransferContent() {
       available = pObj ? (Number(pObj.currentStock ?? pObj.currentQuantity) || 0) : 0;
     }
 
-    if (available <= 0) {
+    if (nonStockTransferPolicy === 'BLOCK' && available <= 0) {
       showToast(`Cannot add "${displayName}". 0 stock available in source warehouse.`, "error");
       setProductSearch("");
       setShowSuggestions(false);
       return;
+    }
+
+    if (nonStockTransferPolicy === 'WARNING' && available <= 0) {
+      showToast(`Warning: "${displayName}" is out of stock in source warehouse.`, "error");
     }
 
     const existingIdx = transfer.lines.findIndex(l => 
@@ -438,7 +599,7 @@ function TransferContent() {
 
     if (existingIdx >= 0) {
       const currentQty = Number(transfer.lines[existingIdx].transferQuantity) || 0;
-      if (currentQty + 1 > available) {
+      if (nonStockTransferPolicy === 'BLOCK' && currentQty + 1 > available) {
         showToast(`Cannot add more "${displayName}". Maximum available stock is ${available} units.`, "error");
         setProductSearch("");
         setShowSuggestions(false);
@@ -482,7 +643,7 @@ function TransferContent() {
     }
 
     let qty = rawNum;
-    if (transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
+    if (nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
       qty = Math.max(1, maxStock);
       showToast(`Quantity capped at available stock (${maxStock} units)`, "error");
     }
@@ -502,16 +663,36 @@ function TransferContent() {
   const totalItems = transfer.lines.length;
   const totalUnits = transfer.lines.reduce((sum, line) => sum + (Number(line.transferQuantity) || 0), 0);
 
-  const swapWarehouses = () => {
+  const swapRouting = () => {
+    const nextSourceBranch = destBranchId;
+    const nextDestBranch = sourceBranchId;
+    const nextSourceWh = transfer.destWarehouseId;
+    const nextDestWh = transfer.sourceWarehouseId;
+
+    setSourceBranchId(nextSourceBranch);
+    setDestBranchId(nextDestBranch);
     setTransfer(prev => ({
       ...prev,
-      sourceWarehouseId: prev.destWarehouseId,
-      destWarehouseId: prev.sourceWarehouseId
+      sourceWarehouseId: nextSourceWh,
+      destWarehouseId: nextDestWh
     }));
   };
 
-  const getSourceWhName = () => warehouses.find(w => w.id === transfer.sourceWarehouseId)?.name || 'Origin';
-  const getDestWhName = () => warehouses.find(w => w.id === transfer.destWarehouseId)?.name || 'Target';
+  const getBranchName = (bId) => organizations.find(o => String(o.id) === String(bId))?.name || '';
+
+  const getSourceWhName = () => {
+    const w = warehouses.find(wh => wh.id === transfer.sourceWarehouseId);
+    if (!w) return 'Origin';
+    const bName = getBranchName(w.orgId || sourceBranchId);
+    return bName ? `${w.name} (${bName})` : w.name;
+  };
+
+  const getDestWhName = () => {
+    const w = warehouses.find(wh => wh.id === transfer.destWarehouseId);
+    if (!w) return 'Target';
+    const bName = getBranchName(w.orgId || destBranchId);
+    return bName ? `${w.name} (${bName})` : w.name;
+  };
 
   const filteredSuggestions = productSearch.trim() === "" 
     ? products.slice(0, 15) 
@@ -528,35 +709,73 @@ function TransferContent() {
             
             <div className="premium-card routing-hub-card">
               <div className="hub-content">
-                <div className="wh-field">
-                  <div className="wh-label-row">
-                    <FaWarehouse className="wh-icon src" />
-                    <span className="wh-label">Source Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
+                {/* SOURCE BRANCH & WAREHOUSE */}
+                <div className="hub-branch-group source">
+                  <div className="hub-inputs-row">
+                    <div className="wh-field">
+                      <div className="wh-label-row">
+                        <FaBuilding className="wh-icon src" />
+                        <span className="wh-label">Source Branch <span style={{ color: '#ef4444' }}>*</span></span>
+                      </div>
+                      <NiceSelect 
+                        placeholder="Select Source Branch..."
+                        options={branchOptions}
+                        value={sourceBranchId}
+                        onChange={handleSourceBranchChange}
+                      />
+                    </div>
+
+                    <div className="wh-field">
+                      <div className="wh-label-row">
+                        <FaWarehouse className="wh-icon src" />
+                        <span className="wh-label">Source Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
+                      </div>
+                      <NiceSelect 
+                        placeholder="Select Source Warehouse..."
+                        options={sourceWarehouseOptions}
+                        value={transfer.sourceWarehouseId}
+                        onChange={(val) => setTransfer({...transfer, sourceWarehouseId: val})}
+                        disabled={sourceWarehouseOptions.length === 0}
+                      />
+                    </div>
                   </div>
-                  <NiceSelect 
-                    placeholder="Select Source..."
-                    options={sourceWarehouseOptions}
-                    value={transfer.sourceWarehouseId}
-                    onChange={(val) => setTransfer({...transfer, sourceWarehouseId: val})}
-                    disabled={sourceWarehouseOptions.length <= 1}
-                  />
                 </div>
 
-                <button className="hub-interchange" onClick={swapWarehouses} title="Swap Source/Target">
+                {/* SWAP BUTTON */}
+                <button className="hub-interchange" onClick={swapRouting} title="Swap Source & Target">
                   <FaExchangeAlt />
                 </button>
 
-                <div className="wh-field">
-                  <div className="wh-label-row">
-                    <FaMapMarkerAlt className="wh-icon dst" />
-                    <span className="wh-label">Target Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
+                {/* TARGET BRANCH & WAREHOUSE */}
+                <div className="hub-branch-group target">
+                  <div className="hub-inputs-row">
+                    <div className="wh-field">
+                      <div className="wh-label-row">
+                        <FaBuilding className="wh-icon dst" />
+                        <span className="wh-label">Target Branch <span style={{ color: '#ef4444' }}>*</span></span>
+                      </div>
+                      <NiceSelect 
+                        placeholder="Select Target Branch..."
+                        options={branchOptions}
+                        value={destBranchId}
+                        onChange={handleDestBranchChange}
+                      />
+                    </div>
+
+                    <div className="wh-field">
+                      <div className="wh-label-row">
+                        <FaWarehouse className="wh-icon dst" />
+                        <span className="wh-label">Target Warehouse <span style={{ color: '#ef4444' }}>*</span></span>
+                      </div>
+                      <NiceSelect 
+                        placeholder="Select Target Warehouse..."
+                        options={destWarehouseOptions}
+                        value={transfer.destWarehouseId}
+                        onChange={(val) => setTransfer({...transfer, destWarehouseId: val})}
+                        disabled={destWarehouseOptions.length === 0}
+                      />
+                    </div>
                   </div>
-                  <NiceSelect 
-                    placeholder="Select Target..."
-                    options={warehouseOptions}
-                    value={transfer.destWarehouseId}
-                    onChange={(val) => setTransfer({...transfer, destWarehouseId: val})}
-                  />
                 </div>
               </div>
             </div>
@@ -607,7 +826,7 @@ function TransferContent() {
                              </div>
                              {hasSource && (
                                <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
-                                 <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock > 0 ? `${currentStock} Available` : '0 Available'}
+                                 <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock} Available
                                </div>
                              )}
                           </div>
@@ -673,7 +892,7 @@ function TransferContent() {
                                      className="qty-input"
                                      value={line.transferQuantity}
                                      min="1"
-                                     max={transfer.sourceWarehouseId ? currentStock : undefined}
+                                     max={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId ? currentStock : undefined}
                                      onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
                                      onBlur={() => {
                                        if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
@@ -685,7 +904,7 @@ function TransferContent() {
                                      type="button"
                                      className="qty-btn" 
                                      onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) + 1, currentStock)}
-                                     disabled={transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
+                                     disabled={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
                                    >
                                      <FaPlus />
                                    </button>
@@ -749,7 +968,7 @@ function TransferContent() {
                                    className="qty-input"
                                    value={line.transferQuantity}
                                    min="1"
-                                   max={transfer.sourceWarehouseId ? currentStock : undefined}
+                                   max={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId ? currentStock : undefined}
                                    onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
                                    onBlur={() => {
                                      if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
@@ -761,7 +980,7 @@ function TransferContent() {
                                    type="button"
                                    className="qty-btn" 
                                    onClick={() => updateLineQty(idx, (Number(line.transferQuantity) || 1) + 1, currentStock)}
-                                   disabled={transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
+                                   disabled={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId && (Number(line.transferQuantity) || 1) >= currentStock}
                                  >
                                    <FaPlus />
                                  </button>
@@ -1020,14 +1239,52 @@ function TransferContent() {
         .premium-alert.error { background: #fef2f2; border: 1px solid #fee2e2; color: #b91c1c; padding: 12px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
         .mobile-action-bar { display: none; }
         
-        /* Routing Hub Ultra-Compact */
-        .routing-hub-card { border-top: 3px solid #f97316; }
-        .hub-content { display: flex; align-items: center; gap: 16px; }
-        .wh-field { flex: 1; }
+        /* Routing Hub Branch & Warehouse Selectors */
+        .routing-hub-card { border-top: 3px solid #f97316; padding: 16px; }
+        .hub-content { display: flex; align-items: center; gap: 14px; width: 100%; }
+        .hub-branch-group { 
+          flex: 1; 
+          background: #f8fafc; 
+          border: 1px solid #e2e8f0; 
+          border-radius: 12px; 
+          padding: 12px 14px; 
+        }
+        .hub-branch-group.source { border-left: 3.5px solid #f97316; }
+        .hub-branch-group.target { border-left: 3.5px solid #3b82f6; }
+        .hub-inputs-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .wh-field { flex: 1; min-width: 0; }
         .wh-label-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-        .wh-icon { font-size: 12px; color: #94a3b8; }
-        .wh-label { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-        .hub-interchange { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #e2e8f0; background: white; color: #f97316; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 14px; transition: 0.2s; flex-shrink: 0; }
+        .wh-icon { font-size: 12px; }
+        .wh-icon.src { color: #f97316; }
+        .wh-icon.dst { color: #3b82f6; }
+        .wh-label { font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
+        .hub-interchange { 
+          width: 36px; 
+          height: 36px; 
+          border-radius: 50%; 
+          border: 1.5px solid #e2e8f0; 
+          background: white; 
+          color: #f97316; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          cursor: pointer; 
+          transition: all 0.2s; 
+          flex-shrink: 0; 
+          box-shadow: 0 2px 6px rgba(0,0,0,0.06); 
+        }
+        .hub-interchange:hover { 
+          background: #f97316; 
+          color: white; 
+          border-color: #f97316; 
+          transform: rotate(180deg) scale(1.05); 
+        }
+
+        @media (max-width: 900px) {
+          .hub-content { flex-direction: column; align-items: stretch; gap: 10px; }
+          .hub-inputs-row { grid-template-columns: 1fr; }
+          .hub-interchange { align-self: center; margin: 2px 0; }
+        }
 
         /* Search Bar Brand Overhaul */
         .search-wrap { position: relative; width: 100%; }

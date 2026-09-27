@@ -394,6 +394,8 @@ function ConfigurationsContent() {
     pm_online_payment: false, razorpay_key_id: '', razorpay_key_secret: '', pm_menu_images: false, pm_credit_ledger: false,
     pm_table_management: false, pm_qr_ordering: false, pm_inventory: false,
     pm_purchase: true,
+    non_stock_sales_policy: 'NONE',
+    non_stock_transfer_policy: 'NONE',
     pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
@@ -544,6 +546,8 @@ function ConfigurationsContent() {
             pm_credit_ledger: !!d.creditEnabled, pm_table_management: !!d.tableManagementEnabled,
             pm_qr_ordering: d.qrOrderingEnabled !== false, pm_inventory: !!d.inventoryEnabled,
             pm_purchase: d.purchaseEnabled !== false,
+            non_stock_sales_policy: d.nonStockSalesPolicy || 'NONE',
+            non_stock_transfer_policy: d.nonStockTransferPolicy || 'NONE',
             pm_customers: !!d.customersEnabled,
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
@@ -691,6 +695,8 @@ function ConfigurationsContent() {
         creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: hasModule('INVENTORY', orgId) ? config.pm_inventory : false,
         purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
+        nonStockSalesPolicy: (config.pm_inventory && hasModule('INVENTORY', orgId)) ? (config.non_stock_sales_policy || 'NONE') : 'NONE',
+        nonStockTransferPolicy: (config.pm_inventory && hasModule('INVENTORY', orgId)) ? (config.non_stock_transfer_policy || 'NONE') : 'NONE',
         productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
         takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
@@ -1225,7 +1231,9 @@ function ConfigurationsContent() {
                 const hasChildren = m.children && m.children.length > 0;
                 const isCreditLedger = m.key === 'pm_credit_ledger';
                 const isOnlinePayment = m.key === 'pm_online_payment';
-                if (!hasChildren && !isCreditLedger && !isOnlinePayment) return null;
+                const isInventory = m.key === 'pm_inventory';
+                if (!hasChildren && !isCreditLedger && !isOnlinePayment && !isInventory) return null;
+                if (isInventory && (!config.pm_inventory || !hasModule('INVENTORY', orgId))) return null;
                 return (
                   <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: '#f97316' }}>
                     <div className="subconfig-strip-label" style={{ color: '#ea580c' }}>
@@ -1349,6 +1357,44 @@ function ConfigurationsContent() {
                             />
                           </div>
                         </div>
+                      )}
+                      {isInventory && (
+                        <>
+                          <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default' }}>
+                            <div className="subconfig-row-text">
+                              <strong>Allow Non-Stock Products in Sales</strong>
+                              <span>Policy when selling items with zero or negative inventory in warehouse</span>
+                            </div>
+                            <div style={{ width: 220 }} className="small-select">
+                              <NiceSelect
+                                value={config.non_stock_sales_policy || 'NONE'}
+                                onChange={(v) => set('non_stock_sales_policy', v)}
+                                options={[
+                                  { value: 'NONE', label: 'None (Allow freely)' },
+                                  { value: 'WARNING', label: 'Warning (Alert only)' },
+                                  { value: 'BLOCK', label: 'Block (Prevent sale)' }
+                                ]}
+                              />
+                            </div>
+                          </div>
+                          <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default' }}>
+                            <div className="subconfig-row-text">
+                              <strong>Allow Non-Stock Products in Stock Transfer</strong>
+                              <span>Policy when transferring items with zero or insufficient inventory in source warehouse</span>
+                            </div>
+                            <div style={{ width: 220 }} className="small-select">
+                              <NiceSelect
+                                value={config.non_stock_transfer_policy || 'NONE'}
+                                onChange={(v) => set('non_stock_transfer_policy', v)}
+                                options={[
+                                  { value: 'NONE', label: 'None (Allow freely)' },
+                                  { value: 'WARNING', label: 'Warning (Alert only)' },
+                                  { value: 'BLOCK', label: 'Block (Prevent transfer)' }
+                                ]}
+                              />
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>

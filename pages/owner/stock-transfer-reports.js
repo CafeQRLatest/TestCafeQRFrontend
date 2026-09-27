@@ -33,6 +33,7 @@ function TransferReportContent() {
   const { timezone, orgId, userRole } = useAuth();
   const [transfers, setTransfers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [fromWarehouseFilter, setFromWarehouseFilter] = useState('');
@@ -41,6 +42,14 @@ function TransferReportContent() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const PAGE_SIZE = 50;
+
+  const orgMap = useMemo(() => {
+    const map = {};
+    (organizations || []).forEach(o => {
+      if (o && o.id) map[String(o.id)] = o.name;
+    });
+    return map;
+  }, [organizations]);
 
   const getTodayStartStr = () => {
     const d = new Date();
@@ -61,9 +70,10 @@ function TransferReportContent() {
 
   const fetchData = async (pageNum = 0) => {
     try {
-      const [tResp, wResp] = await Promise.all([
+      const [tResp, wResp, orgResp] = await Promise.all([
         api.get(`/api/v1/inventory/transfers?page=${pageNum}&size=${PAGE_SIZE}`),
-        api.get('/api/v1/warehouses')
+        api.get('/api/v1/warehouses?all=true'),
+        api.get('/api/v1/organizations')
       ]);
       if (tResp.data.success) {
         const pageData = tResp.data.data;
@@ -73,6 +83,7 @@ function TransferReportContent() {
         setPage(pageNum);
       }
       if (wResp.data.success) setWarehouses(wResp.data.data || []);
+      if (orgResp.data?.success) setOrganizations(orgResp.data.data || []);
     } catch (err) {
       console.error("Failed to fetch transfer report data:", err);
     } finally {
@@ -80,9 +91,12 @@ function TransferReportContent() {
     }
   };
 
-
-
-  const getWarehouseName = (id) => warehouses.find(wh => wh.id === id)?.name || '—';
+  const getWarehouseName = (id) => {
+    const wh = warehouses.find(w => w.id === id);
+    if (!wh) return '—';
+    const branch = orgMap[wh.orgId];
+    return branch ? `${wh.name} (${branch})` : wh.name;
+  };
 
   const filteredTransfers = transfers.filter(t => {
     const q = searchTerm.toLowerCase();

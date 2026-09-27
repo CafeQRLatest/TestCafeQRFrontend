@@ -32,8 +32,10 @@ export default function StockTransferConfirmPage() {
 
 function ConfirmContent() {
   const { timezone, orgId, userRole } = useAuth();
+  const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
   const [transfers, setTransfers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,7 +44,7 @@ function ConfirmContent() {
   const [confirming, setConfirming] = useState({});
   const [expanded, setExpanded] = useState(null);
   const [toast, setToast] = useState(null);
-  
+
   // Document Viewing Modal State (Triggered ONLY on Document No click)
   const [viewingDoc, setViewingDoc] = useState(null);
   
@@ -53,6 +55,27 @@ function ConfirmContent() {
   // Void / Cancel Modal State
   const [voidingDoc, setVoidingDoc] = useState(null);
   const [voiding, setVoiding] = useState(false);
+
+  const orgMap = useMemo(() => {
+    const map = {};
+    (organizations || []).forEach(o => {
+      if (o && o.id) map[String(o.id)] = o.name;
+    });
+    return map;
+  }, [organizations]);
+
+  const isIncomingToCurrentBranch = useCallback((row) => {
+    if (!currentOrgId) return true;
+    const destWh = warehouses.find(w => String(w.id) === String(row.destWarehouseId));
+    if (!destWh) return false;
+    const destOrgId = row.destOrgId || destWh?.orgId || destWh?.org_id || destWh?.organizationId;
+    return destOrgId ? String(destOrgId) === String(currentOrgId) : false;
+  }, [currentOrgId, warehouses]);
+
+  const branchWarehouses = useMemo(() => {
+    if (!currentOrgId) return warehouses;
+    return warehouses.filter(w => String(w.orgId || w.org_id || w.organizationId || '') === String(currentOrgId));
+  }, [warehouses, currentOrgId]);
 
   const getTodayStartStr = (tz) => {
     const d = getBusinessNow(tz);
@@ -84,10 +107,11 @@ function ConfirmContent() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tResp, wResp, pResp] = await Promise.all([
-        api.get("/api/v1/inventory/transfers", { params: { size: 200 } }),
-        api.get("/api/v1/warehouses"),
+      const [tResp, wResp, pResp, orgResp] = await Promise.all([
+        api.get("/api/v1/inventory/transfers", { params: { size: 200, orgId: currentOrgId || undefined } }),
+        api.get("/api/v1/warehouses?all=true"),
         api.get("/api/v1/products"),
+        api.get("/api/v1/organizations"),
       ]);
       const all = tResp.data?.data?.content || tResp.data?.data || [];
       setTransfers(all.filter(t => 
@@ -97,6 +121,7 @@ function ConfirmContent() {
       ));
       if (wResp.data?.success) setWarehouses(wResp.data.data || []);
       if (pResp.data?.success) setProducts(pResp.data.data || []);
+      if (orgResp.data?.success) setOrganizations(orgResp.data.data || []);
     } catch (err) {
       showToast("Failed to load transfers", "error");
     } finally {
@@ -107,7 +132,12 @@ function ConfirmContent() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const getWh = (id) => warehouses.find(w => String(w.id) === String(id));
-  const getWhName = (id) => getWh(id)?.name || "—";
+  const getWhName = (id) => {
+    const w = getWh(id);
+    if (!w) return "—";
+    const branch = orgMap[w.orgId];
+    return branch ? `${w.name} (${branch})` : w.name;
+  };
   const getProduct = (id) => products.find(p => String(p.id) === String(id));
 
   const toggleExpand = async (id, e) => {
@@ -133,6 +163,10 @@ function ConfirmContent() {
 
   const handleConfirm = async (transfer, e) => {
     e && e.stopPropagation();
+    if (!isIncomingToCurrentBranch(transfer)) {
+      showToast("Only the destination branch can confirm receipt for this transfer", "error");
+      return;
+    }
     setConfirming(prev => ({ ...prev, [transfer.id]: true }));
     try {
       await api.put(`/api/v1/inventory/transfers/${transfer.id}`, { ...transfer, status: "COMPLETED" });
@@ -229,6 +263,9 @@ function ConfirmContent() {
   }, [dateFrom, dateTo, timezone]);
 
   const filtered = transfers.filter(t => {
+    // Only show incoming transfers destined for the current active branch
+    if (!isIncomingToCurrentBranch(t)) return false;
+
     const matchStatus = !statusFilter || statusFilter === "ALL" ? true : t.status === statusFilter;
     const matchSearch =
       t.transferNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -324,18 +361,15 @@ function ConfirmContent() {
         const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
         const isSourceOrg = isSuperAdmin || (orgId && String(sourceOrgId) === String(orgId));
 
-        const destWh = getWh(row.destWarehouseId);
-        const destOrgId = row.destOrgId || destWh?.orgId || destWh?.org_id || destWh?.organizationId;
-        const isDestBranch = isSuperAdmin || !destOrgId || !orgId || String(destOrgId) === String(orgId);
-
         const isCompleted = row.status === "COMPLETED";
         const isCancelled = row.status === "CANCELLED" || row.status === "VOIDED";
         const isExpandedThis = expanded === row.id;
+        const canConfirm = !isCompleted && !isCancelled && isIncomingToCurrentBranch(row);
 
         return (
           <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
             {/* 1. Confirm Receipt Button Tile (Soft Green Tile) */}
-            {!isCompleted && !isCancelled && isDestBranch && (
+            {canConfirm && (
               <button
                 style={{
                   display: 'inline-flex',
@@ -484,8 +518,8 @@ function ConfirmContent() {
           <div className="wh-filter-group">
             <NiceSelect 
               options={[
-                { value: '', label: 'All Warehouses' },
-                ...warehouses.map(w => ({ value: w.id, label: w.name }))
+                { value: '', label: 'All Destination Warehouses' },
+                ...branchWarehouses.map(w => ({ value: w.id, label: w.name }))
               ]}
               value={warehouseFilter}
               onChange={(val) => setWarehouseFilter(val)}
