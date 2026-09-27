@@ -47,6 +47,7 @@ import {
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
+import PaymentDialog from '../../components/PaymentDialog';
 import {
   FaSearch,
   FaReceipt,
@@ -356,6 +357,8 @@ export default function SalesHistoryPage() {
   // Modals state
   const [viewingDoc, setViewingDoc] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const [paymentOrder, setPaymentOrder] = useState(null);
+  const [creditCustomers, setCreditCustomers] = useState([]);
   const [cancelOrder, setCancelOrder] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionBusy, setActionBusy] = useState(null);
@@ -377,7 +380,7 @@ export default function SalesHistoryPage() {
     };
   }, []);
 
-  // Fetch configs and terminals
+  // Fetch configs, terminals, and credit customers
   useEffect(() => {
     api.get('/api/v1/configurations')
       .then(res => setConfig(res.data?.data || null))
@@ -386,6 +389,10 @@ export default function SalesHistoryPage() {
     const termUrl = orgId ? `/api/v1/terminals/org/${orgId}` : '/api/v1/terminals';
     api.get(termUrl)
       .then(res => setTerminals(res.data?.data || []))
+      .catch(() => {});
+
+    api.get('/api/v1/credit-customers')
+      .then(res => setCreditCustomers(res.data?.data || []))
       .catch(() => {});
   }, [orgId]);
 
@@ -618,6 +625,53 @@ export default function SalesHistoryPage() {
   // Save Edited Order Handler
   const handleSaveEditedOrder = async (updatedOrderData, originalOrder) => {
     if (!editingOrder?.id) return;
+
+    const isCompleted = ['COMPLETED', 'PAID'].includes(
+      String(editingOrder?.orderStatus || editingOrder?.order_status || '').toUpperCase()
+    );
+
+    // If the order is completed, redirect to the Payment Dialog first!
+    if (isCompleted) {
+      const hasOrderEdits = (() => {
+        const updatedLines = updatedOrderData?.lines || [];
+        const originalLines = editingOrder?.lines || [];
+        if (updatedLines.length !== originalLines.length) return true;
+        const sig = (lines) =>
+          lines
+            .map(l => {
+              const pId = l.productId || l.id || '';
+              const vId = l.variantId || '';
+              const qty = Number(l.quantity || l.qty || 0);
+              return `${pId}|${vId}|${qty}`;
+            })
+            .sort()
+            .join(',');
+        if (sig(updatedLines) !== sig(originalLines)) return true;
+
+        const originalCustomerId = editingOrder?.customerId || editingOrder?.customer_id || null;
+        const updatedCustomerId = updatedOrderData?.customerId || null;
+        if (originalCustomerId !== updatedCustomerId) return true;
+
+        return false;
+      })();
+
+      setPaymentOrder({
+        ...editingOrder,
+        lines: updatedOrderData.lines,
+        totalAmount: updatedOrderData.totalAmount,
+        totalTaxAmount: updatedOrderData.totalTaxAmount,
+        totalDiscountAmount: updatedOrderData.totalDiscountAmount,
+        grandTotal: updatedOrderData.grandTotal,
+        roundOffAmount: updatedOrderData.roundOffAmount,
+        grossAmount: updatedOrderData.grossAmount,
+        orderDiscountType: updatedOrderData.orderDiscountType,
+        orderDiscountValue: updatedOrderData.orderDiscountValue,
+        isCompletedEdit: hasOrderEdits,
+        _originalOrderBeforeEdit: originalOrder || editingOrder,
+      });
+      return;
+    }
+
     setActionBusy(editingOrder.id);
     try {
       const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
@@ -654,6 +708,88 @@ export default function SalesHistoryPage() {
       fetchLiveOrders();
     } catch (e) {
       notify('error', 'Failed to update order: ' + (e.response?.data?.message || e.message));
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
+  // Confirm Payment from Payment Dialog (on edit of completed orders)
+  const handleConfirmPayment = async (payload) => {
+    if (!paymentOrder?.id) return;
+    setActionBusy(paymentOrder.id);
+    try {
+      const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
+      const localBillPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('bill') : true;
+
+      let settleId = paymentOrder.id;
+      const linesChanged = Boolean(paymentOrder?.isCompletedEdit);
+
+      if (payload?.updatedOrder && linesChanged) {
+        const putRes = await api.patch(`/api/v1/orders/${paymentOrder.id}`, {
+          ...payload.updatedOrder,
+          paymentStatus: 'PENDING',
+          skipAutoPrintKinds: Array.from(new Set([
+            ...(payload.updatedOrder?.skipAutoPrintKinds || []),
+            ...(localBillPrint ? ['BILL'] : []),
+            ...(localKotPrint ? ['KOT'] : []),
+          ]))
+        });
+        const newId = putRes?.data?.data?.id;
+        if (newId) settleId = newId;
+      }
+
+      const endpoint = payload?.paymentMethod === 'CREDIT'
+        ? `/api/v1/orders/${settleId}/complete-credit`
+        : `/api/v1/orders/${settleId}/settle`;
+
+      const requestPayload = payload?.paymentMethod === 'CREDIT'
+        ? {
+          creditCustomerId: payload.creditCustomerId,
+          discountAmount: payload.discountAmount,
+          roundOffAmount: payload.roundOffAmount ?? 0,
+          redeemPoints: payload.redeemPoints,
+          loyaltyCustomerId: payload.loyaltyCustomerId,
+          ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+        }
+        : {
+          ...payload,
+          ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+        };
+
+      const res = await api.post(endpoint, requestPayload);
+      const settledOrder = res?.data?.data || paymentOrder;
+
+      notify('success', payload?.paymentMethod === 'CREDIT' ? 'Order completed as credit' : 'Order payment settled successfully');
+
+      if (localKotPrint && settledOrder?.id) {
+        markCloudPrintJobPrinted({ id: settledOrder.id }, 'kot').catch(() => null);
+      }
+      if (localBillPrint && settledOrder?.id) {
+        markCloudPrintJobPrinted({ id: settledOrder.id }, 'bill').catch(() => null);
+      }
+
+      const baseOrder = paymentOrder?._originalOrderBeforeEdit || editingOrder;
+      if (localKotPrint && settledOrder && baseOrder) {
+        const { addedLines, removedLines } = calculateKotDeltaJs(baseOrder, settledOrder);
+        if (addedLines.length > 0 || removedLines.length > 0) {
+          setPrintOrder({
+            ...settledOrder,
+            lines: addedLines,
+            removed_items: removedLines,
+            removedItems: removedLines,
+            is_edited: true,
+            isEdited: true,
+          });
+          setPrintKind('kot');
+        }
+      }
+
+      setPaymentOrder(null);
+      setEditingOrder(null);
+      fetchHistoryOrders(historyPage.number || 0);
+      fetchLiveOrders();
+    } catch (e) {
+      notify('error', 'Failed to settle order: ' + (e.response?.data?.message || e.message));
     } finally {
       setActionBusy(null);
     }
@@ -1353,6 +1489,22 @@ export default function SalesHistoryPage() {
             onSave={handleSaveEditedOrder}
             saving={!!actionBusy && actionBusy === editingOrder?.id}
           />
+        )}
+
+        {/* Payment Settlement Dialog */}
+        {paymentOrder && (
+          <div style={{ position: 'relative', zIndex: 10005 }}>
+            <PaymentDialog
+              order={paymentOrder}
+              loading={actionBusy === paymentOrder.id}
+              config={config}
+              creditCustomers={creditCustomers}
+              onClose={() => setPaymentOrder(null)}
+              onConfirm={handleConfirmPayment}
+              onCreditCustomerCreated={(newCust) => setCreditCustomers(prev => [...prev, newCust])}
+              themeColor="orange"
+            />
+          </div>
         )}
 
         {/* Kot / Bill Thermal Print */}

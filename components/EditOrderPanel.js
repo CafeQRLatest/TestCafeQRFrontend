@@ -258,7 +258,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
 
   const dp = config?.currencyDecimalPlaces ?? 2;
-  const isCompleted = fullOrder?.orderStatus === 'COMPLETED' || fullOrder?.order_status === 'COMPLETED';
+  const isCompleted = ['COMPLETED', 'PAID'].includes(String(fullOrder?.orderStatus || fullOrder?.order_status || '').toUpperCase());
   const discountsEnabled = isDiscountModuleEnabled(config);
   const roundOffEnabled = Boolean(config?.roundOffEnabled);
   const roundOffMode = String(config?.roundOffMode || 'automatic').toLowerCase();
@@ -828,6 +828,12 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         roundOffEnabled
           ? roundOffMode.toUpperCase()
           : 'DISABLED',
+      grandTotal: totals ? Number(((totals.basePayable || 0) + (roundOff || 0)).toFixed(dp)) : fullOrder?.grandTotal,
+      totalAmount: totals ? Number((totals.basePayable || 0).toFixed(dp)) : fullOrder?.totalAmount,
+      totalTaxAmount: totals ? Number((totals.tax || 0).toFixed(dp)) : fullOrder?.totalTaxAmount,
+      totalDiscountAmount: totals ? Number((totals.discount || 0).toFixed(dp)) : fullOrder?.totalDiscountAmount,
+      roundOffAmount: roundOff != null ? Number(roundOff.toFixed(dp)) : 0,
+      grossAmount: totals ? Number((totals.grossTotal || 0).toFixed(dp)) : fullOrder?.grossAmount,
       lines: processedLines,
     }, fullOrder);
   };
@@ -1037,7 +1043,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
             </FooterControls>
           )}
           <SaveButton type="button" disabled={saving || lines.length === 0} onClick={submit}>
-            <FaSave /> {saving ? 'Saving...' : 'Save Order'}
+            <FaSave /> {saving ? 'Saving...' : (isCompleted ? 'Save & Proceed to Payment' : 'Save Order')}
           </SaveButton>
         </Footer>
       </Panel>

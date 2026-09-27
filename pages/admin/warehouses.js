@@ -90,13 +90,18 @@ function WarehouseContent() {
       return;
     }
 
-    const effectiveOrgId = selectedWarehouse.orgId || currentOrgId;
+    const isNew = !selectedWarehouse?.id;
+    const effectiveOrgId = isNew ? currentOrgId : (selectedWarehouse.orgId || currentOrgId);
+    if (!effectiveOrgId) {
+      setMsgType('error');
+      setMessage("Please select an active branch in the top header switcher before creating a warehouse.");
+      return;
+    }
     const warehouseToSave = { ...selectedWarehouse, orgId: effectiveOrgId };
 
     setSaving(true);
     setMessage(null);
     
-    const isNew = !warehouseToSave.id;
     const url = isNew ? '/api/v1/warehouses' : `/api/v1/warehouses/${warehouseToSave.id}`;
     
     try {
@@ -118,6 +123,11 @@ function WarehouseContent() {
 
   const startNew = () => {
     if (!isAdmin) return;
+    if (!currentOrgId) {
+      setMsgType('error');
+      setMessage("Please select an active branch in the top header switcher before creating a warehouse.");
+      return;
+    }
     setSelectedWarehouse({
       name: '',
       code: '',
@@ -126,7 +136,7 @@ function WarehouseContent() {
       managerPhone: '',
       orgId: currentOrgId,
       isActive: 'Y',
-      isDefault: true
+      isDefault: warehouses.length === 0
     });
   };
 
@@ -170,7 +180,14 @@ function WarehouseContent() {
                       {w.name}
                       {w.isDefault && <span className="default-badge"><FaStar /> DEFAULT</span>}
                     </span>
-                    <span className="card-code">{w.code || 'NO-CODE'}</span>
+                    <span className="card-code">
+                      {w.code || 'NO-CODE'}
+                      {w.orgId && (
+                        <span style={{ marginLeft: '6px', color: '#64748b', fontSize: '10px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1px 5px', borderRadius: '3px' }}>
+                          {orgs.find(o => String(o.id) === String(w.orgId))?.name || 'Branch'}
+                        </span>
+                      )}
+                    </span>
                   </div>
                   <FaChevronRight className="card-chevron" />
                 </div>
