@@ -16,6 +16,10 @@ const MENU_FEATURES = {
   'Table Management': 'tableManagementEnabled',
   Stock: 'inventoryEnabled',
   'Purchase Orders': 'purchaseEnabled',
+  'Purchase Reports': 'purchaseEnabled',
+  'Purchases & Reports': 'purchaseEnabled',
+  'Purchases': 'purchaseEnabled',
+  'Purchasing': 'purchaseEnabled',
   'Credit Settlements': 'creditEnabled',
   'Credit Customers': 'creditEnabled',
   'Credit Sales': 'creditEnabled',
@@ -39,7 +43,10 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/credit-settlements(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Settlements' },
   { pattern: /^\/owner\/credit-customers(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Ledger' },
   { pattern: /^\/owner\/stock(?:-|\/|$)/, flag: 'inventoryEnabled', label: 'Stock and Inventory' },
+  { pattern: /^\/owner\/purchase-reports(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Reports' },
   { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
+  { pattern: /^\/owner\/purchases(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
+  { pattern: /^\/owner\/purchase(?:-|\/|$)/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
   { pattern: /^\/owner\/loyalty(?:\/)?$/, flag: 'loyaltyEnabled', label: 'Loyalty' },
   { pattern: /^\/owner\/offline-sync(?:\/)?$/, flag: 'offlineSyncEnabled', label: 'Offline Sync Center' },
   { pattern: /^\/owner\/hr(?:-|\/|$)/, flag: 'payrollEnabled', label: 'Payroll & HR' },
@@ -60,6 +67,11 @@ export function isFeatureEnabled(config, flag) {
   if (!config) return true;
   if (flag === 'posV2Enabled') {
     return isPosV2Enabled(config);
+  }
+  if (flag === 'purchaseEnabled') {
+    if (config.purchaseEnabled === false || config.purchaseEnabled === 'false') return false;
+    if (config.pm_purchase === false || config.pm_purchase === 'false') return false;
+    return true;
   }
   if (typeof config[flag] === 'undefined' || config[flag] === null) {
     return FEATURE_DEFAULTS[flag] !== false;
