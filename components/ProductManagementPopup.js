@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 import NiceSelect from './NiceSelect';
 import CafeQRPopup from './CafeQRPopup';
 import api from '../utils/api';
@@ -25,7 +26,10 @@ export default function ProductManagementPopup({
   config = null,
 }) {
   const { notify } = useNotification();
-  const [viewOnly, setViewOnly] = useState(initialViewOnly);
+  const { userRole } = useAuth();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
+
+  const [rawViewOnly, setViewOnly] = useState(initialViewOnly);
   const [saving, setSaving] = useState(false);
   const [formTab, setFormTab] = useState('basic'); // 'basic', 'inventory', 'pricing', 'variants', 'upsells'
   const [pricingView, setPricingView] = useState('sales'); // 'sales', 'purchase'
@@ -442,6 +446,16 @@ export default function ProductManagementPopup({
   const [selectedProduct, setSelectedProduct] = useState(() => normalizeProductForDrawer(initialProduct));
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  const isClientLevel = Boolean(
+    selectedProduct?.isClientWise ||
+    !selectedProduct?.orgId ||
+    selectedProduct?.orgId === '0' ||
+    selectedProduct?.orgId === '00000000-0000-0000-0000-000000000000'
+  );
+  // Branch users cannot edit existing client-level products. Super Admin can edit any product.
+  const canEdit = isSuperAdmin || !selectedProduct?.id || !isClientLevel;
+  const viewOnly = !canEdit ? true : rawViewOnly;
+
   // Sync prop changes from parent immediately
   useEffect(() => {
     if (!initialProduct) return;
@@ -556,6 +570,11 @@ export default function ProductManagementPopup({
 
   const handleSaveProduct = async (e) => {
     if (e) e.preventDefault();
+
+    if (selectedProduct.id && isClientLevel && !isSuperAdmin) {
+      notify('error', 'Access denied: Client-level products cannot be modified by branch users');
+      return;
+    }
 
     const isIngredient = Boolean(selectedProduct.isIngredient);
     const baseSalePrice = isIngredient ? 0 : Number(selectedProduct.price || 0);
@@ -756,8 +775,15 @@ export default function ProductManagementPopup({
 
       <div className={`drawer-form ${viewOnly ? 'view-mode' : ''}`}>
          {viewOnly && (
-           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-              <button className="erp-btn secondary sm" onClick={() => setViewOnly(false)}>Edit Info</button>
+           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              {!canEdit && (
+                <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '12px', background: '#fee2e2', color: '#991b1b', fontWeight: 600 }}>
+                  Client-level Product (Read-only for branch users)
+                </span>
+              )}
+              {canEdit && (
+                <button className="erp-btn secondary sm" onClick={() => setViewOnly(false)}>Edit Info</button>
+              )}
            </div>
          )}
 
@@ -940,7 +966,18 @@ export default function ProductManagementPopup({
                  </div>
                  <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '170px' }}>
                     <label style={{ margin: 0, whiteSpace: 'nowrap' }} title="Make this product visible and available across all branches under your client account">Client-Wise (All Branches)</label>
-                    <div className={`erp-switch ${selectedProduct.isClientWise ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isClientWise: !selectedProduct.isClientWise})}>
+                    <div 
+                      className={`erp-switch ${selectedProduct.isClientWise ? 'active' : ''} ${!isSuperAdmin ? 'disabled' : ''}`} 
+                      onClick={() => {
+                        if (viewOnly) return;
+                        if (!isSuperAdmin) {
+                          notify('error', 'Only Super Admin can configure client-level products');
+                          return;
+                        }
+                        setSelectedProduct({...selectedProduct, isClientWise: !selectedProduct.isClientWise});
+                      }}
+                      style={!isSuperAdmin ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                    >
                       <div className="switch-knob"></div>
                     </div>
                  </div>
