@@ -14,6 +14,7 @@ import {
   FaReceipt,
   FaClock,
   FaCheckCircle,
+  FaCheck,
   FaPrint,
   FaFileInvoice,
   FaEdit,
@@ -37,7 +38,8 @@ import {
   FaHistory,
   FaBell,
   FaBellSlash,
-  FaExchangeAlt
+  FaExchangeAlt,
+  FaSpinner
 } from 'react-icons/fa';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -281,6 +283,7 @@ function LiveOrderBoardView({
   ordersList = [],
   sym = '₹',
   actionBusy,
+  clickedActions = {},
   canCancelOrder,
   timezone = null,
   onSelectOrder,
@@ -359,6 +362,17 @@ function LiveOrderBoardView({
             const s = String(order.orderStatus || '').toUpperCase();
             const isBilled = s === 'BILLED';
             const itemCount = Array.isArray(order.lines) ? order.lines.reduce((acc, l) => acc + (l.quantity || 1), 0) : 0;
+            const orderBusyPrefix = `${order.id}:`;
+            const isThisOrderBusy = Boolean(actionBusy && String(actionBusy).startsWith(orderBusyPrefix));
+            const isBillBusy = actionBusy === `${order.id}:bill`;
+            const isKotBusy = actionBusy === `${order.id}:kot`;
+            const isInvoiceBusy = actionBusy === `${order.id}:invoice`;
+            const isEditBusy = actionBusy === `${order.id}:edit`;
+
+            const hasBilled = isBilled || Boolean(clickedActions[order.id]?.bill);
+            const hasKot = Boolean(clickedActions[order.id]?.kot);
+            const hasInvoice = Boolean(clickedActions[order.id]?.invoice);
+            const hasEdited = Boolean(clickedActions[order.id]?.edit);
 
             return (
               <div
@@ -646,64 +660,101 @@ function LiveOrderBoardView({
                   }}>
                     <button
                       type="button"
-                      className="pos-action-bar-btn"
+                      className={`pos-action-bar-btn ${isBillBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         height: 29,
                         padding: '0 3px',
                         borderRadius: 6,
                         fontSize: 11,
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
+                        fontWeight: hasBilled ? 700 : 600,
                         gap: 3,
                         letterSpacing: '-0.01em',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        border: isBillBusy ? '1px solid #38bdf8' : (hasBilled ? '1px solid #86efac' : '1px solid #e2e8f0'),
+                        background: isBillBusy ? '#f0f9ff' : (hasBilled ? '#f0fdf4' : (isThisOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isBillBusy ? '#0284c7' : (hasBilled ? '#15803d' : (isThisOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isBillBusy ? '0 0 0 1px #38bdf8' : (hasBilled ? '0 1px 2px rgba(16,185,129,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                        opacity: isThisOrderBusy && !isBillBusy ? 0.55 : 1,
                       }}
-                      onClick={() => onPrintBill && onPrintBill(order)}
-                      title="Print Bill"
+                      onClick={() => {
+                        if (isThisOrderBusy) return;
+                        onPrintBill && onPrintBill(order);
+                      }}
+                      title={isBillBusy ? "Processing Bill..." : (hasBilled ? "Bill already printed (Click to re-print)" : "Print Bill")}
                     >
-                      <FaPrint size={10.5} style={{ color: '#0284c7', flexShrink: 0 }} />
-                      <span>Bill</span>
+                      {isBillBusy ? (
+                        <FaSpinner size={10.5} style={{ color: '#0284c7', flexShrink: 0, animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasBilled ? (
+                        <FaCheck size={9} style={{ color: '#15803d', flexShrink: 0 }} />
+                      ) : (
+                        <FaPrint size={10.5} style={{ color: isThisOrderBusy ? '#94a3b8' : '#0284c7', flexShrink: 0 }} />
+                      )}
+                      <span>{isBillBusy ? 'Bill...' : (hasBilled ? 'Billed' : 'Bill')}</span>
                     </button>
 
                     <button
                       type="button"
-                      className="pos-action-bar-btn"
+                      className={`pos-action-bar-btn ${isKotBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         height: 29,
                         padding: '0 3px',
                         borderRadius: 6,
                         fontSize: 11,
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
+                        fontWeight: hasKot ? 700 : 600,
                         gap: 3,
                         letterSpacing: '-0.01em',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        border: isKotBusy ? '1px solid #fdba74' : (hasKot ? '1px solid #fed7aa' : '1px solid #e2e8f0'),
+                        background: isKotBusy ? '#fff7ed' : (hasKot ? '#fff7ed' : (isThisOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isKotBusy ? '#ea580c' : (hasKot ? '#c2410c' : (isThisOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isKotBusy ? '0 0 0 1px #fdba74' : (hasKot ? '0 1px 2px rgba(234,88,12,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                        opacity: isThisOrderBusy && !isKotBusy ? 0.55 : 1,
                       }}
-                      onClick={() => onPrintKot && onPrintKot(order)}
-                      title="Print KOT"
+                      onClick={() => {
+                        if (isThisOrderBusy) return;
+                        onPrintKot && onPrintKot(order);
+                      }}
+                      title={isKotBusy ? "Processing KOT..." : (hasKot ? "KOT sent to kitchen (Click to re-print)" : "Print KOT")}
                     >
-                      <FaUtensils size={10.5} style={{ color: '#ea580c', flexShrink: 0 }} />
-                      <span>KOT</span>
+                      {isKotBusy ? (
+                        <FaSpinner size={10.5} style={{ color: '#ea580c', flexShrink: 0, animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasKot ? (
+                        <FaCheck size={9} style={{ color: '#c2410c', flexShrink: 0 }} />
+                      ) : (
+                        <FaUtensils size={10.5} style={{ color: isThisOrderBusy ? '#94a3b8' : '#ea580c', flexShrink: 0 }} />
+                      )}
+                      <span>{isKotBusy ? 'KOT...' : (hasKot ? 'Sent' : 'KOT')}</span>
                     </button>
 
                     <button
                       type="button"
-                      className="pos-action-bar-btn"
+                      className={`pos-action-bar-btn ${isInvoiceBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         height: 29,
                         padding: '0 3px',
                         borderRadius: 6,
                         fontSize: 11,
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
+                        fontWeight: hasInvoice ? 700 : 600,
                         gap: 3,
                         letterSpacing: '-0.01em',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        border: isInvoiceBusy ? '1px solid #d8b4fe' : (hasInvoice ? '1px solid #e9d5ff' : '1px solid #e2e8f0'),
+                        background: isInvoiceBusy ? '#faf5ff' : (hasInvoice ? '#faf5ff' : (isThisOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isInvoiceBusy ? '#7c3aed' : (hasInvoice ? '#6d28d9' : (isThisOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isInvoiceBusy ? '0 0 0 1px #d8b4fe' : (hasInvoice ? '0 1px 2px rgba(124,58,237,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                        opacity: isThisOrderBusy && !isInvoiceBusy ? 0.55 : 1,
                       }}
                       onClick={async () => {
+                        if (isThisOrderBusy) return;
                         if (onDownloadInvoice) {
                           await onDownloadInvoice(order);
                         } else {
@@ -714,38 +765,60 @@ function LiveOrderBoardView({
                           }
                         }
                       }}
-                      title="Download Invoice PDF"
+                      title={isInvoiceBusy ? "Downloading Invoice..." : (hasInvoice ? "Invoice downloaded (Click to re-download)" : "Download Invoice PDF")}
                     >
-                      <FaFileInvoice size={10.5} style={{ color: '#7c3aed', flexShrink: 0 }} />
-                      <span>Invoice</span>
+                      {isInvoiceBusy ? (
+                        <FaSpinner size={10.5} style={{ color: '#7c3aed', flexShrink: 0, animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasInvoice ? (
+                        <FaCheck size={9} style={{ color: '#6d28d9', flexShrink: 0 }} />
+                      ) : (
+                        <FaFileInvoice size={10.5} style={{ color: isThisOrderBusy ? '#94a3b8' : '#7c3aed', flexShrink: 0 }} />
+                      )}
+                      <span>{isInvoiceBusy ? 'PDF...' : (hasInvoice ? 'Saved' : 'Invoice')}</span>
                     </button>
 
                     <button
                       type="button"
-                      className="pos-action-bar-btn"
+                      className={`pos-action-bar-btn ${isEditBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         height: 29,
                         padding: '0 3px',
                         borderRadius: 6,
                         fontSize: 11,
-                        fontWeight: 600,
-                        border: '1px solid #e2e8f0',
+                        fontWeight: hasEdited ? 700 : 600,
                         gap: 3,
                         letterSpacing: '-0.01em',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                        border: isEditBusy ? '1px solid #5eead4' : (hasEdited ? '1px solid #99f6e4' : '1px solid #e2e8f0'),
+                        background: isEditBusy ? '#f0fdfa' : (hasEdited ? '#f0fdfa' : (isThisOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isEditBusy ? '#0d9488' : (hasEdited ? '#0f766e' : (isThisOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isEditBusy ? '0 0 0 1px #5eead4' : (hasEdited ? '0 1px 2px rgba(13,148,136,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                        opacity: isThisOrderBusy && !isEditBusy ? 0.55 : 1,
                       }}
-                      onClick={() => onEditOrder && onEditOrder(order)}
-                      title="Edit Order"
+                      onClick={() => {
+                        if (isThisOrderBusy) return;
+                        onEditOrder && onEditOrder(order);
+                      }}
+                      title={isEditBusy ? "Opening editor..." : (hasEdited ? "Order edited (Click to edit again)" : "Edit Order")}
                     >
-                      <FaEdit size={10.5} style={{ color: '#0d9488', flexShrink: 0 }} />
-                      <span>Edit</span>
+                      {isEditBusy ? (
+                        <FaSpinner size={10.5} style={{ color: '#0d9488', flexShrink: 0, animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasEdited ? (
+                        <FaCheck size={9} style={{ color: '#0f766e', flexShrink: 0 }} />
+                      ) : (
+                        <FaEdit size={10.5} style={{ color: isThisOrderBusy ? '#94a3b8' : '#0d9488', flexShrink: 0 }} />
+                      )}
+                      <span>{isEditBusy ? 'Edit...' : (hasEdited ? 'Edited' : 'Edit')}</span>
                     </button>
 
                     {canCancelOrder && (
                       <button
                         type="button"
                         className="pos-action-bar-btn pos-action-bar-btn-cancel"
+                        disabled={isThisOrderBusy}
                         style={{
                           ...S.actionBarBtnCancel,
                           height: 29,
@@ -756,9 +829,15 @@ function LiveOrderBoardView({
                           border: '1px solid #fecdd3',
                           gap: 3,
                           letterSpacing: '-0.01em',
-                          boxShadow: '0 1px 2px rgba(225,29,72,0.04)'
+                          boxShadow: '0 1px 2px rgba(225,29,72,0.04)',
+                          cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                          pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                          opacity: isThisOrderBusy ? 0.55 : 1,
                         }}
-                        onClick={() => onCancelOrder && onCancelOrder(order)}
+                        onClick={() => {
+                          if (isThisOrderBusy) return;
+                          onCancelOrder && onCancelOrder(order);
+                        }}
                         title="Cancel Order"
                       >
                         <FaTimesCircle size={10.5} style={{ color: '#e11d48', flexShrink: 0 }} />
@@ -772,6 +851,7 @@ function LiveOrderBoardView({
                     <button
                       type="button"
                       className="pos-settle-primary-btn"
+                      disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBtnPrimaryCentered,
                         height: 35,
@@ -787,9 +867,14 @@ function LiveOrderBoardView({
                         boxShadow: isBilled 
                           ? '0 2px 6px rgba(16, 185, 129, 0.3)' 
                           : '0 2px 6px rgba(234, 88, 12, 0.3)',
-                        cursor: 'pointer'
+                        cursor: isThisOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isThisOrderBusy ? 'none' : 'auto',
+                        opacity: isThisOrderBusy ? 0.65 : 1,
                       }}
-                      onClick={() => onSettleOrder && onSettleOrder(order)}
+                      onClick={() => {
+                        if (isThisOrderBusy) return;
+                        onSettleOrder && onSettleOrder(order);
+                      }}
                       title="Settle Payment"
                     >
                       <FaCreditCard size={13} style={{ flexShrink: 0 }} />
@@ -1014,6 +1099,7 @@ export default function PosOrderTypeModal({
   const [cancelOrder, setCancelOrder] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionBusy, setActionBusy] = useState(null);
+  const [clickedActions, setClickedActions] = useState({});
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
 
@@ -1462,86 +1548,116 @@ export default function PosOrderTypeModal({
 
   // Print Bill handler
   const handlePrintBill = async (order) => {
-    let activeOrder = order;
+    if (!order) return;
     const orderId = order.id || order.orderId;
-    const currentStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+    const busyKey = `${orderId}:bill`;
+    if (actionBusy === busyKey) return;
+    setActionBusy(busyKey);
+    if (orderId) {
+      setClickedActions(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), bill: true } }));
+    }
 
-    // If order is not yet billed/completed/paid, call backend to mark as BILLED
-    if (orderId && !['BILLED', 'COMPLETED', 'PAID', 'CANCELLED', 'VOID'].includes(currentStatus)) {
-      try {
-        const res = await api.post(`/api/v1/orders/${orderId}/bill`);
-        if (res.data?.data) {
-          activeOrder = res.data.data;
+    try {
+      let activeOrder = order;
+      const currentStatus = String(order?.orderStatus || order?.order_status || '').toUpperCase();
+
+      // If order is not yet billed/completed/paid, call backend to mark as BILLED
+      if (orderId && !['BILLED', 'COMPLETED', 'PAID', 'CANCELLED', 'VOID'].includes(currentStatus)) {
+        try {
+          const res = await api.post(`/api/v1/orders/${orderId}/bill`);
+          if (res.data?.data) {
+            activeOrder = res.data.data;
+          }
+          notify('success', 'Order billed successfully');
+          fetchLiveOrders();
+          onRefreshTables?.();
+        } catch (e) {
+          console.warn('Bill command notice:', e?.response?.data?.message || e.message);
         }
-        notify('success', 'Order billed successfully');
-        fetchLiveOrders();
-        onRefreshTables?.();
-      } catch (e) {
-        console.warn('Bill command notice:', e?.response?.data?.message || e.message);
-      }
-    } else if (orderId) {
-      try {
-        const res = await api.get(`/api/v1/orders/${orderId}`);
-        if (res.data?.data) {
-          activeOrder = res.data.data;
+      } else if (orderId) {
+        try {
+          const res = await api.get(`/api/v1/orders/${orderId}`);
+          if (res.data?.data) {
+            activeOrder = res.data.data;
+          }
+        } catch (err) {
+          console.warn('Failed to load full order for print:', err);
         }
-      } catch (err) {
-        console.warn('Failed to load full order for print:', err);
       }
-    }
 
-    if (typeof onPrintOrder === 'function') {
-      onPrintOrder(activeOrder, 'bill');
-      return;
-    }
-
-    if (!localPrintWillHandleKind('bill')) {
-      try {
-        await enqueueCloudPrintJob(activeOrder, 'bill');
-        notify('success', 'Bill print job enqueued to print station');
-      } catch (e) {
-        notify('error', 'Failed to queue print job: ' + (e.response?.data?.message || e.message));
+      if (typeof onPrintOrder === 'function') {
+        await onPrintOrder(activeOrder, 'bill');
+        return;
       }
-      return;
-    }
-    setPrintKind('bill');
-    setPrintOrder({ ...activeOrder, _manualPrint: true });
-    if (activeOrder?.id) {
-      markCloudPrintJobPrinted(activeOrder, 'bill').catch(() => {});
+
+      if (!localPrintWillHandleKind('bill')) {
+        try {
+          await enqueueCloudPrintJob(activeOrder, 'bill');
+          notify('success', 'Bill print job enqueued to print station');
+        } catch (e) {
+          notify('error', 'Failed to queue print job: ' + (e.response?.data?.message || e.message));
+        }
+        return;
+      }
+      setPrintKind('bill');
+      setPrintOrder({ ...activeOrder, _manualPrint: true });
+      if (activeOrder?.id) {
+        markCloudPrintJobPrinted(activeOrder, 'bill').catch(() => {});
+      }
+    } finally {
+      setTimeout(() => {
+        setActionBusy(prev => (prev === busyKey ? null : prev));
+      }, 1200);
     }
   };
 
   // Print KOT handler
   const handlePrintKot = async (order) => {
-    if (typeof onPrintOrder === 'function') {
-      onPrintOrder(order, 'kot');
-      return;
-    }
-    let activeOrder = order;
+    if (!order) return;
     const orderId = order.id || order.orderId;
+    const busyKey = `${orderId}:kot`;
+    if (actionBusy === busyKey) return;
+    setActionBusy(busyKey);
     if (orderId) {
-      try {
-        const res = await api.get(`/api/v1/orders/${orderId}`);
-        if (res.data?.data) {
-          activeOrder = res.data.data;
+      setClickedActions(prev => ({ ...prev, [orderId]: { ...(prev[orderId] || {}), kot: true } }));
+    }
+
+    try {
+      let activeOrder = order;
+      if (orderId && (!order.lines || order.lines.length === 0)) {
+        try {
+          const res = await api.get(`/api/v1/orders/${orderId}`);
+          if (res.data?.data) {
+            activeOrder = res.data.data;
+          }
+        } catch (err) {
+          console.warn('Failed to load full order for KOT print:', err);
         }
-      } catch (err) {
-        console.warn('Failed to load full order for KOT print:', err);
       }
-    }
-    if (!localPrintWillHandleKind('kot')) {
-      try {
-        await enqueueCloudPrintJob(activeOrder, 'kot');
-        notify('success', 'KOT print job enqueued to print station');
-      } catch (e) {
-        notify('error', 'Failed to queue print job: ' + (e.response?.data?.message || e.message));
+
+      if (typeof onPrintOrder === 'function') {
+        await onPrintOrder(activeOrder, 'kot');
+        return;
       }
-      return;
-    }
-    setPrintKind('kot');
-    setPrintOrder({ ...activeOrder, _manualPrint: true });
-    if (activeOrder?.id) {
-      markCloudPrintJobPrinted(activeOrder, 'kot').catch(() => {});
+
+      if (!localPrintWillHandleKind('kot')) {
+        try {
+          await enqueueCloudPrintJob(activeOrder, 'kot');
+          notify('success', 'KOT print job enqueued to print station');
+        } catch (e) {
+          notify('error', 'Failed to queue print job: ' + (e.response?.data?.message || e.message));
+        }
+        return;
+      }
+      setPrintKind('kot');
+      setPrintOrder({ ...activeOrder, _manualPrint: true });
+      if (activeOrder?.id) {
+        markCloudPrintJobPrinted(activeOrder, 'kot').catch(() => {});
+      }
+    } finally {
+      setTimeout(() => {
+        setActionBusy(prev => (prev === busyKey ? null : prev));
+      }, 1200);
     }
   };
 
@@ -1737,6 +1853,7 @@ export default function PosOrderTypeModal({
         ordersList={ordersList || []}
         sym={sym}
         actionBusy={actionBusy}
+        clickedActions={clickedActions}
         canCancelOrder={canCancelOrder}
         timezone={timezone}
         onNewOrder={onNewOrder}
@@ -1745,10 +1862,19 @@ export default function PosOrderTypeModal({
         onPrintKot={handlePrintKot}
         onPrintBill={handlePrintBill}
         onDownloadInvoice={async (order) => {
+          if (!order) return;
+          const busyKey = `${order.id}:invoice`;
+          if (actionBusy === busyKey) return;
+          setActionBusy(busyKey);
+          setClickedActions(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), invoice: true } }));
           try {
             await downloadInvoicePdf(order);
           } catch (e) {
             notify('error', 'Failed to download invoice: ' + e.message);
+          } finally {
+            setTimeout(() => {
+              setActionBusy(prev => (prev === busyKey ? null : prev));
+            }, 1200);
           }
         }}
         onUpdateStatus={handleUpdateStatus}
@@ -1757,8 +1883,16 @@ export default function PosOrderTypeModal({
           setPaymentOrder(order);
         }}
         onEditOrder={(order) => {
+          if (!order) return;
+          const busyKey = `${order.id}:edit`;
+          if (actionBusy === busyKey) return;
+          setActionBusy(busyKey);
+          setClickedActions(prev => ({ ...prev, [order.id]: { ...(prev[order.id] || {}), edit: true } }));
           setSelectedLiveOrder(null);
           setEditingOrder(order);
+          setTimeout(() => {
+            setActionBusy(prev => (prev === busyKey ? null : prev));
+          }, 600);
         }}
         onCancelOrder={(order) => {
           setSelectedLiveOrder(null);
@@ -2408,95 +2542,220 @@ export default function PosOrderTypeModal({
             </div>
 
             {/* Modal Actions Footer: Clean 2-Row Professional Layout */}
-            <div className="pos-order-modal-footer" style={S.modalFooter}>
-              {/* Row 1: Auxiliary Tools Toolbar (Bill, KOT, Invoice, Edit, Cancel) arranged neatly at top */}
-              <div className="pos-modal-aux-grid" style={S.modalAuxGrid}>
-                <button
-                  type="button"
-                  className="pos-action-bar-btn"
-                  style={S.actionBarBtn}
-                  onClick={() => handlePrintBill(selectedLiveOrder)}
-                  title="Print Bill"
-                >
-                  <FaPrint size={13} style={{ color: '#0284c7' }} />
-                  <span>Bill</span>
-                </button>
-                <button
-                  type="button"
-                  className="pos-action-bar-btn"
-                  style={S.actionBarBtn}
-                  onClick={() => handlePrintKot(selectedLiveOrder)}
-                  title="Print KOT"
-                >
-                  <FaUtensils size={13} style={{ color: '#ea580c' }} />
-                  <span>KOT</span>
-                </button>
-                <button
-                  type="button"
-                  className="pos-action-bar-btn"
-                  style={S.actionBarBtn}
-                  onClick={async () => {
-                    try {
-                      await downloadInvoicePdf(selectedLiveOrder);
-                    } catch (e) {
-                      notify('error', 'Failed to download invoice: ' + e.message);
-                    }
-                  }}
-                  title="Download Invoice PDF"
-                >
-                  <FaFileInvoice size={13} style={{ color: '#7c3aed' }} />
-                  <span>Invoice</span>
-                </button>
-                <button
-                  type="button"
-                  className="pos-action-bar-btn"
-                  style={S.actionBarBtn}
-                  onClick={() => {
-                    const orderToEdit = selectedLiveOrder;
-                    setSelectedLiveOrder(null);
-                    setEditingOrder(orderToEdit);
-                  }}
-                  title="Edit Order"
-                >
-                  <FaEdit size={13} style={{ color: '#0d9488' }} />
-                  <span>Edit</span>
-                </button>
-                {canCancelOrder && (
-                  <button
-                    type="button"
-                    className="pos-action-bar-btn pos-action-bar-btn-cancel"
-                    style={S.actionBarBtnCancel}
-                    onClick={() => {
-                      const orderToCancel = selectedLiveOrder;
-                      setSelectedLiveOrder(null);
-                      setCancelReason('');
-                      setCancelOrder(orderToCancel);
-                    }}
-                    title="Cancel Order"
-                  >
-                    <FaTimesCircle size={13} style={{ color: '#e11d48' }} />
-                    <span>Cancel</span>
-                  </button>
-                )}
-              </div>
+            {/* Modal Actions Footer: Clean 2-Row Professional Layout */}
+            {(() => {
+              const modalOrderBusyPrefix = `${selectedLiveOrder.id}:`;
+              const isModalOrderBusy = Boolean(actionBusy && String(actionBusy).startsWith(modalOrderBusyPrefix));
+              const isModalBillBusy = actionBusy === `${selectedLiveOrder.id}:bill`;
+              const isModalKotBusy = actionBusy === `${selectedLiveOrder.id}:kot`;
+              const isModalInvoiceBusy = actionBusy === `${selectedLiveOrder.id}:invoice`;
+              const isModalEditBusy = actionBusy === `${selectedLiveOrder.id}:edit`;
 
-              {/* Row 2: Prominent Centered Settle Payment Button */}
-              <div className="pos-modal-settle-wrap" style={S.modalSettleWrap}>
-                <button
-                  type="button"
-                  className="pos-settle-primary-btn"
-                  style={S.actionBtnPrimaryCentered}
-                  onClick={() => {
-                    const orderToSettle = selectedLiveOrder;
-                    setSelectedLiveOrder(null);
-                    setPaymentOrder(orderToSettle);
-                  }}
-                >
-                  <FaCreditCard size={17} />
-                  <span>Settle Payment</span>
-                </button>
-              </div>
-            </div>
+              const isOrderBilled = String(selectedLiveOrder.orderStatus || '').toUpperCase() === 'BILLED';
+              const hasModalBilled = isOrderBilled || Boolean(clickedActions[selectedLiveOrder.id]?.bill);
+              const hasModalKot = Boolean(clickedActions[selectedLiveOrder.id]?.kot);
+              const hasModalInvoice = Boolean(clickedActions[selectedLiveOrder.id]?.invoice);
+              const hasModalEdited = Boolean(clickedActions[selectedLiveOrder.id]?.edit);
+
+              return (
+                <div className="pos-order-modal-footer" style={S.modalFooter}>
+                  {/* Row 1: Auxiliary Tools Toolbar (Bill, KOT, Invoice, Edit, Cancel) arranged neatly at top */}
+                  <div className="pos-modal-aux-grid" style={S.modalAuxGrid}>
+                    <button
+                      type="button"
+                      className={`pos-action-bar-btn ${isModalBillBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isModalOrderBusy}
+                      style={{
+                        ...S.actionBarBtn,
+                        fontWeight: hasModalBilled ? 700 : 600,
+                        border: isModalBillBusy ? '1px solid #38bdf8' : (hasModalBilled ? '1px solid #86efac' : '1px solid #e2e8f0'),
+                        background: isModalBillBusy ? '#f0f9ff' : (hasModalBilled ? '#f0fdf4' : (isModalOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isModalBillBusy ? '#0284c7' : (hasModalBilled ? '#15803d' : (isModalOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isModalBillBusy ? '0 0 0 1px #38bdf8' : (hasModalBilled ? '0 1px 2px rgba(16,185,129,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                        opacity: isModalOrderBusy && !isModalBillBusy ? 0.55 : 1,
+                      }}
+                      onClick={() => {
+                        if (isModalOrderBusy) return;
+                        handlePrintBill(selectedLiveOrder);
+                      }}
+                      title={isModalBillBusy ? "Processing Bill..." : (hasModalBilled ? "Bill already printed (Click to re-print)" : "Print Bill")}
+                    >
+                      {isModalBillBusy ? (
+                        <FaSpinner size={13} style={{ color: '#0284c7', animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasModalBilled ? (
+                        <FaCheck size={11} style={{ color: '#15803d' }} />
+                      ) : (
+                        <FaPrint size={13} style={{ color: isModalOrderBusy ? '#94a3b8' : '#0284c7' }} />
+                      )}
+                      <span>{isModalBillBusy ? 'Bill...' : (hasModalBilled ? 'Billed' : 'Bill')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`pos-action-bar-btn ${isModalKotBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isModalOrderBusy}
+                      style={{
+                        ...S.actionBarBtn,
+                        fontWeight: hasModalKot ? 700 : 600,
+                        border: isModalKotBusy ? '1px solid #fdba74' : (hasModalKot ? '1px solid #fed7aa' : '1px solid #e2e8f0'),
+                        background: isModalKotBusy ? '#fff7ed' : (hasModalKot ? '#fff7ed' : (isModalOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isModalKotBusy ? '#ea580c' : (hasModalKot ? '#c2410c' : (isModalOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isModalKotBusy ? '0 0 0 1px #fdba74' : (hasModalKot ? '0 1px 2px rgba(234,88,12,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                        opacity: isModalOrderBusy && !isModalKotBusy ? 0.55 : 1,
+                      }}
+                      onClick={() => {
+                        if (isModalOrderBusy) return;
+                        handlePrintKot(selectedLiveOrder);
+                      }}
+                      title={isModalKotBusy ? "Processing KOT..." : (hasModalKot ? "KOT sent to kitchen (Click to re-print)" : "Print KOT")}
+                    >
+                      {isModalKotBusy ? (
+                        <FaSpinner size={13} style={{ color: '#ea580c', animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasModalKot ? (
+                        <FaCheck size={11} style={{ color: '#c2410c' }} />
+                      ) : (
+                        <FaUtensils size={13} style={{ color: isModalOrderBusy ? '#94a3b8' : '#ea580c' }} />
+                      )}
+                      <span>{isModalKotBusy ? 'KOT...' : (hasModalKot ? 'KOT Sent' : 'KOT')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`pos-action-bar-btn ${isModalInvoiceBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isModalOrderBusy}
+                      style={{
+                        ...S.actionBarBtn,
+                        fontWeight: hasModalInvoice ? 700 : 600,
+                        border: isModalInvoiceBusy ? '1px solid #d8b4fe' : (hasModalInvoice ? '1px solid #e9d5ff' : '1px solid #e2e8f0'),
+                        background: isModalInvoiceBusy ? '#faf5ff' : (hasModalInvoice ? '#faf5ff' : (isModalOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isModalInvoiceBusy ? '#7c3aed' : (hasModalInvoice ? '#6d28d9' : (isModalOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isModalInvoiceBusy ? '0 0 0 1px #d8b4fe' : (hasModalInvoice ? '0 1px 2px rgba(124,58,237,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                        opacity: isModalOrderBusy && !isModalInvoiceBusy ? 0.55 : 1,
+                      }}
+                      onClick={async () => {
+                        if (isModalOrderBusy) return;
+                        const busyKey = `${selectedLiveOrder.id}:invoice`;
+                        setActionBusy(busyKey);
+                        setClickedActions(prev => ({ ...prev, [selectedLiveOrder.id]: { ...(prev[selectedLiveOrder.id] || {}), invoice: true } }));
+                        try {
+                          await downloadInvoicePdf(selectedLiveOrder);
+                        } catch (e) {
+                          notify('error', 'Failed to download invoice: ' + e.message);
+                        } finally {
+                          setTimeout(() => {
+                            setActionBusy(prev => (prev === busyKey ? null : prev));
+                          }, 1200);
+                        }
+                      }}
+                      title={isModalInvoiceBusy ? "Downloading Invoice..." : (hasModalInvoice ? "Invoice downloaded (Click to re-download)" : "Download Invoice PDF")}
+                    >
+                      {isModalInvoiceBusy ? (
+                        <FaSpinner size={13} style={{ color: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasModalInvoice ? (
+                        <FaCheck size={11} style={{ color: '#6d28d9' }} />
+                      ) : (
+                        <FaFileInvoice size={13} style={{ color: isModalOrderBusy ? '#94a3b8' : '#7c3aed' }} />
+                      )}
+                      <span>{isModalInvoiceBusy ? 'PDF...' : (hasModalInvoice ? 'Invoice Saved' : 'Invoice')}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`pos-action-bar-btn ${isModalEditBusy ? 'btn-is-busy' : ''}`}
+                      disabled={isModalOrderBusy}
+                      style={{
+                        ...S.actionBarBtn,
+                        fontWeight: hasModalEdited ? 700 : 600,
+                        border: isModalEditBusy ? '1px solid #5eead4' : (hasModalEdited ? '1px solid #99f6e4' : '1px solid #e2e8f0'),
+                        background: isModalEditBusy ? '#f0fdfa' : (hasModalEdited ? '#f0fdfa' : (isModalOrderBusy ? '#f8fafc' : '#ffffff')),
+                        color: isModalEditBusy ? '#0d9488' : (hasModalEdited ? '#0f766e' : (isModalOrderBusy ? '#94a3b8' : '#475569')),
+                        boxShadow: isModalEditBusy ? '0 0 0 1px #5eead4' : (hasModalEdited ? '0 1px 2px rgba(13,148,136,0.1)' : '0 1px 2px rgba(0,0,0,0.02)'),
+                        cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                        opacity: isModalOrderBusy && !isModalEditBusy ? 0.55 : 1,
+                      }}
+                      onClick={() => {
+                        if (isModalOrderBusy) return;
+                        const busyKey = `${selectedLiveOrder.id}:edit`;
+                        setActionBusy(busyKey);
+                        setClickedActions(prev => ({ ...prev, [selectedLiveOrder.id]: { ...(prev[selectedLiveOrder.id] || {}), edit: true } }));
+                        const orderToEdit = selectedLiveOrder;
+                        setSelectedLiveOrder(null);
+                        setEditingOrder(orderToEdit);
+                        setTimeout(() => {
+                          setActionBusy(prev => (prev === busyKey ? null : prev));
+                        }, 600);
+                      }}
+                      title={isModalEditBusy ? "Opening editor..." : (hasModalEdited ? "Order edited (Click to edit again)" : "Edit Order")}
+                    >
+                      {isModalEditBusy ? (
+                        <FaSpinner size={13} style={{ color: '#0d9488', animation: 'spin 0.8s linear infinite' }} />
+                      ) : hasModalEdited ? (
+                        <FaCheck size={11} style={{ color: '#0f766e' }} />
+                      ) : (
+                        <FaEdit size={13} style={{ color: isModalOrderBusy ? '#94a3b8' : '#0d9488' }} />
+                      )}
+                      <span>{isModalEditBusy ? 'Edit...' : (hasModalEdited ? 'Order Edited' : 'Edit')}</span>
+                    </button>
+
+                    {canCancelOrder && (
+                      <button
+                        type="button"
+                        className="pos-action-bar-btn pos-action-bar-btn-cancel"
+                        disabled={isModalOrderBusy}
+                        style={{
+                          ...S.actionBarBtnCancel,
+                          cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                          pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                          opacity: isModalOrderBusy ? 0.55 : 1,
+                        }}
+                        onClick={() => {
+                          if (isModalOrderBusy) return;
+                          const orderToCancel = selectedLiveOrder;
+                          setSelectedLiveOrder(null);
+                          setCancelReason('');
+                          setCancelOrder(orderToCancel);
+                        }}
+                        title="Cancel Order"
+                      >
+                        <FaTimesCircle size={13} style={{ color: '#e11d48' }} />
+                        <span>Cancel</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Row 2: Prominent Centered Settle Payment Button */}
+                  <div className="pos-modal-settle-wrap" style={S.modalSettleWrap}>
+                    <button
+                      type="button"
+                      className="pos-settle-primary-btn"
+                      disabled={isModalOrderBusy}
+                      style={{
+                        ...S.actionBtnPrimaryCentered,
+                        cursor: isModalOrderBusy ? 'not-allowed' : 'pointer',
+                        pointerEvents: isModalOrderBusy ? 'none' : 'auto',
+                        opacity: isModalOrderBusy ? 0.65 : 1,
+                      }}
+                      onClick={() => {
+                        if (isModalOrderBusy) return;
+                        const orderToSettle = selectedLiveOrder;
+                        setSelectedLiveOrder(null);
+                        setPaymentOrder(orderToSettle);
+                      }}
+                    >
+                      <FaCreditCard size={17} />
+                      <span>Settle Payment</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -2543,6 +2802,9 @@ export default function PosOrderTypeModal({
                 const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
                 notify('success', 'Order updated successfully');
                 const savedOrder = res?.data?.data;
+                if (savedOrder?.id) {
+                  setClickedActions(prev => ({ ...prev, [savedOrder.id]: { ...(prev[savedOrder.id] || {}), edit: true } }));
+                }
                 if (localKotPrint && savedOrder?.id) {
                   markCloudPrintJobPrinted({ id: savedOrder.id }, 'kot').catch(() => null);
                 }
@@ -2997,6 +3259,10 @@ export default function PosOrderTypeModal({
         }
         .board-aux-btn, .board-settle-btn, .board-icon-btn, .board-danger-btn {
           border-radius: 10px !important;
+        }
+        .btn-is-busy {
+          cursor: not-allowed !important;
+          pointer-events: none !important;
         }
 
         .avail-table-pill:hover {
