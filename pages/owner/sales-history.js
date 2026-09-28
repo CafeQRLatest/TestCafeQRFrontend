@@ -422,8 +422,14 @@ export default function SalesHistoryPage() {
       const cleanQ = rawQ.replace(/^[#\s]+/, '');
       const queryToSend = cleanQ || rawQ;
 
-      const fromUtc = (filters.from && !queryToSend) ? businessTimeToUtc(filters.from, activeTz) : undefined;
-      const toUtc = (filters.to && !queryToSend) ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      // Always supply valid from and to timestamps so Spring @NotNull constraint is satisfied
+      let fromUtc = filters.from ? businessTimeToUtc(filters.from, activeTz) : undefined;
+      let toUtc = filters.to ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      if (!fromUtc || !toUtc) {
+        const def = defaultHistoryRange(activeTz);
+        if (!fromUtc) fromUtc = businessTimeToUtc(def.from, activeTz);
+        if (!toUtc) toUtc = businessTimeToUtc(def.to, activeTz);
+      }
 
       // Status param: explicit targetStatus or fallback to activeSegment
       const resolvedStatus = targetStatus || (activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
@@ -511,39 +517,75 @@ export default function SalesHistoryPage() {
     setHistoryFilters(f => {
       const updated = { ...f, q: newQ };
       if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
-      debouncedSearchRef.current = setTimeout(() => {
+      if (!newQ || !newQ.trim()) {
         fetchHistoryOrders(0, updated, activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
-      }, 400);
+      } else {
+        debouncedSearchRef.current = setTimeout(() => {
+          fetchHistoryOrders(0, updated, activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
+        }, 350);
+      }
       return updated;
     });
   }, [fetchHistoryOrders, activeSegment]);
 
   // Client-side quick filter on already loaded page (in addition to backend query)
   const filteredHistoryOrders = useMemo(() => {
-    if (!historyFilters.q || !historyFilters.q.trim()) {
+    const rawQ = historyFilters.q?.trim() || '';
+    if (!rawQ) {
       return historyOrders;
     }
-    const query = historyFilters.q.trim().toLowerCase().replace(/^[#\s]+/, '');
-    if (!query) return historyOrders;
+    const cleanQ = rawQ.toLowerCase().replace(/^[#\s]+/, '');
+    const lowerRawQ = rawQ.toLowerCase();
 
     return historyOrders.filter((order) => {
       const orderNo = String(order?.orderNo || order?.order_no || '').toLowerCase();
-      const dailyBillNo = String(order?.dailyBillNo || order?.daily_bill_no || '').toLowerCase();
-      const customerName = String(order?.customerName || order?.customer_name || '').toLowerCase();
-      const customerPhone = String(order?.customerPhone || order?.customer_phone || '').toLowerCase();
-      const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
-      const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
-      const itemNames = (order?.lines || order?.items || []).map(i => String(i.name || i.productName || i.product_name || '').toLowerCase()).join(' ');
+      const rawDailyBill = String(order?.dailyBillNo ?? order?.daily_bill_no ?? '');
+      const dailyBillWithHash = `#${rawDailyBill}`.toLowerCase();
+      const dailyBillPlain = rawDailyBill.toLowerCase();
 
-      return (
-        orderNo.includes(query) ||
-        dailyBillNo.includes(query) ||
-        customerName.includes(query) ||
-        customerPhone.includes(query) ||
-        invoiceNo.includes(query) ||
-        tableNum.includes(query) ||
-        itemNames.includes(query)
-      );
+      const customerNames = [
+        order?.customerName,
+        order?.customer_name,
+        order?.creditCustomerName,
+        order?.credit_customer_name,
+        ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.name) : [])
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      const customerPhones = [
+        order?.customerPhone,
+        order?.customer_phone,
+        order?.creditCustomerPhone,
+        order?.credit_customer_phone,
+        ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.phone) : [])
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
+      const paymentNo = String(order?.paymentNo || order?.payment_no || order?.referenceNo || order?.reference_no || '').toLowerCase();
+      const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
+      const idStr = String(order?.id || '').toLowerCase();
+
+      const itemNames = (order?.lines || order?.orderLines || order?.items || [])
+        .map(i => `${i.name || ''} ${i.productName || i.product_name || ''} ${i.categoryName || i.category_name || ''}`)
+        .join(' ')
+        .toLowerCase();
+
+      const matches = (term) => {
+        if (!term) return false;
+        return (
+          orderNo.includes(term) ||
+          dailyBillPlain.includes(term) ||
+          dailyBillWithHash.includes(term) ||
+          customerNames.includes(term) ||
+          customerPhones.includes(term) ||
+          invoiceNo.includes(term) ||
+          paymentNo.includes(term) ||
+          tableNum.includes(term) ||
+          idStr.includes(term) ||
+          itemNames.includes(term)
+        );
+      };
+
+      return matches(cleanQ) || matches(lowerRawQ);
     });
   }, [historyOrders, historyFilters.q]);
 
@@ -561,21 +603,54 @@ export default function SalesHistoryPage() {
     }
 
     if (!isHistoryTab && historyFilters.q?.trim()) {
-      const query = historyFilters.q.trim().toLowerCase().replace(/^[#\s]+/, '');
-      if (!query) return list;
+      const rawQ = historyFilters.q.trim();
+      const cleanQ = rawQ.toLowerCase().replace(/^[#\s]+/, '');
+      const lowerRawQ = rawQ.toLowerCase();
+
       return list.filter(order => {
         const orderNo = String(order?.orderNo || order?.order_no || '').toLowerCase();
-        const dailyBillNo = String(order?.dailyBillNo || order?.daily_bill_no || '').toLowerCase();
-        const customerName = String(order?.customerName || order?.customer_name || '').toLowerCase();
-        const customerPhone = String(order?.customerPhone || order?.customer_phone || '').toLowerCase();
+        const rawDailyBill = String(order?.dailyBillNo ?? order?.daily_bill_no ?? '');
+        const dailyBillWithHash = `#${rawDailyBill}`.toLowerCase();
+        const dailyBillPlain = rawDailyBill.toLowerCase();
+
+        const customerNames = [
+          order?.customerName,
+          order?.customer_name,
+          order?.creditCustomerName,
+          order?.credit_customer_name,
+          ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.name) : [])
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const customerPhones = [
+          order?.customerPhone,
+          order?.customer_phone,
+          order?.creditCustomerPhone,
+          order?.credit_customer_phone,
+          ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.phone) : [])
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
         const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
-        return (
-          orderNo.includes(query) ||
-          dailyBillNo.includes(query) ||
-          customerName.includes(query) ||
-          customerPhone.includes(query) ||
-          tableNum.includes(query)
-        );
+        const itemNames = (order?.lines || order?.orderLines || order?.items || [])
+          .map(i => `${i.name || ''} ${i.productName || i.product_name || ''}`)
+          .join(' ')
+          .toLowerCase();
+
+        const matches = (term) => {
+          if (!term) return false;
+          return (
+            orderNo.includes(term) ||
+            dailyBillPlain.includes(term) ||
+            dailyBillWithHash.includes(term) ||
+            customerNames.includes(term) ||
+            customerPhones.includes(term) ||
+            invoiceNo.includes(term) ||
+            tableNum.includes(term) ||
+            itemNames.includes(term)
+          );
+        };
+
+        return matches(cleanQ) || matches(lowerRawQ);
       });
     }
 

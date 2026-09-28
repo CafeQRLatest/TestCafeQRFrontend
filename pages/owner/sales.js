@@ -776,8 +776,13 @@ function SalesContent() {
       const cleanQ = rawQ.replace(/^[#\s]+/, '');
       const queryToSend = cleanQ || rawQ;
 
-      const fromUtc = (activeFilters.from && !queryToSend) ? businessTimeToUtc(activeFilters.from, timezone) : undefined;
-      const toUtc = (activeFilters.to && !queryToSend) ? businessTimeToUtc(activeFilters.to, timezone) : undefined;
+      let fromUtc = activeFilters.from ? businessTimeToUtc(activeFilters.from, timezone) : undefined;
+      let toUtc = activeFilters.to ? businessTimeToUtc(activeFilters.to, timezone) : undefined;
+      if (!fromUtc || !toUtc) {
+        const def = defaultHistoryRange(timezone);
+        if (!fromUtc) fromUtc = businessTimeToUtc(def.from, timezone);
+        if (!toUtc) toUtc = businessTimeToUtc(def.to, timezone);
+      }
       
       const response = await api.post('/api/v2/sales/dashboard', {
         from: fromUtc,

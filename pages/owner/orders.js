@@ -957,8 +957,13 @@ export default function OrdersPage() {
       const cleanQ = rawQ.replace(/^[#\s]+/, '');
       const queryToSend = cleanQ || rawQ;
 
-      const fromUtc = (filters.from && !queryToSend) ? businessTimeToUtc(filters.from, activeTz) : undefined;
-      const toUtc = (filters.to && !queryToSend) ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      let fromUtc = filters.from ? businessTimeToUtc(filters.from, activeTz) : undefined;
+      let toUtc = filters.to ? businessTimeToUtc(filters.to, activeTz) : undefined;
+      if (!fromUtc || !toUtc) {
+        const def = defaultHistoryRange(activeTz);
+        if (!fromUtc) fromUtc = businessTimeToUtc(def.from, activeTz);
+        if (!toUtc) toUtc = businessTimeToUtc(def.to, activeTz);
+      }
 
       const response = await api.post('/api/v2/sales/dashboard', {
         from: fromUtc,
