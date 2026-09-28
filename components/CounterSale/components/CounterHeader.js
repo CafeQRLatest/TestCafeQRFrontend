@@ -94,6 +94,7 @@ export default function CounterHeader({
           $themeColor={theme.main}
           $softColor={theme.soft}
           title="Zoom Out"
+          aria-label="Zoom out"
         >
           <FaMinus size={8} />
         </S.CsZoomBtn>
@@ -105,6 +106,7 @@ export default function CounterHeader({
           $themeColor={theme.main}
           $softColor={theme.soft}
           title="Zoom In"
+          aria-label="Zoom in"
         >
           <FaPlus size={8} />
         </S.CsZoomBtn>

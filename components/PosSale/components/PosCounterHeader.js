@@ -21,6 +21,12 @@ const HeaderContainer = styled.header`
     gap: 10px;
     flex-wrap: wrap;
   }
+
+  @media (max-width: 480px) {
+    padding: 6px 10px;
+    gap: 8px;
+    min-height: 48px;
+  }
 `;
 
 const HeaderLeftGroup = styled.div`
@@ -28,11 +34,10 @@ const HeaderLeftGroup = styled.div`
   align-items: center;
   gap: 12px;
   min-width: 0;
-  flex-shrink: 0;
+  flex: 0 1 auto;
 
   @media (max-width: 540px) {
     gap: 8px;
-    flex-wrap: wrap;
   }
 `;
 
@@ -48,11 +53,18 @@ const BackBtn = styled.button`
   cursor: pointer;
   color: #475569;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 
   &:hover {
     background: #f8fafc;
     border-color: #cbd5e1;
     color: #0f172a;
+  }
+
+  @media (max-width: 540px) {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
   }
 `;
 
@@ -62,6 +74,12 @@ const TitleGroup = styled.div`
   border-left: 4px solid #f97316;
   padding-left: 10px;
   height: 24px;
+  min-width: 0;
+
+  @media (max-width: 540px) {
+    padding-left: 8px;
+    border-left-width: 3px;
+  }
 `;
 
 const HeaderTitle = styled.h1`
@@ -71,6 +89,16 @@ const HeaderTitle = styled.h1`
   font-weight: 800;
   color: #0f172a;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 540px) {
+    font-size: 13.5px;
+  }
+
+  @media (max-width: 360px) {
+    font-size: 12.5px;
+  }
 `;
 
 const ModeSwitch = styled.div`
@@ -84,9 +112,13 @@ const ModeSwitch = styled.div`
   height: 34px;
   box-sizing: border-box;
   margin-left: 4px;
+  flex-shrink: 0;
 
   @media (max-width: 540px) {
     margin-left: 0;
+    height: 30px;
+    padding: 2px;
+    border-radius: 8px;
   }
 `;
 
@@ -104,6 +136,13 @@ const ModeBtn = styled.button`
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+
+  @media (max-width: 540px) {
+    padding: 0 9px;
+    height: 24px;
+    font-size: 11px;
+    border-radius: 6px;
+  }
 
   ${props => props.$variant === 'kitchen' && (props.$active ? `
     background: #f97316;
@@ -159,9 +198,21 @@ const ZoomControl = styled.div`
   height: 34px;
   box-sizing: border-box;
   flex-shrink: 0;
+  user-select: none;
 
-  @media (max-width: 820px) {
-    display: none;
+  @media (max-width: 580px) {
+    height: 30px;
+    padding: 2px;
+    border-radius: 8px;
+    gap: 2px;
+    margin-left: auto;
+  }
+
+  @media (max-width: 360px) {
+    height: 28px;
+    padding: 2px;
+    border-radius: 7px;
+    gap: 1px;
   }
 `;
 
@@ -178,6 +229,10 @@ const ZoomBtn = styled.button`
   cursor: pointer;
   font-weight: 800;
   transition: all 0.15s ease;
+  box-sizing: border-box;
+  padding: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover:not(:disabled) {
     border-color: #f97316;
@@ -185,9 +240,26 @@ const ZoomBtn = styled.button`
     color: #ea580c;
   }
 
+  &:active:not(:disabled) {
+    transform: scale(0.94);
+    background: #ffedd5;
+  }
+
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 580px) {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+  }
+
+  @media (max-width: 360px) {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
   }
 `;
 
@@ -198,6 +270,19 @@ const ZoomLabel = styled.span`
   padding: 0 4px;
   min-width: 32px;
   text-align: center;
+  line-height: 1;
+
+  @media (max-width: 580px) {
+    font-size: 10px;
+    padding: 0 2px;
+    min-width: 26px;
+  }
+
+  @media (max-width: 360px) {
+    font-size: 9.5px;
+    padding: 0 1px;
+    min-width: 24px;
+  }
 `;
 
 const SalesHistoryBtn = styled.button`
@@ -325,6 +410,7 @@ export default function PosCounterHeader({
             onClick={() => handleZoom(-0.1)}
             disabled={zoomLevel <= 0.8}
             title="Zoom Out"
+            aria-label="Zoom out"
           >
             <FaMinus size={8} />
           </ZoomBtn>
@@ -334,6 +420,7 @@ export default function PosCounterHeader({
             onClick={() => handleZoom(0.1)}
             disabled={zoomLevel >= 1.4}
             title="Zoom In"
+            aria-label="Zoom in"
           >
             <FaPlus size={8} />
           </ZoomBtn>

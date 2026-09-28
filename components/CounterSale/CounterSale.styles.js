@@ -16,10 +16,6 @@ export const CsModalOverlay = styled.div`
   height: 100%;
   overflow: hidden;
   zoom: ${props => props.$zoom || 1};
-
-  @media (max-width: 768px) {
-    zoom: 1 !important;
-  }
 `;
 
 export const CsModalContent = styled.div`
@@ -210,9 +206,21 @@ export const CsZoomControl = styled.div`
   box-shadow: inset 0 1px 2.5px rgba(15, 23, 42, 0.08);
   border: 1.5px solid #edf2f7;
   flex-shrink: 0;
+  user-select: none;
 
   @media (max-width: 768px) {
-    display: none;
+    padding: 2px;
+    gap: 2px;
+    border-radius: 8px;
+  }
+
+  @media (max-width: 520px) {
+    margin-left: auto;
+  }
+
+  @media (max-width: 360px) {
+    gap: 1px;
+    border-radius: 7px;
   }
 `;
 
@@ -230,6 +238,8 @@ export const CsZoomBtn = styled.button`
   font-size: 11px;
   font-weight: 800;
   transition: all 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 
   &:hover:not(:disabled) {
     border-color: ${props => props.$themeColor || '#ea580c'};
@@ -237,9 +247,27 @@ export const CsZoomBtn = styled.button`
     color: ${props => props.$themeColor || '#ea580c'};
   }
 
+  &:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    font-size: 10px;
+  }
+
+  @media (max-width: 360px) {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    font-size: 9px;
   }
 `;
 
@@ -251,6 +279,19 @@ export const CsZoomLabel = styled.span`
   user-select: none;
   min-width: 34px;
   text-align: center;
+  line-height: 1;
+
+  @media (max-width: 768px) {
+    font-size: 10px;
+    padding: 0 2px;
+    min-width: 28px;
+  }
+
+  @media (max-width: 360px) {
+    font-size: 9px;
+    padding: 0 1px;
+    min-width: 24px;
+  }
 `;
 
 export const CsCategoryCarouselWrapper = styled.div`
