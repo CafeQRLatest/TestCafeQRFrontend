@@ -96,6 +96,10 @@ function OrganizationSettingsContent() {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   const [clientData, setClientData] = useState(null);
+  const [config, setConfig] = useState(null);
+
+  const isOnlineDeliveryEnabled = Boolean(config?.onlineDeliveryEnabled ?? config?.pm_online_delivery ?? false);
+  const isPayrollEnabled = Boolean(config?.payrollEnabled ?? config?.pm_payroll ?? false);
 
   const toSlug = (input) => {
     if (!input) return '';
@@ -159,10 +163,34 @@ function OrganizationSettingsContent() {
     }
   };
 
+  const fetchBranchConfig = async (branchId) => {
+    try {
+      const url = branchId ? `/api/v1/configurations/branch/${branchId}/effective` : '/api/v1/configurations';
+      let res;
+      try {
+        res = await api.get(url);
+      } catch {
+        res = await api.get('/api/v1/configurations');
+      }
+      if (res?.data?.data) {
+        setConfig(res.data.data);
+      }
+    } catch (err) {
+      console.warn("Failed to load configuration in organization details", err);
+    }
+  };
+
   useEffect(() => {
     fetchOrganizations();
     fetchClient();
+    fetchBranchConfig(selectedOrg?.id);
   }, []);
+
+  useEffect(() => {
+    if (selectedOrg?.id) {
+      fetchBranchConfig(selectedOrg.id);
+    }
+  }, [selectedOrg?.id]);
 
   const fetchClient = async () => {
     try {
@@ -370,74 +398,78 @@ function OrganizationSettingsContent() {
                 </div>
               </div>
 
-              {/* Live Public Storefront Link Bar */}
-              {selectedOrg.id && (
+              {/* Live Public Storefront Link Bar & Staff Attendance Kiosk Bar */}
+              {selectedOrg.id && (isOnlineDeliveryEnabled || isPayrollEnabled) && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-                  <div className="v2-store-link-card">
-                    <div className="store-link-info">
-                      <div className="store-link-badge">
-                        <FaGlobe /> LIVE DELIVERY STOREFRONT URL
+                  {isOnlineDeliveryEnabled && (
+                    <div className="v2-store-link-card">
+                      <div className="store-link-info">
+                        <div className="store-link-badge">
+                          <FaGlobe /> LIVE DELIVERY STOREFRONT URL
+                        </div>
+                        <a
+                          href={getDeliveryUrl(selectedOrg)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="store-link-url"
+                        >
+                          {getDeliveryUrl(selectedOrg)}
+                        </a>
                       </div>
-                      <a
-                        href={getDeliveryUrl(selectedOrg)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="store-link-url"
-                      >
-                        {getDeliveryUrl(selectedOrg)}
-                      </a>
+                      <div className="store-link-actions">
+                        <button
+                          type="button"
+                          className="store-action-btn copy"
+                          onClick={() => copyToClipboard(getDeliveryUrl(selectedOrg), "Storefront URL")}
+                        >
+                          <FaCopy /> {copiedUrl === getDeliveryUrl(selectedOrg) ? "Copied!" : "Copy Link"}
+                        </button>
+                        <a
+                          href={getDeliveryUrl(selectedOrg)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="store-action-btn visit"
+                        >
+                          <FaExternalLinkAlt /> Visit Store
+                        </a>
+                      </div>
                     </div>
-                    <div className="store-link-actions">
-                      <button
-                        type="button"
-                        className="store-action-btn copy"
-                        onClick={() => copyToClipboard(getDeliveryUrl(selectedOrg), "Storefront URL")}
-                      >
-                        <FaCopy /> {copiedUrl === getDeliveryUrl(selectedOrg) ? "Copied!" : "Copy Link"}
-                      </button>
-                      <a
-                        href={getDeliveryUrl(selectedOrg)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="store-action-btn visit"
-                      >
-                        <FaExternalLinkAlt /> Visit Store
-                      </a>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="v2-store-link-card">
-                    <div className="store-link-info">
-                      <div className="store-link-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
-                        <FaIdBadge /> STAFF ATTENDANCE KIOSK URL
+                  {isPayrollEnabled && (
+                    <div className="v2-store-link-card">
+                      <div className="store-link-info">
+                        <div className="store-link-badge" style={{ background: '#fef3c7', color: '#b45309' }}>
+                          <FaIdBadge /> STAFF ATTENDANCE KIOSK URL
+                        </div>
+                        <a
+                          href={getKioskUrl(selectedOrg)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="store-link-url"
+                        >
+                          {getKioskUrl(selectedOrg)}
+                        </a>
                       </div>
-                      <a
-                        href={getKioskUrl(selectedOrg)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="store-link-url"
-                      >
-                        {getKioskUrl(selectedOrg)}
-                      </a>
+                      <div className="store-link-actions">
+                        <button
+                          type="button"
+                          className="store-action-btn copy"
+                          onClick={() => copyToClipboard(getKioskUrl(selectedOrg), "Kiosk URL")}
+                        >
+                          <FaCopy /> {copiedUrl === getKioskUrl(selectedOrg) ? "Copied!" : "Copy Link"}
+                        </button>
+                        <a
+                          href={getKioskUrl(selectedOrg)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="store-action-btn visit"
+                        >
+                          <FaExternalLinkAlt /> Open Kiosk
+                        </a>
+                      </div>
                     </div>
-                    <div className="store-link-actions">
-                      <button
-                        type="button"
-                        className="store-action-btn copy"
-                        onClick={() => copyToClipboard(getKioskUrl(selectedOrg), "Kiosk URL")}
-                      >
-                        <FaCopy /> {copiedUrl === getKioskUrl(selectedOrg) ? "Copied!" : "Copy Link"}
-                      </button>
-                      <a
-                        href={getKioskUrl(selectedOrg)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="store-action-btn visit"
-                      >
-                        <FaExternalLinkAlt /> Open Kiosk
-                      </a>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -737,120 +769,126 @@ function OrganizationSettingsContent() {
                 </section>
 
                 {/* 4.5. Customer Ratings & Reviews */}
-                <section className="v2-data-block full">
-                  <div className="block-header">
-                    <FaStar className="block-icon" style={{ color: '#f59e0b' }} />
-                    <h4>Customer Ratings & Reviews</h4>
-                  </div>
-                  <div className="block-content">
-                    <div className="review-toggle-card">
-                      <div className="review-toggle-text">
-                        <span className="review-toggle-title">Enable Customer Reviews & Ratings</span>
-                        <span className="review-toggle-desc">
-                          Allow customers to submit reviews and view branch ratings on the storefront.
-                        </span>
-                      </div>
-                      <label className="switch-slide-control">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedOrg.reviewsEnabled !== false}
-                          onChange={(e) => setSelectedOrg({ ...selectedOrg, reviewsEnabled: e.target.checked })}
-                        />
-                        <span className="switch-slide-track">
-                          <span className="switch-slide-thumb"></span>
-                        </span>
-                        <span className={`switch-slide-badge ${selectedOrg.reviewsEnabled !== false ? 'on' : 'off'}`}>
-                          {selectedOrg.reviewsEnabled !== false ? 'ON' : 'OFF'}
-                        </span>
-                      </label>
+                {isOnlineDeliveryEnabled && (
+                  <section className="v2-data-block full">
+                    <div className="block-header">
+                      <FaStar className="block-icon" style={{ color: '#f59e0b' }} />
+                      <h4>Customer Ratings & Reviews</h4>
                     </div>
-                  </div>
-                </section>
+                    <div className="block-content">
+                      <div className="review-toggle-card">
+                        <div className="review-toggle-text">
+                          <span className="review-toggle-title">Enable Customer Reviews & Ratings</span>
+                          <span className="review-toggle-desc">
+                            Allow customers to submit reviews and view branch ratings on the storefront.
+                          </span>
+                        </div>
+                        <label className="switch-slide-control">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedOrg.reviewsEnabled !== false}
+                            onChange={(e) => setSelectedOrg({ ...selectedOrg, reviewsEnabled: e.target.checked })}
+                          />
+                          <span className="switch-slide-track">
+                            <span className="switch-slide-thumb"></span>
+                          </span>
+                          <span className={`switch-slide-badge ${selectedOrg.reviewsEnabled !== false ? 'on' : 'off'}`}>
+                            {selectedOrg.reviewsEnabled !== false ? 'ON' : 'OFF'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  </section>
+                )}
 
                 {/* 5. Delivery & Logistics */}
-                <section className="v2-data-block">
-                  <div className="block-header">
-                    <FaTruckMoving className="block-icon" />
-                    <h4>Logistics & Range</h4>
-                  </div>
-                  <div className="block-content">
-                    <div className="v2-input-group">
-                      <label>Local Delivery Range (km)</label>
-                      <div className="range-combo-box">
-                        <div className="range-input-row">
+                {isOnlineDeliveryEnabled && (
+                  <section className="v2-data-block">
+                    <div className="block-header">
+                      <FaTruckMoving className="block-icon" />
+                      <h4>Logistics & Range</h4>
+                    </div>
+                    <div className="block-content">
+                      <div className="v2-input-group">
+                        <label>Local Delivery Range (km)</label>
+                        <div className="range-combo-box">
+                          <div className="range-input-row">
+                            <input 
+                              type="number" 
+                              min="0.5" 
+                              max="20000" 
+                              step={selectedOrg.deliveryRadiusKm < 100 ? 0.5 : 10}
+                              value={selectedOrg.deliveryRadiusKm || 5}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0.5;
+                                setSelectedOrg({...selectedOrg, deliveryRadiusKm: Math.min(20000, Math.max(0.5, val))});
+                              }}
+                              className="radius-number-input"
+                            />
+                            <span className="unit-label">km</span>
+                            <button 
+                              type="button" 
+                              className="quick-set-btn"
+                              onClick={() => setSelectedOrg({...selectedOrg, deliveryRadiusKm: 20000})}
+                            >
+                              🌍 Worldwide
+                            </button>
+                          </div>
                           <input 
-                            type="number" 
+                            type="range" 
                             min="0.5" 
                             max="20000" 
                             step={selectedOrg.deliveryRadiusKm < 100 ? 0.5 : 10}
                             value={selectedOrg.deliveryRadiusKm || 5}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0.5;
-                              setSelectedOrg({...selectedOrg, deliveryRadiusKm: Math.min(20000, Math.max(0.5, val))});
-                            }}
-                            className="radius-number-input"
+                            onChange={(e) => setSelectedOrg({...selectedOrg, deliveryRadiusKm: parseFloat(e.target.value)})}
+                            className="radius-slider"
                           />
-                          <span className="unit-label">km</span>
-                          <button 
-                            type="button" 
-                            className="quick-set-btn"
-                            onClick={() => setSelectedOrg({...selectedOrg, deliveryRadiusKm: 20000})}
-                          >
-                            🌍 Worldwide
-                          </button>
-                        </div>
-                        <input 
-                          type="range" 
-                          min="0.5" 
-                          max="20000" 
-                          step={selectedOrg.deliveryRadiusKm < 100 ? 0.5 : 10}
-                          value={selectedOrg.deliveryRadiusKm || 5}
-                          onChange={(e) => setSelectedOrg({...selectedOrg, deliveryRadiusKm: parseFloat(e.target.value)})}
-                          className="radius-slider"
-                        />
-                        <div className="range-smart-label">
-                          {(() => {
-                            const r = selectedOrg.deliveryRadiusKm || 5;
-                            if (r >= 20000) return "🌍 Worldwide Delivery Service";
-                            if (r >= 2000) return `🌐 Continental / Nationwide (${r.toFixed(0)} km)`;
-                            if (r >= 500) return `🚆 Regional / State-wide (${r.toFixed(0)} km)`;
-                            if (r >= 50) return `🚗 City-wide (${r.toFixed(0)} km)`;
-                            return `🚲 Local Delivery (${r.toFixed(1)} km)`;
-                          })()}
+                          <div className="range-smart-label">
+                            {(() => {
+                              const r = selectedOrg.deliveryRadiusKm || 5;
+                              if (r >= 20000) return "🌍 Worldwide Delivery Service";
+                              if (r >= 2000) return `🌐 Continental / Nationwide (${r.toFixed(0)} km)`;
+                              if (r >= 500) return `🚆 Regional / State-wide (${r.toFixed(0)} km)`;
+                              if (r >= 50) return `🚗 City-wide (${r.toFixed(0)} km)`;
+                              return `🚲 Local Delivery (${r.toFixed(1)} km)`;
+                            })()}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
+                )}
 
                 {/* 5. Geospatial Alignment */}
-                <section className="v2-data-block">
-                  <div className="block-header">
-                    <FaCompass className="block-icon" />
-                    <h4>Geospatial Alignment</h4>
-                    <button type="button" className="gps-btn" onClick={fetchCurrentLocation}>
-                      <FaLocationArrow /> Use Current Location
-                    </button>
-                  </div>
-                  <div className="block-content coords">
-                    <div className="v2-input-group">
-                      <label>Latitude</label>
-                      <input 
-                        type="number" step="0.000001"
-                        value={selectedOrg.latitude || ''}
-                        onChange={(e) => setSelectedOrg({...selectedOrg, latitude: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
+                {isOnlineDeliveryEnabled && (
+                  <section className="v2-data-block">
+                    <div className="block-header">
+                      <FaCompass className="block-icon" />
+                      <h4>Geospatial Alignment</h4>
+                      <button type="button" className="gps-btn" onClick={fetchCurrentLocation}>
+                        <FaLocationArrow /> Use Current Location
+                      </button>
                     </div>
-                    <div className="v2-input-group">
-                      <label>Longitude</label>
-                      <input 
-                        type="number" step="0.000001"
-                        value={selectedOrg.longitude || ''}
-                        onChange={(e) => setSelectedOrg({...selectedOrg, longitude: e.target.value ? parseFloat(e.target.value) : null})}
-                      />
+                    <div className="block-content coords">
+                      <div className="v2-input-group">
+                        <label>Latitude</label>
+                        <input 
+                          type="number" step="0.000001"
+                          value={selectedOrg.latitude || ''}
+                          onChange={(e) => setSelectedOrg({...selectedOrg, latitude: e.target.value ? parseFloat(e.target.value) : null})}
+                        />
+                      </div>
+                      <div className="v2-input-group">
+                        <label>Longitude</label>
+                        <input 
+                          type="number" step="0.000001"
+                          value={selectedOrg.longitude || ''}
+                          onChange={(e) => setSelectedOrg({...selectedOrg, longitude: e.target.value ? parseFloat(e.target.value) : null})}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
+                )}
 
               </div>
 
