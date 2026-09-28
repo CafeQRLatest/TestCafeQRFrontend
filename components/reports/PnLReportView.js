@@ -350,7 +350,12 @@ export default function PnLReportView({
                 </div>
                 <div className="rpt-pnl-step-sub">Final business profit or loss for the selected period</div>
               </div>
-              <div className="rpt-pnl-step-val">{SYM}{fmt(netProfit)}</div>
+              <div
+                className={`rpt-pnl-step-val ${netProfit >= 0 ? 'text-profit' : 'text-loss'}`}
+                style={{ color: netProfit >= 0 ? '#059669' : '#dc2626', fontSize: '20px', fontWeight: 900 }}
+              >
+                {SYM}{fmt(netProfit)}
+              </div>
             </div>
           </div>
         </div>
@@ -388,7 +393,9 @@ export default function PnLReportView({
                 <span>Cash Collected After Expenses</span>
                 <InfoTooltip id="cashCollected" text="Cash Collected After Expenses: Actual net cash position after paying costs." />
               </div>
-              <div className="side-card-val">{SYM}{fmt(cashCollected)}</div>
+              <div className={`side-card-val ${cashCollected >= 0 ? 'text-success' : 'text-danger'}`} style={{ color: cashCollected >= 0 ? '#10b981' : '#ef4444' }}>
+                {SYM}{fmt(cashCollected)}
+              </div>
               <div className="side-card-desc">Actual cash movement (excluding unpaid credit sales)</div>
             </div>
           </div>
@@ -476,7 +483,13 @@ export default function PnLReportView({
         .rpt-pnl-step.result { background: #f0f7ff; border-color: #bfdbfe; }
         .rpt-pnl-step.result:hover { background: #ffffff; border-color: #3b82f6; }
         .rpt-pnl-step.final-net-profit { background: #f0fdf4; border: 2px solid #bbf7d0; padding: 20px; box-shadow: 0 4px 12px rgba(16,185,129,0.06); }
+        .rpt-pnl-step.final-net-profit:hover { transform: scale(1.01); box-shadow: 0 12px 24px rgba(16,185,129,0.12); }
         .rpt-pnl-step.final-net-profit.loss { background: #fef2f2; border-color: #fecaca; box-shadow: 0 4px 12px rgba(239,68,68,0.06); }
+        .rpt-pnl-step.final-net-profit.loss:hover { box-shadow: 0 12px 24px rgba(239,68,68,0.12); }
+        .rpt-pnl-step.final-net-profit .rpt-pnl-step-title { font-size: 15px; font-weight: 800; }
+        .rpt-pnl-step.final-net-profit .rpt-pnl-step-val { font-size: 20px; font-weight: 900; }
+        .rpt-pnl-step.final-net-profit.profit .rpt-pnl-step-val { color: #059669 !important; }
+        .rpt-pnl-step.final-net-profit.loss .rpt-pnl-step-val { color: #dc2626 !important; }
 
         .rpt-pnl-badge { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
         .rpt-pnl-badge.plus { background: #ecfdf5; color: #10b981; border: 1px solid #a7f3d0; }
@@ -502,7 +515,9 @@ export default function PnLReportView({
         .rpt-pnl-side-card.tax { border-left: 4px solid #8b5cf6; }
         .rpt-pnl-side-card.receivables { border-left: 4px solid #f59e0b; }
         .rpt-pnl-side-card.cash-flow.positive { border-left: 4px solid #10b981; }
+        .rpt-pnl-side-card.cash-flow.positive .side-card-val { color: #10b981 !important; }
         .rpt-pnl-side-card.cash-flow.negative { border-left: 4px solid #ef4444; }
+        .rpt-pnl-side-card.cash-flow.negative .side-card-val { color: #ef4444 !important; }
 
         .rpt-pnl-recon { margin-top: 10px; background: white; border-radius: 20px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
         .rpt-pnl-recon-header { margin-bottom: 20px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 12px; }
@@ -534,6 +549,9 @@ export default function PnLReportView({
         .text-purple { color: #6366f1; }
         .text-warning { color: #d97706; }
         .text-success { color: #10b981; }
+        .text-danger { color: #ef4444; }
+        .text-profit { color: #059669 !important; }
+        .text-loss { color: #dc2626 !important; }
       `}</style>
     </div>
   );
