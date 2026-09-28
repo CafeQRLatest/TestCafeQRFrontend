@@ -12,7 +12,7 @@ import PaymentTypeBalanceReport from '../../components/reports/PaymentTypeBalanc
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
-import { getBusinessNow } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { isFeatureEnabled } from '../../utils/moduleVisibility';
 import {
@@ -357,8 +357,21 @@ export default function Reports() {
         {viewingDoc && (
           <DocumentViewerPopup
             order={viewingDoc.order}
-            type={viewingDoc.type}
+            docType={viewingDoc.type || 'invoice'}
+            timezone={timezone || config?.timezone || 'Asia/Kolkata'}
+            currencySymbol={config?.currencySymbol || '₹'}
+            formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
+            onViewLinked={(order, type) => setViewingDoc({ order, type })}
+            STATUS_CFG={{
+              DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
+              BILLED:    { label: 'Billed',    color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
+              COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+              PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+              CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+              VOID:      { label: 'Void',      color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+            }}
+            config={config}
           />
         )}
 

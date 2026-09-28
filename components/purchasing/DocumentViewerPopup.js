@@ -84,6 +84,21 @@ const toCartItems = (lines) => {
   });
 };
 
+const DEFAULT_STATUS_CFG = {
+  DRAFT:       { label: 'Draft',       color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
+  KITCHEN:     { label: 'Kitchen',     color: '#ea580c', bg: '#fff7ed', dot: '#f97316', border: '#fdba74' },
+  CONFIRMED:   { label: 'Confirmed',   color: '#0284c7', bg: '#f0f9ff', dot: '#0ea5e9', border: '#bae6fd' },
+  IN_PROGRESS: { label: 'In Progress', color: '#0284c7', bg: '#f0f9ff', dot: '#0ea5e9', border: '#bae6fd' },
+  READY:       { label: 'Ready',       color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+  BILLED:      { label: 'Billed',      color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
+  COMPLETED:   { label: 'Completed',   color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+  PAID:        { label: 'Paid',        color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+  CANCELLED:   { label: 'Cancelled',   color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+  VOID:        { label: 'Void',        color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+  ORDERED:     { label: 'Ordered',     color: '#0284c7', bg: '#f0f9ff', dot: '#0ea5e9', border: '#bae6fd' },
+  RECEIVED:    { label: 'Received',    color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+};
+
 export default function DocumentViewerPopup({
   order,
   vendors = [],
@@ -93,12 +108,14 @@ export default function DocumentViewerPopup({
   formatTzDate,
   onClose,
   STATUS_CFG,
-  docType = 'order',
+  docType: propDocType,
+  type: propType,
   onViewLinked,
   onInvoiceOrder,
   config = null,
   onOrderUpdated = null,
 }) {
+  const docType = propDocType || propType || 'order';
   const { posType } = useAuth();
   const taxEnabled = config ? !!config.taxEnabled : true;
   const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
@@ -477,7 +494,8 @@ export default function DocumentViewerPopup({
         : { label: 'Unpaid', bg: '#fef3c7', color: '#b45309' };
     }
     const st = String(currentOrder.orderStatus || currentOrder.status || 'DRAFT').toUpperCase();
-    return STATUS_CFG[st] || STATUS_CFG.DRAFT;
+    const statusMap = (STATUS_CFG && typeof STATUS_CFG === 'object') ? { ...DEFAULT_STATUS_CFG, ...STATUS_CFG } : DEFAULT_STATUS_CFG;
+    return statusMap[st] || statusMap.DRAFT || { label: st, bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' };
   })();
   const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || docType === 'payment';
   const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
