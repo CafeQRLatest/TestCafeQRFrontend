@@ -12,6 +12,7 @@ import { fileToBitmapGrid } from '../../utils/logoBitmap';
 import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb';
+import { setCachedConfig } from '../../utils/moduleVisibility';
 import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
@@ -777,6 +778,9 @@ function ConfigurationsContent() {
       }
 
       setPrintConfigRaw(stripPrintMeta(printResp.data?.data || printSettings));
+      if (generalResp.data?.data) {
+        setCachedConfig(generalResp.data.data);
+      }
       if (typeof window !== 'undefined') {
         localStorage.removeItem('cafeqr_sales_config');
         Object.keys(localStorage)

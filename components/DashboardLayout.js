@@ -14,7 +14,7 @@ import {
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
 import CloudPrintStation from './CloudPrintStation';
-import { isMenuVisibleForConfig, isPosV2Enabled, isFeatureEnabled } from '../utils/moduleVisibility';
+import { isMenuVisibleForConfig, isPosV2Enabled, isFeatureEnabled, setCachedConfig, getCachedConfig } from '../utils/moduleVisibility';
 import { getNetworkStatus } from '../utils/networkState';
 
 /**
@@ -27,7 +27,7 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [config, setConfig] = useState(null);
+  const [config, setConfig] = useState(() => getCachedConfig());
   const [networkStatus, setNetworkStatus] = useState(() => ({
     offline: false,
     browserOffline: false,
@@ -114,7 +114,10 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     try {
       const resp = await api.get('/api/v1/configurations');
-      if (resp.data.success) setConfig(resp.data.data);
+      if (resp.data.success) {
+        setConfig(resp.data.data);
+        setCachedConfig(resp.data.data);
+      }
     } catch { }
   };
 
@@ -804,7 +807,7 @@ const MENU_CONFIG = {
   "Configurations": { name: "Settings", icon: <FaCog /> },
   "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
   "Data Backup": { name: "Data Backup", icon: <FaDatabase /> },
-  "Partners": { name: "Partners", icon: <FaUserFriends /> },
+  "Partners": { name: "Partners", icon: <FaUserFriends />, url: "/owner/partners" },
   "Payment Types": { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" },
   "Payroll & HR": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
   "HR & Payroll": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
@@ -906,6 +909,9 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
         return false;
       }
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {
+        return false;
+      }
+      if (m.name === "Partners" && !hasModule('INVENTORY') && !hasModule('CRM')) {
         return false;
       }
     }
@@ -1127,7 +1133,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Configurations": { name: "Settings", icon: <FaCog /> },
     "Document Sequences": { name: "Document Sequences", icon: <FaFileInvoice /> },
     "Data Backup": { name: "Data Backup", icon: <FaDatabase /> },
-    "Partners": { name: "Partners", icon: <FaUserFriends /> },
+    "Partners": { name: "Partners", icon: <FaUserFriends />, url: "/owner/partners" },
     "Payment Types": { name: "Payment Types", icon: <FaCreditCard />, url: "/owner/payment-types" },
     "Payroll & HR": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
     "HR & Payroll": { name: "Payroll & HR", icon: <FaIdBadge />, url: "/owner/hr" },
@@ -1217,6 +1223,9 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
         return false;
       }
       if ((m.name === "Credit Customers" || m.name === "Credit Sales") && !hasModule('CREDIT_LEDGER')) {
+        return false;
+      }
+      if (m.name === "Partners" && !hasModule('INVENTORY') && !hasModule('CRM')) {
         return false;
       }
     }

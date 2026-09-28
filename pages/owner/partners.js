@@ -1,31 +1,35 @@
-// pages/owner/partners.js — ERP Partners Module (Customers & Vendors)
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
+import ModuleGate from '../../components/ModuleGate';
 import NiceSelect from '../../components/NiceSelect';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
-import { isCustomersModuleEnabled, isFeatureEnabled } from '../../utils/moduleVisibility';
+import { isCustomersModuleEnabled, isFeatureEnabled, isPartnersModuleEnabled, setCachedConfig, getCachedConfig } from '../../utils/moduleVisibility';
 import {
   FaUserFriends, FaUsers, FaUser, FaTruck, FaPlus, FaSearch, FaChevronRight,
-  FaTimes, FaFileInvoice, FaTrash
+  FaTimes, FaFileInvoice, FaTrash, FaLock, FaCog
 } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
 export default function PartnersPage() {
   return (
     <RoleGate allowedRoles={['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF']} requiredMenu="Partners">
-      <PartnersContent />
+      <ModuleGate>
+        <PartnersContent />
+      </ModuleGate>
     </RoleGate>
   );
 }
 
 function PartnersContent() {
+  const router = useRouter();
   const { notify, showConfirm } = useNotification();
   const sym = useCurrencySymbol();
   const [activeTab, setActiveTab] = useState('customers');
-  const [config, setConfig] = useState(null);
+  const [config, setConfig] = useState(() => getCachedConfig());
   const [customers, setCustomers] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [pricelists, setPricelists] = useState([]);
@@ -43,13 +47,16 @@ function PartnersContent() {
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
-    if (config && !customersEnabled && activeTab === 'customers') {
-      setActiveTab('vendors');
+    if (!config) return;
+    if (customersEnabled && !purchaseEnabled && activeTab !== 'customers') {
+      setActiveTab('customers');
       setSelectedCustomer(null);
+      setSelectedVendor(null);
       setSearchTerm('');
       setStatusFilter('');
-    } else if (config && !purchaseEnabled && activeTab === 'vendors') {
-      setActiveTab('customers');
+    } else if (purchaseEnabled && !customersEnabled && activeTab !== 'vendors') {
+      setActiveTab('vendors');
+      setSelectedCustomer(null);
       setSelectedVendor(null);
       setSearchTerm('');
       setStatusFilter('');
@@ -61,17 +68,16 @@ function PartnersContent() {
     try {
       const configRes = await api.get('/api/v1/configurations').catch(() => null);
       const nextConfig = configRes?.data?.success ? (configRes.data.data || {}) : {};
+      setCachedConfig(nextConfig);
       const shouldLoadCustomers = isCustomersModuleEnabled(nextConfig);
       const shouldLoadVendors = isFeatureEnabled(nextConfig, 'purchaseEnabled');
       setConfig(nextConfig);
 
-      let initialTab = 'customers';
-      if (shouldLoadCustomers) {
-        initialTab = 'customers';
-      } else if (shouldLoadVendors) {
-        initialTab = 'vendors';
+      if (shouldLoadCustomers && !shouldLoadVendors) {
+        setActiveTab('customers');
+      } else if (shouldLoadVendors && !shouldLoadCustomers) {
+        setActiveTab('vendors');
       }
-      setActiveTab(initialTab);
 
       const [custRes, vendRes, plRes] = await Promise.all([
         shouldLoadCustomers ? api.get('/api/v1/purchasing/customers') : Promise.resolve(null),
@@ -197,6 +203,68 @@ function PartnersContent() {
   );
 
   if (loading) return <div className="loading-state"><span>Loading Partners...</span></div>;
+
+  if (config && !customersEnabled && !purchaseEnabled) {
+    return (
+      <DashboardLayout title="Partners" showBack={false}>
+        <div className="module-disabled">
+          <div className="disabled-card">
+            <div className="disabled-icon"><FaUserFriends /></div>
+            <h2>Partners Module is Disabled</h2>
+            <p>To access the Partners module, please enable either <strong>Purchase Orders</strong> (Vendor management) or <strong>Customers</strong> (Customer directory) in System Configurations.</p>
+            <button type="button" onClick={() => router.push('/owner/configurations')}>
+              <FaCog /> Open Settings
+            </button>
+          </div>
+        </div>
+        <style jsx>{`
+          .module-disabled {
+            min-height: calc(100dvh - 150px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+          }
+          .disabled-card {
+            width: min(460px, 100%);
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+          }
+          .disabled-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 18px;
+            border-radius: 14px;
+            background: #fff7ed;
+            color: #f97316;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+          }
+          h2 { margin: 0 0 8px; color: #0f172a; font-size: 22px; font-weight: 900; }
+          p { margin: 0 0 22px; color: #64748b; font-size: 14px; font-weight: 600; line-height: 1.5; }
+          button {
+            border: none;
+            border-radius: 10px;
+            background: #f97316;
+            color: white;
+            padding: 12px 18px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(249, 115, 22, 0.25);
+          }
+        `}</style>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Partners" showBack={false}>

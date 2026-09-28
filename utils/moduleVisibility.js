@@ -1,3 +1,30 @@
+let _cachedConfig = null;
+
+export function setCachedConfig(cfg) {
+  if (cfg && typeof cfg === 'object') {
+    _cachedConfig = cfg;
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('cafeqr_system_config', JSON.stringify(cfg));
+      } catch (e) {}
+    }
+  }
+}
+
+export function getCachedConfig() {
+  if (_cachedConfig) return _cachedConfig;
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage.getItem('cafeqr_system_config');
+      if (stored) {
+        _cachedConfig = JSON.parse(stored);
+        return _cachedConfig;
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
 const FEATURE_DEFAULTS = {
   tableManagementEnabled: true,
   inventoryEnabled: true,
@@ -10,6 +37,7 @@ const FEATURE_DEFAULTS = {
   offlineSyncEnabled: true,
   payrollEnabled: true,
   posV2Enabled: false,
+  partnersEnabled: false,
 };
 
 const MENU_FEATURES = {
@@ -20,6 +48,8 @@ const MENU_FEATURES = {
   'Purchases & Reports': 'purchaseEnabled',
   'Purchases': 'purchaseEnabled',
   'Purchasing': 'purchaseEnabled',
+  'Partners': 'partnersEnabled',
+  'Customers': 'customersEnabled',
   'Credit Settlements': 'creditEnabled',
   'Credit Customers': 'creditEnabled',
   'Credit Sales': 'creditEnabled',
@@ -47,6 +77,7 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
   { pattern: /^\/owner\/purchases(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
   { pattern: /^\/owner\/purchase(?:-|\/|$)/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
+  { pattern: /^\/owner\/partners(?:\/)?$/, flag: 'partnersEnabled', label: 'Partners' },
   { pattern: /^\/owner\/loyalty(?:\/)?$/, flag: 'loyaltyEnabled', label: 'Loyalty' },
   { pattern: /^\/owner\/offline-sync(?:\/)?$/, flag: 'offlineSyncEnabled', label: 'Offline Sync Center' },
   { pattern: /^\/owner\/hr(?:-|\/|$)/, flag: 'payrollEnabled', label: 'Payroll & HR' },
@@ -62,25 +93,56 @@ export function isPosV2Enabled(config) {
   return config.posV2Enabled === true || config.pos_v2_enabled === true;
 }
 
+export function isPartnersModuleEnabled(config) {
+  const cfg = config || getCachedConfig();
+  if (!cfg) {
+    return Boolean(FEATURE_DEFAULTS.purchaseEnabled || FEATURE_DEFAULTS.customersEnabled);
+  }
+  const isPurchaseOn = isFeatureEnabled(cfg, 'purchaseEnabled');
+  const isCustomersOn = isCustomersModuleEnabled(cfg);
+  return Boolean(isPurchaseOn || isCustomersOn);
+}
+
 export function isFeatureEnabled(config, flag) {
   if (!flag) return true;
-  if (!config) return true;
-  if (flag === 'posV2Enabled') {
-    return isPosV2Enabled(config);
-  }
-  if (flag === 'purchaseEnabled') {
-    if (config.purchaseEnabled === false || config.purchaseEnabled === 'false') return false;
-    if (config.pm_purchase === false || config.pm_purchase === 'false') return false;
-    return true;
-  }
-  if (typeof config[flag] === 'undefined' || config[flag] === null) {
+  const effectiveConfig = config || getCachedConfig();
+  if (!effectiveConfig) {
     return FEATURE_DEFAULTS[flag] !== false;
   }
-  return config[flag] !== false;
+  if (flag === 'partnersEnabled') {
+    return isPartnersModuleEnabled(effectiveConfig);
+  }
+  if (flag === 'posV2Enabled') {
+    return isPosV2Enabled(effectiveConfig);
+  }
+  if (flag === 'customersEnabled') {
+    if (effectiveConfig.customersEnabled === false || effectiveConfig.customersEnabled === 'false') return false;
+    if (effectiveConfig.pm_customers === false || effectiveConfig.pm_customers === 'false') return false;
+    if (effectiveConfig.customersEnabled === true || effectiveConfig.customersEnabled === 'true') return true;
+    if (effectiveConfig.pm_customers === true || effectiveConfig.pm_customers === 'true') return true;
+    return FEATURE_DEFAULTS.customersEnabled !== false;
+  }
+  if (flag === 'purchaseEnabled') {
+    if (effectiveConfig.purchaseEnabled === false || effectiveConfig.purchaseEnabled === 'false') return false;
+    if (effectiveConfig.pm_purchase === false || effectiveConfig.pm_purchase === 'false') return false;
+    if (effectiveConfig.purchaseEnabled === true || effectiveConfig.purchaseEnabled === 'true') return true;
+    if (effectiveConfig.pm_purchase === true || effectiveConfig.pm_purchase === 'true') return true;
+    return FEATURE_DEFAULTS.purchaseEnabled !== false;
+  }
+  if (typeof effectiveConfig[flag] === 'undefined' || effectiveConfig[flag] === null) {
+    return FEATURE_DEFAULTS[flag] !== false;
+  }
+  return effectiveConfig[flag] !== false;
 }
 
 export function isMenuVisibleForConfig(menu, config) {
   const name = typeof menu === 'string' ? menu : menu?.name;
+  if (name === 'Partners') {
+    return isPartnersModuleEnabled(config);
+  }
+  if (name === 'Customers') {
+    return isCustomersModuleEnabled(config);
+  }
   return isFeatureEnabled(config, MENU_FEATURES[name]);
 }
 
@@ -90,7 +152,11 @@ export function getRouteModuleGate(pathname) {
 
 export function isRouteVisibleForConfig(pathname, config) {
   const gate = getRouteModuleGate(pathname);
-  return !gate || isFeatureEnabled(config, gate.flag);
+  if (!gate) return true;
+  if (gate.flag === 'partnersEnabled') {
+    return isPartnersModuleEnabled(config);
+  }
+  return isFeatureEnabled(config, gate.flag);
 }
 
 export function getModuleLabelForPath(pathname) {
@@ -98,7 +164,13 @@ export function getModuleLabelForPath(pathname) {
 }
 
 export function isCustomersModuleEnabled(config) {
-  return isFeatureEnabled(config, 'customersEnabled');
+  const effectiveConfig = config || getCachedConfig();
+  if (!effectiveConfig) return FEATURE_DEFAULTS.customersEnabled !== false;
+  if (effectiveConfig.customersEnabled === false || effectiveConfig.customersEnabled === 'false') return false;
+  if (effectiveConfig.pm_customers === false || effectiveConfig.pm_customers === 'false') return false;
+  if (effectiveConfig.customersEnabled === true || effectiveConfig.customersEnabled === 'true') return true;
+  if (effectiveConfig.pm_customers === true || effectiveConfig.pm_customers === 'true') return true;
+  return isFeatureEnabled(effectiveConfig, 'customersEnabled');
 }
 
 export function isDiscountModuleEnabled(config) {
