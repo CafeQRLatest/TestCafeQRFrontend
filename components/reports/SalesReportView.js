@@ -55,6 +55,7 @@ export default function SalesReportView({
   const [invoiceFilter, setInvoiceFilter] = useState('ALL');
   const [invoicePage, setInvoicePage] = useState(0);
   const [expandedInvoice, setExpandedInvoice] = useState(null);
+  const [activeTooltip, setActiveTooltip] = useState(null);
   const INVOICE_PAGE_SIZE = 25;
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -160,6 +161,64 @@ export default function SalesReportView({
     }
   };
 
+  const InfoTooltip = ({ id, text }) => {
+    const isOpen = activeTooltip === id;
+    const ref = React.useRef(null);
+    const [coords, setCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+    const [arrowCoords, setArrowCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+
+    useEffect(() => {
+      if (isOpen) {
+        if (ref.current) {
+          const rect = ref.current.getBoundingClientRect();
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
+          
+          if (rect.left < 16) {
+            setCoords({ left: '-16px', transform: 'none', right: 'auto' });
+            setArrowCoords({ left: '20px', transform: 'none', right: 'auto' });
+          } else if (rect.right > screenWidth - 16) {
+            setCoords({ right: '-16px', left: 'auto', transform: 'none' });
+            setArrowCoords({ right: '20px', left: 'auto', transform: 'none' });
+          } else {
+            setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+            setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+          }
+        }
+      } else {
+        setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+        setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+      }
+    }, [isOpen]);
+
+    return (
+      <span
+        className="custom-tooltip-wrapper"
+        onMouseEnter={() => {
+          if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+            setActiveTooltip(id);
+          }
+        }}
+        onMouseLeave={() => {
+          if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
+            if (activeTooltip === id) setActiveTooltip(null);
+          }
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveTooltip(isOpen ? null : id);
+        }}
+      >
+        <FaInfoCircle className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`} />
+        {isOpen && (
+          <span ref={ref} className="custom-tooltip-box" style={coords} onClick={(e) => e.stopPropagation()}>
+            {text}
+            <span className="custom-tooltip-arrow" style={arrowCoords} />
+          </span>
+        )}
+      </span>
+    );
+  };
+
   // Render Sub Tabs
   const renderSummary = () => {
     if (!summary) return <div className="rpt-sales-empty">No data for selected range</div>;
@@ -171,15 +230,15 @@ export default function SalesReportView({
     const grossSales = netSales + discounts;
 
     const cards = [
-      { label: 'Billed Total', val: `${SYM}${fmt(billedTotal)}`, color: '#10b981', bg: '#ecfdf5', icon: <FaReceipt /> },
-      (config?.discountEnabled !== false) && { label: 'Gross Sales', val: `${SYM}${fmt(grossSales)}`, color: '#0ea5e9', bg: '#f0f9ff', icon: <FaChartBar /> },
-      { label: 'Net Sales', val: `${SYM}${fmt(netSales)}`, color: '#16a34a', bg: '#f0fdf4', icon: <FaChartLine /> },
-      { label: 'Total Orders', val: summary.totalOrders, color: '#3b82f6', bg: '#eff6ff', icon: <FaReceipt /> },
-      { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', icon: <FaChartLine /> },
-      { label: 'Items Sold', val: summary.itemsSold, color: '#f97316', bg: '#fff7ed', icon: <FaBoxes /> },
-      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', icon: <FaFileInvoice /> },
-      (config?.discountEnabled !== false) && { label: 'Discounts', val: `${SYM}${fmt(discounts)}`, color: '#ec4899', bg: '#fdf2f8', icon: <FaTag /> },
-      (config?.roundOffEnabled !== false) && { label: 'Round Off', val: `${SYM}${fmt(roundOff)}`, color: '#64748b', bg: '#f1f5f9', icon: <FaCoins /> }
+      { label: 'Billed Total', val: `${SYM}${fmt(billedTotal)}`, color: '#10b981', bg: '#ecfdf5', tip: 'Billed Total: The actual amount billed and collected from customers (including GST) across all settled orders. | Equation: Billed Total = Net Sales + GST + Round Off', icon: <FaReceipt /> },
+      (config?.discountEnabled !== false) && { label: 'Gross Sales', val: `${SYM}${fmt(grossSales)}`, color: '#0ea5e9', bg: '#f0f9ff', tip: 'Gross Sales (Ex-Tax): Pre-discount revenue excluding GST and Round Off. | Equation: Gross Sales = Net Sales + Discounts', icon: <FaChartBar /> },
+      { label: 'Net Sales', val: `${SYM}${fmt(netSales)}`, color: '#16a34a', bg: '#f0fdf4', tip: 'Net Sales (Ex-Tax): Revenue after discounts, excluding GST and Round Off. | Equation: Net Sales = Billed Total − GST − Round Off', icon: <FaChartLine /> },
+      { label: 'Total Orders', val: summary.totalOrders, color: '#3b82f6', bg: '#eff6ff', tip: 'Total Orders: Number of completed and settled orders in the selected date range.', icon: <FaReceipt /> },
+      { label: 'Avg Order Value', val: `${SYM}${fmt(summary.avgOrderValue)}`, color: '#8b5cf6', bg: '#f5f3ff', tip: 'Avg Order Value: Average billed amount per order. Calculated as Billed Total ÷ Total Orders.', icon: <FaChartLine /> },
+      { label: 'Items Sold', val: summary.itemsSold, color: '#f97316', bg: '#fff7ed', tip: 'Items Sold: Total number of individual menu items sold across all orders in this period.', icon: <FaBoxes /> },
+      (config?.taxEnabled !== false) && { label: 'Tax', val: `${SYM}${fmt(tax)}`, color: '#ef4444', bg: '#fef2f2', tip: 'Tax (GST): Total output tax collected from customers, payable to the government. | Equation: Tax = Billed Total − Net Sales − Round Off', icon: <FaFileInvoice /> },
+      (config?.discountEnabled !== false) && { label: 'Discounts', val: `${SYM}${fmt(discounts)}`, color: '#ec4899', bg: '#fdf2f8', tip: 'Discounts: Total price reductions granted on orders (item-level and order-level). | Equation: Discounts = Gross Sales − Net Sales', icon: <FaTag /> },
+      (config?.roundOffEnabled !== false) && { label: 'Round Off', val: `${SYM}${fmt(roundOff)}`, color: '#64748b', bg: '#f1f5f9', tip: 'Round Off: Adjustments made to round the bill total to the nearest whole value. | Equation: Round Off = Billed Total − Net Sales − GST', icon: <FaCoins /> }
     ].filter(Boolean);
 
     return (
@@ -221,7 +280,10 @@ export default function SalesReportView({
             <div key={i} className="rpt-sales-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
               <div className="rpt-sales-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</div>
               <div className="rpt-sales-kpi-data">
-                <span className="rpt-sales-kpi-label">{c.label}</span>
+                <span className="rpt-sales-kpi-label">
+                  {c.label}
+                  {c.tip && <InfoTooltip id={`kpi-${i}`} text={c.tip} />}
+                </span>
                 <span className="rpt-sales-kpi-val">{c.val}</span>
               </div>
             </div>
@@ -234,6 +296,12 @@ export default function SalesReportView({
   const renderSalesInvoices = () => {
     const invoiceTotalPages = Math.ceil(salesInvoices.length / INVOICE_PAGE_SIZE) || 1;
     const pagedInvoices = salesInvoices.slice(invoicePage * INVOICE_PAGE_SIZE, (invoicePage + 1) * INVOICE_PAGE_SIZE);
+
+    // All-record grand totals across entire filtered dataset
+    const allTax = salesInvoices.reduce((s, tx) => s + Number(tx.totalTaxAmount || 0), 0);
+    const allDiscount = salesInvoices.reduce((s, tx) => s + Number(tx.totalDiscountAmount || 0), 0);
+    const allGrand = salesInvoices.reduce((s, tx) => s + Number(tx.grandTotal || 0), 0);
+    const allDue = salesInvoices.reduce((s, tx) => s + Number(tx.amountDue || 0), 0);
 
     return (
       <>
@@ -250,25 +318,119 @@ export default function SalesReportView({
             style={{ width: 170 }}
           />
           <button className="rpt-sales-btn" onClick={() => {
-            const headers = ['Order No', 'Invoice No', 'Date', 'Branch', 'Customer', 'Type', 'Table', 'Status', 'Total', 'Amount Due'];
-            const rows = salesInvoices.map(tx => [
-              tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
-              tx.invoiceStatus || tx.orderStatus, tx.grandTotal || 0, tx.amountDue || 0
-            ].map(csvCell).join(','));
-            exportCSV(headers, rows, 'sales_invoices');
+            const headers = [
+              'Order No', 'Invoice No', 'Date', 'Branch', 'Customer', 'Type', 'Table',
+              'Order Status', 'Invoice Status', 'Payment Method', 'Payment No',
+              'Line No', 'Item Name', 'Category', 'Tax Rate %', 'Qty', 'Unit Rate', 'Line Taxable', 'CGST Amt', 'SGST Amt', 'Line Total',
+              'Invoice Discount', 'Invoice Tax', 'Invoice Total', 'Amount Due', 'Void Reason'
+            ];
+            const rows = [];
+            salesInvoices.forEach(tx => {
+              const baseRow = [
+                tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
+                tx.orderStatus, tx.invoiceStatus, tx.paymentMethod, tx.paymentNo
+              ];
+              const invoiceSummary = [
+                tx.totalDiscountAmount, tx.totalTaxAmount, tx.grandTotal, tx.amountDue, tx.voidReason
+              ];
+
+              if (tx.lines && tx.lines.length > 0) {
+                tx.lines.forEach((line, index) => {
+                  const taxRate = Number(line.taxRate || 0);
+                  const taxAmount = Number(line.taxAmount || 0);
+                  const cgst = (taxAmount / 2).toFixed(2);
+                  const sgst = (taxAmount / 2).toFixed(2);
+                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+
+                  rows.push([...baseRow,
+                    index + 1,
+                    line.productName,
+                    line.categoryName,
+                    taxRate,
+                    line.quantity,
+                    line.unitPrice,
+                    lineTaxable,
+                    cgst,
+                    sgst,
+                    line.lineTotal,
+                    ...invoiceSummary
+                  ].map(csvCell).join(','));
+                });
+              } else {
+                rows.push([...baseRow,
+                  '', '', '', '', '', '', '', '', '', '',
+                  ...invoiceSummary
+                ].map(csvCell).join(','));
+              }
+            });
+            exportCSV(headers, rows, 'sales_invoices_detailed');
           }}><FaFileCsv /> CSV</button>
-          <button className="rpt-sales-btn" onClick={() => exportExcel(
-            salesInvoices.map(tx => ({
-              'Order No': tx.orderNo,
-              'Invoice No': tx.invoiceNo,
-              'Date': tx.transactionDate,
-              'Branch': branchLabel(tx),
-              'Customer': tx.customerName,
-              'Total': Number(tx.grandTotal || 0),
-              'Due': Number(tx.amountDue || 0)
-            })),
-            'Invoices', 'sales_invoices'
-          )}><FaFileExcel /> Excel</button>
+          <button className="rpt-sales-btn" onClick={() => {
+            const data = [];
+            salesInvoices.forEach(tx => {
+              const baseObj = {
+                'Order No': tx.orderNo,
+                'Invoice No': tx.invoiceNo,
+                'Date': tx.transactionDate,
+                'Branch': branchLabel(tx),
+                'Customer': tx.customerName,
+                'Type': tx.fulfillmentType,
+                'Table': tx.tableNumber,
+                'Order Status': tx.orderStatus,
+                'Invoice Status': tx.invoiceStatus,
+                'Payment Method': tx.paymentMethod,
+                'Payment No': tx.paymentNo,
+              };
+              const invoiceSummaryObj = {
+                'Invoice Discount': tx.totalDiscountAmount,
+                'Invoice Tax': tx.totalTaxAmount,
+                'Invoice Total': tx.grandTotal,
+                'Amount Due': tx.amountDue,
+                'Void Reason': tx.voidReason || '',
+              };
+
+              if (tx.lines && tx.lines.length > 0) {
+                tx.lines.forEach((line, index) => {
+                  const taxRate = Number(line.taxRate || 0);
+                  const taxAmount = Number(line.taxAmount || 0);
+                  const cgst = (taxAmount / 2).toFixed(2);
+                  const sgst = (taxAmount / 2).toFixed(2);
+                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+
+                  data.push({
+                    ...baseObj,
+                    'Line No': index + 1,
+                    'Item Name': line.productName,
+                    'Category': line.categoryName,
+                    'Tax Rate %': taxRate,
+                    'Qty': line.quantity,
+                    'Unit Rate': line.unitPrice,
+                    'Line Taxable': lineTaxable,
+                    'CGST Amt': cgst,
+                    'SGST Amt': sgst,
+                    'Line Total': line.lineTotal,
+                    ...invoiceSummaryObj
+                  });
+                });
+              } else {
+                data.push({
+                  ...baseObj,
+                  'Line No': '',
+                  'Item Name': '',
+                  'Category': '',
+                  'Tax Rate %': '',
+                  'Qty': '',
+                  'Unit Rate': '',
+                  'Line Taxable': '',
+                  'CGST Amt': '',
+                  'SGST Amt': '',
+                  'Line Total': '',
+                  ...invoiceSummaryObj
+                });
+              }
+            });
+            exportExcel(data, 'Sales & Invoices Detailed', 'sales_invoices_detailed');
+          }}><FaFileExcel /> Excel</button>
         </div>
 
         {salesInvoices.length === 0 ? <div className="rpt-sales-empty">No invoices found</div> : (
@@ -284,6 +446,9 @@ export default function SalesReportView({
                     <th>Branch</th>
                     <th>Customer</th>
                     <th>Status</th>
+                    <th>Method</th>
+                    {config?.taxEnabled !== false && <th className="r">Tax</th>}
+                    <th className="r">Discount</th>
                     <th className="r">Amount</th>
                     <th className="r">Due</th>
                     <th style={{ textAlign: 'center' }}>Actions</th>
@@ -292,7 +457,7 @@ export default function SalesReportView({
                 <tbody>
                   {pagedInvoices.map((tx, idx) => {
                     const isExp = expandedInvoice === (tx.invoiceId || tx.id || idx);
-                    const isVoided = ['VOID', 'VOIDED'].includes(String(tx.invoiceStatus || tx.orderStatus || '').toUpperCase());
+                    const isVoided = ['VOID', 'VOIDED', 'CANCELLED'].includes(String(tx.invoiceStatus || tx.orderStatus || '').toUpperCase());
                     return (
                       <React.Fragment key={tx.invoiceId || tx.id || idx}>
                         <tr className={isVoided ? 'voided' : ''}>
@@ -322,6 +487,13 @@ export default function SalesReportView({
                               {tx.invoiceStatus || tx.orderStatus || '—'}
                             </span>
                           </td>
+                          <td>
+                            <span className="rpt-sales-pill">{tx.paymentMethod || '—'}</span>
+                          </td>
+                          {config?.taxEnabled !== false && (
+                            <td className="r">{SYM}{fmt(tx.totalTaxAmount)}</td>
+                          )}
+                          <td className="r">{SYM}{fmt(tx.totalDiscountAmount)}</td>
                           <td className="r rpt-sales-amt">{SYM}{fmt(tx.grandTotal)}</td>
                           <td className="r" style={{ color: Number(tx.amountDue || 0) > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>
                             {SYM}{fmt(tx.amountDue || 0)}
@@ -349,7 +521,7 @@ export default function SalesReportView({
                         </tr>
                         {isExp && tx.lines && tx.lines.length > 0 && (
                           <tr>
-                            <td colSpan={10} style={{ padding: '0', background: '#f8fafc' }}>
+                            <td colSpan={config?.taxEnabled !== false ? 13 : 12} style={{ padding: '0', background: '#f8fafc' }}>
                               <div className="rpt-sales-subrows">
                                 {tx.lines.map((line, lIdx) => (
                                   <div key={lIdx} className="rpt-sales-subrow">
@@ -365,6 +537,20 @@ export default function SalesReportView({
                     );
                   })}
                 </tbody>
+                {salesInvoices.length > 0 && (
+                  <tfoot>
+                    <tr style={{ fontWeight: 700, background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                      <td colSpan={8} style={{ fontSize: '12px', color: '#64748b', textAlign: 'right', padding: '10px 16px' }}>
+                        Grand Totals ({salesInvoices.length} records)
+                      </td>
+                      {config?.taxEnabled !== false && <td className="r" style={{ color: '#ef4444' }}>{SYM}{fmt(allTax)}</td>}
+                      <td className="r" style={{ color: '#ec4899' }}>{SYM}{fmt(allDiscount)}</td>
+                      <td className="r rpt-sales-amt" style={{ color: '#10b981' }}>{SYM}{fmt(allGrand)}</td>
+                      <td className="r" style={{ color: '#f97316' }}>{SYM}{fmt(allDue)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
 
@@ -394,6 +580,7 @@ export default function SalesReportView({
   };
 
   const renderItems = () => {
+    const maxRev = items.length ? Math.max(...items.map(i => Number(i.revenue || 0)), 1) : 1;
     return (
       <>
         <div className="rpt-sales-toolbar">
@@ -419,19 +606,27 @@ export default function SalesReportView({
             <table className="rpt-sales-tbl">
               <thead>
                 <tr>
+                  <th style={{ width: 40 }}>#</th>
                   <th>Product</th>
                   <th>Category</th>
                   <th className="r">Qty Sold</th>
                   <th className="r">Revenue</th>
+                  <th style={{ width: 140 }}>Share</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, idx) => (
                   <tr key={idx}>
+                    <td style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
                     <td style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
                     <td><span className="rpt-sales-pill">{item.categoryName || 'General'}</span></td>
                     <td className="r" style={{ fontWeight: 600 }}>{item.uomPrecision != null ? Number(item.quantitySold || 0).toFixed(item.uomPrecision) : Number(item.quantitySold || 0)}</td>
                     <td className="r rpt-sales-amt">{SYM}{fmt(item.revenue)}</td>
+                    <td>
+                      <div className="rpt-sales-bar-wrap">
+                        <div className="rpt-sales-bar" style={{ width: `${(Number(item.revenue || 0) / maxRev * 100).toFixed(0)}%` }} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -471,7 +666,7 @@ export default function SalesReportView({
               theme = { color: '#10b981', bg: '#ecfdf4', grad: 'linear-gradient(135deg, #10b981, #059669)', icon: <FaMoneyBillWave /> };
             } else if (method.includes('CARD') || method.includes('DEBIT') || method.includes('CREDIT')) {
               theme = { color: '#3b82f6', bg: '#eff6ff', grad: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', icon: <FaCreditCard /> };
-            } else if (method.includes('ONLINE') || method.includes('UPI')) {
+            } else if (method.includes('ONLINE') || method.includes('UPI') || method.includes('GPAY') || method.includes('PAYTM') || method.includes('PHONEPE')) {
               theme = { color: '#ea580c', bg: '#fff7ed', grad: 'linear-gradient(135deg, #f97316, #ea580c)', icon: <FaMobileAlt /> };
             }
             const avgAmount = p.orderCount > 0 ? Number(p.totalAmount || 0) / p.orderCount : 0;
@@ -555,26 +750,38 @@ export default function SalesReportView({
         <div className="rpt-sales-chart-card">
           <div className="rpt-sales-chart-header">
             <h4>Hourly Sales & Order Volume</h4>
+            <span className="rpt-sales-chart-sub">Peak operating times and transaction volume</span>
           </div>
-          <div className="rpt-sales-chart-body">
-            {hourly.map((h, i) => {
-              const amt = Number(h.totalAmount || 0);
-              const heightPct = Math.max(Math.round((amt / maxAmt) * 100), 4);
-              return (
-                <div key={i} className="rpt-sales-hour-col">
-                  <div className="rpt-sales-hour-bar-area">
-                    <div className="rpt-sales-hour-bar" style={{ height: `${heightPct}%` }}>
-                      <div className="rpt-sales-hour-tip">
-                        <span>{SYM}{fmt(amt)}</span>
-                        <span>{h.orderCount || 0} orders</span>
+          <div className="rpt-sales-chart-container">
+            {/* Background grid lines */}
+            <div className="rpt-sales-chart-grid-lines">
+              <div className="grid-line"><span className="grid-line-label">{SYM}{fmt(maxAmt)}</span></div>
+              <div className="grid-line"><span className="grid-line-label">{SYM}{fmt(maxAmt * 0.75)}</span></div>
+              <div className="grid-line"><span className="grid-line-label">{SYM}{fmt(maxAmt * 0.50)}</span></div>
+              <div className="grid-line"><span className="grid-line-label">{SYM}{fmt(maxAmt * 0.25)}</span></div>
+              <div className="grid-line zero"><span className="grid-line-label">{SYM}0.00</span></div>
+            </div>
+
+            <div className="rpt-sales-hourly-chart">
+              {hourly.map((h, i) => {
+                const amt = Number(h.totalAmount || 0);
+                const heightPct = Math.max(Math.round((amt / maxAmt) * 100), 4);
+                return (
+                  <div key={i} className="rpt-sales-hour-col">
+                    <div className="rpt-sales-hour-bar-area">
+                      <div className="rpt-sales-hour-bar" style={{ height: `${heightPct}%` }}>
+                        <div className="rpt-sales-hour-tip">
+                          <span className="tip-amt">{SYM}{fmt(amt)}</span>
+                          <span className="tip-orders">{h.orderCount || 0} orders</span>
+                        </div>
                       </div>
                     </div>
+                    <span className="rpt-sales-hour-label">{h.hourLabel || `${h.hour}:00`}</span>
+                    <span className="rpt-sales-hour-badge">{h.orderCount} ord</span>
                   </div>
-                  <span className="rpt-sales-hour-label">{h.hourLabel || `${h.hour}:00`}</span>
-                  <span className="rpt-sales-hour-badge">{h.orderCount}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </>
@@ -583,33 +790,145 @@ export default function SalesReportView({
 
   const renderCredit = () => {
     if (!creditReport) return <div className="rpt-sales-empty">No credit sales data</div>;
-    const { summary: cSummary, sales = [], payments: cPayments = [] } = creditReport;
+    const cards = [
+      { label: 'Credit Extended', val: `${SYM}${fmt(creditReport.creditExtended)}`, color: '#0f766e', bg: '#ccfbf1' },
+      { label: 'Payments Received', val: `${SYM}${fmt(creditReport.paymentsReceived)}`, color: '#16a34a', bg: '#dcfce7' },
+      { label: 'Outstanding', val: `${SYM}${fmt(creditReport.outstanding)}`, color: '#dc2626', bg: '#fee2e2' },
+      (config?.taxEnabled !== false) && { label: 'Output Tax', val: `${SYM}${fmt(creditReport.outputTax)}`, color: '#6366f1', bg: '#eef2ff' },
+      { label: 'Orders / Customers', val: `${Number(creditReport.orderCount || 0)} / ${Number(creditReport.customerCount || 0)}`, color: '#f97316', bg: '#fff7ed' },
+    ].filter(Boolean);
+    const orders = creditReport.orders || [];
+    const paymentsRows = creditReport.payments || [];
+
     return (
       <>
         <div className="rpt-sales-toolbar">
           <button className="rpt-sales-btn" onClick={() => exportCSV(
-            ['Customer', 'Phone', 'Total Invoiced', 'Outstanding Balance'],
-            sales.map(s => [s.customerName, s.customerPhone, s.total, s.amountDue].map(csvCell).join(',')),
-            'credit_sales'
-          )}><FaFileCsv /> CSV</button>
+            ['Order No', 'Invoice No', 'Customer Name', 'Phone', 'Amount', 'Tax', 'Total', 'Amount Due', 'Date', 'Status'],
+            orders.map(o => [
+              o.orderNo, o.invoiceNo, o.customerName, o.customerPhone, o.amount, o.tax, o.total, o.amountDue, o.date, o.status
+            ].map(csvCell).join(',')),
+            'credit_orders'
+          )}><FaFileCsv /> Export Credit Orders CSV</button>
+          <button className="rpt-sales-btn" onClick={() => exportCSV(
+            ['Date', 'Customer Name', 'Payment Method', 'Amount', 'Reference No', 'Description'],
+            paymentsRows.map(p => [
+              p.transactionDate, p.customerName, p.paymentMethod, p.amount, p.referenceNo, p.description
+            ].map(csvCell).join(',')),
+            'credit_payments'
+          )}><FaFileCsv /> Export Credit Payments CSV</button>
           <button className="rpt-sales-btn" onClick={() => handlePrint('credit')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-sales-kpi-grid">
-          <div className="rpt-sales-kpi" style={{ borderLeft: '4px solid #f59e0b' }}>
-            <div className="rpt-sales-kpi-icon" style={{ background: '#fffbeb', color: '#f59e0b' }}><FaBook /></div>
-            <div className="rpt-sales-kpi-data">
-              <span className="rpt-sales-kpi-label">Credit Receivables</span>
-              <span className="rpt-sales-kpi-val">{SYM}{fmt(cSummary?.totalOutstanding)}</span>
+          {cards.map((card) => (
+            <div key={card.label} className="rpt-sales-kpi" style={{ borderLeft: `4px solid ${card.color}` }}>
+              <div className="rpt-sales-kpi-icon" style={{ background: card.bg, color: card.color }}><FaBook /></div>
+              <div className="rpt-sales-kpi-data">
+                <span className="rpt-sales-kpi-label">{card.label}</span>
+                <span className="rpt-sales-kpi-val">{card.val}</span>
+              </div>
             </div>
-          </div>
-          <div className="rpt-sales-kpi" style={{ borderLeft: '4px solid #10b981' }}>
-            <div className="rpt-sales-kpi-icon" style={{ background: '#ecfdf5', color: '#10b981' }}><FaCoins /></div>
-            <div className="rpt-sales-kpi-data">
-              <span className="rpt-sales-kpi-label">Total Collected</span>
-              <span className="rpt-sales-kpi-val">{SYM}{fmt(cSummary?.totalCollected)}</span>
-            </div>
-          </div>
+          ))}
         </div>
+        <div className="rpt-sales-section-title">Credit Orders</div>
+        {orders.length === 0 ? <div className="rpt-sales-empty">No credit orders</div> : (
+          <div className="rpt-sales-tbl-wrap">
+            <table className="rpt-sales-tbl rpt-sales-credit-tbl">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Phone</th>
+                  <th className="r">Amount</th>
+                  {config?.taxEnabled !== false && <th className="r">Tax</th>}
+                  <th className="r">Total</th>
+                  <th className="r">Due</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((row) => (
+                  <tr key={row.invoiceId || row.orderId || row.orderNo}>
+                    <td onClick={(e) => {
+                      if (row.orderNo && viewDocument) {
+                        e.stopPropagation();
+                        viewDocument(row, 'order');
+                      }
+                    }}>
+                      <span className={row.orderNo ? 'rpt-sales-mono-link' : ''}>
+                        {row.orderNo || '—'}
+                      </span>
+                    </td>
+                    <td onClick={(e) => {
+                      if (row.invoiceNo && viewDocument) {
+                        e.stopPropagation();
+                        viewDocument(row, 'invoice');
+                      }
+                    }}>
+                      <span className={row.invoiceNo ? 'rpt-sales-mono-link' : ''}>
+                        {row.invoiceNo || '—'}
+                      </span>
+                    </td>
+                    <td>{row.customerName || '—'}</td>
+                    <td>{row.customerPhone || '—'}</td>
+                    <td className="r">{SYM}{fmt(row.amount)}</td>
+                    {config?.taxEnabled !== false && <td className="r">{SYM}{fmt(row.tax)}</td>}
+                    <td className="r rpt-sales-amt">{SYM}{fmt(row.total)}</td>
+                    <td className="r" style={{ color: Number(row.amountDue || 0) > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>
+                      {SYM}{fmt(row.amountDue)}
+                    </td>
+                    <td>{formatTzDate(row.date, timezone, { format: 'short' })}</td>
+                    <td>
+                      <span className={`rpt-sales-st ${String(row.status || 'unknown').toLowerCase()}`}>
+                        {row.status || '—'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="rpt-sales-section-title">Payment Transactions</div>
+        {paymentsRows.length === 0 ? <div className="rpt-sales-empty">No credit payments</div> : (
+          <div className="rpt-sales-tbl-wrap">
+            <table className="rpt-sales-tbl">
+              <thead>
+                <tr>
+                  <th>Payment No</th>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Method</th>
+                  <th className="r">Amount</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentsRows.map((row) => (
+                  <tr key={row.paymentId || row.referenceNo}>
+                    <td onClick={(e) => {
+                      if (row.paymentId && viewDocument) {
+                        e.stopPropagation();
+                        viewDocument(row, 'payment');
+                      }
+                    }}>
+                      <span className={row.paymentId ? 'rpt-sales-mono-link' : ''}>
+                        {row.referenceNo || '—'}
+                      </span>
+                    </td>
+                    <td>{formatTzDate(row.transactionDate, timezone, { format: 'short' })}</td>
+                    <td>{row.customerName || '—'}</td>
+                    <td><span className="rpt-sales-pill">{row.paymentMethod || '—'}</span></td>
+                    <td className="r rpt-sales-amt">{SYM}{fmt(row.amount)}</td>
+                    <td>{row.description || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </>
     );
   };
@@ -625,7 +944,7 @@ export default function SalesReportView({
   };
 
   return (
-    <div className="rpt-sales-view">
+    <div className="rpt-sales-view" onClick={() => setActiveTooltip(null)}>
       <div className="rpt-sales-subtabs">
         {visibleTabs.map(t => (
           <button
@@ -667,7 +986,7 @@ export default function SalesReportView({
         .rpt-sales-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,.03); }
         .rpt-sales-kpi-icon { grid-area: icon; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
         .rpt-sales-kpi-data { display: contents; }
-        .rpt-sales-kpi-label { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
+        .rpt-sales-kpi-label { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 4px; }
         .rpt-sales-kpi-val { grid-area: value; font-size: 20px; font-weight: 850; color: #1e293b; }
 
         .rpt-sales-tbl-wrap { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: auto; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
@@ -679,15 +998,20 @@ export default function SalesReportView({
         .rpt-sales-mono-link { font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: #f97316; background: #fff7ed; padding: 4px 8px; border-radius: 6px; cursor: pointer; }
         .rpt-sales-mono-link:hover { background: #ffedd5; }
         .rpt-sales-branch { font-size: 10px; font-weight: 800; color: #334155; background: #eef2ff; padding: 4px 8px; border-radius: 6px; }
-        .rpt-sales-pill { font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: #f1f5f9; color: #475569; text-transform: uppercase; }
-        .rpt-sales-st { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; }
+        .rpt-sales-pill { font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: #f1f5f9; color: #475569; text-transform: uppercase; display: inline-block; }
+        .rpt-sales-st { font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; display: inline-block; }
         .rpt-sales-st.completed, .rpt-sales-st.paid { background: #ecfdf5; color: #10b981; }
+        .rpt-sales-st.partial { background: #fffbeb; color: #d97706; }
+        .rpt-sales-st.unpaid { background: #fef2f2; color: #ef4444; }
         .rpt-sales-st.billed { background: #eff6ff; color: #3b82f6; }
         .rpt-sales-st.cancelled, .rpt-sales-st.voided { background: #fef2f2; color: #ef4444; }
         .rpt-sales-amt { font-weight: 800; color: #1e293b; }
         .rpt-sales-expand-btn { border: none; background: transparent; cursor: pointer; color: #64748b; font-size: 10px; }
         .rpt-sales-subrows { background: #f8fafc; padding: 10px 16px; }
         .rpt-sales-subrow { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; color: #475569; border-bottom: 1px dashed #e2e8f0; }
+
+        .rpt-sales-bar-wrap { width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; min-width: 80px; }
+        .rpt-sales-bar { height: 100%; background: linear-gradient(90deg, #f97316, #fb923c); border-radius: 4px; transition: width .6s ease; }
 
         .rpt-sales-pay-grid { display: flex; flex-wrap: wrap; gap: 16px; }
         .rpt-sales-pay-card { flex: 1 1 260px; max-width: 320px; background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 12px; }
@@ -702,16 +1026,38 @@ export default function SalesReportView({
         .rpt-sales-pay-bar-wrapper { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
         .rpt-sales-pay-bar-fill { height: 100%; border-radius: 3px; }
 
-        .rpt-sales-chart-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; padding: 20px; }
-        .rpt-sales-chart-header h4 { margin: 0 0 16px; font-size: 14px; font-weight: 800; color: #0f172a; }
-        .rpt-sales-chart-body { display: flex; gap: 10px; overflow-x: auto; padding: 20px 0 10px; }
-        .rpt-sales-hour-col { display: flex; flex-direction: column; align-items: center; width: 48px; flex-shrink: 0; }
-        .rpt-sales-hour-bar-area { width: 100%; height: 160px; display: flex; align-items: flex-end; justify-content: center; position: relative; }
-        .rpt-sales-hour-bar { width: 22px; background: linear-gradient(180deg, #f97316, #fdba74); border-radius: 6px 6px 0 0; position: relative; cursor: pointer; }
-        .rpt-sales-hour-tip { position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%); background: #ea580c; color: white; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transition: .2s; z-index: 10; display: flex; flex-direction: column; align-items: center; }
-        .rpt-sales-hour-bar:hover .rpt-sales-hour-tip { opacity: 1; }
-        .rpt-sales-hour-label { font-size: 10px; font-weight: 700; color: #475569; margin-top: 8px; }
+        .rpt-sales-chart-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,.02); margin-bottom: 20px; }
+        .rpt-sales-chart-header { margin-bottom: 24px; }
+        .rpt-sales-chart-header h4 { margin: 0; font-size: 15px; font-weight: 800; color: #0f172a; }
+        .rpt-sales-chart-sub { font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 4px; }
+        .rpt-sales-chart-container { position: relative; padding-left: 70px; padding-top: 20px; margin-top: 10px; min-height: 280px; }
+        .rpt-sales-chart-grid-lines { position: absolute; inset: 20px 0 50px 70px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+        .grid-line { width: 100%; border-bottom: 1px dashed #e2e8f0; position: relative; }
+        .grid-line.zero { border-bottom: 1.5px solid #cbd5e1; }
+        .grid-line-label { position: absolute; left: -70px; bottom: -7px; width: 60px; text-align: right; font-size: 9px; font-weight: 700; color: #94a3b8; font-family: 'JetBrains Mono', monospace; }
+        .rpt-sales-hourly-chart { display: flex; gap: 16px; justify-content: flex-start; align-items: flex-end; min-height: 220px; overflow-x: auto; position: relative; z-index: 2; padding: 20px 20px 10px; -webkit-overflow-scrolling: touch; }
+        .rpt-sales-hour-col { display: flex; flex-direction: column; align-items: center; width: 55px; flex-shrink: 0; }
+        .rpt-sales-hour-bar-area { width: 100%; height: 180px; display: flex; align-items: flex-end; justify-content: center; position: relative; }
+        .rpt-sales-hour-bar { width: 24px; background: linear-gradient(180deg, #f97316, #fdba74); border-radius: 6px 6px 0 0; position: relative; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); min-height: 4px; box-shadow: 0 4px 10px rgba(249, 115, 22, 0.15); }
+        .rpt-sales-hour-bar:hover { background: linear-gradient(180deg, #ea580c, #f97316); transform: scaleX(1.1); box-shadow: 0 6px 15px rgba(234, 88, 12, 0.3); }
+        .rpt-sales-hour-tip { position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%) translateY(4px); background: #ea580c; color: white; padding: 6px 10px; border-radius: 8px; font-size: 9px; font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 2px; box-shadow: 0 10px 15px -3px rgba(234, 88, 12, 0.3); }
+        .rpt-sales-hour-tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid #ea580c; }
+        .rpt-sales-hour-bar:hover .rpt-sales-hour-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .tip-amt { font-size: 10.5px; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+        .tip-orders { font-size: 8px; font-weight: 700; color: #ffedd5; text-transform: uppercase; }
+        .rpt-sales-hour-label { font-size: 10px; font-weight: 700; color: #475569; margin-top: 10px; }
         .rpt-sales-hour-badge { font-size: 8px; color: #64748b; background: #f1f5f9; padding: 1px 6px; border-radius: 6px; margin-top: 4px; font-weight: 800; }
+
+        .rpt-sales-section-title { margin: 22px 0 10px; font-size: 13px; font-weight: 900; color: #0f172a; text-transform: uppercase; letter-spacing: .5px; }
+        .rpt-sales-credit-tbl { min-width: 1180px; }
+
+        /* Custom Tooltip */
+        .custom-tooltip-wrapper { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; }
+        .custom-tooltip-icon { color: #94a3b8; font-size: 13.5px; cursor: pointer; transition: all 0.2s ease; }
+        .custom-tooltip-icon:hover, .custom-tooltip-icon.active { color: #f97316; transform: scale(1.15); }
+        .custom-tooltip-box { position: absolute; bottom: 135%; left: 50%; transform: translateX(-50%); width: 220px; background: #ea580c; color: #ffffff; padding: 10px 14px; border-radius: 10px; font-size: 11.5px; font-weight: 600; line-height: 1.45; box-shadow: 0 10px 20px rgba(234, 88, 12, 0.3), 0 4px 6px rgba(0, 0, 0, 0.05); z-index: 1000; white-space: normal; text-align: left; animation: tooltip-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .custom-tooltip-arrow { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #ea580c; }
+        @keyframes tooltip-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
         .rpt-sales-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; font-size: 12px; font-weight: 700; color: #64748b; }
         .rpt-sales-loading, .rpt-sales-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-weight: 700; font-size: 14px; }
