@@ -55,12 +55,30 @@ export default function PayrollDashboard({ embedded = false }) {
 
   const handleInitiateRun = async (e) => {
     e.preventDefault();
-    if (!newRunName || !startDate || !endDate) return;
+    const trimmedName = newRunName.trim();
+    if (!trimmedName) {
+      alert('Payroll run name cannot be empty.');
+      return;
+    }
+    if (!startDate || !endDate) {
+      alert('Please select both Start Date and End Date.');
+      return;
+    }
+    if (new Date(startDate) > new Date(endDate)) {
+      alert('Start Date cannot be after End Date.');
+      return;
+    }
+    const startYear = new Date(startDate).getFullYear();
+    const endYear = new Date(endDate).getFullYear();
+    if (startYear < 2000 || startYear > 2100 || endYear < 2000 || endYear > 2100) {
+      alert('Invalid date range: Year must be between 2000 and 2100.');
+      return;
+    }
 
     try {
       setIsRunning(true);
       await hrService.initiatePayrollRun({
-        name: newRunName,
+        name: trimmedName,
         startDate: startDate,
         endDate: endDate
       });
@@ -71,7 +89,8 @@ export default function PayrollDashboard({ embedded = false }) {
       fetchPayrollRuns();
     } catch (error) {
       console.error("Failed to run payroll", error);
-      alert('Error running payroll. Check logs.');
+      const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error running payroll.';
+      alert(errMsg);
     } finally {
       setIsRunning(false);
     }
