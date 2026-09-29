@@ -71,12 +71,19 @@ export default function TimesheetsDashboard({ embedded = false }) {
   };
 
   const fetchTimesheets = async () => {
+    if (startDate && endDate && startDate > endDate) {
+      showToast("From Date cannot be later than To Date.", "error");
+      setTimesheets([]);
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       const res = await hrService.getAllAttendance(startDate, endDate);
       setTimesheets(res.data || []);
     } catch (err) {
       console.error('Failed to fetch timesheets:', err);
+      showToast('Failed to fetch timesheets: ' + (err.response?.data?.message || err.message), "error");
     } finally {
       setIsLoading(false);
     }
@@ -332,9 +339,15 @@ export default function TimesheetsDashboard({ embedded = false }) {
                 </tr>
               </thead>
               <tbody>
-                {timesheets.length === 0 ? (
+                {startDate && endDate && startDate > endDate ? (
                   <tr>
-                    <td colSpan="7" className="empty-state">No timesheets recorded for selected date range.</td>
+                    <td colSpan="9" className="empty-state" style={{ color: '#ef4444', fontWeight: 700 }}>
+                      ⚠️ Invalid Date Range: From Date cannot be later than To Date.
+                    </td>
+                  </tr>
+                ) : timesheets.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="empty-state">No timesheets recorded for selected date range.</td>
                   </tr>
                 ) : (
                   timesheets.map(record => {
@@ -366,7 +379,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
                             }
                           </td>
                           <td>
-                            {record.totalHoursWorked ? `${record.totalHoursWorked} hrs` : '--'}
+                            {record.totalHoursWorked !== null && record.totalHoursWorked !== undefined ? `${record.totalHoursWorked} hrs` : '0.00 hrs'}
                             {isOvertime && <span className="overtime-flag"><FaExclamationTriangle /> OT</span>}
                           </td>
                           <td>
