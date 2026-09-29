@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import api from '../../../../utils/api';
 import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint, FaCheck } from 'react-icons/fa';
 
@@ -29,7 +30,8 @@ export default function PayrollDashboard({ embedded = false }) {
   // Sync Modal State
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncRunId, setSyncRunId] = useState(null);
-  const [syncPaymentMethod, setSyncPaymentMethod] = useState('BANK_TRANSFER');
+  const [syncPaymentMethod, setSyncPaymentMethod] = useState('');
+  const [expensePaymentTypes, setExpensePaymentTypes] = useState([]);
 
   useEffect(() => {
     if (!embedded) {
@@ -39,7 +41,21 @@ export default function PayrollDashboard({ embedded = false }) {
 
   useEffect(() => {
     fetchPayrollRuns();
+    fetchPaymentTypes();
   }, []);
+
+  const fetchPaymentTypes = async () => {
+    try {
+      const res = await api.get('/api/v1/payment-types?applicableFor=EXPENSES');
+      if (res?.data?.success && Array.isArray(res?.data?.data)) {
+        const activeTypes = res.data.data.filter(pt => (pt.isActive ?? pt.isactive ?? 'Y') === 'Y');
+        setExpensePaymentTypes(activeTypes);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch branch expense payment types:', err);
+    }
+  };
+
 
   const fetchPayrollRuns = async () => {
     try {
@@ -114,6 +130,14 @@ export default function PayrollDashboard({ embedded = false }) {
   const handleDownloadACH = async (runId) => {
     try {
       const response = await hrService.downloadAchExport(runId);
+      if (response.data instanceof Blob && response.data.type && response.data.type.includes('application/json')) {
+        const text = await response.data.text();
+        try {
+          const json = JSON.parse(text);
+          alert(json.message || "Failed to download ACH file.");
+          return;
+        } catch (e) {}
+      }
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -123,15 +147,31 @@ export default function PayrollDashboard({ embedded = false }) {
       link.remove();
     } catch (error) {
       console.error("Failed to download ACH", error);
-      alert("Failed to download ACH file.");
+      let msg = "Failed to download ACH file.";
+      if (error.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) msg = json.message;
+        } catch (e) {}
+      } else if (error.response?.data?.message) {
+        msg = error.response.data.message;
+      }
+      alert(msg);
     }
   };
 
   const openSyncModal = (runId) => {
     setSyncRunId(runId);
-    setSyncPaymentMethod('BANK_TRANSFER');
+    if (expensePaymentTypes.length > 0) {
+      const defaultVal = expensePaymentTypes[0].displayName.toUpperCase();
+      setSyncPaymentMethod(defaultVal);
+    } else {
+      setSyncPaymentMethod('CASH');
+    }
     setShowSyncModal(true);
   };
+
 
   const confirmSyncAccounting = async () => {
     if (!syncRunId) return;
@@ -233,17 +273,24 @@ export default function PayrollDashboard({ embedded = false }) {
                     <td colSpan="5" className="empty-state">No payroll runs found.</td>
                   </tr>
                 ) : (
-                  payrollRuns.map(run => (
-                    <tr key={run.id}>
-                      <td className="font-bold">{run.name}</td>
-                      <td>{new Date(run.startDate).toLocaleDateString()} - {new Date(run.endDate).toLocaleDateString()}</td>
-                      <td className="text-emerald font-bold">${run.totalAmount?.toFixed(2) || '0.00'}</td>
-                      <td>
-                        <span className={`status-badge ${run.status ? run.status.toLowerCase() : 'completed'}`}>
-                          {run.status || 'COMPLETED'}
-                        </span>
-                      </td>
-                      <td>
+                  payrollRuns.map(run => {
+                    const formatPeriodDate = (dateVal) => {
+                      if (!dateVal) return 'N/A';
+                      const d = new Date(dateVal);
+                      if (isNaN(d.getTime())) return dateVal;
+                      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                    };
+                    return (
+                      <tr key={run.id}>
+                        <td className="font-bold">{run.name}</td>
+                        <td>{formatPeriodDate(run.startDate)} – {formatPeriodDate(run.endDate)}</td>
+                        <td className="text-emerald font-bold">${run.totalAmount?.toFixed(2) || '0.00'}</td>
+                        <td>
+                          <span className={`status-badge ${(run.status || 'COMPLETED').toLowerCase()}`}>
+                            {run.status || 'COMPLETED'}
+                          </span>
+                        </td>
+                        <td>
                         <div className="action-buttons">
                           <button 
                             className="btn-action view" 
@@ -479,13 +526,24 @@ export default function PayrollDashboard({ embedded = false }) {
               <select 
                 value={syncPaymentMethod}
                 onChange={(e) => setSyncPaymentMethod(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none' }}
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', background: 'white', fontWeight: '600' }}
               >
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="CASH">Cash</option>
-                <option value="CHECK">Check</option>
-                <option value="ONLINE">Online / Other</option>
+                {expensePaymentTypes.length > 0 ? (
+                  expensePaymentTypes.map(pt => (
+                    <option key={pt.id || pt.displayName} value={pt.displayName.toUpperCase()}>
+                      {pt.displayName}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="CASH">Cash</option>
+                    <option value="ONLINE">Online</option>
+                    <option value="MIXED">Mixed</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                  </>
+                )}
               </select>
+
             </div>
 
             <button 
@@ -550,9 +608,10 @@ export default function PayrollDashboard({ embedded = false }) {
         .text-red { color: #dc2626; }
         .text-green { color: #16a34a; font-size: 15px; }
 
-        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-        .status-badge.processed, .status-badge.completed, .status-badge.generated { background: #dcfce7; color: #15803d; }
-        .status-badge.pending, .status-badge.processing { background: #fef3c7; color: #b45309; }
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; }
+        .status-badge.paid, .status-badge.processed, .status-badge.completed, .status-badge.generated { background: #dcfce7; color: #15803d; }
+        .status-badge.draft, .status-badge.pending, .status-badge.processing, .status-badge.initiated { background: #fef3c7; color: #b45309; }
+        .status-badge.failed, .status-badge.cancelled, .status-badge.rejected { background: #fee2e2; color: #b91c1c; }
 
         .action-buttons { display: flex; gap: 8px; }
         .btn-action {

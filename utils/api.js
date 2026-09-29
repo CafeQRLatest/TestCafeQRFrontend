@@ -378,7 +378,10 @@ api.interceptors.response.use(
       return new Promise(function (resolve, reject) {
         failedQueue.push({ resolve, reject });
       })
-        .then(() => {
+        .then((newToken) => {
+          if (newToken && originalRequest.headers) {
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+          }
           return api(originalRequest);
         })
         .catch((err) => {
@@ -419,6 +422,12 @@ api.interceptors.response.use(
             if (newRefresh) window.localStorage.setItem('refresh_token', newRefresh);
           } catch (e) {}
         }
+
+        if (originalRequest.headers) {
+          originalRequest.headers['Authorization'] = `Bearer ${newAccess}`;
+        }
+        processQueue(null, newAccess);
+        return api(originalRequest);
       }
 
       // Success: process queued requests
