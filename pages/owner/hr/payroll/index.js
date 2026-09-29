@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
-import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint } from 'react-icons/fa';
+import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint, FaCheck } from 'react-icons/fa';
 
 export default function PayrollDashboard({ embedded = false }) {
   const router = useRouter();
@@ -259,7 +259,7 @@ export default function PayrollDashboard({ embedded = false }) {
                           >
                             <FaFileDownload /> ACH
                           </button>
-                          {run.status !== 'PAID' && (
+                          {run.status !== 'PAID' ? (
                             <button 
                               className="btn-action sync" 
                               title="Sync to Accounting Expenses"
@@ -267,6 +267,14 @@ export default function PayrollDashboard({ embedded = false }) {
                             >
                               <FaSync /> Sync
                             </button>
+                          ) : (
+                            <span 
+                              className="btn-action synced" 
+                              style={{ background: '#dcfce7', color: '#15803d', cursor: 'default' }}
+                              title="Already Synced with Accounting"
+                            >
+                              <FaCheck /> Synced
+                            </span>
                           )}
                           <button 
                             className="btn-action delete" 
