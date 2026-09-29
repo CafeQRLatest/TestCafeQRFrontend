@@ -1,0 +1,17 @@
+# ─────────────────────────────────────────────────────────────────────
+# Cloudflare Pages — Dynamic Route Rewrites for Next.js Static Export
+# ─────────────────────────────────────────────────────────────────────
+# Next.js static export creates folders like /menu/[clientId]/[orgId]/[tableId]/index.html
+# but Cloudflare Pages doesn't natively map dynamic URL segments to bracket folders.
+# These rewrite rules tell CF Pages to serve the correct pre-rendered HTML shell
+# for any matching URL pattern. The client-side JS (Next.js router) then reads
+# the actual path segments from the URL and hydrates accordingly.
+# ─────────────────────────────────────────────────────────────────────
+
+# QR Code Table Ordering — /menu/:clientId/:orgId/:tableId
+/menu/:clientId/:orgId/:tableId/  /menu/%5BclientId%5D/%5BorgId%5D/%5BtableId%5D/index.html  200
+/menu/:clientId/:orgId/:tableId   /menu/%5BclientId%5D/%5BorgId%5D/%5BtableId%5D/index.html  200
+
+# SPA Fallback — serve index.html for any route that doesn't match a static file
+# This enables client-side routing for all other Next.js pages
+/*  /index.html  200
