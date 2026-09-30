@@ -8,7 +8,7 @@ import NiceSelect from '../../components/NiceSelect';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
-import { getBusinessNow } from '../../utils/timezoneUtils';
+import { getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { getCurrencySymbol } from '../../constants/expenseScopes';
 
 
@@ -28,10 +28,10 @@ function defaultAccountingPeriod(timezone) {
   };
 }
 
-function toInstant(dtLocal) {
+function toInstant(dtLocal, tz) {
   if (!dtLocal) return undefined;
   try {
-    return new Date(`${dtLocal}:00`).toISOString();
+    return businessTimeToUtc(dtLocal, tz);
   } catch {
     return undefined;
   }
@@ -122,8 +122,8 @@ function TaxReportsContent() {
     setLoading(true);
     try {
       const params = {
-        from: toInstant(period.from),
-        to: toInstant(period.to)
+        from: toInstant(period.from, timezone),
+        to: toInstant(period.to, timezone)
       };
       if (isSuperAdmin && selectedOrgId) params.orgId = selectedOrgId;
       if (isSuperAdmin && selectedTerminalId) params.terminalId = selectedTerminalId;

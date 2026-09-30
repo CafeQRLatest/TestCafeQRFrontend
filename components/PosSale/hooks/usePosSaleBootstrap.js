@@ -158,6 +158,7 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
   const [hasMore, setHasMore] = useState(() => Boolean(cached?.hasMore));
   const [loading, setLoading] = useState(() => !cached);
   const [loadError, setLoadError] = useState('');
+  const [loadErrorTitle, setLoadErrorTitle] = useState('Network Connection Required');
   const [metadataWarnings, setMetadataWarnings] = useState([]);
 
   const propConfigRef = useRef(propConfig);
@@ -290,13 +291,26 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
         if (!active || isAbortError(err)) return;
 
         console.error('Failed to bootstrap POS Sale V2 data (network/server error):', err);
-        // Internet or backend is unreachable: Block POS screen even if IndexedDB has old data
         const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-        setLoadError(
-          isOffline
-            ? 'No internet connection. POS requires an active network connection to operate.'
-            : 'Unable to connect to server. Please check your network connection and try again.'
-        );
+        let errorMessage = 'Unable to connect to server. Please check your backend server and network connection.';
+        let errorTitle = 'Network Connection Required';
+
+        if (isOffline) {
+          errorTitle = 'Network Connection Required';
+          errorMessage = 'No internet connection. POS requires an active network connection to operate.';
+        } else if (err?.response?.status >= 500) {
+          errorTitle = 'Server Error';
+          errorMessage = err?.response?.data?.message || `Server error (${err.response.status}). Please check backend logs or try again.`;
+        } else if (err?.response?.status === 401 || err?.response?.status === 403) {
+          errorTitle = 'Session Expired';
+          errorMessage = 'Your session has expired or you do not have permission. Please log in again.';
+        } else if (!err?.response) {
+          errorTitle = 'Backend Server Unreachable';
+          errorMessage = 'Unable to reach backend server. Please verify the backend service is running and accessible.';
+        }
+
+        setLoadErrorTitle(errorTitle);
+        setLoadError(errorMessage);
         // Clear products and session cache so stale data is not displayed
         setProducts([]);
         sessionBootstrapCache.delete(orgKey);
@@ -384,6 +398,7 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
     paymentModes,
     loading,
     loadError,
+    loadErrorTitle,
     metadataWarnings,
     refreshCategories,
     refreshBootstrap,

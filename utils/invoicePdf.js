@@ -9,6 +9,7 @@ import { Capacitor } from '@capacitor/core';
 import api from './api';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import { isLoyaltyModuleEnabled } from './moduleVisibility';
+import { formatTzDate } from './timezoneUtils';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -70,14 +71,9 @@ async function imgToBase64(url) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  try {
-    return new Date(dateStr).toLocaleString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: true,
-    });
-  } catch {
-    return String(dateStr);
-  }
+  const tz = (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || null;
+  const result = formatTzDate(dateStr, tz, { format: 'datetime' });
+  return result === '—' ? '' : result;
 }
 
 function extractCustomerData(order, extraCust = null, extraLoyalty = null) {

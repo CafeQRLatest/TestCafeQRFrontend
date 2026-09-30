@@ -8,6 +8,7 @@ import {
   FaArrowDown, FaArrowUp, FaCheckCircle, FaExclamationCircle,
   FaCoins, FaSync, FaInfoCircle, FaSearch, FaThLarge, FaTable, FaTimes
 } from 'react-icons/fa';
+import { businessTimeToUtc } from '../../utils/timezoneUtils';
 
 export default function PaymentTypeBalanceReport({
   dateFrom,
@@ -15,7 +16,8 @@ export default function PaymentTypeBalanceReport({
   selectedOrgId,
   selectedTerminalId,
   config,
-  isSuperAdmin
+  isSuperAdmin,
+  timezone
 }) {
   const { notify } = useNotification();
   const [data, setData] = useState(null);
@@ -33,13 +35,10 @@ export default function PaymentTypeBalanceReport({
     maximumFractionDigits: 2
   });
 
-  const toInstant = (dtLocal) => {
+  const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
-    try {
-      return new Date(dtLocal + ':00').toISOString();
-    } catch {
-      return undefined;
-    }
+    const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+    try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
   const getLocalDate = () => {
@@ -55,10 +54,10 @@ export default function PaymentTypeBalanceReport({
     try {
       const params = {
         from: toInstant(dateFrom),
-        to: toInstant(dateTo)
+        to: toInstant(dateTo, true)
       };
-      if (isSuperAdmin && selectedOrgId) params.orgId = selectedOrgId;
-      if (isSuperAdmin && selectedTerminalId) params.terminalId = selectedTerminalId;
+      if (selectedOrgId) params.orgId = selectedOrgId;
+      if (selectedTerminalId) params.terminalId = selectedTerminalId;
 
       const res = await api.get('/api/v1/reports/payment-balances', { params });
       if (res.data?.success) {
@@ -74,7 +73,7 @@ export default function PaymentTypeBalanceReport({
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, selectedOrgId, selectedTerminalId, isSuperAdmin, notify]);
+  }, [dateFrom, dateTo, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadBalances();
@@ -959,13 +958,13 @@ export default function PaymentTypeBalanceReport({
 
         .pbr-kpi-card {
           background: #ffffff;
-          border-radius: 16px;
-          padding: clamp(14px, 2vw, 20px);
+          border-radius: 12px;
+          padding: 10px 14px;
           border: 1px solid #f1f5f9;
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
           box-sizing: border-box;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
           min-width: 0;
@@ -973,24 +972,24 @@ export default function PaymentTypeBalanceReport({
 
         .pbr-kpi-card:hover {
           transform: translateY(-1px);
-          box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
         }
 
         .pbr-kpi-card.inflow {
-          border-left: 4px solid #10b981;
+          border-left: 2.5px solid #10b981;
         }
 
         .pbr-kpi-card.outflow {
-          border-left: 4px solid #f43f5e;
+          border-left: 2.5px solid #f43f5e;
         }
 
         .pbr-kpi-card.net.surplus {
-          border-left: 4px solid #059669;
+          border-left: 2.5px solid #059669;
           background: linear-gradient(to right, #f0fdf4, #ffffff);
         }
 
         .pbr-kpi-card.net.deficit {
-          border-left: 4px solid #e11d48;
+          border-left: 2.5px solid #e11d48;
           background: linear-gradient(to right, #fff1f2, #ffffff);
         }
 
@@ -1002,21 +1001,21 @@ export default function PaymentTypeBalanceReport({
         }
 
         .pbr-kpi-label {
-          font-size: clamp(10px, 1.2vw, 11px);
+          font-size: clamp(9.5px, 1.1vw, 10px);
           font-weight: 800;
           color: #64748b;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.4px;
           text-transform: uppercase;
         }
 
         .pbr-kpi-icon-box {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
+          font-size: 13px;
           flex-shrink: 0;
         }
 
@@ -1041,10 +1040,10 @@ export default function PaymentTypeBalanceReport({
         }
 
         .pbr-kpi-amt {
-          font-size: clamp(19px, 3.5vw, 26px);
-          font-weight: 900;
+          font-size: clamp(16px, 2.5vw, 20px);
+          font-weight: 850;
           color: #0f172a;
-          letter-spacing: -0.5px;
+          letter-spacing: -0.3px;
           word-break: break-word;
           overflow-wrap: anywhere;
           line-height: 1.15;
@@ -1150,13 +1149,13 @@ export default function PaymentTypeBalanceReport({
 
         .pbr-card {
           background: #ffffff;
-          border-radius: 16px;
-          padding: clamp(13px, 1.8vw, 18px);
+          border-radius: 12px;
+          padding: 10px 14px;
           border: 1px solid #f1f5f9;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 8px;
           transition: transform 0.2s ease, box-shadow 0.2s ease;
           box-sizing: border-box;
           min-width: 0;
@@ -1170,17 +1169,17 @@ export default function PaymentTypeBalanceReport({
         .pbr-card-header {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
         }
 
         .pbr-card-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 16px;
+          font-size: 14px;
           flex-shrink: 0;
         }
 

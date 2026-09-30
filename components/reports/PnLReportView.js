@@ -4,6 +4,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
 import { printUniversal } from '../../utils/printGateway';
 import { buildThermalReportText } from '../../utils/thermalReportFormatter';
+import { businessTimeToUtc } from '../../utils/timezoneUtils';
 import {
   FaChartLine, FaFileCsv, FaFileExcel, FaPrint, FaInfoCircle
 } from 'react-icons/fa';
@@ -28,17 +29,18 @@ export default function PnLReportView({
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const toInstant = (dtLocal) => {
+  const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
-    try { return new Date(dtLocal + ':00').toISOString(); } catch { return undefined; }
+    const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+    try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
-    const params = { from: toInstant(dateFrom), to: toInstant(dateTo) };
-    if (isSuperAdmin && selectedOrgId) params.orgId = selectedOrgId;
-    if (isSuperAdmin && selectedTerminalId) params.terminalId = selectedTerminalId;
+    const params = { from: toInstant(dateFrom), to: toInstant(dateTo, true) };
+    if (selectedOrgId) params.orgId = selectedOrgId;
+    if (selectedTerminalId) params.terminalId = selectedTerminalId;
 
     try {
       setPnl(null);
@@ -65,7 +67,7 @@ export default function PnLReportView({
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, isSuperAdmin, selectedOrgId, selectedTerminalId, notify]);
+  }, [dateFrom, dateTo, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadData();
@@ -506,26 +508,24 @@ export default function PnLReportView({
         .rpt-pnl-connector { display: flex; align-items: center; justify-content: center; height: 28px; position: relative; }
         .connector-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; z-index: 1; background: #f1f5f9; color: #64748b; }
 
-        .rpt-pnl-side-cards { display: flex; flex-direction: column; gap: 14px; }
-        .rpt-pnl-side-card { background: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; padding: 16px; display: flex; flex-direction: column; gap: 6px; transition: all 0.25s ease; }
-        .rpt-pnl-side-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.03); background: #ffffff; border-color: #cbd5e1; }
-        .side-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-        .side-card-val { font-size: 20px; color: #0f172a; font-weight: 850; }
-        .side-card-desc { font-size: 10px; color: #94a3b8; font-weight: 500; }
-        .rpt-pnl-side-card.tax { border-left: 4px solid #8b5cf6; }
-        .rpt-pnl-side-card.receivables { border-left: 4px solid #f59e0b; }
-        .rpt-pnl-side-card.cash-flow.positive { border-left: 4px solid #10b981; }
-        .rpt-pnl-side-card.cash-flow.positive .side-card-val { color: #10b981 !important; }
-        .rpt-pnl-side-card.cash-flow.negative { border-left: 4px solid #ef4444; }
-        .rpt-pnl-side-card.cash-flow.negative .side-card-val { color: #ef4444 !important; }
+        .rpt-pnl-side-cards { display: flex; flex-direction: column; gap: 10px; }
+        .rpt-pnl-side-card { background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; transition: all 0.25s ease; }
+        .rpt-pnl-side-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.03); background: #ffffff; border-color: #cbd5e1; }
+        .side-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .side-card-val { font-size: 16px; color: #0f172a; font-weight: 800; }
+        .side-card-desc { font-size: 9.5px; color: #94a3b8; font-weight: 500; }
+        .rpt-pnl-side-card.tax { border-left: 2.5px solid #8b5cf6; }
+        .rpt-pnl-side-card.receivables { border-left: 2.5px solid #f59e0b; }
+        .rpt-pnl-side-card.cash-flow.positive { border-left: 2.5px solid #10b981; }
+        .rpt-pnl-side-card.cash-flow.negative { border-left: 2.5px solid #ef4444; }
 
-        .rpt-pnl-recon { margin-top: 10px; background: white; border-radius: 20px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
-        .rpt-pnl-recon-header { margin-bottom: 20px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 12px; }
-        .rpt-pnl-recon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-        .rpt-pnl-recon-card { background: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; padding: 16px; display: flex; flex-direction: column; gap: 6px; }
-        .rpt-pnl-recon-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; }
-        .rpt-pnl-recon-card strong { font-size: 20px; color: #0f172a; font-weight: 850; }
-        .rpt-pnl-recon-card-sub { font-size: 10px; color: #94a3b8; font-weight: 600; }
+        .rpt-pnl-recon { margin-top: 10px; background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
+        .rpt-pnl-recon-header { margin-bottom: 14px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 8px; }
+        .rpt-pnl-recon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+        .rpt-pnl-recon-card { background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; }
+        .rpt-pnl-recon-card-header { display: flex; align-items: center; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+        .rpt-pnl-recon-card strong { font-size: 16px; color: #0f172a; font-weight: 800; }
+        .rpt-pnl-recon-card-sub { font-size: 9.5px; color: #94a3b8; font-weight: 600; }
         .rpt-pnl-recon-card.billed { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border: 1.5px solid #bae6fd; }
         .rpt-pnl-recon-card.linked { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1.5px solid #bbf7d0; }
         .rpt-pnl-recon-card.other { background: linear-gradient(135deg, #f8fafc, #f1f5f9); border: 1.5px solid #e2e8f0; }

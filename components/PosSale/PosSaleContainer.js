@@ -116,7 +116,7 @@ export default function PosSaleContainer(props) {
           </svg>
         </div>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#1e293b', margin: '0 0 8px' }}>
-          Network Connection Required
+          {bootstrap.loadErrorTitle || 'Network Connection Required'}
         </h2>
         <p style={{ maxWidth: '420px', fontSize: '0.875rem', color: '#64748b', margin: '0 0 24px', lineHeight: '1.5' }}>
           {bootstrap.loadError}

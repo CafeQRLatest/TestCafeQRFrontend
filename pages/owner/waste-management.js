@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, getLocalISOString, getBusinessNow } from '../../utils/timezoneUtils';
 import { FaTrash, FaPlus, FaEdit, FaTimes, FaRecycle, FaChartPie, FaList, FaCog, FaCheck, FaLeaf, FaChevronDown } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
@@ -68,10 +68,14 @@ export default function WasteManagement() {
   const [toast, setToast] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editLog, setEditLog] = useState(null);
-  const [form, setForm] = useState({ productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId:'', wasteDate: new Date().toISOString().slice(0,16) });
+  const [form, setForm] = useState(() => ({ productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId:'', wasteDate: getLocalISOString(timezone) }));
   const [catForm, setCatForm] = useState({ name:'' });
   const [showCatForm, setShowCatForm] = useState(false);
-  const [dateRange, setDateRange] = useState({ start: new Date(Date.now()-30*864e5).toISOString().slice(0,10), end: new Date().toISOString().slice(0,10) });
+  const bizNow = getBusinessNow(timezone);
+  const todayStr = `${bizNow.getFullYear()}-${String(bizNow.getMonth()+1).padStart(2,'0')}-${String(bizNow.getDate()).padStart(2,'0')}`;
+  const thirtyDaysAgo = new Date(bizNow); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth()+1).padStart(2,'0')}-${String(thirtyDaysAgo.getDate()).padStart(2,'0')}`;
+  const [dateRange, setDateRange] = useState({ start: thirtyDaysAgoStr, end: todayStr });
   const [search, setSearch] = useState('');
   const [filterReason, setFilterReason] = useState('ALL');
   const [logPage, setLogPage] = useState(0);
@@ -115,8 +119,8 @@ export default function WasteManagement() {
       quantity: String(log.quantity||1), unitOfMeasure: log.unitOfMeasure||'units',
       unitCost: String(log.unitCost||0), notes: log.notes||'',
       wasteCategoryId: log.wasteCategoryId||'',
-      wasteDate: log.wasteDate ? log.wasteDate.slice(0,16) : new Date().toISOString().slice(0,16)
-    } : { productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId: cats[0]?.id||'', wasteDate: new Date().toISOString().slice(0,16) });
+      wasteDate: log.wasteDate ? log.wasteDate.slice(0,16) : getLocalISOString(timezone)
+    } : { productName:'', wasteReason:'Spillage', quantity:'1', unitOfMeasure:'units', unitCost:'0', notes:'', wasteCategoryId: cats[0]?.id||'', wasteDate: getLocalISOString(timezone) });
     setShowForm(true);
   };
 

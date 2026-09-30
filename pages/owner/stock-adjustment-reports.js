@@ -12,7 +12,7 @@ import ModuleGate from '../../components/ModuleGate';
 import ReportTable from '../../components/ReportTable';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import { 
   FaClipboardList, FaSearch, FaCalendarAlt, FaCheckCircle,
   FaClock, FaBalanceScale, FaExclamationTriangle,
@@ -74,12 +74,14 @@ function AdjustmentReportContent() {
 
 
   const getTodayStartStr = () => {
-    const d = new Date();
+    const activeTz = timezone || Cookies.get('orgId') || 'Asia/Kolkata';
+    const d = getBusinessNow(activeTz);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00`;
   };
 
   const getTodayEndStr = () => {
-    const d = new Date();
+    const activeTz = timezone || Cookies.get('orgId') || 'Asia/Kolkata';
+    const d = getBusinessNow(activeTz);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T23:59`;
   };
 
@@ -144,13 +146,10 @@ function AdjustmentReportContent() {
     const matchReason = reasonFilter === 'ALL' || a.reason === reasonFilter;
     const matchWh = !warehouseFilter || String(a.warehouseId) === String(warehouseFilter);
     let matchDate = true;
-    if (dateFrom) matchDate = new Date(a.adjustmentDate) >= new Date(dateFrom);
+    if (dateFrom) matchDate = new Date(a.adjustmentDate + (a.adjustmentDate?.length === 10 ? 'T00:00:00Z' : 'Z')) >= new Date(dateFrom + ':00');
     if (dateTo && matchDate) {
-      const endDate = new Date(dateTo);
-      if (!String(dateTo).includes('T')) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-      matchDate = new Date(a.adjustmentDate) <= endDate;
+      const toDateMs = new Date(dateTo + ':00').getTime();
+      matchDate = new Date(a.adjustmentDate + (a.adjustmentDate?.length === 10 ? 'T00:00:00Z' : 'Z')).getTime() <= toDateMs;
     }
 
     return matchSearch && matchStatus && matchReason && matchWh && matchDate;

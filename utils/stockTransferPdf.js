@@ -5,7 +5,9 @@
  */
 
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
+import Cookies from 'js-cookie';
 import api from './api';
+import { formatTzDate } from './timezoneUtils';
 
 const ORANGE     = [234, 88, 12];   // #ea580c
 const DARK       = [15, 23, 42];    // #0f172a
@@ -21,14 +23,9 @@ function fmt(n, dp = 2) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: true,
-    });
-  } catch {
-    return String(dateStr);
-  }
+  const tz = (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || null;
+  const result = formatTzDate(dateStr, tz, { format: 'datetime' });
+  return result === '—' ? String(dateStr) : result;
 }
 
 async function imgToBase64(url) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { printUniversal } from '../../utils/printGateway';
 import { buildThermalReportText } from '../../utils/thermalReportFormatter';
 import {
@@ -70,17 +70,18 @@ export default function SalesReportView({
     return config?.creditEnabled ? [...list, CREDIT_TAB] : list;
   }, [config]);
 
-  const toInstant = (dtLocal) => {
+  const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
-    try { return new Date(dtLocal + ':00').toISOString(); } catch { return undefined; }
+    const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+    try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
   const loadSubTab = useCallback(async (t) => {
     setLoading(true);
     setLoadError(null);
-    const params = { from: toInstant(dateFrom), to: toInstant(dateTo) };
-    if (isSuperAdmin && selectedOrgId) params.orgId = selectedOrgId;
-    if (isSuperAdmin && selectedTerminalId) params.terminalId = selectedTerminalId;
+    const params = { from: toInstant(dateFrom), to: toInstant(dateTo, true) };
+    if (selectedOrgId) params.orgId = selectedOrgId;
+    if (selectedTerminalId) params.terminalId = selectedTerminalId;
 
     try {
       const ep = {
@@ -114,7 +115,7 @@ export default function SalesReportView({
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, invoiceFilter, isSuperAdmin, selectedOrgId, selectedTerminalId, notify]);
+  }, [dateFrom, dateTo, invoiceFilter, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadSubTab(subTab);
@@ -277,7 +278,7 @@ export default function SalesReportView({
         </div>
         <div className="rpt-sales-kpi-grid">
           {cards.map((c, i) => (
-            <div key={i} className="rpt-sales-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
+            <div key={i} className="rpt-sales-kpi" style={{ borderLeft: `2.5px solid ${c.color}` }}>
               <div className="rpt-sales-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</div>
               <div className="rpt-sales-kpi-data">
                 <span className="rpt-sales-kpi-label">
@@ -672,7 +673,7 @@ export default function SalesReportView({
             const avgAmount = p.orderCount > 0 ? Number(p.totalAmount || 0) / p.orderCount : 0;
 
             return (
-              <div key={i} className="rpt-sales-pay-card" style={{ borderTop: `4px solid ${theme.color}` }}>
+              <div key={i} className="rpt-sales-pay-card" style={{ borderTop: `2.5px solid ${theme.color}` }}>
                 <div className="rpt-sales-pay-card-header">
                   <div className="rpt-sales-pay-icon-box" style={{ background: theme.bg, color: theme.color }}>
                     {theme.icon}
@@ -821,7 +822,7 @@ export default function SalesReportView({
         </div>
         <div className="rpt-sales-kpi-grid">
           {cards.map((card) => (
-            <div key={card.label} className="rpt-sales-kpi" style={{ borderLeft: `4px solid ${card.color}` }}>
+            <div key={card.label} className="rpt-sales-kpi" style={{ borderLeft: `2.5px solid ${card.color}` }}>
               <div className="rpt-sales-kpi-icon" style={{ background: card.bg, color: card.color }}><FaBook /></div>
               <div className="rpt-sales-kpi-data">
                 <span className="rpt-sales-kpi-label">{card.label}</span>
@@ -981,13 +982,13 @@ export default function SalesReportView({
         .rpt-sales-btn-danger { width: 28px; height: 28px; border-radius: 8px; border: 1px solid #fecaca; background: #fff; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: .2s; font-size: 11px; }
         .rpt-sales-btn-danger:hover { background: #fef2f2; }
 
-        .rpt-sales-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-        .rpt-sales-kpi { background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; min-height: 85px; }
-        .rpt-sales-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,.03); }
-        .rpt-sales-kpi-icon { grid-area: icon; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .rpt-sales-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+        .rpt-sales-kpi { background: #fff; padding: 10px 14px; border-radius: 12px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; min-height: 64px; }
+        .rpt-sales-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.03); }
+        .rpt-sales-kpi-icon { grid-area: icon; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
         .rpt-sales-kpi-data { display: contents; }
-        .rpt-sales-kpi-label { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 4px; }
-        .rpt-sales-kpi-val { grid-area: value; font-size: 20px; font-weight: 850; color: #1e293b; }
+        .rpt-sales-kpi-label { grid-area: label; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+        .rpt-sales-kpi-val { grid-area: value; font-size: 16px; font-weight: 800; color: #1e293b; }
 
         .rpt-sales-tbl-wrap { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: auto; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
         .rpt-sales-tbl { width: 100%; border-collapse: collapse; min-width: 600px; }
@@ -1013,18 +1014,18 @@ export default function SalesReportView({
         .rpt-sales-bar-wrap { width: 100%; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; min-width: 80px; }
         .rpt-sales-bar { height: 100%; background: linear-gradient(90deg, #f97316, #fb923c); border-radius: 4px; transition: width .6s ease; }
 
-        .rpt-sales-pay-grid { display: flex; flex-wrap: wrap; gap: 16px; }
-        .rpt-sales-pay-card { flex: 1 1 260px; max-width: 320px; background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 12px; }
-        .rpt-sales-pay-card-header { display: flex; align-items: center; gap: 12px; }
-        .rpt-sales-pay-icon-box { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        .rpt-sales-pay-method-info { display: flex; flex-direction: column; gap: 2px; }
-        .rpt-sales-pay-method-name { font-size: 12px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
-        .rpt-sales-pay-meta { font-size: 11px; color: #94a3b8; font-weight: 600; }
+        .rpt-sales-pay-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+        .rpt-sales-pay-card { flex: 1 1 230px; max-width: 300px; background: #fff; padding: 12px 14px; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 8px; }
+        .rpt-sales-pay-card-header { display: flex; align-items: center; gap: 10px; }
+        .rpt-sales-pay-icon-box { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+        .rpt-sales-pay-method-info { display: flex; flex-direction: column; gap: 1px; }
+        .rpt-sales-pay-method-name { font-size: 11px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
+        .rpt-sales-pay-meta { font-size: 10px; color: #94a3b8; font-weight: 600; }
         .rpt-sales-pay-body { display: flex; justify-content: space-between; align-items: baseline; }
-        .rpt-sales-pay-amt { font-size: 20px; font-weight: 850; color: #1e293b; }
-        .rpt-sales-pay-avg { font-size: 11px; color: #64748b; font-weight: 600; }
-        .rpt-sales-pay-bar-wrapper { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
-        .rpt-sales-pay-bar-fill { height: 100%; border-radius: 3px; }
+        .rpt-sales-pay-amt { font-size: 16px; font-weight: 850; color: #1e293b; }
+        .rpt-sales-pay-avg { font-size: 10.5px; color: #64748b; font-weight: 600; }
+        .rpt-sales-pay-bar-wrapper { height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; }
+        .rpt-sales-pay-bar-fill { height: 100%; border-radius: 2px; }
 
         .rpt-sales-chart-card { background: white; border-radius: 20px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,.02); margin-bottom: 20px; }
         .rpt-sales-chart-header { margin-bottom: 24px; }

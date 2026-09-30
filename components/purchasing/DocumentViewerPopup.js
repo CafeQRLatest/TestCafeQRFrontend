@@ -5,6 +5,7 @@ import { calculateOrderTotals } from '../../utils/orderCalculations';
 import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, FaDownload } from 'react-icons/fa';
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { useAuth } from '../../context/AuthContext';
+import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
 
 function parseDeliveryDetails(description) {
   if (!description) return null;
@@ -105,18 +106,34 @@ export default function DocumentViewerPopup({
   warehouses = [],
   timezone,
   currencySymbol,
-  formatTzDate,
+  formatTzDate: formatTzDateProp,
   onClose,
-  STATUS_CFG,
-  docType: propDocType,
+  STATUS_CFG = {
+    DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
+    BILLED:    { label: 'Billed',    color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
+    COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+    PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
+    CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+    VOID:      { label: 'Void',      color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
+    KITCHEN:   { label: 'Kitchen',   color: '#c2410c', bg: '#fff7ed', dot: '#f97316', border: '#fdba74' },
+    CONFIRMED: { label: 'Confirmed', color: '#c2410c', bg: '#fff7ed', dot: '#f97316', border: '#fdba74' },
+    IN_PROGRESS:{ label: 'In Progress', color: '#c2410c', bg: '#fff7ed', dot: '#f97316', border: '#fdba74' },
+    READY:     { label: 'Ready',     color: '#0e7490', bg: '#ecfeff', dot: '#06b6d4', border: '#67e8f9' },
+  },
+  docType: propDocType = 'order',
   type: propType,
   onViewLinked,
   onInvoiceOrder,
   config = null,
   onOrderUpdated = null,
 }) {
+  const auth = useAuth() || {};
+  const { posType, timezone: authTimezone } = auth;
   const docType = propDocType || propType || 'order';
-  const { posType } = useAuth();
+  const effectiveTz = timezone || authTimezone || 'Asia/Kolkata';
+  const formatDateFn = typeof formatTzDateProp === 'function'
+    ? (val, tz, opts) => formatTzDateProp(val, tz || effectiveTz, opts)
+    : (val, tz, opts) => formatTzDateUtil(val, tz || effectiveTz, opts);
   const taxEnabled = config ? !!config.taxEnabled : true;
   const taxLabel = config?.pricesIncludeTax ? 'Tax (Incl.)' : 'Tax (Excl.)';
   const isInclusiveTax = !!config?.pricesIncludeTax;
@@ -1049,9 +1066,9 @@ export default function DocumentViewerPopup({
                 <span className="dv-lbl">Created By</span>
                 <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
                 <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                  {formatTzDate(
+                  {formatDateFn(
                     currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date,
-                    timezone,
+                    effectiveTz,
                     { format: 'datetime' }
                   )}
                 </span>
@@ -1060,9 +1077,9 @@ export default function DocumentViewerPopup({
                 <span className="dv-lbl">Last Updated By</span>
                 <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
                 <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                  {formatTzDate(
+                  {formatDateFn(
                     currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
-                    timezone,
+                    effectiveTz,
                     { format: 'datetime' }
                   )}
                 </span>
@@ -1192,7 +1209,7 @@ export default function DocumentViewerPopup({
                     const isCurrent = !isVoid;
                     const revNo = rev.revisionNumber ?? idx;
                     const revDate = rev.orderDate || rev.createdAt || rev.created_at;
-                    const fmtDate = revDate ? new Date(revDate).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+                    const fmtDate = revDate ? formatDateFn(revDate, effectiveTz, { format: 'datetime' }) : '—';
                     return (
                       <div key={rev.id} className={`dv-history-card ${isVoid ? 'dv-history-void' : 'dv-history-current'}`}>
                         <div className="dv-history-card-head">

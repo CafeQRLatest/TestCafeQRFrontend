@@ -8,7 +8,7 @@ import NiceSelect from '../../components/NiceSelect';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
-import { getBusinessNow } from '../../utils/timezoneUtils';
+import { getBusinessNow, getLocalISOString, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
 import { getCurrencySymbol } from '../../constants/expenseScopes';
 
@@ -29,10 +29,8 @@ const blankAccount = {
   isActive: 'Y'
 };
 
-function defaultJournalDate() {
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  return now.toISOString().slice(0, 16);
+function defaultJournalDate(timezone) {
+  return getLocalISOString(timezone);
 }
 
 function localDatePart(date) {
@@ -48,10 +46,10 @@ function defaultAccountingPeriod(timezone) {
   };
 }
 
-function toInstant(dtLocal) {
+function toInstant(dtLocal, timezone) {
   if (!dtLocal) return undefined;
   try {
-    return new Date(`${dtLocal}:00`).toISOString();
+    return businessTimeToUtc(dtLocal, timezone);
   } catch {
     return undefined;
   }
@@ -88,8 +86,8 @@ function isWithinPeriod(value, selectedPeriod) {
   return Boolean(target && from && to && target >= from && target <= to);
 }
 
-function suggestedJournalDateForPeriod(selectedPeriod) {
-  const now = defaultJournalDate();
+function suggestedJournalDateForPeriod(selectedPeriod, timezone) {
+  const now = defaultJournalDate(timezone);
   return isWithinPeriod(now, selectedPeriod) ? now : (selectedPeriod?.to || now);
 }
 
@@ -367,7 +365,7 @@ function AccountingContent() {
     setDetailLoading(false);
 
     try {
-      const periodParams = { from: toInstant(effectivePeriod.from), to: toInstant(effectivePeriod.to) };
+      const periodParams = { from: toInstant(effectivePeriod.from, timezone), to: toInstant(effectivePeriod.to, timezone) };
       if (isSuperAdmin && selectedOrgId) periodParams.orgId = selectedOrgId;
       if (isSuperAdmin && selectedTerminalId) periodParams.terminalId = selectedTerminalId;
       const journalParams = { ...periodParams, sortBy, sortDir };
@@ -460,8 +458,8 @@ function AccountingContent() {
     setSyncing(true);
     try {
       const resp = await api.post('/api/v1/accounting/backfill', {
-        from: toInstant(period.from),
-        to: toInstant(period.to),
+        from: toInstant(period.from, timezone),
+        to: toInstant(period.to, timezone),
         sourceTypes: ['INVOICE', 'PAYMENT', 'COGS', 'STOCK', 'EXPENSE', 'PURCHASE'],
         dryRun: false
       }, {

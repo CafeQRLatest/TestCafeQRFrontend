@@ -12,7 +12,7 @@ import PaymentTypeBalanceReport from '../../components/reports/PaymentTypeBalanc
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
-import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
+import { getBusinessNow, businessTimeToUtc, formatTzDate } from '../../utils/timezoneUtils';
 import { publishAccountingDataChanged } from '../../utils/accountingRealtime';
 import { isFeatureEnabled } from '../../utils/moduleVisibility';
 import {
@@ -28,9 +28,10 @@ function reportErrorMessage(err) {
   return err?.response?.data?.message || 'Failed to load report data';
 }
 
-const toInstant = (dtLocal) => {
+const toInstant = (dtLocal, tz, isEnd = false) => {
   if (!dtLocal) return undefined;
-  try { return new Date(dtLocal + ':00').toISOString(); } catch { return undefined; }
+  const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+  try { return businessTimeToUtc(val, tz); } catch { return undefined; }
 };
 
 export default function Reports() {
@@ -350,6 +351,7 @@ export default function Reports() {
             selectedTerminalId={selectedTerminalId}
             config={config}
             isSuperAdmin={isSuperAdmin}
+            timezone={timezone}
           />
         )}
 
@@ -357,20 +359,12 @@ export default function Reports() {
         {viewingDoc && (
           <DocumentViewerPopup
             order={viewingDoc.order}
-            docType={viewingDoc.type || 'invoice'}
+            docType={viewingDoc.type || 'order'}
             timezone={timezone || config?.timezone || 'Asia/Kolkata'}
             currencySymbol={config?.currencySymbol || '₹'}
             formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
             onViewLinked={(order, type) => setViewingDoc({ order, type })}
-            STATUS_CFG={{
-              DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
-              BILLED:    { label: 'Billed',    color: '#b45309', bg: '#fffbeb', dot: '#f59e0b', border: '#fde68a' },
-              COMPLETED: { label: 'Completed', color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
-              PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
-              CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
-              VOID:      { label: 'Void',      color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
-            }}
             config={config}
           />
         )}

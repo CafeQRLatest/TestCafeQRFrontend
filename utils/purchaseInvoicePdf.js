@@ -1,6 +1,8 @@
 import { Capacitor } from '@capacitor/core';
+import Cookies from 'js-cookie';
 import api from './api';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
+import { formatTzDate } from './timezoneUtils';
 
 function fmt(n, dp = 2) {
   return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
@@ -8,14 +10,9 @@ function fmt(n, dp = 2) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: true,
-    });
-  } catch {
-    return String(dateStr);
-  }
+  const tz = (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || null;
+  const result = formatTzDate(dateStr, tz, { format: 'datetime' });
+  return result === '—' ? String(dateStr) : result;
 }
 
 const ORANGE     = [234, 88, 12];   // #ea580c

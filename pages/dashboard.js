@@ -6,7 +6,7 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import PremiumDateTimePicker from '../components/PremiumDateTimePicker';
 import NiceSelect from '../components/NiceSelect';
 import DocumentViewerPopup from '../components/purchasing/DocumentViewerPopup';
-import { formatTzDate } from '../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../utils/timezoneUtils';
 import {
   FaChartPie, FaChartBar, FaThList,
   FaExclamationTriangle, FaTimes, FaReceipt,
@@ -108,13 +108,13 @@ function Dashboard() {
   const [selOrg,      setSelOrg]      = useState('');
   const [selTerminal, setSelTerminal] = useState('');
 
-  /* date filters — default: today full day */
+  /* date filters — default: today full day in business timezone */
   const todayStart = () => {
-    const d = new Date();
+    const d = getBusinessNow(timezone);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T00:00`;
   };
   const todayEnd = () => {
-    const d = new Date();
+    const d = getBusinessNow(timezone);
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T23:59`;
   };
   const [dateFrom, setDateFrom] = useState(todayStart);
@@ -148,8 +148,8 @@ function Dashboard() {
       };
       if (isSuperAdmin && selOrg)      params.branchId = selOrg;
       if (isSuperAdmin && selTerminal) params.terminalId = selTerminal;
-      if (dateFrom) params.fromDate = new Date(dateFrom + ':00').toISOString();
-      if (dateTo)   params.toDate   = new Date(dateTo   + ':00').toISOString();
+      if (dateFrom) params.fromDate = businessTimeToUtc(dateFrom, timezone);
+      if (dateTo)   params.toDate   = businessTimeToUtc(dateTo, timezone);
       const res = await api.get('/api/v1/orders/search', { params });
       const raw = res.data?.data?.content || res.data?.data;
       const list = (Array.isArray(raw) ? raw : [])

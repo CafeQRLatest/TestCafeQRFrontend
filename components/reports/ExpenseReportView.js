@@ -3,11 +3,11 @@ import { useRouter } from 'next/router';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, businessTimeToUtc } from '../../utils/timezoneUtils';
 import {
   FaChartBar, FaBoxes, FaCreditCard, FaReceipt,
   FaFileCsv, FaFileExcel, FaSearch, FaPlus, FaMoneyBillWave,
-  FaChartLine
+  FaChartLine, FaWallet, FaMobileAlt
 } from 'react-icons/fa';
 
 const EXPENSE_TABS = [
@@ -39,9 +39,10 @@ export default function ExpenseReportView({
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const toInstant = (dtLocal) => {
+  const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
-    try { return new Date(dtLocal + ':00').toISOString(); } catch { return undefined; }
+    const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+    try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
   const loadData = useCallback(async () => {
@@ -49,14 +50,15 @@ export default function ExpenseReportView({
     setLoadError(null);
     const expParams = {
       fromDate: toInstant(dateFrom),
-      toDate: toInstant(dateTo),
+      toDate: toInstant(dateTo, true),
       from: toInstant(dateFrom),
-      to: toInstant(dateTo),
+      to: toInstant(dateTo, true),
       size: 5000,
       page: 0
     };
     if (selectedOrgId) {
       expParams.branchId = selectedOrgId;
+      expParams.orgId = selectedOrgId;
       expParams.branch = selectedOrgId;
     }
 
@@ -84,7 +86,7 @@ export default function ExpenseReportView({
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, isSuperAdmin, selectedOrgId, notify]);
+  }, [dateFrom, dateTo, selectedOrgId, timezone, notify]);
 
   useEffect(() => {
     loadData();
@@ -119,9 +121,30 @@ export default function ExpenseReportView({
     const count = list.length;
     const avgExp = count > 0 ? totalExp / count : 0;
 
-    const cashExp = list.filter(r => (r.paymentMethod || '').toUpperCase() === 'CASH')
-      .reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-    const onlineExp = totalExp - cashExp;
+    let cashExp = 0;
+    let onlineExp = 0;
+    list.forEach(r => {
+      const method = (r.paymentMethod || 'CASH').toUpperCase();
+      const totalAmt = parseFloat(r.amount) || 0;
+      if (method === 'MIXED') {
+        let cash = parseFloat(r.cashAmount ?? r.cash_amount ?? 0);
+        let online = parseFloat(r.onlineAmount ?? r.online_amount ?? 0);
+        if (cash <= 0 && online <= 0) {
+          cash = totalAmt / 2;
+          online = totalAmt - cash;
+        } else if (cash <= 0 && online > 0) {
+          cash = Math.max(0, totalAmt - online);
+        } else if (online <= 0 && cash > 0) {
+          online = Math.max(0, totalAmt - cash);
+        }
+        cashExp += cash;
+        onlineExp += online;
+      } else if (method === 'CASH') {
+        cashExp += totalAmt;
+      } else {
+        onlineExp += totalAmt;
+      }
+    });
 
     const cards = [
       { label: 'Total Expenses', val: `${SYM}${fmt(totalExp)}`, color: '#f43f5e', bg: '#fff1f2', icon: <FaReceipt /> },
@@ -159,7 +182,7 @@ export default function ExpenseReportView({
 
         <div className="rpt-exp-kpi-grid">
           {cards.map((c, i) => (
-            <div key={i} className="rpt-exp-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
+            <div key={i} className="rpt-exp-kpi" style={{ borderLeft: `2.5px solid ${c.color}` }}>
               <div className="rpt-exp-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</div>
               <div className="rpt-exp-kpi-data">
                 <span className="rpt-exp-kpi-label">{c.label}</span>
@@ -177,11 +200,16 @@ export default function ExpenseReportView({
     const filtered = list.filter(r => {
       const q = searchTerm.toLowerCase().trim();
       const matchSearch = !q || (
+        (r.referenceNumber || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q) ||
         (r.title || r.name || '').toLowerCase().includes(q) ||
-        (r.categoryName || r.category || '').toLowerCase().includes(q) ||
-        (r.description || '').toLowerCase().includes(q)
+        (r.categoryName || r.category || '').toLowerCase().includes(q)
       );
-      const matchCat = categoryFilter === 'ALL' || (r.categoryId === categoryFilter || r.category === categoryFilter);
+      const matchCat = categoryFilter === 'ALL' || (
+        String(r.categoryId) === String(categoryFilter) ||
+        r.categoryName === categoryFilter ||
+        r.category === categoryFilter
+      );
       return matchSearch && matchCat;
     });
 
@@ -209,23 +237,35 @@ export default function ExpenseReportView({
           </div>
           <button className="rpt-exp-btn" onClick={() => exportCSV(
             ['Date', 'Category', 'Title / Description', 'Payment Method', 'Amount'],
-            filtered.map(r => [
-              formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
-              r.categoryName || r.category?.name || 'General',
-              r.title || r.name || r.description || '—',
-              r.paymentMethod || '—',
-              r.amount || 0
-            ].map(csvCell).join(',')),
+            filtered.map(r => {
+              const isMixed = (r.paymentMethod || '').toUpperCase() === 'MIXED';
+              const cash = parseFloat(r.cashAmount ?? r.cash_amount) || (parseFloat(r.amount) / 2 || 0);
+              const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
+              const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
+              return [
+                formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
+                r.categoryName || r.category?.name || 'General',
+                r.title || r.name || r.description || '—',
+                payDisplay,
+                r.amount || 0
+              ].map(csvCell).join(',');
+            }),
             'expense_records'
           )}><FaFileCsv /> CSV</button>
           <button className="rpt-exp-btn" onClick={() => exportExcel(
-            filtered.map(r => ({
-              'Date': formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
-              'Category': r.categoryName || r.category?.name || 'General',
-              'Title / Description': r.title || r.name || r.description || '—',
-              'Payment Method': r.paymentMethod || '—',
-              'Amount': Number(r.amount || 0)
-            })),
+            filtered.map(r => {
+              const isMixed = (r.paymentMethod || '').toUpperCase() === 'MIXED';
+              const cash = parseFloat(r.cashAmount ?? r.cash_amount) || (parseFloat(r.amount) / 2 || 0);
+              const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
+              const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
+              return {
+                'Date': formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
+                'Category': r.categoryName || r.category?.name || 'General',
+                'Title / Description': r.title || r.name || r.description || '—',
+                'Payment Method': payDisplay,
+                'Amount': Number(r.amount || 0)
+              };
+            }),
             'Expense Records', 'expense_records'
           )}><FaFileExcel /> Excel</button>
         </div>
@@ -250,7 +290,20 @@ export default function ExpenseReportView({
                     <td>{formatTzDate(r.date || r.createdAt, timezone, { format: 'short' })}</td>
                     <td><span className="rpt-exp-pill">{r.categoryName || r.category?.name || 'General'}</span></td>
                     <td style={{ fontWeight: 600, color: '#1e293b' }}>{r.title || r.name || r.description || 'Expense Entry'}</td>
-                    <td><span className="rpt-exp-st paid">{r.paymentMethod || 'CASH'}</span></td>
+                    <td>
+                      {(r.paymentMethod || '').toUpperCase() === 'MIXED' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px' }}>
+                          <span className="rpt-exp-st paid" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>
+                            Cash: {SYM}{fmt(parseFloat(r.cashAmount ?? r.cash_amount) || (parseFloat(r.amount) / 2 || 0))}
+                          </span>
+                          <span className="rpt-exp-st paid" style={{ background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
+                            Online: {SYM}{fmt(parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="rpt-exp-st paid">{r.paymentMethod || 'CASH'}</span>
+                      )}
+                    </td>
                     <td className="r rpt-exp-amt" style={{ color: '#ef4444' }}>{SYM}{fmt(r.amount)}</td>
                   </tr>
                 ))}
@@ -344,11 +397,35 @@ export default function ExpenseReportView({
   const renderPayments = () => {
     const list = Array.isArray(expenseRecords) ? expenseRecords : [];
     const payMap = {};
+
+    const addPay = (method, amount) => {
+      const val = parseFloat(amount) || 0;
+      if (val <= 0) return;
+      const m = (method || 'CASH').toUpperCase();
+      if (!payMap[m]) payMap[m] = { name: m, total: 0, count: 0 };
+      payMap[m].total += val;
+      payMap[m].count += 1;
+    };
+
     list.forEach(r => {
-      const pName = (r.paymentMethod || 'Cash').toUpperCase();
-      if (!payMap[pName]) payMap[pName] = { name: pName, total: 0, count: 0 };
-      payMap[pName].total += (parseFloat(r.amount) || 0);
-      payMap[pName].count += 1;
+      const method = (r.paymentMethod || 'CASH').toUpperCase();
+      const totalAmt = parseFloat(r.amount) || 0;
+      if (method === 'MIXED') {
+        let cash = parseFloat(r.cashAmount ?? r.cash_amount ?? 0);
+        let online = parseFloat(r.onlineAmount ?? r.online_amount ?? 0);
+        if (cash <= 0 && online <= 0) {
+          cash = totalAmt / 2;
+          online = totalAmt - cash;
+        } else if (cash <= 0 && online > 0) {
+          cash = Math.max(0, totalAmt - online);
+        } else if (online <= 0 && cash > 0) {
+          online = Math.max(0, totalAmt - cash);
+        }
+        if (cash > 0) addPay('CASH', cash);
+        if (online > 0) addPay('ONLINE', online);
+      } else {
+        addPay(method, totalAmt);
+      }
     });
 
     const paymentList = Object.values(payMap).sort((a, b) => b.total - a.total);
@@ -382,39 +459,44 @@ export default function ExpenseReportView({
         {paymentList.length === 0 ? (
           <div className="rpt-exp-empty">No payment data for selected range</div>
         ) : (
-          <div className="rpt-exp-tbl-wrap">
-            <table className="rpt-exp-tbl">
-              <thead>
-                <tr>
-                  <th>Payment Method</th>
-                  <th className="r">Disbursements</th>
-                  <th className="r">Total Outflow</th>
-                  <th className="r">Share %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentList.map((p, idx) => {
-                  const pct = totalExp > 0 ? ((p.total / totalExp) * 100).toFixed(1) : '0';
-                  return (
-                    <tr key={idx}>
-                      <td style={{ fontWeight: 700, color: '#1e293b' }}>{p.name}</td>
-                      <td className="r">{p.count}</td>
-                      <td className="r rpt-exp-amt" style={{ color: '#ef4444' }}>{SYM}{fmt(p.total)}</td>
-                      <td className="r" style={{ fontWeight: 700, color: '#6366f1' }}>{pct}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                  <td>Total</td>
-                  <td className="r">{paymentList.reduce((acc, p) => acc + p.count, 0)}</td>
-                  <td className="r rpt-exp-amt" style={{ color: '#ef4444' }}>{SYM}{fmt(totalExp)}</td>
-                  <td className="r">100%</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+          <>
+            <div className="rpt-exp-pay-grid">
+              {paymentList.map((p, i) => {
+                const method = String(p.name || '').toUpperCase();
+                let theme = { color: '#6366f1', bg: '#f5f3ff', grad: 'linear-gradient(135deg, #8b5cf6, #6366f1)', icon: <FaWallet /> };
+                if (method.includes('CASH')) {
+                  theme = { color: '#10b981', bg: '#ecfdf4', grad: 'linear-gradient(135deg, #10b981, #059669)', icon: <FaMoneyBillWave /> };
+                } else if (method.includes('CARD') || method.includes('DEBIT') || method.includes('CREDIT')) {
+                  theme = { color: '#3b82f6', bg: '#eff6ff', grad: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', icon: <FaCreditCard /> };
+                } else if (method.includes('ONLINE') || method.includes('UPI')) {
+                  theme = { color: '#ea580c', bg: '#fff7ed', grad: 'linear-gradient(135deg, #f97316, #ea580c)', icon: <FaMobileAlt /> };
+                }
+                const pct = totalExp > 0 ? Number(((p.total / totalExp) * 100).toFixed(1)) : 0;
+                const avgAmount = p.count > 0 ? p.total / p.count : 0;
+
+                return (
+                  <div key={i} className="rpt-exp-pay-card" style={{ borderTop: `2.5px solid ${theme.color}` }}>
+                    <div className="rpt-exp-pay-card-header">
+                      <div className="rpt-exp-pay-icon-box" style={{ background: theme.bg, color: theme.color }}>
+                        {theme.icon}
+                      </div>
+                      <div className="rpt-exp-pay-method-info">
+                        <span className="rpt-exp-pay-method-name">{p.name}</span>
+                        <span className="rpt-exp-pay-meta">{p.count} txns · {pct}%</span>
+                      </div>
+                    </div>
+                    <div className="rpt-exp-pay-body">
+                      <div className="rpt-exp-pay-amt">{SYM}{fmt(p.total)}</div>
+                      <div className="rpt-exp-pay-avg">Avg: {SYM}{fmt(avgAmount)}</div>
+                    </div>
+                    <div className="rpt-exp-pay-bar-wrapper">
+                      <div className="rpt-exp-pay-bar-fill" style={{ width: `${pct}%`, background: theme.grad }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </>
     );
@@ -466,13 +548,27 @@ export default function ExpenseReportView({
         .rpt-exp-search-input { width: 100%; height: 36px; padding: 6px 12px 6px 30px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 12px; outline: none; }
         .rpt-exp-search-icon { position: absolute; left: 10px; top: 11px; color: #94a3b8; font-size: 11px; }
 
-        .rpt-exp-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-        .rpt-exp-kpi { background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; min-height: 85px; }
-        .rpt-exp-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,.03); }
-        .rpt-exp-kpi-icon { grid-area: icon; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .rpt-exp-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+        .rpt-exp-kpi { background: #fff; padding: 10px 14px; border-radius: 12px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; min-height: 64px; }
+        .rpt-exp-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.03); }
+        .rpt-exp-kpi-icon { grid-area: icon; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
         .rpt-exp-kpi-data { display: contents; }
-        .rpt-exp-kpi-label { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-        .rpt-exp-kpi-val { grid-area: value; font-size: 20px; font-weight: 850; color: #1e293b; }
+        .rpt-exp-kpi-label { grid-area: label; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+        .rpt-exp-kpi-val { grid-area: value; font-size: 16px; font-weight: 800; color: #1e293b; }
+
+        .rpt-exp-pay-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+        .rpt-exp-pay-card { flex: 1 1 230px; max-width: 300px; background: #fff; padding: 12px 14px; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 8px; }
+        .rpt-exp-pay-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.04); }
+        .rpt-exp-pay-card-header { display: flex; align-items: center; gap: 10px; }
+        .rpt-exp-pay-icon-box { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+        .rpt-exp-pay-method-info { display: flex; flex-direction: column; gap: 1px; }
+        .rpt-exp-pay-method-name { font-size: 11px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
+        .rpt-exp-pay-meta { font-size: 10px; color: #94a3b8; font-weight: 600; }
+        .rpt-exp-pay-body { display: flex; justify-content: space-between; align-items: baseline; }
+        .rpt-exp-pay-amt { font-size: 16px; font-weight: 850; color: #1e293b; }
+        .rpt-exp-pay-avg { font-size: 10.5px; color: #64748b; font-weight: 600; }
+        .rpt-exp-pay-bar-wrapper { height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; }
+        .rpt-exp-pay-bar-fill { height: 100%; border-radius: 2px; }
 
         .rpt-exp-tbl-wrap { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: auto; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
         .rpt-exp-tbl { width: 100%; border-collapse: collapse; min-width: 600px; }

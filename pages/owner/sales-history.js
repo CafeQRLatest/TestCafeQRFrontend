@@ -142,8 +142,14 @@ function histOrderIdentity(order) {
 }
 
 function histOrderTime(order) {
-  const raw = order?.orderDate || order?.order_date || order?.createdAt || order?.created_at;
-  const date = raw ? new Date(raw) : new Date();
+  const raw = order?.orderDate || order?.order_date;
+  if (!raw) return new Date();
+  if (raw instanceof Date) return raw;
+  let strVal = String(raw);
+  if (strVal.length >= 19 && strVal.includes('T') && !strVal.includes('Z') && !strVal.match(/[+-]\d{2}:\d{2}$/)) {
+    strVal = strVal + 'Z';
+  }
+  const date = new Date(strVal);
   return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
@@ -391,7 +397,7 @@ export default function SalesHistoryPage() {
       .then(res => setTerminals(res.data?.data || []))
       .catch(() => {});
 
-    api.get('/api/v1/credit-customers')
+    api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
       .then(res => setCreditCustomers(res.data?.data || []))
       .catch(() => {});
   }, [orgId]);
@@ -1344,7 +1350,7 @@ export default function SalesHistoryPage() {
                 <thead>
                   <tr>
                     <th>Order#</th>
-                    <th>Date</th>
+                    <th>Order Date</th>
                     {config?.customersEnabled && <th>Customer</th>}
                     <th>Type</th>
                     <th>Items</th>

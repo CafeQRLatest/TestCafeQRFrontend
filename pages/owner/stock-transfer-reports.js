@@ -9,7 +9,7 @@ import ReportTable from '../../components/ReportTable';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import { generateStockTransferPdf } from '../../utils/stockTransferPdf';
 import { 
   FaSearch, FaExchangeAlt, FaEye, FaPrint, FaBan, FaCheckCircle
@@ -52,12 +52,14 @@ function TransferReportContent() {
   }, [organizations]);
 
   const getTodayStartStr = () => {
-    const d = new Date();
+    const activeTz = timezone || Cookies.get('timezone') || 'Asia/Kolkata';
+    const d = getBusinessNow(activeTz);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T00:00`;
   };
 
   const getTodayEndStr = () => {
-    const d = new Date();
+    const activeTz = timezone || Cookies.get('timezone') || 'Asia/Kolkata';
+    const d = getBusinessNow(activeTz);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T23:59`;
   };
 
@@ -111,13 +113,10 @@ function TransferReportContent() {
     const matchToWh = !toWarehouseFilter || String(t.destWarehouseId) === String(toWarehouseFilter);
 
     let matchDate = true;
-    if (dateFrom) matchDate = new Date(t.transferDate) >= new Date(dateFrom);
+    if (dateFrom) matchDate = new Date(t.transferDate + (t.transferDate?.length === 10 ? 'T00:00:00Z' : 'Z')) >= new Date(dateFrom + ':00');
     if (dateTo && matchDate) {
-      const endDate = new Date(dateTo);
-      if (!String(dateTo).includes('T')) {
-        endDate.setHours(23, 59, 59, 999);
-      }
-      matchDate = new Date(t.transferDate) <= endDate;
+      const toDateMs = new Date(dateTo + ':00').getTime();
+      matchDate = new Date(t.transferDate + (t.transferDate?.length === 10 ? 'T00:00:00Z' : 'Z')).getTime() <= toDateMs;
     }
 
     return matchSearch && matchFromWh && matchToWh && matchDate;

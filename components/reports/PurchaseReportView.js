@@ -3,11 +3,11 @@ import { useRouter } from 'next/router';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
-import { formatTzDate } from '../../utils/timezoneUtils';
+import { formatTzDate, businessTimeToUtc } from '../../utils/timezoneUtils';
 import {
   FaChartBar, FaBoxes, FaBuilding, FaCreditCard, FaReceipt,
   FaFileCsv, FaFileExcel, FaSearch, FaPlus, FaShoppingBag, FaClock,
-  FaChartLine, FaFileInvoice
+  FaChartLine, FaFileInvoice, FaMoneyBillWave, FaWallet, FaMobileAlt
 } from 'react-icons/fa';
 
 const PURCHASE_TABS = [
@@ -61,17 +61,25 @@ export default function PurchaseReportView({
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
-  const toInstant = (dtLocal) => {
+  const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
-    try { return new Date(dtLocal + ':00').toISOString(); } catch { return undefined; }
+    const val = isEnd && dtLocal.length === 16 ? `${dtLocal}:59` : dtLocal;
+    try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
   const loadSubTab = useCallback(async (tabKey) => {
     setLoading(true);
     setLoadError(null);
-    const params = { from: toInstant(dateFrom), to: toInstant(dateTo) };
-    if (isSuperAdmin && selectedOrgId) params.orgId = selectedOrgId;
-    if (isSuperAdmin && selectedTerminalId) params.terminalId = selectedTerminalId;
+    const fromVal = toInstant(dateFrom);
+    const toVal = toInstant(dateTo, true);
+    const params = { from: fromVal, to: toVal, fromDate: fromVal, toDate: toVal };
+    if (selectedOrgId) {
+      params.orgId = selectedOrgId;
+      params.branchId = selectedOrgId;
+    }
+    if (selectedTerminalId) {
+      params.terminalId = selectedTerminalId;
+    }
 
     try {
       if (tabKey === 'purch_summary') {
@@ -80,7 +88,13 @@ export default function PurchaseReportView({
         return;
       }
       if (tabKey === 'purch_orders') {
-        const p = { ...params, size: 200, page: purchPage, status: purchStatusFilter !== 'ALL' ? purchStatusFilter : undefined };
+        const p = {
+          ...params,
+          size: 200,
+          page: purchPage,
+          status: purchStatusFilter !== 'ALL' ? purchStatusFilter : undefined,
+          searchTerm: purchSearchTerm?.trim() || undefined
+        };
         const res = await api.get('/api/v1/purchase/orders', { params: p });
         if (res.data?.success) setPurchOrders(res.data.data?.content || res.data.data || []);
         return;
@@ -108,7 +122,7 @@ export default function PurchaseReportView({
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, purchPage, purchStatusFilter, isSuperAdmin, selectedOrgId, selectedTerminalId, notify]);
+  }, [dateFrom, dateTo, purchPage, purchStatusFilter, purchSearchTerm, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadSubTab(subTab);
@@ -188,7 +202,7 @@ export default function PurchaseReportView({
 
         <div className="rpt-purch-kpi-grid">
           {cards.map((c, i) => (
-            <div key={i} className="rpt-purch-kpi" style={{ borderLeft: `4px solid ${c.color}` }}>
+            <div key={i} className="rpt-purch-kpi" style={{ borderLeft: `2.5px solid ${c.color}` }}>
               <div className="rpt-purch-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</div>
               <div className="rpt-purch-kpi-data">
                 <span className="rpt-purch-kpi-label">{c.label}</span>
@@ -539,7 +553,30 @@ export default function PurchaseReportView({
   };
 
   const renderPayments = () => {
-    const list = Array.isArray(purchPayments) ? purchPayments : [];
+    const rawList = Array.isArray(purchPayments) ? purchPayments : [];
+    const payMap = {};
+    rawList.forEach(p => {
+      const method = String(p.paymentMethod || 'OTHER').toUpperCase();
+      const amt = Number(p.totalAmount || 0);
+      const count = Number(p.orderCount || 1);
+      if (method === 'MIXED') {
+        const half = Math.round((amt / 2) * 100) / 100;
+        const rem = amt - half;
+        if (!payMap['CASH']) payMap['CASH'] = { paymentMethod: 'CASH', totalAmount: 0, orderCount: 0 };
+        payMap['CASH'].totalAmount += half;
+        payMap['CASH'].orderCount += count;
+
+        if (!payMap['ONLINE']) payMap['ONLINE'] = { paymentMethod: 'ONLINE', totalAmount: 0, orderCount: 0 };
+        payMap['ONLINE'].totalAmount += rem;
+        payMap['ONLINE'].orderCount += count;
+      } else {
+        const key = p.paymentMethod || 'OTHER';
+        if (!payMap[key]) payMap[key] = { ...p, paymentMethod: key, totalAmount: 0, orderCount: 0 };
+        payMap[key].totalAmount += amt;
+        payMap[key].orderCount += count;
+      }
+    });
+    const list = Object.values(payMap).sort((a, b) => b.totalAmount - a.totalAmount);
     const totalOutflow = list.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
 
     return (
@@ -574,65 +611,41 @@ export default function PurchaseReportView({
         ) : (
           <>
             <div className="rpt-purch-pay-grid">
-              {list.map((p, idx) => {
+              {list.map((p, i) => {
                 const amt = Number(p.totalAmount || 0);
-                const pct = totalOutflow > 0 ? Math.round((amt / totalOutflow) * 100) : 0;
+                const pct = totalOutflow > 0 ? Number(((amt / totalOutflow) * 100).toFixed(1)) : 0;
+                const avgAmount = p.orderCount > 0 ? amt / p.orderCount : 0;
+                const method = String(p.paymentMethod || '').toUpperCase();
+                let theme = { color: '#6366f1', bg: '#f5f3ff', grad: 'linear-gradient(135deg, #8b5cf6, #6366f1)', icon: <FaWallet /> };
+                if (method.includes('CASH')) {
+                  theme = { color: '#10b981', bg: '#ecfdf4', grad: 'linear-gradient(135deg, #10b981, #059669)', icon: <FaMoneyBillWave /> };
+                } else if (method.includes('CARD') || method.includes('DEBIT') || method.includes('CREDIT')) {
+                  theme = { color: '#3b82f6', bg: '#eff6ff', grad: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', icon: <FaCreditCard /> };
+                } else if (method.includes('ONLINE') || method.includes('UPI')) {
+                  theme = { color: '#ea580c', bg: '#fff7ed', grad: 'linear-gradient(135deg, #f97316, #ea580c)', icon: <FaMobileAlt /> };
+                }
+
                 return (
-                  <div key={p.paymentMethod || idx} className="rpt-purch-pay-card">
+                  <div key={p.paymentMethod || i} className="rpt-purch-pay-card" style={{ borderTop: `2.5px solid ${theme.color}` }}>
                     <div className="rpt-purch-pay-card-header">
-                      <div className="rpt-purch-pay-icon-box" style={{ background: '#fff7ed', color: '#f97316' }}>
-                        <FaCreditCard />
+                      <div className="rpt-purch-pay-icon-box" style={{ background: theme.bg, color: theme.color }}>
+                        {theme.icon}
                       </div>
                       <div className="rpt-purch-pay-method-info">
                         <span className="rpt-purch-pay-method-name">{p.paymentMethod || 'OTHER'}</span>
-                        <span className="rpt-purch-pay-meta">{p.orderCount || 0} disbursements</span>
+                        <span className="rpt-purch-pay-meta">{p.orderCount || 0} txns · {pct}%</span>
                       </div>
                     </div>
                     <div className="rpt-purch-pay-body">
-                      <span className="rpt-purch-pay-amt">{SYM}{fmt(amt)}</span>
-                      <span className="rpt-purch-pay-avg">{pct}% of outflow</span>
+                      <div className="rpt-purch-pay-amt">{SYM}{fmt(amt)}</div>
+                      <div className="rpt-purch-pay-avg">Avg: {SYM}{fmt(avgAmount)}</div>
                     </div>
                     <div className="rpt-purch-pay-bar-wrapper">
-                      <div className="rpt-purch-pay-bar-fill" style={{ width: `${pct}%`, background: '#f97316' }} />
+                      <div className="rpt-purch-pay-bar-fill" style={{ width: `${pct}%`, background: theme.grad }} />
                     </div>
                   </div>
                 );
               })}
-            </div>
-
-            <div style={{ marginTop: '24px' }} className="rpt-purch-tbl-wrap">
-              <table className="rpt-purch-tbl">
-                <thead>
-                  <tr>
-                    <th>Disbursement Method</th>
-                    <th className="r">Payments Count</th>
-                    <th className="r">Total Disbursed</th>
-                    <th className="r">Share of Outflow</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.map((p, idx) => {
-                    const amt = Number(p.totalAmount || 0);
-                    const pct = totalOutflow > 0 ? ((amt / totalOutflow) * 100).toFixed(1) : '0';
-                    return (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: 700, color: '#1e293b' }}>{p.paymentMethod || 'OTHER'}</td>
-                        <td className="r">{p.orderCount || 0}</td>
-                        <td className="r rpt-purch-amt">{SYM}{fmt(amt)}</td>
-                        <td className="r" style={{ fontWeight: 700, color: '#f97316' }}>{pct}%</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                    <td>Total Outflow</td>
-                    <td className="r">{list.reduce((acc, p) => acc + Number(p.orderCount || 0), 0)}</td>
-                    <td className="r rpt-purch-amt" style={{ color: '#f97316' }}>{SYM}{fmt(totalOutflow)}</td>
-                    <td className="r">100%</td>
-                  </tr>
-                </tfoot>
-              </table>
             </div>
           </>
         )}
@@ -687,22 +700,22 @@ export default function PurchaseReportView({
         .rpt-purch-search-input { width: 100%; height: 36px; padding: 6px 12px 6px 30px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 12px; outline: none; }
         .rpt-purch-search-icon { position: absolute; left: 10px; top: 11px; color: #94a3b8; font-size: 11px; }
 
-        .rpt-purch-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
-        .rpt-purch-kpi { background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; min-height: 85px; }
-        .rpt-purch-kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,.03); }
-        .rpt-purch-kpi-icon { grid-area: icon; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .rpt-purch-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+        .rpt-purch-kpi { background: #fff; padding: 10px 14px; border-radius: 12px; border: 1px solid #f1f5f9; display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; min-height: 64px; }
+        .rpt-purch-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.03); }
+        .rpt-purch-kpi-icon { grid-area: icon; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
         .rpt-purch-kpi-data { display: contents; }
-        .rpt-purch-kpi-label { grid-area: label; font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; }
-        .rpt-purch-kpi-val { grid-area: value; font-size: 20px; font-weight: 850; color: #1e293b; }
+        .rpt-purch-kpi-label { grid-area: label; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+        .rpt-purch-kpi-val { grid-area: value; font-size: 16px; font-weight: 800; color: #1e293b; }
 
-        .rpt-purch-dist-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-        .rpt-purch-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 18px; }
-        .rpt-purch-panel-title { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 14px; }
-        .rpt-purch-pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
-        .rpt-purch-tag { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 12px; }
+        .rpt-purch-dist-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+        .rpt-purch-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 14px; }
+        .rpt-purch-panel-title { font-size: 10.5px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+        .rpt-purch-pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+        .rpt-purch-tag { display: flex; align-items: center; gap: 6px; padding: 5px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 11px; }
         .rpt-purch-tag-label { font-weight: 700; color: #334155; }
-        .rpt-purch-tag-badge { background: #f97316; color: #fff; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 800; }
-        .rpt-purch-dim { color: #94a3b8; font-size: 12px; }
+        .rpt-purch-tag-badge { background: #f97316; color: #fff; border-radius: 999px; padding: 1px 6px; font-size: 9.5px; font-weight: 800; }
+        .rpt-purch-dim { color: #94a3b8; font-size: 11px; }
 
         .rpt-purch-tbl-wrap { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: auto; box-shadow: 0 1px 3px rgba(0,0,0,.02); }
         .rpt-purch-tbl { width: 100%; border-collapse: collapse; min-width: 620px; }
@@ -719,19 +732,19 @@ export default function PurchaseReportView({
         .rpt-purch-st.cancelled { background: #fef2f2; color: #ef4444; }
         .rpt-purch-amt { font-weight: 800; color: #1e293b; }
 
-        .rpt-purch-pay-grid { display: flex; flex-wrap: wrap; gap: 16px; }
-        .rpt-purch-pay-card { flex: 1 1 260px; max-width: 320px; background: #fff; padding: 16px; border-radius: 16px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 12px; }
-        .rpt-purch-pay-card:hover { transform: translateY(-4px); box-shadow: 0 12px 20px rgba(0,0,0,0.06); }
-        .rpt-purch-pay-card-header { display: flex; align-items: center; gap: 12px; }
-        .rpt-purch-pay-icon-box { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        .rpt-purch-pay-method-info { display: flex; flex-direction: column; gap: 2px; }
-        .rpt-purch-pay-method-name { font-size: 12px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
-        .rpt-purch-pay-meta { font-size: 11px; color: #94a3b8; font-weight: 600; }
+        .rpt-purch-pay-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+        .rpt-purch-pay-card { flex: 1 1 230px; max-width: 300px; background: #fff; padding: 12px 14px; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 1px 3px rgba(0,0,0,.02); display: flex; flex-direction: column; gap: 8px; }
+        .rpt-purch-pay-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.04); }
+        .rpt-purch-pay-card-header { display: flex; align-items: center; gap: 10px; }
+        .rpt-purch-pay-icon-box { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+        .rpt-purch-pay-method-info { display: flex; flex-direction: column; gap: 1px; }
+        .rpt-purch-pay-method-name { font-size: 11px; font-weight: 800; color: #1e293b; text-transform: uppercase; }
+        .rpt-purch-pay-meta { font-size: 10px; color: #94a3b8; font-weight: 600; }
         .rpt-purch-pay-body { display: flex; justify-content: space-between; align-items: baseline; }
-        .rpt-purch-pay-amt { font-size: 20px; font-weight: 850; color: #1e293b; }
-        .rpt-purch-pay-avg { font-size: 11px; color: #64748b; font-weight: 600; }
-        .rpt-purch-pay-bar-wrapper { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
-        .rpt-purch-pay-bar-fill { height: 100%; border-radius: 3px; }
+        .rpt-purch-pay-amt { font-size: 16px; font-weight: 850; color: #1e293b; }
+        .rpt-purch-pay-avg { font-size: 10.5px; color: #64748b; font-weight: 600; }
+        .rpt-purch-pay-bar-wrapper { height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; }
+        .rpt-purch-pay-bar-fill { height: 100%; border-radius: 2px; }
 
         .rpt-purch-loading, .rpt-purch-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-weight: 700; font-size: 14px; }
         .rpt-purch-error { margin-bottom: 16px; padding: 12px 14px; border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; font-size: 12px; font-weight: 800; }
