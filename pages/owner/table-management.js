@@ -256,8 +256,27 @@ function TableContent() {
 
   const handleSendQR = async (t) => {
     try {
-      const qrLink = `${window.location.origin}/menu/${t.clientId}/${t.orgId}/${t.id}`;
-      // Backend will automatically use the logged-in user's email if 'email' param is missing
+      const qrAppBaseUrl = (process.env.NEXT_PUBLIC_QR_SCANNING_APP_URL || 'https://testcafeqrscanningapp.pages.dev').replace(/\/+$/, '');
+      
+      let cSlug = user?.clientSlug || user?.slug || '';
+      if (!cSlug) {
+        try {
+          const clientRes = await api.get('/api/v1/clients/me');
+          if (clientRes.data?.success && clientRes.data?.data?.slug) {
+            cSlug = clientRes.data.data.slug;
+          }
+        } catch (e) {}
+      }
+
+      const branchObj = branches.find(b => b.id === t.orgId);
+      const bSlug = branchObj?.slug || branchObj?.branchCode?.toLowerCase() || '';
+
+      const effectiveClient = cSlug || t.clientId;
+      const effectiveOrg = bSlug || t.orgId;
+      const effectiveTable = t.id; // Tamper-proof 36-character cryptographic UUID
+
+      const qrLink = `${qrAppBaseUrl}/menu/${effectiveClient}/${effectiveOrg}/${effectiveTable}`;
+      
       await api.post(`/api/v1/tables/${t.id}/send-qr?qrLink=${encodeURIComponent(qrLink)}`);
       showToast(`QR Code access link sent to your registered email`);
     } catch {
