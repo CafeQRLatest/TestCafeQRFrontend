@@ -46,7 +46,7 @@ export default function TableManagementPage() {
 }
 
 function TableContent() {
-  const { orgId } = useAuth();
+  const { orgId, clientId, email: authEmail } = useAuth();
   const [tables, setTables] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -256,12 +256,54 @@ function TableContent() {
 
   const handleSendQR = async (t) => {
     try {
-      const qrLink = `${window.location.origin}/menu/${t.clientId}/${t.orgId}/${t.id}`;
-      // Backend will automatically use the logged-in user's email if 'email' param is missing
-      await api.post(`/api/v1/tables/${t.id}/send-qr?qrLink=${encodeURIComponent(qrLink)}`);
-      showToast(`QR Code access link sent to your registered email`);
-    } catch {
-      showToast('Failed to send QR email', 'error');
+      const qrAppBaseUrl = (process.env.NEXT_PUBLIC_QR_SCANNING_APP_URL || 'https://testcafeqrscanningapp.pages.dev').replace(/\/+$/, '');
+      
+      let cSlug = '';
+      try {
+        const clientRes = await api.get('/api/v1/clients/me');
+        if (clientRes.data?.success && clientRes.data?.data?.slug) {
+          cSlug = clientRes.data.data.slug;
+        }
+      } catch (e) {}
+
+      let bSlug = '';
+      const targetOrgId = t.orgId || orgId;
+      if (targetOrgId) {
+        const branchObj = branches.find(b => b.id === targetOrgId);
+        if (branchObj) {
+          bSlug = branchObj.slug || branchObj.branchCode?.toLowerCase() || '';
+        } else {
+          try {
+            const orgRes = await api.get(`/api/v1/organizations/${targetOrgId}`);
+            if (orgRes.data?.success && orgRes.data?.data) {
+              const orgData = orgRes.data.data;
+              bSlug = orgData.slug || orgData.branchCode?.toLowerCase() || '';
+            }
+          } catch (e) {}
+        }
+      }
+
+      const effectiveClient = cSlug || t.clientId || clientId;
+      const effectiveOrg = bSlug || targetOrgId;
+      const effectiveTable = t.id; // Tamper-proof 36-character cryptographic UUID
+
+      if (!effectiveClient || !effectiveOrg || !effectiveTable) {
+        showToast('Table details missing for QR link generation', 'error');
+        return;
+      }
+
+      const qrLink = `${qrAppBaseUrl}/menu/${effectiveClient}/${effectiveOrg}/${effectiveTable}`;
+      const emailQuery = authEmail ? `&email=${encodeURIComponent(authEmail)}` : '';
+      
+      const res = await api.post(`/api/v1/tables/${t.id}/send-qr?qrLink=${encodeURIComponent(qrLink)}${emailQuery}`);
+      if (res.data?.success) {
+        showToast(`QR Code access link sent to ${authEmail || 'your email'}`);
+      } else {
+        showToast(res.data?.message || 'Failed to send QR email', 'error');
+      }
+    } catch (e) {
+      console.error('[handleSendQR] Error:', e);
+      showToast(e.response?.data?.message || e.message || 'Failed to send QR email', 'error');
     }
   };
 

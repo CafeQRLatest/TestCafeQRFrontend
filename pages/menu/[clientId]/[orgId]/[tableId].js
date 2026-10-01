@@ -3,6 +3,9 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { FaShoppingCart, FaSearch, FaMinus, FaPlus, FaCheckCircle, FaExclamationCircle, FaTimes, FaMobileAlt, FaArrowRight, FaSignInAlt, FaUser } from 'react-icons/fa';
 import api from '../../../../utils/api';
+import qrOrderService from '../../../../services/qrOrderService';
+import ActiveTabBanner from '../../../../components/qr/ActiveTabBanner';
+import ActiveTabDrawer from '../../../../components/qr/ActiveTabDrawer';
 
 export default function QRMenuPage() {
   const router = useRouter();
@@ -31,6 +34,10 @@ export default function QRMenuPage() {
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState('cash');
 
+  // Active Tab / Table Session state
+  const [activeOrder, setActiveOrder] = useState(null);
+  const [isTabDrawerOpen, setIsTabDrawerOpen] = useState(false);
+
   useEffect(() => {
     if (clientId && tableId) {
       // Check local storage for customer
@@ -56,19 +63,25 @@ export default function QRMenuPage() {
   const loadData = async (activeCustomer) => {
     try {
       setLoading(true);
-      // Fetch table info
-      const tableRes = await api.get(`/api/v1/public/menu/${clientId}/${orgId || 'null'}/table/${tableId}`);
-      if (tableRes.data?.success && tableRes.data?.data?.found) {
-        setTableInfo(tableRes.data.data);
+      // Fetch table session info via isolated qrOrderService
+      const tableRes = await qrOrderService.fetchTableSession(clientId, orgId, tableId);
+      if (tableRes?.success && tableRes?.data?.found) {
+        setTableInfo(tableRes.data);
+        // Extract active order/tab from table session
+        if (tableRes.data.activeOrder) {
+          setActiveOrder(tableRes.data.activeOrder);
+        } else {
+          setActiveOrder(null);
+        }
       } else {
         setTableInfo({ error: 'Invalid QR Code or Table Not Found' });
+        setActiveOrder(null);
       }
 
-      // If customer is already logged in, we fetch the menu immediately
-      // Actually, we can fetch menu in background so it's ready once logged in
-      const menuRes = await api.get(`/api/v1/public/menu/${clientId}/${orgId || 'null'}`);
-      if (menuRes.data?.success) {
-        const items = menuRes.data.data || [];
+      // Fetch menu via isolated qrOrderService
+      const menuRes = await qrOrderService.fetchMenu(clientId, orgId);
+      if (menuRes?.success) {
+        const items = menuRes.data || [];
         setMenu(items);
         const cats = new Set(items.map(i => i.category || 'Others'));
         setCategories(['All', ...Array.from(cats)]);
@@ -77,6 +90,7 @@ export default function QRMenuPage() {
       console.error(e);
       const errMsg = e.response?.data?.message || e.message || 'Failed to load restaurant menu';
       setTableInfo({ error: errMsg, isSubscriptionError: errMsg.toLowerCase().includes('subscription') });
+      setActiveOrder(null);
     } finally {
       setLoading(false);
     }
@@ -124,8 +138,8 @@ export default function QRMenuPage() {
     console.log('[QRMenu] requestOtp started for:', authIdentifier);
     setAuthLoading(true);
     try {
-      const res = await api.post(`/api/v1/public/customer/send-otp`, { identifier: authIdentifier });
-      console.log('[QRMenu] OTP Success, setting step 2. Response:', res.data);
+      const res = await qrOrderService.sendOtp(authIdentifier);
+      console.log('[QRMenu] OTP Success, setting step 2. Response:', res);
       setAuthStep(prev => 2);
       showToast('Verification code sent!', 'success');
     } catch (e) {
@@ -140,15 +154,15 @@ export default function QRMenuPage() {
     if (!authOtp) return showToast('Please enter the OTP', 'error');
     setAuthLoading(true);
     try {
-      const res = await api.post(`/api/v1/public/customer/verify-otp`, {
+      const res = await qrOrderService.verifyOtp({
         identifier: authIdentifier,
         name: authName,
         otp: authOtp,
         clientId,
         orgId
       });
-      if (res.data?.success) {
-        const cust = res.data.data;
+      if (res?.success) {
+        const cust = res.data;
         setCustomer(cust);
         localStorage.setItem(`qr_customer_${clientId}`, JSON.stringify(cust));
         showToast(`Welcome back, ${cust.name}!`);
@@ -182,6 +196,13 @@ export default function QRMenuPage() {
     document.body.appendChild(script);
   });
 
+  // Derived active tab state
+  const hasActiveTab = !!activeOrder;
+  const activeTabItemCount = activeOrder?.lines?.length || 0;
+  const activeTabTotal = activeOrder?.grandTotal || 0;
+  // Online payment: only show when backend says enabled AND no active tab (payment settled once per tab)
+  const showOnlinePayment = onlinePaymentEnabled && !hasActiveTab;
+
   const submitOrder = async (paymentDetails = {}, manageLoading = true) => {
     if (cartCount === 0) return;
     if (manageLoading) setAuthLoading(true);
@@ -202,11 +223,20 @@ export default function QRMenuPage() {
           price: i.price
         }))
       };
-      const res = await api.post(`/api/v1/public/menu/${clientId}/${orgId || 'null'}/order`, payload);
-      if (res.data?.success) {
+      const res = await qrOrderService.submitOrder(clientId, orgId, payload);
+      if (res?.success) {
         setCart({});
         setIsCartOpen(false);
-        setOrderSuccess(res.data.data);
+        setOrderSuccess(res.data);
+
+        // Auto-refresh table session to get updated active tab
+        try {
+          const refreshed = await qrOrderService.fetchTableSession(clientId, orgId, tableId);
+          if (refreshed?.success && refreshed?.data?.found) {
+            setTableInfo(refreshed.data);
+            setActiveOrder(refreshed.data.activeOrder || null);
+          }
+        } catch (err) { /* ignore refresh failure */ }
       }
     } catch (e) {
       if (manageLoading) alert('Failed to place order. Please call a waiter.');

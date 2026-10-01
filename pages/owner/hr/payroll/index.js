@@ -333,7 +333,8 @@ export default function PayrollDashboard({ embedded = false }) {
                         </div>
                       </td>
                     </tr>
-                  })
+                  );
+                })
                 )}
               </tbody>
             </table>
