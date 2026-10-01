@@ -276,7 +276,7 @@ const HistBoardCard = styled.div`
 
 export default function SalesHistoryPage() {
   const router = useRouter();
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
   const { timezone, orgId, canCancelOrder } = useAuth();
 
   const isMountedRef = useRef(true);
@@ -764,6 +764,12 @@ export default function SalesHistoryPage() {
         ]))
       };
       const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+      const updateWarnings = res?.data?.warnings || res?.data?.data?.warnings || [];
+      if (Array.isArray(updateWarnings) && updateWarnings.length > 0) {
+        updateWarnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));
+      } else if (res?.data?.message && String(res.data.message).startsWith('Warning:')) {
+        notify('warning', `⚠️ ${res.data.message}`);
+      }
       notify('success', 'Order updated successfully');
       const savedOrder = res?.data?.data;
       if (localKotPrint && savedOrder?.id) {
@@ -840,6 +846,15 @@ export default function SalesHistoryPage() {
       const res = await api.post(endpoint, requestPayload);
       const settledOrder = res?.data?.data || paymentOrder;
 
+      if (!payload?.confirmStockWarning) {
+        const warnings = res?.data?.warnings || res?.data?.data?.warnings || [];
+        if (Array.isArray(warnings) && warnings.length > 0) {
+          warnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));
+        } else if (res?.data?.message && String(res.data.message).startsWith('Warning:')) {
+          notify('warning', `⚠️ ${res.data.message}`);
+        }
+      }
+
       notify('success', payload?.paymentMethod === 'CREDIT' ? 'Order completed as credit' : 'Order payment settled successfully');
 
       if (localKotPrint && settledOrder?.id) {
@@ -870,6 +885,31 @@ export default function SalesHistoryPage() {
       fetchHistoryOrders(historyPage.number || 0);
       fetchLiveOrders();
     } catch (e) {
+      const isStockWarning = e.response?.status === 409 ||
+        (e.response?.data?.message && String(e.response.data.message).startsWith('STOCK_WARNING:')) ||
+        (Array.isArray(e.response?.data?.warnings) && e.response.data.warnings.length > 0);
+
+      if (isStockWarning && typeof showConfirm === 'function') {
+        const rawWarnings = e.response?.data?.warnings || [];
+        let warningLines = rawWarnings;
+        if (warningLines.length === 0) {
+          const rawMsg = e.response?.data?.message || e.message || '';
+          warningLines = rawMsg.replace('STOCK_WARNING:', '').split(';').map(s => s.trim()).filter(Boolean);
+        }
+        const formattedMsg = warningLines.map(w => `• ${w}`).join('\n');
+        showConfirm({
+          title: '⚠️ Stock Shortage Warning',
+          message: `${formattedMsg || 'One or more items have insufficient stock.'}\n\nDo you want to continue and settle the payment anyway?`,
+          onConfirm: () => {
+            handleSettlePayment({ ...payload, confirmStockWarning: true });
+          },
+          onCancel: () => {
+            notify('info', 'Settlement cancelled.');
+          },
+          type: 'warning'
+        });
+        return;
+      }
       notify('error', 'Failed to settle order: ' + (e.response?.data?.message || e.message));
     } finally {
       setActionBusy(null);

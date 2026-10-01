@@ -29,7 +29,7 @@ export default function useCounterSaleController({
   config: propConfig = null,
   initialCreditCustomers = null
 }) {
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
   const router = useRouter();
   const { timezone, orgId } = useAuth();
 
@@ -438,6 +438,7 @@ export default function useCounterSaleController({
         onBack,
         rememberTrending,
         notify,
+        showConfirm,
         clearCustomerSelection
       });
     } catch (err) {

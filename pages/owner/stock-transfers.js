@@ -55,7 +55,7 @@ const hasRecipeIngredients = (p) => {
 
 function TransferContent() {
   const { timezone, userRole, clientId, orgId } = useAuth();
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
   const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
   const [warehouses, setWarehouses] = useState([]);
   const [organizations, setOrganizations] = useState([]);
@@ -89,7 +89,7 @@ function TransferContent() {
   const [msgType, setMsgType] = useState('success');
 
   const showToast = (msg, type = 'success') => {
-    notify(type === 'error' ? 'error' : 'success', msg);
+    notify(type, msg);
   };
 
   const [drafts, setDrafts] = useState([]);
@@ -362,7 +362,7 @@ function TransferContent() {
     }
   };
 
-  const handleSave = async (targetStatus = 'DRAFT') => {
+  const handleSave = async (targetStatus = 'DRAFT', confirmedStockWarning = false) => {
     const finalStatus = targetStatus === 'SUBMIT'
       ? (autoTransfer ? 'COMPLETED' : 'IN_TRANSIT')
       : targetStatus;
@@ -403,12 +403,39 @@ function TransferContent() {
       if (overdraftItem) {
         return showToast(`Transfer quantity for "${overdraftItem.productName || 'product'}" exceeds available stock.`, "error");
       }
+    } else if (nonStockTransferPolicy === 'WARNING' && finalStatus !== 'DRAFT' && !confirmedStockWarning) {
+      const warningItems = [];
+      transfer.lines.forEach(l => {
+        const stockKey = l.variantId ? `${l.productId}_${l.variantId}` : l.productId;
+        const current = (sourceStock[stockKey] || sourceStock[l.productId])?.currentStock || 0;
+        const qty = Number(l.transferQuantity) || 0;
+        if (current <= 0) {
+          warningItems.push(`'${l.productName || 'product'}' is out of stock (Available: 0, Transfer: ${qty})`);
+        } else if (qty > current) {
+          warningItems.push(`Transfer quantity (${qty}) for '${l.productName || 'product'}' exceeds available stock (${current})`);
+        }
+      });
+      if (warningItems.length > 0 && typeof showConfirm === 'function') {
+        showConfirm({
+          title: '⚠️ Stock Transfer Warning',
+          message: `${warningItems.map(w => `• ${w}`).join('\n')}\n\nDo you want to continue and execute this transfer anyway?`,
+          onConfirm: () => {
+            handleSave(targetStatus, true);
+          },
+          onCancel: () => {
+            showToast("Transfer cancelled. You can adjust items.", "info");
+          },
+          type: 'warning'
+        });
+        return;
+      }
     }
 
     setSaving(true);
     try {
       const payload = {
         ...transfer,
+        confirmStockWarning: Boolean(confirmedStockWarning),
         transferNumber: (transfer.transferNumber === 'Auto Generated' || !transfer.transferNumber) ? null : transfer.transferNumber,
         orgId: transfer.orgId || currentOrgId,
         status: finalStatus,
@@ -431,6 +458,13 @@ function TransferContent() {
           ? 'Transfer Sent for Destination Confirmation.'
           : 'Draft Saved.';
         showToast(toastMsg, "success");
+        if (!confirmedStockWarning) {
+          if (Array.isArray(resp.data.warnings) && resp.data.warnings.length > 0) {
+            resp.data.warnings.forEach(w => showToast(w, "warning"));
+          } else if (Array.isArray(resp.data.data?.warnings) && resp.data.data.warnings.length > 0) {
+            resp.data.data.warnings.forEach(w => showToast(w, "warning"));
+          }
+        }
         setTransfer({
           transferNumber: '',
           transferDate: new Date().toISOString(),
@@ -446,6 +480,31 @@ function TransferContent() {
         showToast(resp.data.message || "Failed to execute transfer", "error");
       }
     } catch (err) {
+      const isStockWarning = err.response?.status === 409 ||
+        (err.response?.data?.message && String(err.response.data.message).startsWith('STOCK_WARNING:')) ||
+        (Array.isArray(err.response?.data?.warnings) && err.response.data.warnings.length > 0);
+
+      if (isStockWarning && typeof showConfirm === 'function') {
+        const rawWarnings = err.response?.data?.warnings || [];
+        let warningLines = rawWarnings;
+        if (warningLines.length === 0) {
+          const rawMsg = err.response?.data?.message || err.message || '';
+          warningLines = rawMsg.replace('STOCK_WARNING:', '').split(';').map(s => s.trim()).filter(Boolean);
+        }
+        const formattedMsg = warningLines.map(w => `• ${w}`).join('\n');
+        showConfirm({
+          title: '⚠️ Stock Shortage Warning',
+          message: `${formattedMsg || 'One or more items have insufficient stock.'}\n\nDo you want to continue and execute this transfer anyway?`,
+          onConfirm: () => {
+            handleSave(targetStatus, true);
+          },
+          onCancel: () => {
+            showToast("Transfer cancelled. You can adjust items.", "info");
+          },
+          type: 'warning'
+        });
+        return;
+      }
       showToast(err.response?.data?.message || err.message || "Failed to execute transfer", "error");
     } finally {
       setSaving(false);
@@ -605,6 +664,9 @@ function TransferContent() {
         setShowSuggestions(false);
         return;
       }
+      if (nonStockTransferPolicy === 'WARNING' && currentQty + 1 > available) {
+        showToast(`Warning: Transfer quantity (${currentQty + 1}) for "${displayName}" exceeds available stock (${available} units).`, "warning");
+      }
       const newLines = [...transfer.lines];
       newLines[existingIdx].transferQuantity = currentQty + 1;
       setTransfer({ ...transfer, lines: newLines });
@@ -646,6 +708,8 @@ function TransferContent() {
     if (nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
       qty = Math.max(1, maxStock);
       showToast(`Quantity capped at available stock (${maxStock} units)`, "error");
+    } else if (nonStockTransferPolicy === 'WARNING' && transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
+      showToast(`Warning: Transfer quantity (${qty}) exceeds available stock (${maxStock} units).`, "warning");
     }
 
     const newLines = [...transfer.lines];

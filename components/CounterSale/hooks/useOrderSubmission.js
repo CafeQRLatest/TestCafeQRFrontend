@@ -88,7 +88,9 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
     onBack,
     rememberTrending,
     notify,
-    clearCustomerSelection
+    showConfirm,
+    clearCustomerSelection,
+    confirmStockWarning = false
   }) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -215,6 +217,7 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
 
       let requestPayload = {
         ...payload,
+        confirmStockWarning: Boolean(confirmStockWarning),
         sourceLocalRef: idempotencyKey
       };
 
@@ -270,6 +273,22 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         orderTimestamp: null
       };
 
+      // Surface negative stock or non-stock sales policy warnings only if not already confirmed in modal
+      if (!confirmStockWarning) {
+        const orderWarnings = res?.warnings || res?.data?.warnings || res?.data?.data?.warnings || [];
+        if (Array.isArray(orderWarnings) && orderWarnings.length > 0) {
+          orderWarnings.forEach((warn) => {
+            if (typeof notify === 'function') {
+              notify('warning', `⚠️ Stock Warning: ${warn}`);
+            }
+          });
+        } else if (res?.message && String(res.message).startsWith('Warning:')) {
+          if (typeof notify === 'function') {
+            notify('warning', `⚠️ ${res.message}`);
+          }
+        }
+      }
+
       const offlineAccepted = Boolean(res.offline || res.data?.offline);
       const savedOrder = res.data || {};
       const savedLines = Array.isArray(savedOrder?.lines) && savedOrder.lines.length
@@ -316,6 +335,64 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         if (onBack) onBack();
       }
     } catch (err) {
+      const isStockWarning = err.response?.status === 409 ||
+        (err.response?.data?.message && String(err.response.data.message).startsWith('STOCK_WARNING:')) ||
+        (err.message && String(err.message).startsWith('STOCK_WARNING:')) ||
+        (Array.isArray(err.response?.data?.warnings) && err.response.data.warnings.length > 0);
+
+      if (isStockWarning && typeof showConfirm === 'function') {
+        const rawWarnings = err.response?.data?.warnings || [];
+        let warningLines = rawWarnings;
+        if (warningLines.length === 0) {
+          const rawMsg = err.response?.data?.message || err.message || '';
+          warningLines = rawMsg.replace('STOCK_WARNING:', '').split(';').map(s => s.trim()).filter(Boolean);
+        }
+        const formattedMsg = warningLines.map(w => `• ${w}`).join('\n');
+        submittingRef.current = false;
+        setProcessing(false);
+        showConfirm({
+          title: '⚠️ Stock Shortage Warning',
+          message: `${formattedMsg || 'One or more items have insufficient stock.'}\n\nDo you want to continue with the sale anyway?`,
+          onConfirm: () => {
+            handleSubmitOrder({
+              paymentPayload,
+              orgId,
+              cart,
+              setCart,
+              orderNote,
+              setOrderNote,
+              totals,
+              discountType,
+              discountValue,
+              customersEnabled,
+              primaryCustomer,
+              customerSelections,
+              isCreditSale,
+              selectedCreditCustomerId,
+              selectedCreditCustomer,
+              orderMode,
+              kitchenEnabled,
+              config,
+              initialTable,
+              onOrderCreated,
+              onBack,
+              rememberTrending,
+              notify,
+              showConfirm,
+              clearCustomerSelection,
+              confirmStockWarning: true
+            });
+          },
+          onCancel: () => {
+            if (typeof notify === 'function') {
+              notify('info', 'Sale cancelled. You can modify the items.');
+            }
+          },
+          type: 'warning'
+        });
+        return;
+      }
+
       if (err?.code === 'OFFLINE_CACHE_MISS') {
         notify('warning', 'Offline POS data is not prepared on this device yet. Open POS once while online before using it offline.');
       } else {

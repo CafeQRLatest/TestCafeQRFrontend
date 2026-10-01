@@ -47,7 +47,7 @@ export default function usePosSaleController({
   initialCreditCustomers = null,
   initialBootstrap = null
 }) {
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
   const router = useRouter();
   const { timezone, orgId } = useAuth();
 
@@ -510,6 +510,7 @@ export default function usePosSaleController({
         onBack,
         rememberTrending,
         notify,
+        showConfirm,
         clearCustomerSelection
       });
     } catch (err) {

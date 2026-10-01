@@ -903,7 +903,7 @@ export default function PosOrderTypeModal({
 }) {
   const router = useRouter();
   const { orgId, timezone, canCancelOrder, hasModule } = useAuth();
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
 
   const isTableConfigOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);
   const isDeliveryConfigOn = Boolean(config?.onlineDeliveryEnabled ?? config?.pm_online_delivery ?? false);
@@ -1726,13 +1726,46 @@ export default function PosOrderTypeModal({
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
 
-      await api.post(url, payloadToSend);
+      const res = await api.post(url, payloadToSend);
+      if (!settlementPayload?.confirmStockWarning) {
+        const warnings = res?.data?.warnings || res?.data?.data?.warnings || [];
+        if (Array.isArray(warnings) && warnings.length > 0) {
+          warnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));
+        } else if (res?.data?.message && String(res.data.message).startsWith('Warning:')) {
+          notify('warning', `⚠️ ${res.data.message}`);
+        }
+      }
       notify('success', 'Payment settled successfully');
       setPaymentOrder(null);
       setSelectedLiveOrder(null);
       fetchLiveOrders();
       onRefreshTables?.();
     } catch (e) {
+      const isStockWarning = e.response?.status === 409 ||
+        (e.response?.data?.message && String(e.response.data.message).startsWith('STOCK_WARNING:')) ||
+        (Array.isArray(e.response?.data?.warnings) && e.response.data.warnings.length > 0);
+
+      if (isStockWarning && typeof showConfirm === 'function') {
+        const rawWarnings = e.response?.data?.warnings || [];
+        let warningLines = rawWarnings;
+        if (warningLines.length === 0) {
+          const rawMsg = e.response?.data?.message || e.message || '';
+          warningLines = rawMsg.replace('STOCK_WARNING:', '').split(';').map(s => s.trim()).filter(Boolean);
+        }
+        const formattedMsg = warningLines.map(w => `• ${w}`).join('\n');
+        showConfirm({
+          title: '⚠️ Stock Shortage Warning',
+          message: `${formattedMsg || 'One or more items have insufficient stock.'}\n\nDo you want to continue and settle the payment anyway?`,
+          onConfirm: () => {
+            handleConfirmPayment({ ...settlementPayload, confirmStockWarning: true });
+          },
+          onCancel: () => {
+            notify('info', 'Payment settlement cancelled.');
+          },
+          type: 'warning'
+        });
+        return;
+      }
       notify('error', 'Payment settlement failed: ' + (e.response?.data?.message || e.message));
     } finally {
       setActionBusy(null);
@@ -2800,6 +2833,12 @@ export default function PosOrderTypeModal({
                   ]))
                 };
                 const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+                const updateWarnings = res?.data?.warnings || res?.data?.data?.warnings || [];
+                if (Array.isArray(updateWarnings) && updateWarnings.length > 0) {
+                  updateWarnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));
+                } else if (res?.data?.message && String(res.data.message).startsWith('Warning:')) {
+                  notify('warning', `⚠️ ${res.data.message}`);
+                }
                 notify('success', 'Order updated successfully');
                 const savedOrder = res?.data?.data;
                 if (savedOrder?.id) {
@@ -3224,8 +3263,36 @@ export default function PosOrderTypeModal({
           width: 0 !important;
           height: 0 !important;
         }
+        .pos-cube-grid {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          gap: 10px !important;
+          align-content: flex-start !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
         .pos-table-cube {
+          width: 60px !important;
+          height: 60px !important;
+          min-width: 60px !important;
+          max-width: 60px !important;
+          min-height: 60px !important;
+          max-height: 60px !important;
           border-radius: 16px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex-shrink: 0 !important;
+          position: relative !important;
+          box-sizing: border-box !important;
+        }
+        .pos-new-cube {
+          flex-direction: column !important;
+        }
+        .pos-new-cube span {
+          font-size: 10px !important;
+          font-weight: 800 !important;
         }
         .pos-sound-toggle-group button {
           border-radius: 50% !important;
@@ -3911,7 +3978,6 @@ export default function PosOrderTypeModal({
             border-radius: 9999px !important;
             margin-top: 1px !important;
           }
-          }
           .pos-segmented-container .pos-segmented-tab {
             padding: 4px 6px !important;
             font-size: 11px !important;
@@ -3947,28 +4013,31 @@ export default function PosOrderTypeModal({
             min-width: 6px !important;
           }
 
-          /* Curvy, sleek 5-column table grid on mobile */
+          /* Compact, small cube divs on mobile */
           .pos-cube-grid {
-            display: grid !important;
-            grid-template-columns: repeat(5, 1fr) !important;
-            gap: 5px !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
             width: 100% !important;
             box-sizing: border-box !important;
           }
           .pos-cube-grid .pos-table-cube {
-            width: 100% !important;
-            height: 38px !important;
-            min-height: 38px !important;
-            max-height: 38px !important;
-            border-radius: 14px !important; /* Beautiful curvy edges */
+            width: 52px !important;
+            height: 52px !important;
+            min-width: 52px !important;
+            max-width: 52px !important;
+            min-height: 52px !important;
+            max-height: 52px !important;
+            border-radius: 14px !important;
             box-sizing: border-box !important;
             padding: 0 !important;
             display: flex !important;
-            flex-direction: row !important;
+            flex-direction: column !important;
             align-items: center !important;
             justify-content: center !important;
             transform: none !important;
             box-shadow: none !important;
+            flex-shrink: 0 !important;
           }
           .pos-cube-grid .pos-table-cube .pos-table-num {
             font-size: 12px !important;
@@ -3982,15 +4051,15 @@ export default function PosOrderTypeModal({
           }
           .pos-cube-grid .pos-new-cube {
             border-radius: 14px !important;
-            flex-direction: row !important;
-            gap: 3px !important;
+            flex-direction: column !important;
+            gap: 2px !important;
           }
           .pos-cube-grid .pos-new-cube svg {
-            margin-bottom: 0 !important;
+            margin-bottom: 2px !important;
           }
           .pos-cube-grid .pos-new-cube span {
-            font-size: 10.5px !important;
-            font-weight: 700 !important;
+            font-size: 9.5px !important;
+            font-weight: 800 !important;
           }
           .board-list-btn-group button {
             height: 28px !important;
@@ -4002,13 +4071,15 @@ export default function PosOrderTypeModal({
 
         @media (max-width: 340px) {
           .pos-cube-grid {
-            grid-template-columns: repeat(4, 1fr) !important;
-            gap: 4px !important;
+            gap: 6px !important;
           }
           .pos-cube-grid .pos-table-cube {
-            height: 36px !important;
-            min-height: 36px !important;
-            max-height: 36px !important;
+            width: 46px !important;
+            height: 46px !important;
+            min-width: 46px !important;
+            max-width: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
             border-radius: 12px !important;
           }
           .pos-cube-grid .pos-table-cube .pos-table-num {
