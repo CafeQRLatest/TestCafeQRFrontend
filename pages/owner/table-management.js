@@ -11,7 +11,7 @@ import {
   FaChair, FaPlus, FaTimes, FaSearch, FaEdit, FaTrash,
   FaCheckCircle, FaExclamationCircle, FaSave, FaUsers,
   FaLayerGroup, FaCog, FaStickyNote, FaQrcode,
-  FaCheck, FaUser, FaClock, FaTools
+  FaCheck, FaUser, FaClock, FaTools, FaCopy, FaExternalLinkAlt
 } from 'react-icons/fa';
 
 const STATUS_CFG = {
@@ -57,6 +57,7 @@ function TableContent() {
   const [editing, setEditing] = useState(null);
   const [reserving, setReserving] = useState(null);
   const [toast, setToast] = useState(null);
+  const [qrModal, setQrModal] = useState(null);
 
   // Custom lists state
   const [floorsList, setFloorsList] = useState(() => loadList(LS_KEYS.floors, DEFAULT_FLOORS));
@@ -254,7 +255,7 @@ function TableContent() {
     }
   };
 
-  const handleSendQR = async (t) => {
+  const handleOpenQRModal = async (t) => {
     try {
       const qrAppBaseUrl = (process.env.NEXT_PUBLIC_QR_SCANNING_APP_URL || 'https://testcafeqrscanningapp.pages.dev').replace(/\/+$/, '');
       
@@ -292,18 +293,35 @@ function TableContent() {
         return;
       }
 
-      const qrLink = `${qrAppBaseUrl}/menu/${effectiveClient}/${effectiveOrg}/${effectiveTable}`;
+      const qrPath = `/menu/${effectiveClient}/${effectiveOrg}/${effectiveTable}`;
+      const qrLink = `${qrAppBaseUrl}${qrPath}`;
+
+      setQrModal({
+        table: t,
+        qrLink,
+        sendingEmail: false
+      });
+    } catch (e) {
+      console.error('[handleOpenQRModal] Error:', e);
+      showToast(e.response?.data?.message || e.message || 'Failed to prepare QR code', 'error');
+    }
+  };
+
+  const handleSendQREmail = async () => {
+    if (!qrModal?.table || !qrModal?.qrLink) return;
+    try {
+      setQrModal(prev => ({ ...prev, sendingEmail: true }));
       const emailQuery = authEmail ? `&email=${encodeURIComponent(authEmail)}` : '';
-      
-      const res = await api.post(`/api/v1/tables/${t.id}/send-qr?qrLink=${encodeURIComponent(qrLink)}${emailQuery}`);
+      const res = await api.post(`/api/v1/tables/${qrModal.table.id}/send-qr?qrLink=${encodeURIComponent(qrModal.qrLink)}${emailQuery}`);
       if (res.data?.success) {
-        showToast(`QR Code access link sent to ${authEmail || 'your email'}`);
+        showToast(`QR Code link sent to ${authEmail || 'your email'}`);
       } else {
         showToast(res.data?.message || 'Failed to send QR email', 'error');
       }
     } catch (e) {
-      console.error('[handleSendQR] Error:', e);
       showToast(e.response?.data?.message || e.message || 'Failed to send QR email', 'error');
+    } finally {
+      setQrModal(prev => prev ? ({ ...prev, sendingEmail: false }) : null);
     }
   };
 
@@ -441,7 +459,7 @@ function TableContent() {
                         {t.name && <span className="tbl-name-pill">{t.name}</span>}
                       </div>
                       <div className="tbl-top-actions">
-                        <button className="top-act-btn qr" onClick={(e) => { e.stopPropagation(); handleSendQR(t); }} title="Send QR / SMS"><FaQrcode /></button>
+                        <button className="top-act-btn qr" onClick={(e) => { e.stopPropagation(); handleOpenQRModal(t); }} title="View / Copy QR Code"><FaQrcode /></button>
                         <button className="top-act-btn edit" onClick={(e) => { e.stopPropagation(); setEditing({ ...t }); }} title="Edit"><FaEdit /></button>
                         <button className="top-act-btn del" onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }} title="Delete"><FaTrash /></button>
                       </div>
@@ -695,6 +713,84 @@ function TableContent() {
                     <button className="mp-del" onClick={() => removeFromList(managePanel, item)} title="Remove"><FaTimes /></button>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Preview & Link Modal */}
+      {qrModal && (
+        <div className="modal-overlay" onClick={() => setQrModal(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, width: '92%' }}>
+            <div className="modal-hd">
+              <h3><FaQrcode style={{ color: '#f97316', marginRight: 8 }} /> Table {qrModal.table.tableNumber} QR Link</h3>
+              <button className="modal-x" onClick={() => setQrModal(null)}><FaTimes /></button>
+            </div>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#64748b', textAlign: 'center' }}>
+                Scan to open digital menu or copy the direct link for <strong>Table {qrModal.table.tableNumber}</strong> {qrModal.table.name ? `(${qrModal.table.name})` : ''}
+              </p>
+              
+              <div style={{ padding: 12, background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrModal.qrLink)}&margin=8`}
+                  alt={`QR Code for Table ${qrModal.table.tableNumber}`}
+                  width={200}
+                  height={200}
+                  style={{ borderRadius: 8, display: 'block' }}
+                />
+              </div>
+
+              {/* Production URL */}
+              <div style={{ width: '100%', textAlign: 'left' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4, display: 'block' }}>Production URL:</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    readOnly
+                    value={qrModal.qrLink}
+                    style={{ flex: 1, padding: '8px 12px', fontSize: 12, borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(qrModal.qrLink);
+                      showToast('Production URL copied to clipboard!');
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#f97316', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    title="Copy URL"
+                  >
+                    <FaCopy /> Copy
+                  </button>
+                  <a
+                    href={qrModal.qrLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}
+                    title="Open in new tab"
+                  >
+                    <FaExternalLinkAlt />
+                  </a>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', gap: 10, width: '100%', marginTop: 6 }}>
+                <button
+                  type="button"
+                  disabled={qrModal.sendingEmail}
+                  onClick={handleSendQREmail}
+                  style={{ flex: 1, padding: '10px 16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                >
+                  {qrModal.sendingEmail ? 'Sending...' : 'Email QR to Owner'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrModal(null)}
+                  style={{ padding: '10px 18px', background: '#e2e8f0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer' }}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

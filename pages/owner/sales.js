@@ -1756,11 +1756,13 @@ function SalesContent() {
       return;
     }
 
-    if (!window.confirm('Cancel this order and release the table?')) return;
+    const promptReason = window.prompt('Please enter cancellation reason (or leave default):', 'Customer requested cancellation');
+    if (promptReason === null) return;
+    const reasonToSend = promptReason.trim() || 'Cancelled from POS table popup';
 
     setActionBusy('cancel');
     try {
-      const { data } = await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: 'Cancelled from POS table popup' });
+      const { data } = await api.post(`/api/v1/orders/${order.id}/cancel`, { reason: reasonToSend });
       const cancelledOrder = data.data || { ...order, orderStatus: 'CANCELLED', order_status: 'CANCELLED' };
       // Immediately mark cancelled so table reverts to AVAILABLE
       setFloorOrders((current) => current.map((item) =>
