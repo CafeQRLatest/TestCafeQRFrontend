@@ -2,10 +2,25 @@ import React from 'react';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { calculateOrderTotals } from '../../utils/orderCalculations';
-import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, FaDownload } from 'react-icons/fa';
+import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, FaDownload, FaExclamationCircle } from 'react-icons/fa';
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
+
+function parseCancelReason(order) {
+  if (!order) return '';
+  if (order.cancelReason) return String(order.cancelReason).trim();
+  if (order.cancel_reason) return String(order.cancel_reason).trim();
+  const sources = [order.remarks, order.description];
+  for (const src of sources) {
+    if (!src) continue;
+    const match = src.match(/Cancel(?:lation)? reason:\s*([^\n\r|]+)/i);
+    if (match && match[1]?.trim()) {
+      return match[1].trim();
+    }
+  }
+  return '';
+}
 
 function parseDeliveryDetails(description) {
   if (!description) return null;
@@ -582,6 +597,10 @@ export default function DocumentViewerPopup({
     }
   };
 
+  const rawOrderStatus = String(currentOrder.orderStatus || currentOrder.order_status || currentOrder.status || '').toUpperCase();
+  const isOrderCancelled = rawOrderStatus === 'CANCELLED';
+  const orderCancelReason = parseCancelReason(currentOrder);
+
   return (
     <CafeQRPopup
       title={hdr.title}
@@ -1107,11 +1126,23 @@ export default function DocumentViewerPopup({
         {/* ── comments & delivery ── */}
         {(() => {
           const deliveryDetails = currentOrder.description ? parseDeliveryDetails(currentOrder.description) : null;
-          const remarksText = currentOrder.remarks
+          let remarksText = currentOrder.remarks
             ? currentOrder.remarks.trim()
             : (!deliveryDetails && currentOrder.description && !currentOrder.description.startsWith('Purchase Payment for PO') && !currentOrder.description.startsWith('Payment for')
                 ? currentOrder.description.trim()
                 : '');
+          
+          if (currentOrder.remarks && currentOrder.description && !deliveryDetails) {
+            const desc = currentOrder.description.trim();
+            const rem = currentOrder.remarks.trim();
+            if (desc !== rem && !rem.includes(desc)) {
+              remarksText = `${rem}\n${desc}`;
+            }
+          }
+
+          if (isOrderCancelled && orderCancelReason && !remarksText.toLowerCase().includes('cancel reason:')) {
+            remarksText = remarksText ? `${remarksText}\nCancel reason: ${orderCancelReason}` : `Cancel reason: ${orderCancelReason}`;
+          }
           
           return (
             <>
