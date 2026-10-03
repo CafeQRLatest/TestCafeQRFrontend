@@ -97,6 +97,55 @@ export default function QRMenuPage() {
     }
   };
 
+  useEffect(() => {
+    if (!clientId || !tableId) return;
+
+    let isPolling = false;
+    const poll = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (isPolling) return;
+      isPolling = true;
+      try {
+        const [tableRes, menuRes] = await Promise.allSettled([
+          qrOrderService.fetchTableSession(clientId, orgId, tableId),
+          qrOrderService.fetchMenu(clientId, orgId)
+        ]);
+
+        if (tableRes.status === 'fulfilled' && tableRes.value?.success && tableRes.value?.data?.found) {
+          setTableInfo(prev => prev ? { ...prev, ...tableRes.value.data } : tableRes.value.data);
+          setActiveOrder(tableRes.value.data.activeOrder || null);
+        }
+
+        if (menuRes.status === 'fulfilled' && menuRes.value?.success) {
+          const items = menuRes.value.data || [];
+          setMenu(prev => {
+            if (JSON.stringify(prev) !== JSON.stringify(items)) {
+              return items;
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        // Background sync blip
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    const intervalId = setInterval(poll, 3000);
+    const handleFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) poll();
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', handleFocus);
+    if (typeof window !== 'undefined') window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(intervalId);
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', handleFocus);
+      if (typeof window !== 'undefined') window.removeEventListener('focus', handleFocus);
+    };
+  }, [clientId, orgId, tableId]);
+
   const filteredMenu = menu.filter(item => {
     if (activeCategory !== 'All' && item.category !== activeCategory && (item.category || 'Others') !== activeCategory) return false;
     if (search && !item.name.toLowerCase().includes(search.toLowerCase()) && (!item.description || !item.description.toLowerCase().includes(search.toLowerCase()))) return false;
@@ -105,11 +154,20 @@ export default function QRMenuPage() {
   });
 
   const addToCart = (item) => {
+    if (item.outOfStock) {
+      showToast('This item is currently out of stock', 'error');
+      return;
+    }
+    const currentQty = cart[item.id]?.quantity || 0;
+    if (item.currentStock !== undefined && item.currentStock !== null && currentQty >= item.currentStock) {
+      showToast(`Only ${item.currentStock} left in stock for ${item.name}`, 'error');
+      return;
+    }
     setCart(prev => ({
       ...prev,
       [item.id]: {
         ...item,
-        quantity: (prev[item.id]?.quantity || 0) + 1
+        quantity: currentQty + 1
       }
     }));
   };
@@ -697,7 +755,11 @@ export default function QRMenuPage() {
                     <div className="pc-bottom-bar">
                       <span className="pc-price-text">₹{Number(item.price).toFixed(Number(item.price) % 1 === 0 ? 0 : 2)}</span>
                       <div className="pc-actions">
-                        {qtyInCart > 0 ? (
+                        {item.outOfStock ? (
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444', background: '#fee2e2', padding: '4px 8px', borderRadius: '6px' }}>
+                            Out of Stock
+                          </span>
+                        ) : qtyInCart > 0 ? (
                           <div className="qty-stepper active">
                             <button onClick={() => removeFromCart(item.id)}><FaMinus /></button>
                             <span>{qtyInCart}</span>
