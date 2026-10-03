@@ -12,7 +12,7 @@ export function normalizeOrder(order) {
   const totalTaxAmount = order.totalTaxAmount !== undefined ? order.totalTaxAmount : (order.total_tax_amount !== undefined ? order.total_tax_amount : 0);
   const totalDiscountAmount = order.totalDiscountAmount !== undefined ? order.totalDiscountAmount : (order.total_discount_amount !== undefined ? order.total_discount_amount : 0);
   const grossAmount = order.grossAmount !== undefined ? order.grossAmount : (order.gross_amount !== undefined ? order.gross_amount : 0);
-  const orderDate = order.orderDate || order.order_date;
+  const orderDate = order.orderDate || order.order_date || order.createdAt || order.created_at;
   const tableNumber = order.tableNumber || order.table_number || null;
   const customerName = order.customerName || order.customer_name || null;
   const customerPhone = order.customerPhone || order.customer_phone || null;

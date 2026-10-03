@@ -809,6 +809,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
 
     const payload = {
       ...fullOrder,
+      orderDate: fullOrder?.orderDate || fullOrder?.order_date || fullOrder?.createdAt || fullOrder?.created_at,
       skipAutoPrintKinds: (typeof localPrintWillHandleKind === 'function' && localPrintWillHandleKind('kot')) ? ['KOT'] : (fullOrder?.skipAutoPrintKinds || []),
       orderType: fullOrder?.orderType || 'SALE',
       orderStatus: fullOrder?.orderStatus || fullOrder?.order_status || 'KITCHEN',

@@ -294,10 +294,23 @@ export function getLocalISOString(profileTz, date) {
  */
 export function businessTimeToUtc(localIso, profileTz) {
   if (!localIso) return undefined;
+  // If it's already an ISO UTC string (ending in Z), return as is
+  if (typeof localIso === 'string' && localIso.endsWith('Z')) {
+    const d = new Date(localIso);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  }
   const tz = resolveTimezone(profileTz);
   
-  // 1. Guess the Date by parsing localIso as browser local time.
-  const guess = new Date(`${localIso}:00`);
+  // Normalize string: ensure localIso has seconds (YYYY-MM-DDTHH:mm:ss) but not duplicate seconds
+  let cleanIso = String(localIso).trim().replace(/([+-]\d{2}:\d{2})$/, '');
+  const timePart = cleanIso.split('T')[1] || '';
+  const colonCount = (timePart.split(':').length - 1);
+  if (colonCount === 1) {
+    cleanIso = `${cleanIso}:00`;
+  }
+  
+  // 1. Guess the Date by parsing cleanIso as browser local time.
+  const guess = new Date(cleanIso);
   if (isNaN(guess.getTime())) return undefined;
 
   // 2. Format the guess in the target timezone
@@ -321,7 +334,7 @@ export function businessTimeToUtc(localIso, profileTz) {
   };
 
   // We want the getParts(actualDate) to match our target parts.
-  const target = new Date(localIso + 'Z'); // Treats it as UTC just to extract parts
+  const target = new Date(cleanIso + 'Z'); // Treats it as UTC just to extract parts
   const targetMs = target.getTime();
 
   // Find the offset of the guess date in the target timezone
