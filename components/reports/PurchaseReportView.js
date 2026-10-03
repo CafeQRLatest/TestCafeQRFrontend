@@ -60,6 +60,7 @@ export default function PurchaseReportView({
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
 
   const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
@@ -289,7 +290,7 @@ export default function PurchaseReportView({
             ['PO Number', 'Date', 'Supplier', 'Status', 'Payment Status', 'Total Amount', 'Amount Due'],
             filtered.map(po => [
               po.orderNo,
-              formatTzDate(po.createdAt || po.transactionDate, timezone, { format: 'short' }),
+              formatReportDate(po.orderDate || po.createdAt || po.transactionDate),
               po.vendorName || po.vendor?.name || '—',
               po.status,
               po.paymentStatus || '—',
@@ -301,7 +302,7 @@ export default function PurchaseReportView({
           <button className="rpt-purch-btn" onClick={() => exportExcel(
             filtered.map(po => ({
               'PO Number': po.orderNo,
-              'Date': formatTzDate(po.createdAt || po.transactionDate, timezone, { format: 'short' }),
+              'Date': formatReportDate(po.orderDate || po.createdAt || po.transactionDate),
               'Supplier': po.vendorName || po.vendor?.name || '—',
               'Status': po.status,
               'Payment Status': po.paymentStatus || '—',
@@ -340,7 +341,7 @@ export default function PurchaseReportView({
                         {po.orderNo || `PO-${po.id}`}
                       </span>
                     </td>
-                    <td>{formatTzDate(po.createdAt || po.transactionDate, timezone, { format: 'short' })}</td>
+                    <td>{formatReportDate(po.orderDate || po.createdAt || po.transactionDate)}</td>
                     <td style={{ fontWeight: 600, color: '#1e293b' }}>{po.vendorName || po.vendor?.name || '—'}</td>
                     <td><span className={`rpt-purch-st ${(po.status || '').toLowerCase()}`}>{po.status || 'DRAFT'}</span></td>
                     <td><span className={`rpt-purch-st ${(po.paymentStatus || '').toLowerCase()}`}>{po.paymentStatus || '—'}</span></td>
