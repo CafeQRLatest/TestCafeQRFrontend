@@ -1074,13 +1074,8 @@ export default function QRMenuPage() {
           position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%);
           background: #0f172a; color: white; padding: 12px 20px; border-radius: 14px;
           display: flex; align-items: center; gap: 10px; z-index: 1000;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.2); font-weight: 600; font-size: 13px;
-        }
-        .toast-msg.error { background: #ef4444; }
-        .toast-msg.success { background: #10b981; }
-      `}</style>
           box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: toastPop .3s ease-out;
-          cursor: pointer; min-width: min(280px, calc(100vw - 32px)); max-width: calc(100vw - 32px); font-weight: 600; font-size: 14px;
+          cursor: pointer; min-width: min(280px, calc(100vw - 32px)); max-width: calc(100vw - 32px); font-weight: 600; font-size: 13px;
         }
         .toast-msg.error { background: #ef4444; }
         .toast-msg.success { background: #10b981; }
