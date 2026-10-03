@@ -1077,35 +1077,50 @@ export default function DocumentViewerPopup({
         )}
 
         {/* ── Created/Updated auditing info with date & time ── */}
-        {(currentOrder.createdBy || currentOrder.updatedBy || currentOrder.createdAt || currentOrder.created_at) && (
-          <>
-            <div className="dv-rule" />
-            <div className="dv-row2">
-              <div className="dv-cell">
-                <span className="dv-lbl">Created By</span>
-                <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
-                <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                  {formatDateFn(
-                    currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date,
-                    effectiveTz,
-                    { format: 'datetime' }
-                  )}
-                </span>
+        {(currentOrder.createdBy || currentOrder.updatedBy || currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date) && (() => {
+          const displayOrderDate = currentOrder.orderDate || currentOrder.order_date || (docType === 'order' ? (currentOrder.createdAt || currentOrder.created_at) : null);
+          return (
+            <>
+              <div className="dv-rule" />
+              <div className={displayOrderDate ? "dv-row3" : "dv-row2"}>
+                {displayOrderDate && (
+                  <div className="dv-cell">
+                    <span className="dv-lbl">{docType === 'payment' ? 'Payment Date' : (docType === 'invoice' ? 'Invoice Date' : 'Order Date')}</span>
+                    <span className="dv-val" style={{ fontSize: '13px' }}>
+                      {formatDateFn(
+                        displayOrderDate,
+                        effectiveTz,
+                        { format: 'datetime' }
+                      )}
+                    </span>
+                  </div>
+                )}
+                <div className="dv-cell">
+                  <span className="dv-lbl">Created By</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
+                  <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                    {formatDateFn(
+                      currentOrder.createdAt || currentOrder.created_at || displayOrderDate,
+                      effectiveTz,
+                      { format: 'datetime' }
+                    )}
+                  </span>
+                </div>
+                <div className="dv-cell">
+                  <span className="dv-lbl">Last Updated By</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
+                  <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
+                    {formatDateFn(
+                      currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
+                      effectiveTz,
+                      { format: 'datetime' }
+                    )}
+                  </span>
+                </div>
               </div>
-              <div className="dv-cell">
-                <span className="dv-lbl">Last Updated By</span>
-                <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
-                <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
-                  {formatDateFn(
-                    currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
-                    effectiveTz,
-                    { format: 'datetime' }
-                  )}
-                </span>
-              </div>
-            </div>
-          </>
-        )}
+            </>
+          );
+        })()}
 
         {/* ── Order History link (shown when order has been edited/revised) ── */}
         {docType === 'order' && hasRevisions && (
