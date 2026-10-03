@@ -142,7 +142,7 @@ function histOrderIdentity(order) {
 }
 
 function histOrderTime(order) {
-  const raw = order?.orderDate || order?.order_date;
+  const raw = order?.orderDate || order?.order_date || order?.createdAt || order?.created_at || order?.transactionDate || order?.date;
   if (!raw) return new Date();
   if (raw instanceof Date) return raw;
   let strVal = String(raw);

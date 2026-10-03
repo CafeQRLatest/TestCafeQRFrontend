@@ -38,6 +38,7 @@ export default function ExpenseReportView({
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
 
   const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
@@ -243,7 +244,7 @@ export default function ExpenseReportView({
               const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
               const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
               return [
-                formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
+                formatReportDate(r.expenseDate || r.date || r.createdAt),
                 r.categoryName || r.category?.name || 'General',
                 r.title || r.name || r.description || '—',
                 payDisplay,
@@ -259,7 +260,7 @@ export default function ExpenseReportView({
               const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
               const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
               return {
-                'Date': formatTzDate(r.date || r.createdAt, timezone, { format: 'short' }),
+                'Date': formatReportDate(r.expenseDate || r.date || r.createdAt),
                 'Category': r.categoryName || r.category?.name || 'General',
                 'Title / Description': r.title || r.name || r.description || '—',
                 'Payment Method': payDisplay,
@@ -287,7 +288,7 @@ export default function ExpenseReportView({
               <tbody>
                 {filtered.map((r, idx) => (
                   <tr key={r.id || idx}>
-                    <td>{formatTzDate(r.date || r.createdAt, timezone, { format: 'short' })}</td>
+                    <td>{formatReportDate(r.expenseDate || r.date || r.createdAt)}</td>
                     <td><span className="rpt-exp-pill">{r.categoryName || r.category?.name || 'General'}</span></td>
                     <td style={{ fontWeight: 600, color: '#1e293b' }}>{r.title || r.name || r.description || 'Expense Entry'}</td>
                     <td>

@@ -61,6 +61,7 @@ export default function SalesReportView({
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const branchLabel = (tx) => tx?.branchName || tx?.branchCode || (tx?.branchId ? String(tx.branchId).slice(0, 8) : '—');
+  const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
 
   const visibleTabs = useMemo(() => {
     let list = SALES_TABS;
@@ -327,8 +328,9 @@ export default function SalesReportView({
             ];
             const rows = [];
             salesInvoices.forEach(tx => {
+              const formattedDate = formatReportDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt);
               const baseRow = [
-                tx.orderNo, tx.invoiceNo, tx.transactionDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
+                tx.orderNo, tx.invoiceNo, formattedDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
                 tx.orderStatus, tx.invoiceStatus, tx.paymentMethod, tx.paymentNo
               ];
               const invoiceSummary = [
@@ -369,10 +371,11 @@ export default function SalesReportView({
           <button className="rpt-sales-btn" onClick={() => {
             const data = [];
             salesInvoices.forEach(tx => {
+              const formattedDate = formatReportDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt);
               const baseObj = {
                 'Order No': tx.orderNo,
                 'Invoice No': tx.invoiceNo,
-                'Date': tx.transactionDate,
+                'Date': formattedDate,
                 'Branch': branchLabel(tx),
                 'Customer': tx.customerName,
                 'Type': tx.fulfillmentType,
@@ -480,7 +483,7 @@ export default function SalesReportView({
                               {tx.invoiceNo || '—'}
                             </span>
                           </td>
-                          <td>{formatTzDate(tx.transactionDate, timezone, { format: 'short' })}</td>
+                          <td>{formatReportDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt)}</td>
                           <td><span className="rpt-sales-branch">{branchLabel(tx)}</span></td>
                           <td>{tx.customerName || 'Walk-in'}</td>
                           <td>
@@ -807,14 +810,14 @@ export default function SalesReportView({
           <button className="rpt-sales-btn" onClick={() => exportCSV(
             ['Order No', 'Invoice No', 'Customer Name', 'Phone', 'Amount', 'Tax', 'Total', 'Amount Due', 'Date', 'Status'],
             orders.map(o => [
-              o.orderNo, o.invoiceNo, o.customerName, o.customerPhone, o.amount, o.tax, o.total, o.amountDue, o.date, o.status
+              o.orderNo, o.invoiceNo, o.customerName, o.customerPhone, o.amount, o.tax, o.total, o.amountDue, formatReportDate(o.date || o.createdAt), o.status
             ].map(csvCell).join(',')),
             'credit_orders'
           )}><FaFileCsv /> Export Credit Orders CSV</button>
           <button className="rpt-sales-btn" onClick={() => exportCSV(
             ['Date', 'Customer Name', 'Payment Method', 'Amount', 'Reference No', 'Description'],
             paymentsRows.map(p => [
-              p.transactionDate, p.customerName, p.paymentMethod, p.amount, p.referenceNo, p.description
+              formatReportDate(p.transactionDate || p.createdAt), p.customerName, p.paymentMethod, p.amount, p.referenceNo, p.description
             ].map(csvCell).join(',')),
             'credit_payments'
           )}><FaFileCsv /> Export Credit Payments CSV</button>
@@ -880,7 +883,7 @@ export default function SalesReportView({
                     <td className="r" style={{ color: Number(row.amountDue || 0) > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>
                       {SYM}{fmt(row.amountDue)}
                     </td>
-                    <td>{formatTzDate(row.date, timezone, { format: 'short' })}</td>
+                    <td>{formatReportDate(row.date || row.createdAt)}</td>
                     <td>
                       <span className={`rpt-sales-st ${String(row.status || 'unknown').toLowerCase()}`}>
                         {row.status || '—'}
@@ -919,7 +922,7 @@ export default function SalesReportView({
                         {row.referenceNo || '—'}
                       </span>
                     </td>
-                    <td>{formatTzDate(row.transactionDate, timezone, { format: 'short' })}</td>
+                    <td>{formatReportDate(row.transactionDate || row.createdAt)}</td>
                     <td>{row.customerName || '—'}</td>
                     <td><span className="rpt-sales-pill">{row.paymentMethod || '—'}</span></td>
                     <td className="r rpt-sales-amt">{SYM}{fmt(row.amount)}</td>
