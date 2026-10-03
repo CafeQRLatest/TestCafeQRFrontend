@@ -1430,7 +1430,17 @@ export default function DocumentViewerPopup({
                           {taxEnabled && (
                             <td className="col-gst">
                               <div style={{ fontWeight: '600' }}>
-                                {(l.taxName || l.tax_name) ? (l.taxName || l.tax_name) : `${taxRate}%`}
+                                {(() => {
+                                  const name = l.taxName || l.tax_name;
+                                  if (taxRate > 0) {
+                                    const match = name ? name.match(/(\d+(?:\.\d+)?)\s*%/) : null;
+                                    if (match && Math.abs(parseFloat(match[1]) - taxRate) > 0.01) {
+                                      return `GST ${taxRate}%`;
+                                    }
+                                    return name || `GST ${taxRate}%`;
+                                  }
+                                  return name || '0%';
+                                })()}
                                 {isExclusive && <span style={{ fontSize: '9px', color: '#16a34a', marginLeft: '4px', verticalAlign: 'middle' }}>(excl)</span>}
                               </div>
                               {taxAmt > 0 && (
