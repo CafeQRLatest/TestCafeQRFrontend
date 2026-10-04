@@ -22,6 +22,8 @@ export function textToEscPos(text, opts) {
   const feed = Math.max(0, Math.min(20, opts?.feed ?? 4));
   for (let i = 0; i < feed; i++) bytes.push(0x0a);
 
-  bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
+  if (opts?.cut !== 'none') {
+    bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
+  }
   return new Uint8Array(bytes);
 }

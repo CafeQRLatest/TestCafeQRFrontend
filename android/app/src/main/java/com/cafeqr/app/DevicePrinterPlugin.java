@@ -588,6 +588,39 @@ public class DevicePrinterPlugin extends Plugin {
 
   private static final java.util.concurrent.ConcurrentHashMap<String, BluetoothSocket> socketCache = new java.util.concurrent.ConcurrentHashMap<>();
 
+  private boolean createAndWriteSpp(BluetoothDevice dev, byte[] data, int chunk, int sleepBetween, int sleepBeforeClose) throws Exception {
+    try { BluetoothAdapter.getDefaultAdapter().cancelDiscovery(); } catch (Exception ignored) {}
+    BluetoothSocket sock;
+    try {
+      sock = dev.createInsecureRfcommSocketToServiceRecord(SPP_UUID);
+    } catch (Exception e) {
+      sock = dev.createRfcommSocketToServiceRecord(SPP_UUID);
+    }
+    sock.connect();
+    OutputStream os = sock.getOutputStream();
+
+    os.write(new byte[]{ 0x1b, '@' });  // ESC @
+    os.flush();
+    try { Thread.sleep(80); } catch (InterruptedException ignored) {}
+
+    int offset = 0;
+    while (offset < data.length) {
+      int len = Math.min(chunk, data.length - offset);
+      os.write(data, offset, len);
+      os.flush();
+      offset += len;
+      try { Thread.sleep(sleepBetween); } catch (InterruptedException ignored) {}
+    }
+
+    os.write(new byte[]{ 0x0a, 0x0a });
+    os.flush();
+    try { Thread.sleep(sleepBeforeClose); } catch (InterruptedException ignored) {}
+
+    os.close();
+    sock.close();
+    return true;
+  }
+
   private boolean connectAndWrite(BluetoothDevice dev, byte[] data) {
     synchronized (BT_LOCK) {
       BluetoothSocket sock = null;
@@ -645,11 +678,10 @@ public class DevicePrinterPlugin extends Plugin {
         os.flush();
         try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
         
-        // DO NOT CLOSE SOCKET (Perpetual Keep-Alive)
         return true;
 
       } catch (Exception ex) {
-        // IF IT FAILS, CLEAR THE CACHE FOR THIS SPECIFIC DEVICE
+        // IF IT FAILS, CLEAR THE CACHE FOR THIS SPECIFIC DEVICE AND RETRY WITH FRESH SPP SOCKET
         if (addr != null) {
           BluetoothSocket dead = socketCache.remove(addr);
           if (dead != null) {
@@ -657,41 +689,41 @@ public class DevicePrinterPlugin extends Plugin {
           }
         }
 
-        // Fallback reflection socket (which connects and closes immediately)
+        // Fresh retry using standard SPP socket
         try {
-          BluetoothSocket alt = (BluetoothSocket) dev.getClass()
-            .getMethod("createRfcommSocket", int.class).invoke(dev, 1);
-          alt.connect();
-          OutputStream os = alt.getOutputStream();
+          return createAndWriteSpp(dev, data, CHUNK, SLEEP_BETWEEN, SLEEP_BEFORE_CLOSE);
+        } catch (Exception sppEx) {
+          // Fallback reflection socket (channel 1)
+          try {
+            BluetoothSocket alt = (BluetoothSocket) dev.getClass()
+              .getMethod("createRfcommSocket", int.class).invoke(dev, 1);
+            alt.connect();
+            OutputStream os = alt.getOutputStream();
 
-          os.write(new byte[]{ 0x1b, '@' });
-          os.flush();
-          try { Thread.sleep(80); } catch (InterruptedException ignored) {}
-
-          int offset = 0;
-          while (offset < data.length) {
-            int len = Math.min(CHUNK, data.length - offset);
-            os.write(data, offset, len);
+            os.write(new byte[]{ 0x1b, '@' });
             os.flush();
-            offset += len;
-            try { Thread.sleep(SLEEP_BETWEEN); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(80); } catch (InterruptedException ignored) {}
+
+            int offset = 0;
+            while (offset < data.length) {
+              int len = Math.min(CHUNK, data.length - offset);
+              os.write(data, offset, len);
+              os.flush();
+              offset += len;
+              try { Thread.sleep(SLEEP_BETWEEN); } catch (InterruptedException ignored) {}
+            }
+
+            os.write(new byte[]{ 0x0a, 0x0a });
+            os.flush();
+            try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
+
+            os.close();
+            alt.close();
+            return true;
+          } catch (Exception ignored) {
+            return false;
           }
-
-          os.write(new byte[]{ 0x0a, 0x0a });
-          os.flush();
-          try { Thread.sleep(SLEEP_BEFORE_CLOSE); } catch (InterruptedException ignored) {}
-
-          os.close();
-          alt.close();
-          return true;
-        } catch (Exception ignored) {
-          return false;
         }
-      } finally {
-        // DO NOT CLOSE SOCKET IN FINALLY BLOCK
-        // if (sock != null) {
-        //   try { sock.close(); } catch (Exception ignored) {}
-        // }
       }
     }
   }

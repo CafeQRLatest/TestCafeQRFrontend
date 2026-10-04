@@ -394,15 +394,20 @@ function withMargins(line, layout) {
 }
 
 function escposPageSetup(layout) {
-  return (
-    ESC + "@" + // reset
+  const disableMargins = typeof window !== 'undefined' && localStorage.getItem('DISABLE_ESC_MARGINS') === '1';
+  let cmd = ESC + "@" + // reset
     ESC + " " + b(0) +   // ESC SP n: right-side character spacing = 0
-    ESC + "a" + b(0) + // left align (default)
-    GS + "L" + b2(layout.leftDots) + // left margin
-    GS + "W" + b2(layout.areaDots) + // printable area width
-    ESC + "M" + b(0) + // Font A
-    ESC + "E" + b(0) // bold off
-  );
+    ESC + "a" + b(0);    // left align (default)
+    
+  if (!disableMargins) {
+    cmd += GS + "L" + b2(layout.leftDots) + // left margin
+           GS + "W" + b2(layout.areaDots);  // printable area width
+  }
+  
+  cmd += ESC + "M" + b(0) + // Font A
+         ESC + "E" + b(0);  // bold off
+         
+  return cmd;
 }
 
 function buildLogoEscPos(restaurantProfile) {

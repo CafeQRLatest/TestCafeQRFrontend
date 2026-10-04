@@ -1,5 +1,5 @@
 // utils/escpos.ts
-export function textToEscPos(text: string, opts?: { codepage?: number; feed?: number; cut?: 'full'|'partial'; scale?: 'normal'|'large'; }) {
+export function textToEscPos(text: string, opts?: { codepage?: number; feed?: number; cut?: 'full'|'partial'|'none'; scale?: 'normal'|'large'; }) {
   const ESC = 0x1b;
   const GS  = 0x1d;
   const bytes: number[] = [];
@@ -26,6 +26,8 @@ const normalized = hasRaster ? text : text.replace(/\r?\n/g, "\r\n");
   const feed = Math.max(0, Math.min(20, opts?.feed ?? 4));
   for (let i = 0; i < feed; i++) bytes.push(0x0a);
 
-  bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
+  if (opts?.cut !== 'none') {
+    bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
+  }
   return new Uint8Array(bytes);
 }

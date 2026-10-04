@@ -322,10 +322,13 @@ async function printUniversalNow(opts: Options) {
   const localFeed = window.localStorage.getItem(`${prefix}FEED_LINES`);
   const feedCount = localFeed !== null ? Math.max(0, Number(localFeed)) : 4;
 
+  const localAutoCut = window.localStorage.getItem(`${prefix}AUTO_CUT`) ?? window.localStorage.getItem('PRINT_WIN_AUTOCUT');
+  const isCutEnabled = localAutoCut !== null ? (localAutoCut === '1' || localAutoCut === 'true') : false;
+
   const payload = textToEscPos(opts.text, {
     codepage: opts.codepage,
     feed: feedCount,
-    cut: 'full',
+    cut: isCutEnabled ? 'full' : 'none',
     scale: opts.scale || autoScale,
   });
 
