@@ -165,7 +165,19 @@ export default function DocumentViewerPopup({
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await downloadInvoicePdf(currentOrder, config);
+      const mergedOrder = {
+        ...currentOrder,
+        ...(invoiceData ? {
+          invoiceNo: invoiceData.invoiceNo || invoiceData.invoice_no || currentOrder?.invoiceNo,
+          invoiceDate: invoiceData.invoiceDate || invoiceData.invoice_date || currentOrder?.invoiceDate,
+          taxableAmount: invoiceData.taxableAmount ?? invoiceData.taxable_amount,
+          totalTaxAmount: invoiceData.totalTaxAmount ?? invoiceData.total_tax_amount,
+          roundOffAmount: invoiceData.roundOffAmount ?? invoiceData.round_off_amount,
+          grossAmount: invoiceData.grossAmount ?? invoiceData.gross_amount,
+          totalAmount: invoiceData.totalAmount ?? invoiceData.total_amount
+        } : {})
+      };
+      await downloadInvoicePdf(mergedOrder, config);
     } catch (err) {
       console.error('Failed to download invoice PDF:', err);
     } finally {
@@ -386,10 +398,21 @@ export default function DocumentViewerPopup({
     }
 
     const activeDoc = (docType === 'invoice' && invoiceData) ? invoiceData : currentOrder;
-    let subtotal = 0, taxTotal = 0;
+    let subtotal = 0, taxTotal = 0, grandTotal = 0;
     const discountTotal = parseFloat(activeDoc.totalDiscountAmount || activeDoc.total_discount_amount || 0);
-    const roundOff = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
-    let grandTotal = 0;
+    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || activeDoc.amountPaid || activeDoc.amount_paid || activeDoc.amount || 0);
+    const dbTotalTax    = parseFloat(activeDoc.taxAmount || activeDoc.tax_amount || activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
+    const dbGrossAmount = parseFloat(activeDoc.grossAmount  || activeDoc.gross_amount  || 0);
+    const docTotalBeforeRound = parseFloat(activeDoc.totalAmount  || activeDoc.total_amount  || 0);
+    let dbRoundOff = parseFloat((activeDoc.roundOffAmount !== undefined && activeDoc.roundOffAmount !== null) ? activeDoc.roundOffAmount : (activeDoc.round_off_amount || 0));
+
+    // Derive roundOff before settlement if not explicitly present
+    if (Math.abs(dbRoundOff) < 0.001) {
+      if (dbGrandTotal > 0 && docTotalBeforeRound > 0 && Math.abs(dbGrandTotal - docTotalBeforeRound) > 0.001) {
+        dbRoundOff = parseFloat((dbGrandTotal - docTotalBeforeRound).toFixed(2));
+      }
+    }
+
     let hasTaxableAmount = false;
 
     const lines = activeLines;
@@ -419,49 +442,63 @@ export default function DocumentViewerPopup({
         }
       });
       if (hasTaxableAmount) {
-        grandTotal = subtotal + taxTotal + roundOff;
-        subtotal = grandTotal - taxTotal - roundOff;
+        grandTotal = subtotal + taxTotal + dbRoundOff;
       } else {
-        grandTotal = subtotal + taxTotal - discountTotal + roundOff;
+        grandTotal = subtotal + taxTotal - discountTotal + dbRoundOff;
       }
     } else {
-      subtotal = parseFloat(activeDoc.subtotal || activeDoc.taxableAmount || activeDoc.taxable_amount || activeDoc.totalAmount || activeDoc.total_amount || activeDoc.amount || 0);
-      taxTotal = parseFloat(activeDoc.taxAmount || activeDoc.tax_amount || activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-      grandTotal = parseFloat(activeDoc.grandTotal || activeDoc.grand_total || activeDoc.amountPaid || activeDoc.amount_paid || activeDoc.totalAmount || activeDoc.amount || 0);
-      // For orders without lines loaded yet, check if database columns indicate new GST engine
-      const hasGstFlag = activeDoc.grossAmount > 0 || activeDoc.gross_amount > 0 || (taxTotal > 0 && Math.abs(grandTotal - (subtotal + taxTotal + roundOff)) < 0.05);
-      if (hasGstFlag) {
+      const effTax = dbTotalTax > 0 ? dbTotalTax : 0;
+      const baseTotal = docTotalBeforeRound > 0 ? docTotalBeforeRound : dbGrandTotal;
+      if (activeDoc.taxableAmount !== undefined && activeDoc.taxableAmount !== null && activeDoc.taxableAmount !== '') {
+        subtotal = parseFloat(activeDoc.taxableAmount);
         hasTaxableAmount = true;
-        subtotal = grandTotal - taxTotal - roundOff;
-      } else if (Math.abs(grandTotal - subtotal) < 0.05 && taxTotal > 0.05) {
-        grandTotal = subtotal + taxTotal - discountTotal + roundOff;
+      } else if (activeDoc.taxable_amount !== undefined && activeDoc.taxable_amount !== null && activeDoc.taxable_amount !== '') {
+        subtotal = parseFloat(activeDoc.taxable_amount);
+        hasTaxableAmount = true;
+      } else if (baseTotal > 0 && effTax > 0) {
+        subtotal = docTotalBeforeRound > 0 ? (docTotalBeforeRound - effTax) : (dbGrandTotal - effTax - dbRoundOff);
+        hasTaxableAmount = true;
+      } else {
+        subtotal = parseFloat(activeDoc.subtotal || baseTotal || activeDoc.amount || 0);
+      }
+      taxTotal = effTax;
+      grandTotal = dbGrandTotal > 0 ? dbGrandTotal : (subtotal + taxTotal + dbRoundOff);
+    }
+
+    if (Math.abs(dbRoundOff) < 0.001 && dbGrandTotal > 0 && subtotal > 0 && (dbTotalTax > 0 || taxTotal > 0)) {
+      const effTax = dbTotalTax > 0 ? dbTotalTax : taxTotal;
+      const diff = dbGrandTotal - (subtotal + effTax);
+      if (Math.abs(diff) > 0.001 && Math.abs(diff) < 1.0) {
+        dbRoundOff = parseFloat(diff.toFixed(2));
       }
     }
-    const dbGrandTotal  = parseFloat(activeDoc.grandTotal  || activeDoc.grand_total  || activeDoc.amountPaid || activeDoc.amount_paid || activeDoc.amount || 0);
-    const dbTotalTax    = parseFloat(activeDoc.taxAmount || activeDoc.tax_amount || activeDoc.totalTaxAmount || activeDoc.total_tax_amount || 0);
-    const dbRawSubtotal = (hasTaxableAmount && subtotal > 0) ? subtotal : parseFloat(activeDoc.subtotal || activeDoc.taxableAmount || activeDoc.taxable_amount || activeDoc.totalAmount  || activeDoc.total_amount  || activeDoc.amount || 0);
-    const dbGrossAmount = parseFloat(activeDoc.grossAmount  || activeDoc.gross_amount  || 0);
-    const dbRoundOff    = parseFloat(activeDoc.roundOffAmount || activeDoc.round_off_amount || 0);
+
+    const effTax = dbTotalTax > 0 ? dbTotalTax : taxTotal;
+    const dbRawSubtotal = (hasTaxableAmount && subtotal > 0)
+      ? subtotal
+      : (docTotalBeforeRound > 0 && effTax > 0
+          ? (docTotalBeforeRound - effTax)
+          : parseFloat(activeDoc.subtotal || activeDoc.taxableAmount || activeDoc.taxable_amount || docTotalBeforeRound || activeDoc.amount || 0));
 
     if (docType === 'payment' || dbGrandTotal > 0) {
       let displaySubtotal = dbRawSubtotal;
-      let displayGrandTotal = dbGrandTotal > 0 ? dbGrandTotal : (dbRawSubtotal + dbTotalTax + dbRoundOff);
+      let displayGrandTotal = dbGrandTotal > 0 ? dbGrandTotal : (dbRawSubtotal + effTax + dbRoundOff);
 
-      if (dbTotalTax > 0 || dbRoundOff !== 0) {
-        if (Math.abs((dbRawSubtotal + dbTotalTax + dbRoundOff) - displayGrandTotal) < 0.05) {
+      if (effTax > 0 || dbRoundOff !== 0) {
+        if (Math.abs((dbRawSubtotal + effTax + dbRoundOff) - displayGrandTotal) < 0.05) {
           // Exactly matches: subtotal (34.94) + tax (1.75) + roundoff (0.31) = grandTotal (37.00)
           displaySubtotal = dbRawSubtotal;
-        } else if (dbRawSubtotal > 0 && Math.abs((dbRawSubtotal + dbTotalTax + dbRoundOff) - displayGrandTotal) > 0.01 && docType === 'payment') {
+        } else if (dbRawSubtotal > 0 && Math.abs((dbRawSubtotal + effTax + dbRoundOff) - displayGrandTotal) > 0.01 && docType === 'payment') {
           // For payments: derive displayGrandTotal if dbGrandTotal was pre-roundoff
           displaySubtotal = dbRawSubtotal;
-          displayGrandTotal = dbRawSubtotal + dbTotalTax + dbRoundOff;
+          displayGrandTotal = dbRawSubtotal + effTax + dbRoundOff;
         } else if (displayGrandTotal > 0) {
-          displaySubtotal = displayGrandTotal - dbTotalTax - dbRoundOff;
+          displaySubtotal = displayGrandTotal - effTax - dbRoundOff;
         }
       }
       return { 
         subtotal: displaySubtotal, 
-        tax: dbTotalTax, 
+        tax: effTax, 
         discount: discountTotal, 
         grandTotal: displayGrandTotal, 
         gross: dbGrossAmount, 
@@ -469,7 +506,7 @@ export default function DocumentViewerPopup({
       };
     }
 
-    return { subtotal, tax: taxTotal, discount: discountTotal, grandTotal: Math.max(0, grandTotal), gross: dbGrossAmount, roundOff: roundOff };
+    return { subtotal, tax: effTax, discount: discountTotal, grandTotal: Math.max(0, grandTotal), gross: dbGrossAmount, roundOff: dbRoundOff };
   }, [currentOrder, docType, invoiceData, activeLines]);
 
   const primaryCustomer = React.useMemo(() => {
@@ -538,7 +575,7 @@ export default function DocumentViewerPopup({
     order:   { subtitle: isSale ? 'Sale Order' : 'Purchase Order', title: currentOrder.orderNo || currentOrder.order_no || '—' },
     SO:      { subtitle: 'Sale Order', title: currentOrder.orderNo || currentOrder.order_no || '—' },
     PO:      { subtitle: 'Purchase Order', title: currentOrder.poNumber || currentOrder.orderNo || currentOrder.order_no || '—' },
-    invoice: { subtitle: 'Invoice', title: currentOrder.invoiceNo || currentOrder.invoice_no || currentOrder.orderNo || currentOrder.order_no || '—' },
+    invoice: { subtitle: 'Invoice', title: currentOrder.invoiceNo || currentOrder.invoice_no || invoiceData?.invoiceNo || invoiceData?.invoice_no || currentOrder.orderNo || currentOrder.order_no || '—' },
     payment: { subtitle: 'Payment', title: currentOrder.paymentNo || currentOrder.referenceNo || currentOrder.orderNo || currentOrder.order_no || '—' },
   };
   const hdr = HEADER[docType] || HEADER.order;
@@ -1077,18 +1114,31 @@ export default function DocumentViewerPopup({
         )}
 
         {/* ── Created/Updated auditing info with date & time ── */}
-        {(currentOrder.createdBy || currentOrder.updatedBy || currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date) && (() => {
-          const displayOrderDate = currentOrder.orderDate || currentOrder.order_date || (docType === 'order' ? (currentOrder.createdAt || currentOrder.created_at) : null);
+        {(() => {
+          const rawDocDate = (() => {
+            if (docType === 'invoice') {
+              return invoiceData?.invoiceDate || invoiceData?.invoice_date || invoiceData?.createdAt || currentOrder.invoiceDate || currentOrder.invoice_date || currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at;
+            }
+            if (docType === 'payment') {
+              return currentOrder.paymentDate || currentOrder.payment_date || currentOrder.paidAt || currentOrder.paid_at || currentOrder.createdAt || currentOrder.created_at;
+            }
+            return currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at;
+          })();
+
+          if (!currentOrder.createdBy && !currentOrder.updatedBy && !currentOrder.createdAt && !currentOrder.created_at && !rawDocDate) {
+            return null;
+          }
+
           return (
             <>
               <div className="dv-rule" />
-              <div className={displayOrderDate ? "dv-row3" : "dv-row2"}>
-                {displayOrderDate && (
+              <div className={rawDocDate ? "dv-row3" : "dv-row2"}>
+                {rawDocDate && (
                   <div className="dv-cell">
                     <span className="dv-lbl">{docType === 'payment' ? 'Payment Date' : (docType === 'invoice' ? 'Invoice Date' : 'Order Date')}</span>
                     <span className="dv-val" style={{ fontSize: '13px' }}>
                       {formatDateFn(
-                        displayOrderDate,
+                        rawDocDate,
                         effectiveTz,
                         { format: 'datetime' }
                       )}
@@ -1100,7 +1150,7 @@ export default function DocumentViewerPopup({
                   <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
                   <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
                     {formatDateFn(
-                      currentOrder.createdAt || currentOrder.created_at || displayOrderDate,
+                      currentOrder.createdAt || currentOrder.created_at || rawDocDate,
                       effectiveTz,
                       { format: 'datetime' }
                     )}
@@ -1254,7 +1304,7 @@ export default function DocumentViewerPopup({
                     const isVoid = String(rev.orderStatus || '').toUpperCase() === 'VOID';
                     const isCurrent = !isVoid;
                     const revNo = rev.revisionNumber ?? idx;
-                    const revDate = rev.orderDate || rev.createdAt || rev.created_at;
+                    const revDate = rev.updatedAt || rev.updated_at || rev.createdAt || rev.created_at || rev.orderDate;
                     const fmtDate = revDate ? formatDateFn(revDate, effectiveTz, { format: 'datetime' }) : '—';
                     return (
                       <div key={rev.id} className={`dv-history-card ${isVoid ? 'dv-history-void' : 'dv-history-current'}`}>

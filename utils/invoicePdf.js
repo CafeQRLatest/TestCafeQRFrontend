@@ -298,21 +298,36 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   const orderNo    = order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`;
   const invoiceNo  = invoiceData?.invoiceNo || invoiceData?.invoice_no || order?.invoiceNo || order?.invoice_no || '';
   const paymentRef = invoiceData?.referenceNo || invoiceData?.reference_no || order?.referenceNo || order?.reference || '';
-  const orderDate  = order.createdAt || order.created_at || order.orderDate || order.order_date || '';
-  const customer   = customerLabel(order);
-  const fulfillment = fulfillmentLabel(order);
-  const rawPayMethod = order?.paymentMethod || invoiceData?.paymentMethod || '';
-  const payMethod  = (paymentsList.length > 0)
+  const invoiceDocDate = invoiceData?.invoiceDate || invoiceData?.invoice_date || invoiceData?.createdAt || order?.invoiceDate || order?.invoice_date;
+  const orderDocDate   = order?.orderDate || order?.order_date || order?.createdAt || order?.created_at || '';
+  const orderDate      = invoiceDocDate || orderDocDate;
+  const customer       = customerLabel(order);
+  const fulfillment    = fulfillmentLabel(order);
+  const rawPayMethod   = order?.paymentMethod || invoiceData?.paymentMethod || '';
+  const payMethod      = (paymentsList.length > 0)
     ? Array.from(new Set(paymentsList.map(p => p.paymentMethod || p.payment_method).filter(Boolean))).join(', ')
     : rawPayMethod;
 
   const lines    = order.lines || invoiceData?.lines || [];
   const gross    = Number(invoiceData?.grossAmount    || invoiceData?.gross_amount    || order?.grossAmount    || order?.gross_amount    || 0);
-  const subtotal = Number(invoiceData?.taxableAmount  || invoiceData?.taxable_amount  || order?.totalAmount   || order?.total_amount   || 0);
   const taxTotal = Number(invoiceData?.totalTaxAmount || invoiceData?.total_tax_amount|| order?.totalTaxAmount|| order?.total_tax_amount|| 0);
   const discount = Number(invoiceData?.totalDiscountAmount || invoiceData?.total_discount_amount || order?.totalDiscountAmount || order?.total_discount_amount || 0);
-  const roundOff = Number(invoiceData?.roundOffAmount || invoiceData?.round_off_amount || order?.roundOffAmount || order?.round_off_amount || 0);
-  const grandTotal = Number(invoiceData?.totalAmount || invoiceData?.total_amount || order?.grandTotal || order?.grand_total || 0);
+
+  const rawGrandTotal = Number(invoiceData?.totalAmount || invoiceData?.total_amount || order?.grandTotal || order?.grand_total || 0);
+  const rawTotalBeforeRound = Number(order?.totalAmount || order?.total_amount || 0);
+  let roundOff = Number(invoiceData?.roundOffAmount ?? invoiceData?.round_off_amount ?? order?.roundOffAmount ?? order?.round_off_amount ?? 0);
+  if (Math.abs(roundOff) < 0.001 && rawGrandTotal > 0 && rawTotalBeforeRound > 0 && Math.abs(rawGrandTotal - rawTotalBeforeRound) > 0.001) {
+    roundOff = Number((rawGrandTotal - rawTotalBeforeRound).toFixed(2));
+  }
+  const grandTotal = rawGrandTotal > 0 ? rawGrandTotal : (rawTotalBeforeRound + roundOff);
+
+  const subtotal = Number(
+    invoiceData?.taxableAmount
+    || invoiceData?.taxable_amount
+    || order?.taxableAmount
+    || order?.taxable_amount
+    || (rawTotalBeforeRound > 0 && taxTotal > 0 ? (rawTotalBeforeRound - taxTotal) : (grandTotal > 0 && taxTotal > 0 ? (grandTotal - taxTotal - roundOff) : rawTotalBeforeRound))
+  );
 
   // 7. Build PDF ────────────────────────────────────────────────────────────────
   let y = margin;
@@ -609,7 +624,9 @@ export async function downloadInvoicePdf(order, configOverride = null) {
   // ── Totals block ──────────────────────────────────────────────────────────────
   const bW = 86, bX = W - margin - bW;
 
-  const displaySubtotal = gross > 0 ? (grandTotal - taxTotal - roundOff) : subtotal;
+  const displaySubtotal = (grandTotal > 0 && (taxTotal > 0 || Math.abs(roundOff) > 0.001))
+    ? (grandTotal - taxTotal - roundOff)
+    : (gross > 0 ? (grandTotal - taxTotal - roundOff) : subtotal);
 
   const totalRows = [];
   if (gross > 0 && Math.abs(gross - displaySubtotal) > 0.01) totalRows.push(['Gross Total', money(gross, sym)]);
