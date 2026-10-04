@@ -26,7 +26,11 @@ export const getApiUrl = () => {
         if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)) {
           return `http://${hostname}:8080`;
         }
-        return 'https://pos.cafeqr.in';
+        const isTestEnv = hostname.includes('test') || hostname.includes('staging') || hostname.includes('pages.dev') || hostname.includes('vercel.app');
+        if (isTestEnv) {
+          return 'https://test-api.cafeqr.in';
+        }
+        return 'https://app.cafeqr.in';
       }
     }
     envUrl = 'http://localhost:8080';
