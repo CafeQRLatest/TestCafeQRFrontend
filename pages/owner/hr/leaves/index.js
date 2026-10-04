@@ -126,11 +126,20 @@ export default function LeaveManagement({ embedded = false }) {
     e.preventDefault();
     if (!employeeId || !startDate || !endDate) return;
     
-    // basic date math for totalDays
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const diffTime = Math.abs(end - start);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (start > end) {
+      showToast("Invalid Date Range: From Date cannot be later than To Date.", "error");
+      return;
+    }
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear();
+    if (startYear < 2000 || startYear > 2100 || endYear < 2000 || endYear > 2100) {
+      showToast("Invalid Date Range: Year must be between 2000 and 2100.", "error");
+      return;
+    }
+    const diffTime = end - start;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
     const payload = {
       employeeId,
