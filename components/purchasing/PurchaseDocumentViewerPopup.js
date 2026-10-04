@@ -634,7 +634,7 @@ export default function PurchaseDocumentViewerPopup({
                     const isVoid = String(rev.orderStatus || '').toUpperCase() === 'VOID' || String(rev.orderStatus || '').toUpperCase() === 'CANCELLED';
                     const isCurrent = !isVoid;
                     const revNo = rev.revisionNumber ?? idx;
-                    const revDate = rev.orderDate || rev.createdAt || rev.created_at;
+                    const revDate = rev.updatedAt || rev.updated_at || rev.createdAt || rev.created_at || rev.orderDate;
                     const fmtDate = revDate ? new Date(revDate).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
                     return (
                       <div key={rev.id || idx} className={`dv-history-card ${isVoid ? 'dv-history-void' : 'dv-history-current'}`}>
