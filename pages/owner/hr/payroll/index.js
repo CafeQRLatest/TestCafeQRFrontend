@@ -163,8 +163,9 @@ export default function PayrollDashboard({ embedded = false }) {
 
   const openSyncModal = (runId) => {
     setSyncRunId(runId);
-    if (expensePaymentTypes.length > 0) {
-      const defaultVal = expensePaymentTypes[0].displayName.toUpperCase();
+    if (expensePaymentTypes && expensePaymentTypes.length > 0) {
+      const firstType = expensePaymentTypes[0];
+      const defaultVal = firstType.code || firstType.name || (firstType.displayName ? firstType.displayName.toUpperCase() : 'CASH');
       setSyncPaymentMethod(defaultVal);
     } else {
       setSyncPaymentMethod('CASH');
@@ -382,7 +383,14 @@ export default function PayrollDashboard({ embedded = false }) {
                       slips.map(slip => (
                         <tr key={slip.id}>
                           <td className="font-bold text-slate">{slip.employeeName}</td>
-                          <td>{slip.totalWorkedHours !== null ? `${slip.totalWorkedHours} hrs` : 'N/A'}</td>
+                          <td>
+                            <div>{slip.totalWorkedHours !== null ? `${slip.totalWorkedHours} hrs` : 'N/A'}</div>
+                            {slip.overtimeHours > 0 && (
+                              <div style={{ fontSize: '11px', color: '#d97706', fontWeight: 600 }}>
+                                ({slip.regularHours != null ? slip.regularHours : (slip.totalWorkedHours - slip.overtimeHours)} reg + {slip.overtimeHours} OT)
+                              </div>
+                            )}
+                          </td>
                           <td>{slip.totalUnpaidLeaveDays !== null ? `${slip.totalUnpaidLeaveDays} days` : '0 days'}</td>
                           <td className="font-bold">${slip.grossPay?.toFixed(2)}</td>
                           <td className="font-bold text-red">-${slip.totalDeductions?.toFixed(2)}</td>
@@ -454,7 +462,11 @@ export default function PayrollDashboard({ embedded = false }) {
                 </div>
                 <div>
                   <span className="meta-label">WORKED HOURS</span>
-                  <div className="meta-value">{selectedSlipForPrint.totalWorkedHours ?? '—'} hrs</div>
+                  <div className="meta-value">
+                    {selectedSlipForPrint.overtimeHours > 0
+                      ? `${selectedSlipForPrint.regularHours != null ? selectedSlipForPrint.regularHours : (selectedSlipForPrint.totalWorkedHours - selectedSlipForPrint.overtimeHours)} reg / ${selectedSlipForPrint.overtimeHours} OT`
+                      : `${selectedSlipForPrint.totalWorkedHours ?? '—'} hrs`}
+                  </div>
                 </div>
                 <div>
                   <span className="meta-label">UNPAID LEAVES</span>
@@ -468,7 +480,21 @@ export default function PayrollDashboard({ embedded = false }) {
                   <table className="mini-table">
                     <tbody>
                       <tr>
-                        <td>Gross Pay (Base & Overtime)</td>
+                        <td>Base / Regular Pay</td>
+                        <td className="amount font-bold">
+                          ${((selectedSlipForPrint.grossPay || 0) - (selectedSlipForPrint.overtimePay || 0)).toFixed(2)}
+                        </td>
+                      </tr>
+                      {selectedSlipForPrint.overtimeHours > 0 && (
+                        <tr>
+                          <td>Overtime Pay ({selectedSlipForPrint.overtimeHours} hrs OT)</td>
+                          <td className="amount font-bold" style={{ color: '#d97706' }}>
+                            +${(selectedSlipForPrint.overtimePay || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      )}
+                      <tr style={{ borderTop: '1px solid #e2e8f0', fontWeight: 'bold' }}>
+                        <td>Total Gross Pay</td>
                         <td className="amount font-bold">${selectedSlipForPrint.grossPay?.toFixed(2)}</td>
                       </tr>
                     </tbody>
@@ -527,20 +553,34 @@ export default function PayrollDashboard({ embedded = false }) {
               <select 
                 value={syncPaymentMethod}
                 onChange={(e) => setSyncPaymentMethod(e.target.value)}
-                style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', background: 'white', fontWeight: '600' }}
+                style={{ 
+                  width: '100%', 
+                  padding: '12px', 
+                  borderRadius: '12px', 
+                  border: '1px solid #cbd5e1', 
+                  outline: 'none', 
+                  background: '#ffffff', 
+                  color: '#0f172a', 
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  colorScheme: 'light'
+                }}
               >
                 {expensePaymentTypes.length > 0 ? (
-                  expensePaymentTypes.map(pt => (
-                    <option key={pt.id || pt.displayName} value={pt.displayName.toUpperCase()}>
-                      {pt.displayName}
-                    </option>
-                  ))
+                  expensePaymentTypes.map(pt => {
+                    const val = pt.code || pt.name || (pt.displayName ? pt.displayName.toUpperCase() : '');
+                    return (
+                      <option key={pt.id || val || pt.displayName} value={val} style={{ color: '#0f172a', background: '#ffffff' }}>
+                        {pt.displayName || pt.name}
+                      </option>
+                    );
+                  })
                 ) : (
                   <>
-                    <option value="CASH">Cash</option>
-                    <option value="ONLINE">Online</option>
-                    <option value="MIXED">Mixed</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CASH" style={{ color: '#0f172a', background: '#ffffff' }}>Cash</option>
+                    <option value="ONLINE" style={{ color: '#0f172a', background: '#ffffff' }}>Online</option>
+                    <option value="MIXED" style={{ color: '#0f172a', background: '#ffffff' }}>Mixed</option>
+                    <option value="BANK_TRANSFER" style={{ color: '#0f172a', background: '#ffffff' }}>Bank Transfer</option>
                   </>
                 )}
               </select>

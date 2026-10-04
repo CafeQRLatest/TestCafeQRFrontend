@@ -352,6 +352,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
                 ) : (
                   timesheets.map(record => {
                     const isOvertime = Number(record.overtimeHours || 0) > 0;
+                    const isShortfall = Number(record.shortfallHours || 0) > 0;
                     const isExpanded = expandedRows.has(record.id);
                     return (
                       <React.Fragment key={record.id}>
@@ -381,6 +382,11 @@ export default function TimesheetsDashboard({ embedded = false }) {
                           <td>
                             {record.totalHoursWorked !== null && record.totalHoursWorked !== undefined ? `${record.totalHoursWorked} hrs` : '0.00 hrs'}
                             {isOvertime && <span className="overtime-flag"><FaExclamationTriangle /> OT</span>}
+                            {isShortfall && (
+                              <span className="shortfall-flag" style={{ background: '#fef3c7', color: '#b45309', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginLeft: '6px', fontWeight: '700' }}>
+                                ⚠️ Shortfall ({record.shortfallHours}h)
+                              </span>
+                            )}
                           </td>
                           <td>
                             <span style={{color: '#854d0e', fontWeight: 700}}>{record.totalBreakHours || '0.00'} hrs</span>

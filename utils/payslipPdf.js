@@ -105,9 +105,13 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
     doc.text(val, cx, metaY2);
   };
 
+  const hrsVal = slip.overtimeHours && slip.overtimeHours > 0
+    ? `${slip.regularHours != null ? slip.regularHours : (slip.totalWorkedHours - slip.overtimeHours)} reg / ${slip.overtimeHours} OT`
+    : (slip.totalWorkedHours != null ? `${slip.totalWorkedHours} hrs` : '—');
+
   drawMeta(0, 'EMPLOYEE NAME', slip.employeeName || 'N/A');
   drawMeta(1, 'EMPLOYEE ID', slip.employeeId ? slip.employeeId.substring(0,8).toUpperCase() : 'N/A');
-  drawMeta(2, 'WORKED HOURS', slip.totalWorkedHours != null ? `${slip.totalWorkedHours} hrs` : '—');
+  drawMeta(2, 'WORKED HOURS', hrsVal);
   drawMeta(3, 'UNPAID LEAVES', slip.totalUnpaidLeaveDays != null ? `${slip.totalUnpaidLeaveDays} days` : '0 days');
 
   y += 24;
@@ -124,12 +128,31 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
   doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...TEXT_MUTED);
   doc.text('EARNINGS', earnX + 4, y + 6);
   doc.setDrawColor(241, 245, 249);
-  doc.line(earnX + 4, y + 16, earnX + boxW - 4, y + 16);
+  doc.line(earnX + 4, y + 22, earnX + boxW - 4, y + 22);
   
-  doc.setFont('Roboto', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
-  doc.text('Gross Pay (Base & Overtime)', earnX + 4, y + 13);
-  doc.setFont('Roboto', 'bold');
-  doc.text(money(slip.grossPay, sym), earnX + boxW - 4, y + 13, { align: 'right' });
+  const hasOt = slip.overtimeHours && slip.overtimeHours > 0;
+  const basePayVal = (slip.grossPay || 0) - (slip.overtimePay || 0);
+
+  if (hasOt) {
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
+    doc.text('Base / Regular Pay', earnX + 4, y + 11);
+    doc.setFont('Roboto', 'bold');
+    doc.text(money(basePayVal, sym), earnX + boxW - 4, y + 11, { align: 'right' });
+
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...ORANGE);
+    doc.text(`Overtime Pay (${slip.overtimeHours} hrs)`, earnX + 4, y + 16);
+    doc.setFont('Roboto', 'bold');
+    doc.text(`+${money(slip.overtimePay, sym)}`, earnX + boxW - 4, y + 16, { align: 'right' });
+
+    doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...DARK);
+    doc.text('Total Gross Pay', earnX + 4, y + 21);
+    doc.text(money(slip.grossPay, sym), earnX + boxW - 4, y + 21, { align: 'right' });
+  } else {
+    doc.setFont('Roboto', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
+    doc.text('Gross Pay (Base Salary)', earnX + 4, y + 13);
+    doc.setFont('Roboto', 'bold');
+    doc.text(money(slip.grossPay, sym), earnX + boxW - 4, y + 13, { align: 'right' });
+  }
 
   // Deductions Box
   doc.setDrawColor(226, 232, 240);
