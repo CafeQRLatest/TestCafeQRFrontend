@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
-import * as faceapi from 'face-api.js';
 import { hrService } from '../../services/hrService';
 import { FaClock, FaKeyboard, FaCamera, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function AttendanceKiosk() {
   const videoRef = useRef(null);
+  const faceapiRef = useRef(null);
   const [employees, setEmployees] = useState([]);
   const [isFaceMode, setIsFaceMode] = useState(true);
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -44,6 +44,9 @@ export default function AttendanceKiosk() {
 
   const loadModels = async () => {
     try {
+      if (typeof window === 'undefined') return;
+      const faceapi = await import('face-api.js');
+      faceapiRef.current = faceapi;
       // NOTE: Models must be placed in public/models/ folder
       // Available at: https://github.com/justadudewhohacks/face-api.js/tree/master/weights
       await Promise.all([
@@ -80,11 +83,12 @@ export default function AttendanceKiosk() {
   };
 
   const handleVideoPlay = () => {
-    if (!isFaceMode) return;
+    if (!isFaceMode || !faceapiRef.current) return;
+    const faceapi = faceapiRef.current;
     
     // Periodically detect face
     const interval = setInterval(async () => {
-      if (videoRef.current && isFaceMode) {
+      if (videoRef.current && isFaceMode && faceapiRef.current) {
         const detection = await faceapi.detectSingleFace(
           videoRef.current, 
           new faceapi.TinyFaceDetectorOptions()
