@@ -813,7 +813,29 @@ export default function ProductManagementPopup({
                               if (w > MAX) { h *= MAX/w; w = MAX; }
                               canvas.width = w; canvas.height = h;
                               canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                              setSelectedProduct({...selectedProduct, imageUrl: canvas.toDataURL('image/jpeg', 0.7)});
+                              
+                              canvas.toBlob((blob) => {
+                                 if (!blob) return;
+                                 const uploadData = new FormData();
+                                 const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+                                 uploadData.append('file', blob, `product.${ext}`);
+                                 
+                                 api.post('/api/v1/uploads/product-image', uploadData, {
+                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                 })
+                                 .then(resp => {
+                                    if (resp.data?.success && resp.data?.imageUrl) {
+                                       setSelectedProduct(prev => ({ ...prev, imageUrl: resp.data.imageUrl }));
+                                       notify('success', 'Image uploaded to cloud storage');
+                                    } else {
+                                       setSelectedProduct(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/webp', 0.8) }));
+                                    }
+                                 })
+                                 .catch(err => {
+                                    console.warn('R2 Cloud upload not active or failed, using local canvas fallback:', err);
+                                    setSelectedProduct(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/webp', 0.8) }));
+                                 });
+                              }, 'image/webp', 0.8);
                            };
                            img.src = ev.target.result;
                         };
