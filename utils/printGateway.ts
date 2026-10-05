@@ -269,6 +269,25 @@ function createPrintJobRecord(opts: Options) {
  */
 let printChain: Promise<void> = Promise.resolve();
 
+export function recordPrintDebugLog(entry: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existingRaw = JSON.parse(window.localStorage.getItem('CAFEQR_PRINT_DEBUG_LOGS') || '[]');
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    const logItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      time: timeStr,
+      ...entry,
+    };
+    const updated = [logItem, ...existingRaw].slice(0, 50);
+    (window as any).__cafeqr_print_logs = updated;
+    window.localStorage.setItem('CAFEQR_PRINT_DEBUG_LOGS', JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to record print debug log:', e);
+  }
+}
+
 /** Public API: queued printing (never drops a job). */
 export function printUniversal(opts: Options) {
   const normalizedOpts = normalizePrintOptions(opts);
@@ -286,8 +305,26 @@ export function printUniversal(opts: Options) {
       // small gap helps some printers/helpers flush before next job
       await sleep(100);
 
+      recordPrintDebugLog({
+        jobKind: normalizedOpts.jobKind || 'bill',
+        via: lastRes?.via || 'unknown',
+        status: 'SUCCESS',
+        disableEscMargins: localStorage.getItem('DISABLE_ESC_MARGINS') === '1',
+        paperMm: Number(window.localStorage.getItem('PRINT_PAPER_MM') || 58),
+        textSnippet: String(normalizedOpts.text || '').substring(0, 100),
+      });
+
       return lastRes;
     } catch (error: any) {
+      recordPrintDebugLog({
+        jobKind: normalizedOpts.jobKind || 'bill',
+        via: 'error',
+        status: 'ERROR',
+        error: error?.message || String(error),
+        disableEscMargins: localStorage.getItem('DISABLE_ESC_MARGINS') === '1',
+        paperMm: Number(window.localStorage.getItem('PRINT_PAPER_MM') || 58),
+        textSnippet: String(normalizedOpts.text || '').substring(0, 100),
+      });
       throw error;
     }
   });

@@ -14,16 +14,16 @@ function b2(n) {
 
 // ESC/POS Modes
 const MODE_RESET = ESC + "!" + b(0);
-const MODE_BOLD = ESC + "E" + b(1);
-const MODE_NO_BOLD = ESC + "E" + b(0);
+const MODE_BOLD = ESC + "E" + b(49);
+const MODE_NO_BOLD = ESC + "E" + b(48);
 const MODE_DOUBLE = ESC + "!" + b(0x11); // Double-height + Double-width
 const MODE_NORMAL = ESC + "!" + b(0);
 const MODE_TALL = ESC + "!" + b(0x01); // double-height only
 
 // Alignment Commands
-const ALIGN_LEFT = ESC + "a" + b(0);
-const ALIGN_CENTER = ESC + "a" + b(1);
-const ALIGN_RIGHT = ESC + "a" + b(2);
+const ALIGN_LEFT = ESC + "a" + b(48);
+const ALIGN_CENTER = ESC + "a" + b(49);
+const ALIGN_RIGHT = ESC + "a" + b(50);
 
 // character size magnification
 const SIZE_1X = GS + "!" + b(0x00); // 1x width, 1x height
@@ -54,7 +54,12 @@ function getLocalBool(key, fallback = true) {
   }
 }
 
+function isDisableEscMargins() {
+  return typeof window !== 'undefined' && (localStorage.getItem('DISABLE_ESC_MARGINS') === '1' || localStorage.getItem('DISABLE_ESC_MARGINS') === 'true');
+}
+
 function getFontSizeCmd(size) {
+  if (isDisableEscMargins()) return "";
   if (size === 'DOUBLE') return SIZE_2X;
   if (size === 'DOUBLE_HEIGHT') return SIZE_2H;
   if (size === 'DOUBLE_WIDTH') return GS + "!" + b(0x10);
@@ -394,18 +399,16 @@ function withMargins(line, layout) {
 }
 
 function escposPageSetup(layout) {
-  const disableMargins = typeof window !== 'undefined' && localStorage.getItem('DISABLE_ESC_MARGINS') === '1';
-  let cmd = ESC + "@" + // reset
-    ESC + " " + b(0) +   // ESC SP n: right-side character spacing = 0
-    ESC + "a" + b(0);    // left align (default)
-    
-  if (!disableMargins) {
-    cmd += GS + "L" + b2(layout.leftDots) + // left margin
-           GS + "W" + b2(layout.areaDots);  // printable area width
-  }
+  const disableMargins = isDisableEscMargins();
+  if (disableMargins) return "";
   
-  cmd += ESC + "M" + b(0) + // Font A
-         ESC + "E" + b(0);  // bold off
+  let cmd = ESC + "@"; // hard reset
+  cmd += ESC + " " + b(0) +    // right-side character spacing = 0
+         ESC + "a" + b(48) +   // left align (default)
+         GS + "L" + b2(layout.leftDots) + // left margin
+         GS + "W" + b2(layout.areaDots) + // printable area width
+         ESC + "M" + b(48) +   // Font A
+         ESC + "E" + b(0);     // bold off
          
   return cmd;
 }
@@ -453,6 +456,14 @@ function getBillCols(innerW, hasDiscount) {
 
 export function buildKotText(order, restaurantProfile) {
   try {
+    const disableEsc = isDisableEscMargins();
+    const MODE_BOLD = disableEsc ? "" : (ESC + "E" + b(49));
+    const MODE_NO_BOLD = disableEsc ? "" : (ESC + "E" + b(48));
+    const ALIGN_LEFT = disableEsc ? "" : (ESC + "a" + b(48));
+    const ALIGN_CENTER = disableEsc ? "" : (ESC + "a" + b(49));
+    const ALIGN_RIGHT = disableEsc ? "" : (ESC + "a" + b(50));
+    const SIZE_1X = disableEsc ? "" : (GS + "!" + b(0x00));
+
     const items = toDisplayItems(order);
     const _rawRemoved = Array.isArray(order?.removed_items) && order.removed_items.length
       ? order.removed_items
@@ -667,6 +678,14 @@ export async function downloadTextAndShare(order, bill, restaurantProfile) {
 
 export function buildReceiptText(order, bill, restaurantProfile) {
   try {
+    const disableEsc = isDisableEscMargins();
+    const MODE_BOLD = disableEsc ? "" : (ESC + "E" + b(49));
+    const MODE_NO_BOLD = disableEsc ? "" : (ESC + "E" + b(48));
+    const ALIGN_LEFT = disableEsc ? "" : (ESC + "a" + b(48));
+    const ALIGN_CENTER = disableEsc ? "" : (ESC + "a" + b(49));
+    const ALIGN_RIGHT = disableEsc ? "" : (ESC + "a" + b(50));
+    const SIZE_1X = disableEsc ? "" : (GS + "!" + b(0x00));
+
     const items = toDisplayItems(order);
     const layout = getLayout(restaurantProfile, "RECEIPT");
     const W = layout.innerCols;
@@ -891,7 +910,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       pickValue(restaurantProfile, ["upi_payee_name", "upiPayeeName"], getLocalString("PRINT_UPI_PAYEE_NAME", restaurantName)) || ""
     ).trim() || restaurantName;
 
-    if (showUpiQr && upiId && upiId.includes('@')) {
+    if (!disableEsc && showUpiQr && upiId && upiId.includes('@')) {
       const billRef = invoiceNo || billNo || order?.order_no || order?.orderNo || (order?.id ? String(order.id).slice(0, 8).toUpperCase() : '');
       const upiUri = buildUpiUri({
         upiId,

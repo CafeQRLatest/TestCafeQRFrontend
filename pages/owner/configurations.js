@@ -349,9 +349,13 @@ function syncPrintSettingsToLocalStorage(config) {
     localStorage.setItem('PRINT_GUARD_COLS', String(receipt.guardCols ?? 0));
     localStorage.setItem('PRINT_SAFE_COLS', String(receipt.safeCols ?? 0));
     
-    if (config.disable_esc_margins !== undefined) {
-      localStorage.setItem('DISABLE_ESC_MARGINS', config.disable_esc_margins ? '1' : '0');
-    }
+    const disableEsc = Boolean(
+      config.disable_esc_margins || 
+      config.disableEscMargins || 
+      config.receiptTemplate?.disableEscMargins || 
+      config.thermalTemplate?.disableEscMargins
+    );
+    localStorage.setItem('DISABLE_ESC_MARGINS', disableEsc ? '1' : '0');
   } catch (err) {
     console.error('Failed to sync print settings to localStorage:', err);
   }
@@ -890,16 +894,17 @@ function ConfigurationsContent() {
 
         <button
           type="button"
-          className={`template-toggle-row ${config.disable_esc_margins ? 'checked' : ''}`}
+          className={`template-toggle-row ${Boolean(config.disable_esc_margins || config.disableEscMargins) ? 'checked' : ''}`}
           style={{
             marginTop: '8px',
-            background: config.disable_esc_margins ? '#fff7ed' : 'transparent',
-            borderColor: config.disable_esc_margins ? '#ea580c' : '#e2e8f0',
+            background: Boolean(config.disable_esc_margins || config.disableEscMargins) ? '#fff7ed' : 'transparent',
+            borderColor: Boolean(config.disable_esc_margins || config.disableEscMargins) ? '#ea580c' : '#e2e8f0',
             padding: '12px 14px'
           }}
           onClick={() => {
-            const nextVal = !config.disable_esc_margins;
+            const nextVal = !Boolean(config.disable_esc_margins || config.disableEscMargins);
             set('disable_esc_margins', nextVal);
+            set('disableEscMargins', nextVal);
             if (typeof window !== 'undefined') {
               localStorage.setItem('DISABLE_ESC_MARGINS', nextVal ? '1' : '0');
             }

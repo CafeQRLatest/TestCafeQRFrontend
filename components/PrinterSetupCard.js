@@ -64,6 +64,20 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
     return false;
   });
 
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [printLogs, setPrintLogs] = useState([]);
+
+  const loadPrintLogs = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem('CAFEQR_PRINT_DEBUG_LOGS');
+      const parsed = raw ? JSON.parse(raw) : [];
+      setPrintLogs(parsed);
+    } catch {
+      setPrintLogs([]);
+    }
+  };
+
   const setPaperMm = (v) => onConfigChange?.('paper_mm', v);
   const setCols = (v) => onConfigChange?.('print_cols', v);
   const setLeftDots = (v) => onConfigChange?.('left_dots', v);
@@ -615,22 +629,47 @@ function saveNetworkPrinters() {
   return (
     <div className="hardware-container">
       
-      <div className="hardware-nav">
-        {[
-          { id: 'windows', label: 'Windows / USB', icon: <FaWindows /> },
-          { id: 'network', label: 'Network (Relay)', icon: <FaNetworkWired /> },
-          { id: 'android', label: 'Android Native', icon: <FaAndroid /> },
-          { id: 'routing', label: 'KOT Routing', icon: <FaRoute /> },
-          { id: 'paper',   label: 'Paper & Margins', icon: <FaCog /> },
-        ].filter(tab => !androidOnly || tab.id === 'android').map(tab => (
-          <button 
-            key={tab.id}
-            className={`nav-btn ${activeSubTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveSubTab(tab.id)}
-          >
-            {tab.icon} <span>{tab.label}</span>
-          </button>
-        ))}
+      <div className="hardware-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { id: 'windows', label: 'Windows / USB', icon: <FaWindows /> },
+            { id: 'network', label: 'Network (Relay)', icon: <FaNetworkWired /> },
+            { id: 'android', label: 'Android Native', icon: <FaAndroid /> },
+            { id: 'routing', label: 'KOT Routing', icon: <FaRoute /> },
+            { id: 'paper',   label: 'Paper & Margins', icon: <FaCog /> },
+          ].filter(tab => !androidOnly || tab.id === 'android').map(tab => (
+            <button 
+              key={tab.id}
+              className={`nav-btn ${activeSubTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveSubTab(tab.id)}
+            >
+              {tab.icon} <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => {
+            loadPrintLogs();
+            setShowDebugLogs(true);
+          }}
+          style={{
+            background: '#2563eb',
+            color: '#ffffff',
+            border: 'none',
+            padding: '8px 14px',
+            borderRadius: '6px',
+            fontWeight: '700',
+            cursor: 'pointer',
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 4px rgba(37,99,235,0.3)',
+            marginTop: '4px'
+          }}
+        >
+          📋 View Device Print Logs
+        </button>
       </div>
 
       <div className="hardware-content fade-in">
@@ -1164,13 +1203,95 @@ function saveNetworkPrinters() {
             </label>
             <div className="divider" style={{margin:'20px 0'}} />
 
-            <div className="action-row-end">
+            <div className="action-row-end" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+               <button
+                 onClick={() => {
+                   loadPrintLogs();
+                   setShowDebugLogs(true);
+                 }}
+                 className="btn-secondary"
+                 style={{ background: '#3b82f6', color: '#fff', fontWeight: '600' }}
+               >
+                 📋 View Device Print Logs
+               </button>
                <button onClick={persistPaperSettings} className="btn-primary">Save Formatting</button>
             </div>
           </div>
         )}
 
       </div>
+
+      {showDebugLogs && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.75)', zIndex: 99999, display: 'flex',
+          alignItems: 'center', justifyContent: 'center', padding: '16px'
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '600px',
+            maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ padding: '16px', background: '#0f172a', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>📋 Device Print Debug Logs</h3>
+              <button onClick={() => setShowDebugLogs(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', padding: '4px 8px' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '16px', overflowY: 'auto', flex: 1, fontFamily: 'monospace', fontSize: '12px', background: '#f8fafc' }}>
+              {printLogs.length === 0 ? (
+                <div style={{ color: '#64748b', textAlign: 'center', margin: '40px 0' }}>
+                  <p style={{ fontWeight: '600', marginBottom: '4px' }}>No print logs recorded yet.</p>
+                  <p style={{ fontSize: '11px' }}>Try tapping "Test Print" above or creating a Bill / KOT on POS.</p>
+                </div>
+              ) : (
+                printLogs.map((log, idx) => (
+                  <div key={log.id || idx} style={{
+                    marginBottom: '12px', padding: '12px', borderRadius: '8px',
+                    borderLeft: log.status === 'SUCCESS' ? '4px solid #22c55e' : '4px solid #ef4444',
+                    background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '6px' }}>
+                      <span style={{ color: log.status === 'SUCCESS' ? '#16a34a' : '#dc2626' }}>
+                        [{log.status}] {log.jobKind?.toUpperCase()}
+                      </span>
+                      <span style={{ color: '#64748b', fontSize: '11px' }}>{log.time}</span>
+                    </div>
+
+                    <div style={{ color: '#334155', marginBottom: '2px' }}><strong>Target Connection:</strong> {log.via || 'unknown'}</div>
+                    <div style={{ color: '#334155', marginBottom: '2px' }}><strong>DISABLE_ESC_MARGINS:</strong> <span style={{ color: log.disableEscMargins ? '#16a34a' : '#ea580c', fontWeight: '700' }}>{log.disableEscMargins ? '1 (TRUE - Margins Bypassed)' : '0 (FALSE - Margins Active)'}</span></div>
+                    {log.error && <div style={{ color: '#dc2626', marginTop: '4px', fontWeight: '600' }}><strong>Error:</strong> {log.error}</div>}
+                    {log.textSnippet && (
+                      <div style={{ marginTop: '6px', background: '#f1f5f9', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+                        <div style={{ color: '#475569', fontSize: '11px', fontWeight: '700', marginBottom: '2px' }}>Generated Text Snippet:</div>
+                        <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '11px', color: '#0f172a' }}>{log.textSnippet}</pre>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', background: '#fff' }}>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('CAFEQR_PRINT_DEBUG_LOGS');
+                  if (typeof window !== 'undefined') window.__cafeqr_print_logs = [];
+                  setPrintLogs([]);
+                }}
+                style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+              >
+                Clear Logs
+              </button>
+              <button
+                onClick={() => setShowDebugLogs(false)}
+                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {msg && (
         <div className={`hw-toast ${msg.startsWith('✗') ? 'error' : 'success'}`}>
