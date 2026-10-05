@@ -1241,7 +1241,7 @@ function saveNetworkPrinters() {
               {printLogs.length === 0 ? (
                 <div style={{ color: '#64748b', textAlign: 'center', margin: '40px 0' }}>
                   <p style={{ fontWeight: '600', marginBottom: '4px' }}>No print logs recorded yet.</p>
-                  <p style={{ fontSize: '11px' }}>Try tapping "Test Print" above or creating a Bill / KOT on POS.</p>
+                  <p style={{ fontSize: '11px' }}>Try tapping &quot;Test Print&quot; above or creating a Bill / KOT on POS.</p>
                 </div>
               ) : (
                 printLogs.map((log, idx) => (
