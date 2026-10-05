@@ -367,11 +367,11 @@ function getLayout(restaurantProfile, documentKey = "RECEIPT") {
   const cols = getReceiptWidthCols(restaurantProfile, documentKey);
   const paperMm = getLocalNumAny([`${prefix}PAPER_MM`, "PRINT_PAPER_MM"], cols >= 48 ? 80 : 58);
   const dotWidth = getLocalNumAny([`${prefix}PRINTABLE_DOTS`], paperMm >= 76 ? 576 : 384);
-  const defaultMargin = paperMm >= 76 ? 12 : 8;
+  const defaultMargin = paperMm >= 76 ? 12 : 0;
   const leftDots = getLocalNumAny([`${prefix}LEFT_MARGIN_DOTS`, "PRINT_LEFT_MARGIN_DOTS"], defaultMargin, true);
   const rightDots = getLocalNumAny([`${prefix}RIGHT_MARGIN_DOTS`, "PRINT_RIGHT_MARGIN_DOTS"], defaultMargin, true);
   const areaDots = Math.max(200, dotWidth - leftDots - rightDots);
-  const guardColsDefault = paperMm >= 76 ? 0 : 1;
+  const guardColsDefault = 0;
   const guardCols = getLocalNumAny([`${prefix}GUARD_COLS`, "PRINT_GUARD_COLS"], guardColsDefault, true);
   const safeCols = getLocalNumAny([`${prefix}SAFE_COLS`, "PRINT_SAFE_COLS"], 0, true);
   const charDots = 12;
@@ -403,10 +403,16 @@ function escposPageSetup(layout) {
   
   let cmd = ESC + "@"; // hard reset
   cmd += ESC + " " + b(0) +    // right-side character spacing = 0
-         ESC + "a" + b(48) +   // left align (default)
-         GS + "L" + b2(layout.leftDots) + // left margin
-         GS + "W" + b2(layout.areaDots) + // printable area width
-         ESC + "M" + b(48) +   // Font A
+         ESC + "a" + b(48);    // left align (default)
+
+  if (layout.leftDots > 0) {
+    cmd += GS + "L" + b2(layout.leftDots);
+  }
+  if (layout.leftDots > 0 || layout.rightDots > 0 || (layout.paperMm >= 76 && layout.areaDots < layout.dotWidth)) {
+    cmd += GS + "W" + b2(layout.areaDots);
+  }
+
+  cmd += ESC + "M" + b(48) +   // Font A
          ESC + "E" + b(0);     // bold off
          
   return cmd;
