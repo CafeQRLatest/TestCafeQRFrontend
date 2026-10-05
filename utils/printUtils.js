@@ -519,13 +519,15 @@ export function buildKotText(order, restaurantProfile) {
 
     lines.push(ALIGN_CENTER);
     if (showRestaurantName) {
-      lines.push(
-        MODE_BOLD +
-        getFontSizeCmd(tFontSize) +
-        restaurantName +
-        SIZE_1X +
-        MODE_NO_BOLD
-      );
+      wrapText(restaurantName, W).forEach((l) => {
+        lines.push(
+          MODE_BOLD +
+          getFontSizeCmd(tFontSize) +
+          withMargins(disableEsc ? center(l, W) : l, layout) +
+          SIZE_1X +
+          MODE_NO_BOLD
+        );
+      });
     }
     lines.push(ALIGN_LEFT);
     lines.push(withMargins(dashes(), layout));
@@ -572,19 +574,21 @@ export function buildKotText(order, restaurantProfile) {
 
     if (showTableLabel && tableLabel) {
       lines.push(ALIGN_CENTER);
-      lines.push(
-        MODE_BOLD +
-        getFontSizeCmd(tFontSize) +
-        tableLabel.toUpperCase() +
-        SIZE_1X +
-        MODE_NO_BOLD
-      );
+      wrapText(tableLabel.toUpperCase(), W).forEach((l) => {
+        lines.push(
+          MODE_BOLD +
+          getFontSizeCmd(tFontSize) +
+          withMargins(disableEsc ? center(l, W) : l, layout) +
+          SIZE_1X +
+          MODE_NO_BOLD
+        );
+      });
       lines.push(ALIGN_LEFT);
       lines.push(withMargins(dashes(), layout));
     }
 
     if (items.length) {
-      const itemScale = (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
+      const itemScale = (!disableEsc && (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH')) ? 2 : 1;
       const itemCols = Math.max(16, Math.floor(W / itemScale));
       const itemQtyW = itemScale === 2 ? 4 : qtyW;
       const itemNameW = Math.max(8, itemCols - itemQtyW - 1);
@@ -765,7 +769,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       ? String(pickValue(restaurantProfile, ["bill_footer_text", "billFooter", "bill_footer"], "") || "").trim()
       : "";
 
-    const itemScale = (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
+    const itemScale = (!disableEsc && (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH')) ? 2 : 1;
     const effW = Math.max(16, Math.floor(W / itemScale));
     const cols = getBillCols(effW, hasLineDiscount);
     const { name, qty, rate, disc, total, showDiscCol } = cols;
@@ -773,13 +777,15 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     lines.push(ALIGN_CENTER);
     if (showRestaurantName) {
-      lines.push(
-        MODE_BOLD +
-        getFontSizeCmd(tFontSize) +
-        restaurantName +
-        SIZE_1X +
-        MODE_NO_BOLD
-      );
+      wrapText(restaurantName, W).forEach((l) => {
+        lines.push(
+          MODE_BOLD +
+          getFontSizeCmd(tFontSize) +
+          withMargins(disableEsc ? center(l, W) : l, layout) +
+          SIZE_1X +
+          MODE_NO_BOLD
+        );
+      });
     }
     lines.push(ALIGN_LEFT);
 
@@ -896,7 +902,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine("Round Off:", (roundOff > 0 ? "+" : "") + fmtRate(roundOff), W), layout));
     }
     lines.push(withMargins(dashes(), layout));
-    const totalScale = (totalFontSize === 'DOUBLE' || totalFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
+    const totalScale = (!disableEsc && (totalFontSize === 'DOUBLE' || totalFontSize === 'DOUBLE_WIDTH')) ? 2 : 1;
     const totalSizeCmd = getFontSizeCmd(totalFontSize);
     lines.push(MODE_BOLD + totalSizeCmd + withMargins(kvLineScaled("TOTAL:", fmtRate(oGrandTotal), W, totalScale), layout) + SIZE_1X + MODE_NO_BOLD);
 
