@@ -8,12 +8,8 @@ export function textToEscPos(text, opts) {
   const cp = (opts?.codepage ?? 0) & 0xff;
   bytes.push(ESC, 0x74, cp);
 
-  const disableMargins = typeof window !== 'undefined' && (localStorage.getItem('DISABLE_ESC_MARGINS') === '1' || localStorage.getItem('DISABLE_ESC_MARGINS') === 'true');
-
-  if (!disableMargins) {
-    const sizeByte = opts?.scale === 'large' ? 0x01 : 0x00;
-    bytes.push(GS, 0x21, sizeByte);
-  }
+  const sizeByte = opts?.scale === 'large' ? 0x01 : 0x00;
+  bytes.push(GS, 0x21, sizeByte);
 
   // Replace Rupee symbol ₹ and Unicode characters with safe ASCII equivalents
   const safeText = String(text || '')
