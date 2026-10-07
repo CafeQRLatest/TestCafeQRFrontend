@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
+import { fetchSalesPaymentTypes } from '../../services/paymentApi';
 
 export default function PaymentModal({
   customer,
@@ -17,6 +18,83 @@ export default function PaymentModal({
   SYM,
 }) {
   if (!customer) return null;
+
+  const [paymentTypes, setPaymentTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const orgId = customer?.organizationId || customer?.orgId || invoice?.orgId || config?.organizationId || null;
+    fetchSalesPaymentTypes(orgId)
+      .then((data) => {
+        if (active && Array.isArray(data)) {
+          setPaymentTypes(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load sales payment types:', err);
+      });
+    return () => { active = false; };
+  }, [customer, invoice, config]);
+
+  const paymentOptions = useMemo(() => {
+    if (!paymentTypes || paymentTypes.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'UPI', label: 'UPI / QR Code' },
+        { value: 'CARD', label: 'Card Payment' },
+        { value: 'BANK', label: 'Bank Transfer' },
+        { value: 'ONLINE', label: 'Online' },
+        { value: 'CHEQUE', label: 'Cheque' },
+      ];
+    }
+
+    const filtered = paymentTypes.filter((pt) => {
+      const act = pt.isActive ?? pt.isactive ?? 'Y';
+      if (act === 'N' || act === false) return false;
+      const isSales = pt.sales === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('SALES') : pt.applicableFor === 'SALES');
+      if (isSales === false) return false;
+      if (pt.paymentType === 'CREDIT' || String(pt.displayName || '').toUpperCase() === 'CREDIT') return false;
+      if (String(pt.displayName || '').toUpperCase() === 'MIXED') return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'UPI', label: 'UPI / QR Code' },
+        { value: 'CARD', label: 'Card Payment' },
+        { value: 'BANK', label: 'Bank Transfer' },
+        { value: 'ONLINE', label: 'Online' },
+        { value: 'CHEQUE', label: 'Cheque' },
+      ];
+    }
+
+    return filtered.map((pt) => {
+      const rawUpper = String(pt.displayName || pt.paymentType || 'OTHERS').toUpperCase().trim();
+      let val = rawUpper.replace(/[\s\/-]+/g, '_');
+      if (rawUpper === 'CASH') val = 'CASH';
+      else if (rawUpper === 'UPI' || rawUpper.startsWith('UPI')) val = 'UPI';
+      else if (rawUpper === 'CARD' || rawUpper.includes('CARD')) val = 'CARD';
+      else if (rawUpper === 'BANK' || rawUpper === 'BANK TRANSFER') val = 'BANK';
+      else if (rawUpper === 'CHEQUE' || rawUpper === 'CHECK') val = 'CHEQUE';
+      else if (rawUpper === 'ONLINE') val = 'ONLINE';
+      return {
+        value: val,
+        label: pt.displayName || pt.paymentType,
+        isDefault: Boolean(pt.isDefault),
+      };
+    });
+  }, [paymentTypes]);
+
+  useEffect(() => {
+    if (paymentOptions.length > 0 && typeof setMethod === 'function') {
+      const exists = paymentOptions.some((opt) => opt.value === method);
+      if (!exists) {
+        const defaultOpt = paymentOptions.find((opt) => opt.isDefault) || paymentOptions[0];
+        setMethod(defaultOpt.value);
+      }
+    }
+  }, [paymentOptions, method, setMethod]);
 
   // For bulk settlement, use balance OR totalCreditExtended as fallback
   const customerBalance = Number(customer.balance || customer.totalCreditExtended || 0);
@@ -99,14 +177,7 @@ export default function PaymentModal({
             <NiceSelect 
               value={method} 
               onChange={setMethod} 
-              options={[
-                { value: 'CASH', label: 'Cash' },
-                { value: 'UPI', label: 'UPI / QR Code' },
-                { value: 'CARD', label: 'Card Payment' },
-                { value: 'BANK', label: 'Bank Transfer' },
-                { value: 'ONLINE', label: 'Online' },
-                { value: 'CHEQUE', label: 'Cheque' },
-              ]} 
+              options={paymentOptions} 
             />
           </div>
         </div>

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
+import { fetchPurchasePaymentTypes } from '../../services/paymentApi';
 
 export default function VendorPaymentModal({
   vendor,
@@ -21,10 +22,84 @@ export default function VendorPaymentModal({
 }) {
   if (!vendor) return null;
 
+  const [paymentTypes, setPaymentTypes] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const orgId = vendor?.organizationId || vendor?.orgId || order?.orgId || config?.organizationId || null;
+    fetchPurchasePaymentTypes(orgId)
+      .then((data) => {
+        if (active && Array.isArray(data)) {
+          setPaymentTypes(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load purchase payment types:', err);
+      });
+    return () => { active = false; };
+  }, [vendor, order, config]);
+
+  const paymentOptions = useMemo(() => {
+    if (!paymentTypes || paymentTypes.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'BANK', label: 'Bank Transfer' },
+        { value: 'UPI', label: 'UPI / Digital' },
+        { value: 'CHEQUE', label: 'Cheque' },
+        { value: 'ONLINE', label: 'Card / Online' },
+      ];
+    }
+
+    const filtered = paymentTypes.filter((pt) => {
+      const act = pt.isActive ?? pt.isactive ?? 'Y';
+      if (act === 'N' || act === false) return false;
+      const isPurchase = pt.purchase === 'Y' || (Array.isArray(pt.applicableFor) ? pt.applicableFor.includes('PURCHASES') : pt.applicableFor === 'PURCHASES');
+      if (isPurchase === false) return false;
+      if (pt.paymentType === 'CREDIT' || String(pt.displayName || '').toUpperCase() === 'CREDIT') return false;
+      if (String(pt.displayName || '').toUpperCase() === 'MIXED') return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return [
+        { value: 'CASH', label: 'Cash' },
+        { value: 'BANK', label: 'Bank Transfer' },
+        { value: 'UPI', label: 'UPI / Digital' },
+        { value: 'CHEQUE', label: 'Cheque' },
+        { value: 'ONLINE', label: 'Card / Online' },
+      ];
+    }
+
+    return filtered.map((pt) => {
+      const rawUpper = String(pt.displayName || pt.paymentType || 'OTHERS').toUpperCase().trim();
+      let val = rawUpper.replace(/[\s\/-]+/g, '_');
+      if (rawUpper === 'CASH') val = 'CASH';
+      else if (rawUpper === 'BANK' || rawUpper === 'BANK TRANSFER') val = 'BANK';
+      else if (rawUpper === 'UPI' || rawUpper.startsWith('UPI')) val = 'UPI';
+      else if (rawUpper === 'CHEQUE' || rawUpper === 'CHECK') val = 'CHEQUE';
+      else if (rawUpper === 'ONLINE' || rawUpper === 'CARD / ONLINE' || rawUpper === 'CARD') val = 'ONLINE';
+      return {
+        value: val,
+        label: pt.displayName || pt.paymentType,
+        isDefault: Boolean(pt.isDefault),
+      };
+    });
+  }, [paymentTypes]);
+
+  useEffect(() => {
+    if (paymentOptions.length > 0 && typeof setMethod === 'function') {
+      const exists = paymentOptions.some((opt) => opt.value === method);
+      if (!exists) {
+        const defaultOpt = paymentOptions.find((opt) => opt.isDefault) || paymentOptions[0];
+        setMethod(defaultOpt.value);
+      }
+    }
+  }, [paymentOptions, method, setMethod]);
+
   const currentBalance = Number(vendor.balance ?? vendor.openingBalance ?? 0);
-  const orderTotal = order ? Number(order.totalAmount || order.total_amount || 0) : 0;
-  const orderPaid = order ? Number(order.amountPaid || order.amount_paid || 0) : 0;
-  const orderDue = Math.max(0, orderTotal - orderPaid);
+  const orderTotal = order ? Number(order.total ?? order.totalAmount ?? order.total_amount ?? order.grandTotal ?? 0) : 0;
+  const orderDue = order ? Number(order.amountDue ?? Math.max(0, orderTotal - Number(order.amountPaid ?? order.amount_paid ?? 0))) : 0;
+  const orderPaid = order ? Number(order.amountPaid ?? order.amount_paid ?? Math.max(0, orderTotal - orderDue)) : 0;
   const maxPayable = order 
     ? orderDue
     : (currentBalance > 0 ? currentBalance : 0);
@@ -78,7 +153,7 @@ export default function VendorPaymentModal({
             <input 
               className="form-input"
               type="number" 
-              min="0"
+              min="0" 
               step="0.01" 
               value={amount} 
               onChange={(event) => setAmount(event.target.value)} 
@@ -103,13 +178,7 @@ export default function VendorPaymentModal({
             <NiceSelect 
               value={method} 
               onChange={setMethod} 
-              options={[
-                { value: 'CASH', label: 'Cash' },
-                { value: 'BANK', label: 'Bank Transfer' },
-                { value: 'UPI', label: 'UPI / Digital' },
-                { value: 'CHEQUE', label: 'Cheque' },
-                { value: 'ONLINE', label: 'Card / Online' },
-              ]} 
+              options={paymentOptions} 
             />
           </div>
 

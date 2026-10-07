@@ -10,15 +10,17 @@ import api from '../utils/api';
 const paymentTypesCache = new Map();
 
 /**
- * Fetch sales payment types, using the per-org Promise cache.
+ * Fetch payment types by context ('SALES', 'PURCHASES', etc.), using the per-org Promise cache.
  *
+ * @param {string} context - 'SALES', 'PURCHASES', 'EXPENSES'
  * @param {string|number|null} orgId - Organization identifier for tenant isolation.
- *   Pass null/undefined for single-tenant setups; falls back to 'default'.
  * @param {object} options - Optional axios request config (e.g. signal).
  * @returns {Promise<Array>} Resolves with the list of payment type records.
  */
-export function fetchSalesPaymentTypes(orgId, options = {}) {
-  const key = orgId != null ? String(orgId) : 'default';
+export function fetchPaymentTypesByContext(context = 'SALES', orgId = null, options = {}) {
+  const ctx = (context || 'SALES').toUpperCase();
+  const org = orgId != null ? String(orgId) : 'default';
+  const key = `${ctx}:${org}`;
 
   if (!paymentTypesCache.has(key)) {
     paymentTypesCache.set(
@@ -28,7 +30,8 @@ export function fetchSalesPaymentTypes(orgId, options = {}) {
           ...options,
           params: {
             ...(options.params || {}),
-            applicableFor: 'SALES',
+            applicableFor: ctx,
+            ...(orgId != null ? { orgId } : {}),
           },
         })
         .then(({ data }) => data.data || [])
@@ -44,6 +47,20 @@ export function fetchSalesPaymentTypes(orgId, options = {}) {
 }
 
 /**
+ * Fetch sales payment types.
+ */
+export function fetchSalesPaymentTypes(orgId, options = {}) {
+  return fetchPaymentTypesByContext('SALES', orgId, options);
+}
+
+/**
+ * Fetch purchase payment types.
+ */
+export function fetchPurchasePaymentTypes(orgId, options = {}) {
+  return fetchPaymentTypesByContext('PURCHASES', orgId, options);
+}
+
+/**
  * Invalidate the payment types cache for a specific org (or all orgs).
  * Useful in tests or after admin changes to payment method configuration.
  *
@@ -53,6 +70,11 @@ export function resetPaymentTypesCache(orgId = null) {
   if (orgId == null) {
     paymentTypesCache.clear();
   } else {
-    paymentTypesCache.delete(String(orgId));
+    const orgSuffix = `:${orgId}`;
+    for (const key of paymentTypesCache.keys()) {
+      if (key.endsWith(orgSuffix)) {
+        paymentTypesCache.delete(key);
+      }
+    }
   }
 }

@@ -64,11 +64,12 @@ export default function CreditVendorTable({
   };
 
   // Helper to render clear Order & Payment status for CreditOrderDto
-  // status = invoice status: COMPLETED (open/unpaid), PARTIAL, PAID
-  // paymentStatus = linked order payment status: PENDING, PARTIAL, PAID
+  // Accurately reflects whether the Purchase Order is received vs ordered but not yet received
   const renderOrderStatus = (order) => {
     const invoiceStatus = String(order.status || '').toUpperCase();
     const pStatus = String(order.paymentStatus || '').toUpperCase();
+    const oStatus = String(order.orderStatus || '').toUpperCase();
+    const isReceived = Boolean(order.isReceived === true || oStatus === 'COMPLETED' || oStatus === 'RECEIVED');
 
     if (invoiceStatus === 'PAID' || pStatus === 'PAID') {
       return <span className="rpt-st paid" style={{ fontSize: '10px' }}>PAID</span>;
@@ -76,13 +77,29 @@ export default function CreditVendorTable({
     if (invoiceStatus === 'PARTIAL' || pStatus === 'PARTIAL' || pStatus === 'PARTIALLY_PAID') {
       return <span className="rpt-st partial" style={{ fontSize: '10px' }}>PARTIALLY PAID</span>;
     }
-    if (invoiceStatus === 'COMPLETED') {
-      return <span className="rpt-st billed" style={{ fontSize: '10px' }}>RECEIVED (UNPAID)</span>;
-    }
-    if (invoiceStatus === 'CANCELLED' || invoiceStatus === 'VOID' || invoiceStatus === 'VOIDED') {
+    if (invoiceStatus === 'CANCELLED' || invoiceStatus === 'VOID' || invoiceStatus === 'VOIDED' || oStatus === 'CANCELLED' || oStatus === 'VOID') {
       return <span className="rpt-st suspended" style={{ fontSize: '10px' }}>CANCELLED</span>;
     }
-    return <span className="rpt-st billed" style={{ fontSize: '10px' }}>{invoiceStatus || 'PENDING'}</span>;
+
+    if (isReceived) {
+      return <span className="rpt-st billed" style={{ fontSize: '10px' }}>RECEIVED (UNPAID)</span>;
+    }
+
+    // Purchase Order is pending delivery/receipt (not yet marked as received)
+    return (
+      <span 
+        className="rpt-st pending" 
+        style={{ 
+          fontSize: '10px', 
+          background: '#fffbeb', 
+          color: '#b45309', 
+          borderColor: '#fde68a',
+          fontWeight: '600'
+        }}
+      >
+        ORDERED (UNPAID)
+      </span>
+    );
   };
 
   const startRecord = vendors.length === 0 ? 0 : (page - 1) * pageSize + 1;
