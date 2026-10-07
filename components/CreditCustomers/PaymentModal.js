@@ -94,13 +94,15 @@ export default function PaymentModal({
     }
   }, [paymentOptions, method, setMethod]);
 
+  if (!customer) return null;
+
   // For bulk settlement, use balance OR totalCreditExtended as fallback
-  const customerBalance = Number(customer.balance || customer.totalCreditExtended || 0);
+  const customerBalance = Number(customer?.balance || customer?.totalCreditExtended || 0);
 
   // For direct invoice payment, break out total vs amount due
   const invoiceTotal = invoice ? Number(invoice.total || invoice.grandTotal || invoice.amountDue || 0) : 0;
   const invoiceDue = invoice ? Number(invoice.amountDue || 0) : 0;
-  if (!customer) return null;
+  const invoiceAlreadyPaid = Math.max(0, invoiceTotal - invoiceDue);
 
   return (
     <div className="rpt-modal-overlay" onMouseDown={onClose}>

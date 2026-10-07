@@ -191,21 +191,23 @@ function CreditSettlementsContent() {
           SYM={SYM}
         />
 
-        <PaymentModal
-          customer={paymentCustomer}
-          invoice={paymentInvoice}
-          amount={paymentAmount}
-          setAmount={setPaymentAmount}
-          method={paymentMethod}
-          setMethod={setPaymentMethod}
-          manualAllocations={manualAllocations}
-          setManualAllocations={setManualAllocations}
-          config={config}
-          submitPayment={submitCustomerPayment}
-          onClose={() => { setPaymentCustomer(null); setPaymentInvoice(null); }}
-          money={money}
-          SYM={SYM}
-        />
+        {paymentCustomer && (
+          <PaymentModal
+            customer={paymentCustomer}
+            invoice={paymentInvoice}
+            amount={paymentAmount}
+            setAmount={setPaymentAmount}
+            method={paymentMethod}
+            setMethod={setPaymentMethod}
+            manualAllocations={manualAllocations}
+            setManualAllocations={setManualAllocations}
+            config={config}
+            submitPayment={submitCustomerPayment}
+            onClose={() => { setPaymentCustomer(null); setPaymentInvoice(null); }}
+            money={money}
+            SYM={SYM}
+          />
+        )}
 
         {/* Vendor Modals */}
         <VendorFormModal
@@ -219,24 +221,26 @@ function CreditSettlementsContent() {
           SYM={SYM}
         />
 
-        <VendorPaymentModal
-          vendor={paymentVendor}
-          order={vendorPaymentOrder}
-          amount={vendorPaymentAmount}
-          setAmount={setVendorPaymentAmount}
-          method={vendorPaymentMethod}
-          setMethod={setVendorPaymentMethod}
-          notes={vendorPaymentNotes}
-          setNotes={setVendorPaymentNotes}
-          manualAllocations={vendorManualAllocations}
-          setManualAllocations={setVendorManualAllocations}
-          config={config}
-          submitPayment={submitVendorPayment}
-          onClose={() => { setPaymentVendor(null); setVendorPaymentOrder(null); }}
-          money={money}
-          SYM={SYM}
-          saving={savingVendor}
-        />
+        {paymentVendor && (
+          <VendorPaymentModal
+            vendor={paymentVendor}
+            order={vendorPaymentOrder}
+            amount={vendorPaymentAmount}
+            setAmount={setVendorPaymentAmount}
+            method={vendorPaymentMethod}
+            setMethod={setVendorPaymentMethod}
+            notes={vendorPaymentNotes}
+            setNotes={setVendorPaymentNotes}
+            manualAllocations={vendorManualAllocations}
+            setManualAllocations={setVendorManualAllocations}
+            config={config}
+            submitPayment={submitVendorPayment}
+            onClose={() => { setPaymentVendor(null); setVendorPaymentOrder(null); }}
+            money={money}
+            SYM={SYM}
+            saving={savingVendor}
+          />
+        )}
 
         {/* Document Viewer Popup */}
         {viewingDoc && (

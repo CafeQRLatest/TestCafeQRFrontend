@@ -211,9 +211,9 @@ export default function useCreditSettlements() {
   }, [customers, search]);
 
   const customerTotals = useMemo(() => ({
-    active: customers.filter((c) => String(c.status || '').toUpperCase() === 'ACTIVE').length,
-    owed: customers.reduce((sum, c) => sum + Number(c.balance || 0), 0),
-    lifetime: customers.reduce((sum, c) => sum + Number(c.totalCreditExtended || 0), 0),
+    active: (customers || []).filter((c) => String(c?.status || '').toUpperCase() === 'ACTIVE').length,
+    owed: (customers || []).reduce((sum, c) => sum + Number(c?.balance || 0), 0),
+    lifetime: (customers || []).reduce((sum, c) => sum + Number(c?.totalCreditExtended || 0), 0),
   }), [customers]);
 
   const openCustomerForm = (customer = null) => {
@@ -454,9 +454,9 @@ export default function useCreditSettlements() {
   }, [vendors, search]);
 
   const vendorTotals = useMemo(() => ({
-    active: vendors.filter((v) => String(v.isactive || v.status || 'Y').toUpperCase() !== 'N').length,
-    owed: vendors.reduce((sum, v) => sum + Number(v.balance ?? 0), 0),
-    lifetime: vendors.reduce((sum, v) => sum + Number(v.creditLimit || v.openingBalance || 0), 0),
+    active: (vendors || []).filter((v) => String(v?.isactive || v?.status || 'Y').toUpperCase() !== 'N').length,
+    owed: (vendors || []).reduce((sum, v) => sum + Number(v?.balance ?? 0), 0),
+    lifetime: (vendors || []).reduce((sum, v) => sum + Number(v?.creditLimit || v?.openingBalance || 0), 0),
   }), [vendors]);
 
   const openVendorForm = (vendor = null) => {

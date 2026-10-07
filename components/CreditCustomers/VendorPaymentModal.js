@@ -94,15 +94,15 @@ export default function VendorPaymentModal({
     }
   }, [paymentOptions, method, setMethod]);
 
-  const currentBalance = Number(vendor.balance ?? vendor.openingBalance ?? 0);
+  if (!vendor) return null;
+
+  const currentBalance = Number(vendor?.balance ?? vendor?.openingBalance ?? 0);
   const orderTotal = order ? Number(order.total ?? order.totalAmount ?? order.total_amount ?? order.grandTotal ?? 0) : 0;
   const orderDue = order ? Number(order.amountDue ?? Math.max(0, orderTotal - Number(order.amountPaid ?? order.amount_paid ?? 0))) : 0;
   const orderPaid = order ? Number(order.amountPaid ?? order.amount_paid ?? Math.max(0, orderTotal - orderDue)) : 0;
   const maxPayable = order 
     ? orderDue
     : (currentBalance > 0 ? currentBalance : 0);
-
-  if (!vendor) return null;
 
   return (
     <div className="rpt-modal-overlay" onMouseDown={onClose}>
