@@ -131,7 +131,7 @@ function normalizeLine(line, index) {
     variantName,
     productName,
     displayName,
-    categoryName: line.categoryName || line.category_name || null,
+    categoryName: line.categoryName || line.category_name || (typeof line.category === 'string' ? line.category : line.category?.name) || null,
     isPackagedGood: Boolean(line.isPackagedGood ?? line.is_packaged_good ?? line.is_packaged),
     quantity: toNumber(line.quantity || line.qty || 1) || 1,
     unitPrice: toNumber(line.unitPrice ?? line.unit_price ?? line.price),

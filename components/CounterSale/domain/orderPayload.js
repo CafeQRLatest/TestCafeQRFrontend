@@ -111,7 +111,11 @@ export function buildProcessedLines({ cart, totals, config }) {
       productId: cartItem?.productId || pi.productId || pi.product_id || pi.id || pi.pid || null,
       variantId: cartItem?.variantId || null,
       productName,
-      categoryName: cartItem?.categoryName || pi.categoryName || pi.category || null,
+      categoryName: (
+        typeof (cartItem?.categoryName || pi.categoryName) === 'string'
+          ? (cartItem?.categoryName || pi.categoryName).trim()
+          : (cartItem?.category?.name || pi.category?.name || (typeof pi.category === 'string' ? pi.category.trim() : null) || null)
+      ),
       isPackagedGood: Boolean(
         cartItem?.isPackagedGood ?? 
         cartItem?.is_packaged_good ?? 
@@ -175,7 +179,7 @@ export function buildOrderPayload({
   const effectiveOrderMode = kitchenEnabled ? orderMode : 'settle';
   const isCreditFinal = isCreditSale && effectiveOrderMode === 'settle';
   const isOfflineFinal = knownOffline && effectiveOrderMode === 'settle' && mainOfflineDevice;
-  const isSettleDirect = effectiveOrderMode === 'settle' && paymentPayload !== null;
+  const isSettleDirect = effectiveOrderMode === 'settle' && Boolean(paymentPayload);
 
   const payload = {
     orderType: 'SALE',
