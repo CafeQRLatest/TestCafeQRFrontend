@@ -826,14 +826,14 @@ export default function ProductManagementPopup({
                                  .then(resp => {
                                     if (resp.data?.success && resp.data?.imageUrl) {
                                        setSelectedProduct(prev => ({ ...prev, imageUrl: resp.data.imageUrl }));
-                                       notify('success', 'Image uploaded to cloud storage');
+                                       notify('success', 'Image uploaded to cloud storage (R2)');
                                     } else {
-                                       setSelectedProduct(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/webp', 0.8) }));
+                                       notify('error', 'Image upload failed: ' + (resp.data?.message || 'Cloud storage unavailable'));
                                     }
                                  })
                                  .catch(err => {
-                                    console.warn('R2 Cloud upload not active or failed, using local canvas fallback:', err);
-                                    setSelectedProduct(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/webp', 0.8) }));
+                                    console.error('R2 Cloud upload failed:', err);
+                                    notify('error', 'Failed to upload image to Cloud Storage (R2). Please check connection.');
                                  });
                               }, 'image/webp', 0.8);
                            };

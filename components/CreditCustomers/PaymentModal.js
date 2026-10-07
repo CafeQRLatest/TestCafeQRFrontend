@@ -17,8 +17,6 @@ export default function PaymentModal({
   money,
   SYM,
 }) {
-  if (!customer) return null;
-
   const [paymentTypes, setPaymentTypes] = useState([]);
 
   useEffect(() => {
@@ -102,7 +100,7 @@ export default function PaymentModal({
   // For direct invoice payment, break out total vs amount due
   const invoiceTotal = invoice ? Number(invoice.total || invoice.grandTotal || invoice.amountDue || 0) : 0;
   const invoiceDue = invoice ? Number(invoice.amountDue || 0) : 0;
-  const invoiceAlreadyPaid = Math.max(0, invoiceTotal - invoiceDue);
+  if (!customer) return null;
 
   return (
     <div className="rpt-modal-overlay" onMouseDown={onClose}>

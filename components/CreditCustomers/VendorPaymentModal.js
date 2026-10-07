@@ -20,8 +20,6 @@ export default function VendorPaymentModal({
   SYM,
   saving,
 }) {
-  if (!vendor) return null;
-
   const [paymentTypes, setPaymentTypes] = useState([]);
 
   useEffect(() => {
@@ -103,6 +101,8 @@ export default function VendorPaymentModal({
   const maxPayable = order 
     ? orderDue
     : (currentBalance > 0 ? currentBalance : 0);
+
+  if (!vendor) return null;
 
   return (
     <div className="rpt-modal-overlay" onMouseDown={onClose}>
