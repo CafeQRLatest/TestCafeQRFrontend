@@ -829,11 +829,29 @@ export default function SalesHistoryPage() {
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
 
+      const effectiveOrder = {
+        ...paymentOrder,
+        ...(payload?.updatedOrder || {}),
+        customerId: payload?.customerId || paymentOrder?.customerId,
+        customerName: payload?.customerName || paymentOrder?.customerName,
+        customerPhone: payload?.customerPhone || paymentOrder?.customerPhone,
+        customers: (payload?.customerPhone || payload?.customerName)
+          ? [{ id: payload?.customerId, name: payload?.customerName, phone: payload?.customerPhone, primary: true }]
+          : paymentOrder?.customers,
+        paymentMethod: payload?.paymentMethod || paymentOrder?.paymentMethod,
+        orgId: paymentOrder?.orgId || config?.orgId || config?.branchId,
+        clientId: paymentOrder?.clientId || config?.clientId,
+        lines: payload?.updatedOrder?.lines || paymentOrder?.lines || [],
+        totalDiscountAmount: payload?.discountAmount ?? paymentOrder?.totalDiscountAmount,
+        roundOffAmount: payload?.roundOffAmount ?? paymentOrder?.roundOffAmount,
+        grandTotal: payload?.amountPaid ?? paymentOrder?.grandTotal
+      };
+
       let pdfBase64 = null;
       try {
-        const phone = payload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
         if (phone) {
-          const generated = await generateInvoicePdfDoc(paymentOrder);
+          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
           if (generated?.pdfBase64) {
             pdfBase64 = generated.pdfBase64;
           }
@@ -849,11 +867,17 @@ export default function SalesHistoryPage() {
           roundOffAmount: payload.roundOffAmount ?? 0,
           redeemPoints: payload.redeemPoints,
           loyaltyCustomerId: payload.loyaltyCustomerId,
+          ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
+          ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
+          ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
           ...(pdfBase64 ? { pdfBase64 } : {}),
         }
         : {
           ...payload,
+          ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
+          ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
+          ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
           ...(pdfBase64 ? { pdfBase64 } : {}),
         };

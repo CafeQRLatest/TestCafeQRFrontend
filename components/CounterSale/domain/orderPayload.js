@@ -232,10 +232,21 @@ export function buildOrderPayload({
       roundOffAmount: Number((totals.round_off_amount || 0).toFixed(dp)),
       roundOffMode: totals.round_off_amount != null && Math.abs(totals.round_off_amount) > 0 ? 'MANUAL' : undefined,
     } : {}),
-    ...(customersEnabled ? {
-      customerId: primaryCustomer?.id || null,
-      customerIds: customerSelections.length > 0 ? customerSelections : null,
-    } : {}),
+    ...(() => {
+      const resolvedCustId = paymentPayload?.customerId || primaryCustomer?.id || null;
+      const resolvedCustName = paymentPayload?.customerName || primaryCustomer?.name || null;
+      const resolvedCustPhone = paymentPayload?.customerPhone || primaryCustomer?.phone || null;
+      const hasCustomer = Boolean(resolvedCustId || resolvedCustName || resolvedCustPhone || customerSelections?.length > 0);
+      if (!customersEnabled && !hasCustomer) return {};
+      return {
+        customerId: resolvedCustId,
+        customerIds: (customerSelections && customerSelections.length > 0)
+          ? customerSelections
+          : ((resolvedCustPhone || resolvedCustName || resolvedCustId)
+            ? [{ id: resolvedCustId, name: resolvedCustName, phone: resolvedCustPhone, primary: true }]
+            : null),
+      };
+    })(),
     grandTotal: isSettleDirect
       ? Number((paymentPayload.amountPaid || totals.total_inc_tax).toFixed(dp))
       : Number((totals.grand_total || totals.total_inc_tax).toFixed(dp)),

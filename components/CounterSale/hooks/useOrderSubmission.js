@@ -254,6 +254,37 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         };
       }
 
+      if (effectiveOrderMode === 'settle' && !knownOffline) {
+        const phone = paymentPayload?.customerPhone || primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone;
+        if (phone) {
+          try {
+            const effectiveOrderForPdf = {
+              ...requestPayload,
+              customerPhone: phone,
+              customerName: paymentPayload?.customerName || primaryCustomer?.name || selectedCreditCustomer?.name || customerSelections?.[0]?.name,
+              customerId: paymentPayload?.customerId || primaryCustomer?.id || selectedCreditCustomer?.id || customerSelections?.[0]?.id,
+              customers: [{
+                id: paymentPayload?.customerId || primaryCustomer?.id || selectedCreditCustomer?.id || customerSelections?.[0]?.id,
+                name: paymentPayload?.customerName || primaryCustomer?.name || selectedCreditCustomer?.name || customerSelections?.[0]?.name,
+                phone: phone,
+                primary: true
+              }],
+              orgId: orgId || config?.orgId || config?.branchId,
+              clientId: config?.clientId,
+              lines: requestPayload.lines || [],
+              grandTotal: requestPayload.grandTotal || totals?.total_inc_tax,
+              paymentMethod: paymentPayload?.paymentMethod || requestPayload.paymentMethod
+            };
+            const generated = await generateInvoicePdfDoc(effectiveOrderForPdf, config);
+            if (generated?.pdfBase64) {
+              requestPayload.pdfBase64 = generated.pdfBase64;
+            }
+          } catch (pdfErr) {
+            console.warn('[useOrderSubmission] Could not pre-generate PDF attachment for WhatsApp:', pdfErr);
+          }
+        }
+      }
+
       const res = await createOrderFn(requestPayload, {
         headers: { 'Idempotency-Key': idempotencyKey },
         skipOfflineQueue: knownOffline && effectiveOrderMode === 'settle' && !mainOfflineDevice
@@ -327,9 +358,9 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         rememberTrending(cart);
       }
 
-      // Automatically dispatch official invoice PDF via WhatsApp if settled with customer phone
+      // Automatically dispatch official invoice PDF via WhatsApp if settled with customer phone (fallback if not pre-attached)
       const customerPhone = primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone || savedOrder?.customerPhone;
-      if (effectiveOrderMode === 'settle' && savedOrder?.id && customerPhone && !knownOffline) {
+      if (effectiveOrderMode === 'settle' && savedOrder?.id && customerPhone && !knownOffline && !requestPayload.pdfBase64) {
         (async () => {
           try {
             const generated = await generateInvoicePdfDoc(printOrder, config);

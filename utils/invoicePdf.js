@@ -177,12 +177,12 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     invoiceData = data?.data || null;
   } catch { /* use order only */ }
 
-  const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || getCookie('orgId');
+  const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || configOverride?.orgId || configOverride?.branchId || getCookie('orgId');
   const custId = order.customerId || order.customer_id || (Array.isArray(order.customers) && order.customers[0]?.id) || order.creditCustomerId || order.credit_customer_id || invoiceData?.customerId;
   const loyaltyCustId = order.loyaltyCustomerId || order.loyalty_customer_id || custId;
 
   // 2. Fetch configuration, branch/client, customer, and loyalty details concurrently
-  let cfg = configOverride;
+  let cfg = configOverride ? { ...configOverride } : null;
   let branchData = null;
   let clientData = null;
   let fetchedCustomer = null;
@@ -211,6 +211,8 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   } catch (err) {
     console.warn('Failed to load configuration/org/client/loyalty details:', err);
   }
+
+  cfg = cfg || {};
 
   // 3. Initialize jsPDF dynamically based on templates configuration
   const regTpl = cfg.regularTemplate || {};

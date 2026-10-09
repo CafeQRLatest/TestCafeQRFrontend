@@ -1712,11 +1712,29 @@ export default function PosOrderTypeModal({
         if (newId) settleId = newId;
       }
 
+      const effectiveOrder = {
+        ...paymentOrder,
+        ...(settlementPayload?.updatedOrder || {}),
+        customerId: settlementPayload?.customerId || paymentOrder?.customerId,
+        customerName: settlementPayload?.customerName || paymentOrder?.customerName,
+        customerPhone: settlementPayload?.customerPhone || paymentOrder?.customerPhone,
+        customers: (settlementPayload?.customerPhone || settlementPayload?.customerName)
+          ? [{ id: settlementPayload?.customerId, name: settlementPayload?.customerName, phone: settlementPayload?.customerPhone, primary: true }]
+          : paymentOrder?.customers,
+        paymentMethod: settlementPayload?.paymentMethod || paymentOrder?.paymentMethod,
+        orgId: paymentOrder?.orgId || config?.orgId || config?.branchId,
+        clientId: paymentOrder?.clientId || config?.clientId,
+        lines: settlementPayload?.updatedOrder?.lines || paymentOrder?.lines || [],
+        totalDiscountAmount: settlementPayload?.discountAmount ?? paymentOrder?.totalDiscountAmount,
+        roundOffAmount: settlementPayload?.roundOffAmount ?? paymentOrder?.roundOffAmount,
+        grandTotal: settlementPayload?.amountPaid ?? paymentOrder?.grandTotal
+      };
+
       let pdfBase64 = null;
       try {
-        const phone = settlementPayload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
         if (phone) {
-          const generated = await generateInvoicePdfDoc(paymentOrder);
+          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
           if (generated?.pdfBase64) {
             pdfBase64 = generated.pdfBase64;
           }
@@ -1730,9 +1748,9 @@ export default function PosOrderTypeModal({
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
         skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
         // Forward customer attachment from PaymentDialog (if cashier selected a customer)
-        ...(settlementPayload.customerId ? { customerId: settlementPayload.customerId } : {}),
-        ...(settlementPayload.customerName ? { customerName: settlementPayload.customerName } : {}),
-        ...(settlementPayload.customerPhone ? { customerPhone: settlementPayload.customerPhone } : {}),
+        ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
+        ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
+        ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
         ...(pdfBase64 ? { pdfBase64 } : {}),
       };
 
