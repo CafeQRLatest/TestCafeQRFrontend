@@ -297,7 +297,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   const fssai       = clientData?.fssaiNumber || cfg.fssaiLicense || '';
   const footerText  = regTpl.showFooter !== false ? (regTpl.footer || cfg.billFooter || cfg.billFooterText || '') : '';
 
-  const orderNo    = order.orderNo || order.order_no || `#${String(order.id).slice(0, 8)}`;
+  const orderNo    = order.orderNo || order.order_no || (order?.id ? `#${String(order.id).slice(0, 8)}` : '');
   const invoiceNo  = invoiceData?.invoiceNo || invoiceData?.invoice_no || order?.invoiceNo || order?.invoice_no || '';
   const paymentRef = invoiceData?.referenceNo || invoiceData?.reference_no || order?.referenceNo || order?.reference || '';
   const invoiceDocDate = invoiceData?.invoiceDate || invoiceData?.invoice_date || invoiceData?.createdAt || order?.invoiceDate || order?.invoice_date;
@@ -389,7 +389,10 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   doc.text('INVOICE', W - margin, 18, { align: 'right' });
 
   const totalAmtVal = Number(invoiceData?.totalAmount || order?.grandTotal || order?.totalAmount || 0);
-  const amtDueVal   = Number(invoiceData?.amountDue !== undefined ? invoiceData.amountDue : (order?.amountDue !== undefined ? order.amountDue : totalAmtVal));
+  const isPaidStatus = order?.paymentStatus === 'PAID' || order?.payment_status === 'PAID' || order?.orderStatus === 'COMPLETED' || order?.order_status === 'COMPLETED';
+  const amtDueVal   = Number(invoiceData?.amountDue !== undefined 
+    ? invoiceData.amountDue 
+    : (order?.amountDue !== undefined ? order.amountDue : (isPaidStatus ? 0 : totalAmtVal)));
   const paidAmtVal  = totalAmtVal - amtDueVal;
   const payMethodUpper = String(payMethod).toUpperCase();
 

@@ -1733,18 +1733,6 @@ function SalesContent() {
         grandTotal: payload?.amountPaid ?? paymentOrder?.grandTotal
       };
 
-      let pdfBase64 = null;
-      try {
-        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
-        if (phone) {
-          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
-          if (generated?.pdfBase64) {
-            pdfBase64 = generated.pdfBase64;
-          }
-        }
-      } catch (pdfErr) {
-        console.warn('[sales:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-      }
       const requestPayload = payload?.paymentMethod === 'CREDIT'
         ? {
           creditCustomerId: payload.creditCustomerId,
@@ -1752,22 +1740,41 @@ function SalesContent() {
           roundOffAmount: 0,
           redeemPoints: payload.redeemPoints,
           loyaltyCustomerId: payload.loyaltyCustomerId,
+          deferWhatsAppDispatch: true,
           ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
-          ...(pdfBase64 ? { pdfBase64 } : {}),
         }
         : {
           ...payload,
+          deferWhatsAppDispatch: true,
           ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
-          ...(pdfBase64 ? { pdfBase64 } : {}),
         };
       const { data } = await api.post(endpoint, requestPayload);
       const settledOrder = normalizeOrder(data.data || paymentOrder);
+
+      // Automatically dispatch official invoice PDF via WhatsApp using finalized settled order
+      const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
+      if (phone && settledOrder?.id) {
+        (async () => {
+          try {
+            const generated = await generateInvoicePdfDoc(settledOrder, config);
+            if (generated?.pdfBase64) {
+              await api.post('/api/v1/whatsapp/send-order-bill', {
+                orderId: settledOrder.id,
+                phone: String(phone).trim(),
+                pdfBase64: generated.pdfBase64
+              });
+            }
+          } catch (pdfErr) {
+            console.warn('[sales:settle] Could not dispatch WhatsApp PDF bill:', pdfErr);
+          }
+        })();
+      }
       // Immediately update local state so table reverts to AVAILABLE
       setFloorOrders((current) => current.map((item) =>
         item.id === settledOrder.id ? { ...item, ...settledOrder } : item

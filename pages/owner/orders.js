@@ -1431,22 +1431,28 @@ export default function OrdersPage() {
     setActionBusy(order.id);
     stopDeliveryAlarm(order.id);
     try {
-      let pdfBase64 = null;
-      try {
-        const phone = order?.customerPhone || order?.customers?.[0]?.phone;
-        if (phone) {
-          const generated = await generateInvoicePdfDoc(order, config);
-          if (generated?.pdfBase64) pdfBase64 = generated.pdfBase64;
-        }
-      } catch (pdfErr) {
-        console.warn('[orders:auto-settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-      }
-      await api.post(`/api/v1/orders/${order.id}/settle`, {
+      const targetPhone = order?.customerPhone || order?.customers?.[0]?.phone;
+      const res = await api.post(`/api/v1/orders/${order.id}/settle`, {
         paymentMethod: 'ONLINE',
         amountPaid: Number(order.grandTotal || order.grand_total || 0),
         skipAutoPrintKinds: ['bill'],
-        ...(pdfBase64 ? { pdfBase64 } : {}),
+        deferWhatsAppDispatch: !!targetPhone,
       });
+      const settledOrder = res?.data?.data || order;
+      if (targetPhone) {
+        try {
+          const generated = await generateInvoicePdfDoc(settledOrder, config);
+          if (generated?.pdfBase64) {
+            await api.post('/api/v1/whatsapp/send-order-bill', {
+              orderId: settledOrder.id || order.id,
+              phone: targetPhone,
+              pdfBase64: generated.pdfBase64,
+            });
+          }
+        } catch (pdfErr) {
+          console.warn('[orders:auto-settle] Could not send official PDF over WhatsApp:', pdfErr);
+        }
+      }
       notify('success', 'Order auto-settled (pre-paid online)');
       await requestLiveRefresh({ background: true, forceTableFetch: true });
       if (activeSegment === 'completed') {
@@ -1566,18 +1572,7 @@ export default function OrdersPage() {
         grandTotal: settlementPayload?.amountPaid ?? paymentOrder?.grandTotal
       };
 
-      let pdfBase64 = null;
-      try {
-        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
-        if (phone) {
-          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
-          if (generated?.pdfBase64) {
-            pdfBase64 = generated.pdfBase64;
-          }
-        }
-      } catch (pdfErr) {
-        console.warn('[orders:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-      }
+      const targetPhone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
       const payloadToSend = {
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
@@ -1585,13 +1580,28 @@ export default function OrdersPage() {
         ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
         ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
         ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
-        ...(pdfBase64 ? { pdfBase64 } : {})
+        deferWhatsAppDispatch: !!targetPhone,
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
-      await api.post(url, payloadToSend);
+      const res = await api.post(url, payloadToSend);
+      const settledOrder = res?.data?.data;
+      if (settledOrder && targetPhone) {
+        try {
+          const generated = await generateInvoicePdfDoc(settledOrder, config);
+          if (generated?.pdfBase64) {
+            await api.post('/api/v1/whatsapp/send-order-bill', {
+              orderId: settledOrder.id,
+              phone: targetPhone,
+              pdfBase64: generated.pdfBase64,
+            });
+          }
+        } catch (pdfErr) {
+          console.warn('[orders:settle] Could not send official PDF over WhatsApp:', pdfErr);
+        }
+      }
       setPaymentOrder(null);
       setEditingOrder(null); // Only hide the edit panel after payment success!
       await requestLiveRefresh({ background: true, forceTableFetch: true });

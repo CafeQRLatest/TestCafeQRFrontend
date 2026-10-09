@@ -1730,28 +1730,15 @@ export default function PosOrderTypeModal({
         grandTotal: settlementPayload?.amountPaid ?? paymentOrder?.grandTotal
       };
 
-      let pdfBase64 = null;
-      try {
-        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
-        if (phone) {
-          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
-          if (generated?.pdfBase64) {
-            pdfBase64 = generated.pdfBase64;
-          }
-        }
-      } catch (pdfErr) {
-        console.warn('[PosOrderTypeModal:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-      }
-
       const payloadToSend = {
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
         skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
+        deferWhatsAppDispatch: true,
         // Forward customer attachment from PaymentDialog (if cashier selected a customer)
         ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
         ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
         ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
-        ...(pdfBase64 ? { pdfBase64 } : {}),
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'
@@ -1759,6 +1746,27 @@ export default function PosOrderTypeModal({
         : `/api/v1/orders/${settleId}/settle`;
 
       const res = await api.post(url, payloadToSend);
+      const settledOrder = res?.data?.data || paymentOrder;
+
+      // Automatically dispatch official invoice PDF via WhatsApp using finalized settled order
+      const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
+      if (phone && settledOrder?.id) {
+        (async () => {
+          try {
+            const generated = await generateInvoicePdfDoc(settledOrder, config);
+            if (generated?.pdfBase64) {
+              await api.post('/api/v1/whatsapp/send-order-bill', {
+                orderId: settledOrder.id,
+                phone: String(phone).trim(),
+                pdfBase64: generated.pdfBase64
+              });
+            }
+          } catch (pdfErr) {
+            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp PDF bill:', pdfErr);
+          }
+        })();
+      }
+
       if (!settlementPayload?.confirmStockWarning) {
         const warnings = res?.data?.warnings || res?.data?.data?.warnings || [];
         if (Array.isArray(warnings) && warnings.length > 0) {

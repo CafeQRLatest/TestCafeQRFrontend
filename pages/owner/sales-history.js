@@ -847,18 +847,7 @@ export default function SalesHistoryPage() {
         grandTotal: payload?.amountPaid ?? paymentOrder?.grandTotal
       };
 
-      let pdfBase64 = null;
-      try {
-        const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
-        if (phone) {
-          const generated = await generateInvoicePdfDoc(effectiveOrder, config);
-          if (generated?.pdfBase64) {
-            pdfBase64 = generated.pdfBase64;
-          }
-        }
-      } catch (pdfErr) {
-        console.warn('[sales-history:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-      }
+      const targetPhone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
 
       const requestPayload = payload?.paymentMethod === 'CREDIT'
         ? {
@@ -871,7 +860,7 @@ export default function SalesHistoryPage() {
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
-          ...(pdfBase64 ? { pdfBase64 } : {}),
+          deferWhatsAppDispatch: !!targetPhone,
         }
         : {
           ...payload,
@@ -879,11 +868,26 @@ export default function SalesHistoryPage() {
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
-          ...(pdfBase64 ? { pdfBase64 } : {}),
+          deferWhatsAppDispatch: !!targetPhone,
         };
 
       const res = await api.post(endpoint, requestPayload);
       const settledOrder = res?.data?.data || paymentOrder;
+
+      if (settledOrder && targetPhone) {
+        try {
+          const generated = await generateInvoicePdfDoc(settledOrder, config);
+          if (generated?.pdfBase64) {
+            await api.post('/api/v1/whatsapp/send-order-bill', {
+              orderId: settledOrder.id || paymentOrder?.id,
+              phone: targetPhone,
+              pdfBase64: generated.pdfBase64,
+            });
+          }
+        } catch (pdfErr) {
+          console.warn('[sales-history:settle] Could not send official PDF over WhatsApp:', pdfErr);
+        }
+      }
 
       if (!payload?.confirmStockWarning) {
         const warnings = res?.data?.warnings || res?.data?.data?.warnings || [];
