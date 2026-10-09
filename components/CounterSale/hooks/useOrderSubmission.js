@@ -8,6 +8,8 @@ import { isAndroidPrintStationEnabled, localPrintWillHandleKind } from '../../..
 import { isNativePrintServicePaired } from '../../../utils/printServiceClient';
 import { businessTimeToUtc, getLocalISOString } from '../../../utils/timezoneUtils';
 import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
+import api from '../../../utils/api';
+import { generateInvoicePdfDoc } from '../../../utils/invoicePdf';
 
 function createIdempotencyKey() {
   return typeof window !== 'undefined' && window.crypto?.randomUUID
@@ -323,6 +325,25 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
       
       if (typeof rememberTrending === 'function') {
         rememberTrending(cart);
+      }
+
+      // Automatically dispatch official invoice PDF via WhatsApp if settled with customer phone
+      const customerPhone = primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone || savedOrder?.customerPhone;
+      if (effectiveOrderMode === 'settle' && savedOrder?.id && customerPhone && !knownOffline) {
+        (async () => {
+          try {
+            const generated = await generateInvoicePdfDoc(printOrder, config);
+            if (generated?.pdfBase64) {
+              await api.post('/api/v1/whatsapp/send-order-bill', {
+                orderId: savedOrder.id,
+                phone: String(customerPhone).trim(),
+                pdfBase64: generated.pdfBase64
+              });
+            }
+          } catch (pdfErr) {
+            console.warn('[useOrderSubmission] Failed to dispatch WhatsApp invoice PDF:', pdfErr);
+          }
+        })();
       }
 
       // Always clear cart, order notes, and customer selection after successful order creation
