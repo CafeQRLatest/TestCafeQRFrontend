@@ -34,7 +34,7 @@ import {
 } from '../../components/PremiumOrdersUI';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import NiceSelect from '../../components/NiceSelect';
-import { downloadInvoicePdf } from '../../utils/invoicePdf';
+import { downloadInvoicePdf, generateInvoicePdfDoc } from '../../utils/invoicePdf';
 import { toDisplayItems } from '../../utils/printUtils';
 import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
 import {
@@ -829,6 +829,19 @@ export default function SalesHistoryPage() {
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
 
+      let pdfBase64 = null;
+      try {
+        const phone = payload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        if (phone) {
+          const generated = await generateInvoicePdfDoc(paymentOrder);
+          if (generated?.pdfBase64) {
+            pdfBase64 = generated.pdfBase64;
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('[sales-history:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+      }
+
       const requestPayload = payload?.paymentMethod === 'CREDIT'
         ? {
           creditCustomerId: payload.creditCustomerId,
@@ -837,10 +850,12 @@ export default function SalesHistoryPage() {
           redeemPoints: payload.redeemPoints,
           loyaltyCustomerId: payload.loyaltyCustomerId,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          ...(pdfBase64 ? { pdfBase64 } : {}),
         }
         : {
           ...payload,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          ...(pdfBase64 ? { pdfBase64 } : {}),
         };
 
       const res = await api.post(endpoint, requestPayload);

@@ -31,6 +31,7 @@ import {
 import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import { normalizeOrder, normalizeOrders } from '../../utils/normalizeOrder';
+import { generateInvoicePdfDoc } from '../../utils/invoicePdf';
 
 const KotPrint = React.lazy(() => import('../../components/KotPrint'));
 const PaymentDialog = React.lazy(() => import('../../components/PaymentDialog'));
@@ -1601,10 +1602,21 @@ function SalesContent() {
       setActionBusy('settle');
       try {
         const localBillPrint = localPrintWillHandleKind('bill');
+        let pdfBase64 = null;
+        try {
+          const phone = order?.customerPhone || order?.customers?.[0]?.phone;
+          if (phone) {
+            const generated = await generateInvoicePdfDoc(order);
+            if (generated?.pdfBase64) pdfBase64 = generated.pdfBase64;
+          }
+        } catch (pdfErr) {
+          console.warn('[sales:auto-settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+        }
         await api.post(`/api/v1/orders/${order.id}/settle`, {
           paymentMethod: 'ONLINE',
           amountPaid: Number(order.grandTotal || order.grand_total || 0),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          ...(pdfBase64 ? { pdfBase64 } : {}),
         });
         const settledOrder = { ...order, orderStatus: 'COMPLETED', paymentStatus: 'PAID' };
         setFloorOrders((current) => current.map((item) =>
@@ -1703,6 +1715,18 @@ function SalesContent() {
       const endpoint = payload?.paymentMethod === 'CREDIT'
         ? `/api/v1/orders/${settleId}/complete-credit`
         : `/api/v1/orders/${settleId}/settle`;
+      let pdfBase64 = null;
+      try {
+        const phone = payload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        if (phone) {
+          const generated = await generateInvoicePdfDoc(paymentOrder);
+          if (generated?.pdfBase64) {
+            pdfBase64 = generated.pdfBase64;
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('[sales:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+      }
       const requestPayload = payload?.paymentMethod === 'CREDIT'
         ? {
           creditCustomerId: payload.creditCustomerId,
@@ -1711,10 +1735,12 @@ function SalesContent() {
           redeemPoints: payload.redeemPoints,
           loyaltyCustomerId: payload.loyaltyCustomerId,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          ...(pdfBase64 ? { pdfBase64 } : {}),
         }
         : {
           ...payload,
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
+          ...(pdfBase64 ? { pdfBase64 } : {}),
         };
       const { data } = await api.post(endpoint, requestPayload);
       const settledOrder = normalizeOrder(data.data || paymentOrder);

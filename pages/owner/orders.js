@@ -83,7 +83,7 @@ import {
   FaVolumeUp, FaVolumeMute, FaBell, FaBellSlash,
   FaWhatsapp, FaCopy, FaExchangeAlt, FaFileInvoice
 } from 'react-icons/fa';
-import { downloadInvoicePdf } from '../../utils/invoicePdf';
+import { downloadInvoicePdf, generateInvoicePdfDoc } from '../../utils/invoicePdf';
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
@@ -1431,10 +1431,21 @@ export default function OrdersPage() {
     setActionBusy(order.id);
     stopDeliveryAlarm(order.id);
     try {
+      let pdfBase64 = null;
+      try {
+        const phone = order?.customerPhone || order?.customers?.[0]?.phone;
+        if (phone) {
+          const generated = await generateInvoicePdfDoc(order);
+          if (generated?.pdfBase64) pdfBase64 = generated.pdfBase64;
+        }
+      } catch (pdfErr) {
+        console.warn('[orders:auto-settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+      }
       await api.post(`/api/v1/orders/${order.id}/settle`, {
         paymentMethod: 'ONLINE',
         amountPaid: Number(order.grandTotal || order.grand_total || 0),
         skipAutoPrintKinds: ['bill'],
+        ...(pdfBase64 ? { pdfBase64 } : {}),
       });
       notify('success', 'Order auto-settled (pre-paid online)');
       await requestLiveRefresh({ background: true, forceTableFetch: true });
@@ -1537,12 +1548,23 @@ export default function OrdersPage() {
       // discountAmount and roundOffAmount in the payload are handled by the settle
       // endpoint directly, so discount-only changes are safe without a prior PUT.
       //
-      // Suppress bill printing when settling from the Takeaway/Live orders grid
-      // because the bill is usually already printed via the "Bill" button.
+      let pdfBase64 = null;
+      try {
+        const phone = settlementPayload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        if (phone) {
+          const generated = await generateInvoicePdfDoc(paymentOrder);
+          if (generated?.pdfBase64) {
+            pdfBase64 = generated.pdfBase64;
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('[orders:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+      }
       const payloadToSend = {
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
-        skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill']
+        skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
+        ...(pdfBase64 ? { pdfBase64 } : {})
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'

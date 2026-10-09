@@ -45,7 +45,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { formatTzDate } from '../utils/timezoneUtils';
-import { downloadInvoicePdf } from '../utils/invoicePdf';
+import { downloadInvoicePdf, generateInvoicePdfDoc } from '../utils/invoicePdf';
 import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
@@ -1712,6 +1712,19 @@ export default function PosOrderTypeModal({
         if (newId) settleId = newId;
       }
 
+      let pdfBase64 = null;
+      try {
+        const phone = settlementPayload?.customerPhone || paymentOrder?.customerPhone || paymentOrder?.customers?.[0]?.phone;
+        if (phone) {
+          const generated = await generateInvoicePdfDoc(paymentOrder);
+          if (generated?.pdfBase64) {
+            pdfBase64 = generated.pdfBase64;
+          }
+        }
+      } catch (pdfErr) {
+        console.warn('[PosOrderTypeModal:settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
+      }
+
       const payloadToSend = {
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
@@ -1720,6 +1733,7 @@ export default function PosOrderTypeModal({
         ...(settlementPayload.customerId ? { customerId: settlementPayload.customerId } : {}),
         ...(settlementPayload.customerName ? { customerName: settlementPayload.customerName } : {}),
         ...(settlementPayload.customerPhone ? { customerPhone: settlementPayload.customerPhone } : {}),
+        ...(pdfBase64 ? { pdfBase64 } : {}),
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'
