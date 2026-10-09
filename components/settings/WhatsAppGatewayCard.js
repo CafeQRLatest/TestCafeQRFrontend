@@ -36,10 +36,11 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
       setGatewayStatus(st);
       setConnectedUser(data.user || null);
 
-      if (st === 'SCAN_QR' || data.hasQr) {
-        fetchQr();
-      } else {
+      if (st === 'CONNECTED') {
         setQrCodeUrl(null);
+      } else {
+        // If SCAN_QR, CONNECTING, or hasQr, proactively fetch latest QR code
+        fetchQr();
       }
     } catch (err) {
       setGatewayStatus('DISCONNECTED');
@@ -55,6 +56,11 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
       const data = res.data?.data || res.data || {};
       if (data.qr) {
         setQrCodeUrl(data.qr);
+        setGatewayStatus('SCAN_QR');
+      } else if (data.status === 'CONNECTED') {
+        setGatewayStatus('CONNECTED');
+        setConnectedUser(data.user || null);
+        setQrCodeUrl(null);
       }
     } catch (err) {
       console.warn('Failed to fetch WhatsApp QR', err);
@@ -63,11 +69,12 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
 
   useEffect(() => {
     fetchStatus();
+    fetchQr();
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    // Poll status every 4 seconds to detect when user scans the QR code
+    // Poll status every 3 seconds to detect when user scans the QR code or when new QR arrives
     pollTimerRef.current = setInterval(() => {
       fetchStatus();
-    }, 4000);
+    }, 3000);
 
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -140,6 +147,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
               <span className={`wa-status-pill ${gatewayStatus.toLowerCase()}`}>
                 <span className="wa-pulse-dot" />
                 {gatewayStatus === 'CHECKING' && 'Checking...'}
+                {gatewayStatus === 'CONNECTING' && 'Initializing Gateway...'}
                 {gatewayStatus === 'CONNECTED' && 'Connected & Active'}
                 {gatewayStatus === 'SCAN_QR' && 'Ready to Scan'}
                 {gatewayStatus === 'DISCONNECTED' && 'Offline / Unlinked'}
@@ -273,8 +281,10 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                 ) : (
                   <div className="wa-qr-placeholder">
                     <FaSpinner size={32} className="spinning" color="#25D366" />
-                    <p className="wa-qr-loading-text">Generating QR code...</p>
-                    <small>Ensure companion gateway is running on port 3005</small>
+                    <p className="wa-qr-loading-text">
+                      {gatewayStatus === 'CONNECTING' ? 'Initializing WhatsApp session...' : 'Generating QR code...'}
+                    </p>
+                    <small>Point your WhatsApp camera at the code once generated</small>
                   </div>
                 )}
               </div>
@@ -390,6 +400,12 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
           background: #fffbeb;
           color: #d97706;
           border: 1px solid #fde68a;
+        }
+
+        .wa-status-pill.connecting {
+          background: #eff6ff;
+          color: #2563eb;
+          border: 1px solid #bfdbfe;
         }
 
         .wa-status-pill.disconnected,
