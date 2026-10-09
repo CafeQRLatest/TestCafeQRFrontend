@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useNotification } from '../../context/NotificationContext';
+import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
@@ -10,7 +11,7 @@ import api from '../../utils/api';
 import { isCustomersModuleEnabled, isFeatureEnabled, isPartnersModuleEnabled, setCachedConfig, getCachedConfig } from '../../utils/moduleVisibility';
 import {
   FaUserFriends, FaUsers, FaUser, FaTruck, FaPlus, FaSearch, FaChevronRight,
-  FaTimes, FaFileInvoice, FaTrash, FaLock, FaCog
+  FaTimes, FaFileInvoice, FaTrash, FaLock, FaCog, FaFileExport, FaAddressCard
 } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
@@ -27,9 +28,13 @@ export default function PartnersPage() {
 function PartnersContent() {
   const router = useRouter();
   const { notify, showConfirm } = useNotification();
+  const { orgName, clientName } = useAuth();
   const sym = useCurrencySymbol();
   const [activeTab, setActiveTab] = useState('customers');
   const [config, setConfig] = useState(() => getCachedConfig());
+  const shopName = (orgName || clientName || config?.restaurantName || config?.businessName || 'Cafe').trim();
+  const customerGroupName = `${shopName} Customers`;
+  const vendorGroupName = `${shopName} Vendors`;
   const [customers, setCustomers] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [pricelists, setPricelists] = useState([]);
@@ -202,6 +207,234 @@ function PartnersContent() {
     (v.name?.toLowerCase().includes(searchTerm.toLowerCase()) || v.phone?.includes(searchTerm) || v.gstin?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  const handleExportCustomersCSV = () => {
+    const listToExport = filteredCustomers.length > 0 ? filteredCustomers : customers;
+    if (!listToExport || listToExport.length === 0) {
+      notify('info', 'No customers to export');
+      return;
+    }
+
+    const formatPhone = (phone) => {
+      if (!phone) return '';
+      const cleaned = String(phone).replace(/[^\d+]/g, '');
+      if (!cleaned) return '';
+      if (cleaned.startsWith('+')) return cleaned;
+      if (/^\d{10}$/.test(cleaned)) return `+91${cleaned}`;
+      if (/^0\d{10}$/.test(cleaned)) return `+91${cleaned.slice(1)}`;
+      if (/^91\d{10}$/.test(cleaned)) return `+${cleaned}`;
+      return cleaned;
+    };
+
+    const headers = [
+      'Name',
+      'Given Name',
+      'Family Name',
+      'Phone 1 - Type',
+      'Phone 1 - Value',
+      'E-mail 1 - Type',
+      'E-mail 1 - Value',
+      'Phone',
+      'Email',
+      'Category',
+      'Address 1 - Formatted',
+      'Group Membership',
+      'Notes'
+    ];
+
+    const rows = listToExport.map((c) => {
+      const phoneFormatted = formatPhone(c.phone);
+      const nameParts = (c.name || '').trim().split(/\s+/);
+      const givenName = nameParts[0] || '';
+      const familyName = nameParts.slice(1).join(' ') || '';
+      const category = (c.customerCategory || 'REGULAR').toUpperCase();
+      const notes = `Category: ${category}${c.loyaltyPoints ? ` | Loyalty: ${c.loyaltyPoints} pts` : ''}`;
+
+      return [
+        c.name || '',
+        givenName,
+        familyName,
+        phoneFormatted ? 'Mobile' : '',
+        phoneFormatted,
+        c.email ? 'Home' : '',
+        c.email || '',
+        phoneFormatted,
+        c.email || '',
+        category,
+        c.address || '',
+        `* myContacts ::: ${customerGroupName}`,
+        notes
+      ];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((field) => `"${String(field ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeShop = shopName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    link.download = `${safeShop}_customers_whatsapp_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify('success', `Exported ${listToExport.length} customers to CSV`);
+  };
+
+  const handleExportVendorsCSV = () => {
+    const listToExport = filteredVendors.length > 0 ? filteredVendors : vendors;
+    if (!listToExport || listToExport.length === 0) {
+      notify('info', 'No vendors to export');
+      return;
+    }
+
+    const headers = ['Name', 'Contact Person', 'Phone', 'Email', 'GSTIN', 'Address', 'Status'];
+    const rows = listToExport.map((v) => [
+      v.name || '',
+      v.contactPerson || '',
+      v.phone || '',
+      v.email || '',
+      v.gstin || '',
+      v.address || '',
+      isPartnerActive(v) ? 'Active' : 'Inactive'
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((field) => `"${String(field ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeShop = shopName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    link.download = `${safeShop}_vendors_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify('success', `Exported ${listToExport.length} vendors to CSV`);
+  };
+
+  const escapeVCard = (str) => {
+    if (!str) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n')
+      .trim();
+  };
+
+  const handleExportCustomersVCF = () => {
+    const listToExport = filteredCustomers.length > 0 ? filteredCustomers : customers;
+    if (!listToExport || listToExport.length === 0) {
+      notify('info', 'No customers to export');
+      return;
+    }
+
+    const vcards = listToExport.map((c) => {
+      const phone = formatPhone(c.phone);
+      const fullName = escapeVCard(c.name || phone || 'Customer');
+      const nameParts = (c.name || '').trim().split(/\s+/);
+      const givenName = escapeVCard(nameParts[0] || '');
+      const familyName = escapeVCard(nameParts.slice(1).join(' ') || '');
+      const category = (c.customerCategory || 'REGULAR').toUpperCase();
+      const notes = escapeVCard(`Category: ${category}${c.loyaltyPoints ? ` | Loyalty: ${c.loyaltyPoints} pts` : ''}`);
+
+      const lines = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `FN:${fullName}`,
+        `N:${familyName};${givenName};;;`,
+      ];
+
+      if (phone) {
+        lines.push(`TEL;TYPE=CELL,VOICE:${phone}`);
+      }
+      if (c.email && c.email.trim()) {
+        lines.push(`EMAIL;TYPE=HOME,INTERNET:${escapeVCard(c.email.trim())}`);
+      }
+      if (c.address && c.address.trim()) {
+        lines.push(`ADR;TYPE=HOME:;;${escapeVCard(c.address.trim())};;;;`);
+      }
+      lines.push(`ORG:${escapeVCard(shopName)}`);
+      lines.push(`CATEGORIES:${escapeVCard(customerGroupName)}`);
+      lines.push(`NOTE:${notes}`);
+      lines.push('END:VCARD');
+
+      return lines.join('\r\n');
+    }).join('\r\n');
+
+    const blob = new Blob([vcards], { type: 'text/vcard;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeShop = shopName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    link.download = `${safeShop}_customers_${new Date().toISOString().slice(0, 10)}.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify('success', `Exported ${listToExport.length} contacts as vCard (.vcf)`);
+  };
+
+  const handleExportVendorsVCF = () => {
+    const listToExport = filteredVendors.length > 0 ? filteredVendors : vendors;
+    if (!listToExport || listToExport.length === 0) {
+      notify('info', 'No vendors to export');
+      return;
+    }
+
+    const vcards = listToExport.map((v) => {
+      const phone = formatPhone(v.phone);
+      const fullName = escapeVCard(v.name || 'Vendor');
+      const nameParts = (v.name || '').trim().split(/\s+/);
+      const givenName = escapeVCard(nameParts[0] || '');
+      const familyName = escapeVCard(nameParts.slice(1).join(' ') || '');
+      const notes = escapeVCard(`${v.contactPerson ? `Contact: ${v.contactPerson} | ` : ''}${v.gstin ? `GSTIN: ${v.gstin}` : ''}`);
+
+      const lines = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `FN:${fullName}`,
+        `N:${familyName};${givenName};;;`,
+      ];
+
+      if (phone) {
+        lines.push(`TEL;TYPE=WORK,VOICE:${phone}`);
+      }
+      if (v.email && v.email.trim()) {
+        lines.push(`EMAIL;TYPE=WORK,INTERNET:${escapeVCard(v.email.trim())}`);
+      }
+      if (v.address && v.address.trim()) {
+        lines.push(`ADR;TYPE=WORK:;;${escapeVCard(v.address.trim())};;;;`);
+      }
+      lines.push(`ORG:${escapeVCard(shopName)}`);
+      lines.push(`CATEGORIES:${escapeVCard(vendorGroupName)}`);
+      if (notes) {
+        lines.push(`NOTE:${notes}`);
+      }
+      lines.push('END:VCARD');
+
+      return lines.join('\r\n');
+    }).join('\r\n');
+
+    const blob = new Blob([vcards], { type: 'text/vcard;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeShop = shopName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    link.download = `${safeShop}_vendors_${new Date().toISOString().slice(0, 10)}.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify('success', `Exported ${listToExport.length} vendors as vCard (.vcf)`);
+  };
+
   if (loading) return <div className="loading-state"><span>Loading Partners...</span></div>;
 
   if (config && !customersEnabled && !purchaseEnabled) {
@@ -285,9 +518,25 @@ function PartnersContent() {
             </div>
             <div className="erp-actions">
               {activeTab === 'customers' ? (
-                <button className="erp-btn primary" onClick={startNewCustomer}><FaPlus /> <span className="btn-label">New Customer</span></button>
+                <>
+                  <button className="erp-btn secondary" onClick={handleExportCustomersCSV} title="Export CSV for Google Contacts & WhatsApp">
+                    <FaFileExport /> <span className="btn-label">Export CSV</span>
+                  </button>
+                  <button className="erp-btn secondary" onClick={handleExportCustomersVCF} title="Export vCard (.vcf) for 1-Tap Mobile Contacts Import">
+                    <FaAddressCard /> <span className="btn-label">Export vCard (.vcf)</span>
+                  </button>
+                  <button className="erp-btn primary" onClick={startNewCustomer}><FaPlus /> <span className="btn-label">New Customer</span></button>
+                </>
               ) : (
-                <button className="erp-btn primary" onClick={startNewVendor}><FaPlus /> <span className="btn-label">New Vendor</span></button>
+                <>
+                  <button className="erp-btn secondary" onClick={handleExportVendorsCSV} title="Export Vendors CSV">
+                    <FaFileExport /> <span className="btn-label">Export CSV</span>
+                  </button>
+                  <button className="erp-btn secondary" onClick={handleExportVendorsVCF} title="Export Vendors as vCard (.vcf)">
+                    <FaAddressCard /> <span className="btn-label">Export vCard (.vcf)</span>
+                  </button>
+                  <button className="erp-btn primary" onClick={startNewVendor}><FaPlus /> <span className="btn-label">New Vendor</span></button>
+                </>
               )}
             </div>
           </header>
@@ -690,6 +939,8 @@ function PartnersContent() {
         .erp-btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
         .erp-btn.primary { background: #FF7A00; color: white; box-shadow: 0 2px 4px rgba(255, 122, 0, 0.2); }
         .erp-btn.primary:hover { background: #ea580c; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(255, 122, 0, 0.25); }
+        .erp-btn.secondary { background: white; color: #475569; border: 1px solid #cbd5e1; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .erp-btn.secondary:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; transform: translateY(-1px); }
         .erp-actions { display: flex; align-items: center; gap: 12px; }
 
         .card-avatar { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #FF7A00, #fb923c); color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; flex-shrink: 0; }

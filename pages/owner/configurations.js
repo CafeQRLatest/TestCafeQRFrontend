@@ -13,6 +13,7 @@ import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb';
 import { setCachedConfig } from '../../utils/moduleVisibility';
+import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard';
 import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
@@ -1277,11 +1278,12 @@ function ConfigurationsContent() {
                 const isCreditLedger = m.key === 'pm_credit_ledger';
                 const isOnlinePayment = m.key === 'pm_online_payment';
                 const isInventory = m.key === 'pm_inventory';
-                if (!hasChildren && !isCreditLedger && !isOnlinePayment && !isInventory) return null;
+                const isCustomers = m.key === 'pm_customers';
+                if (!hasChildren && !isCreditLedger && !isOnlinePayment && !isInventory && !isCustomers) return null;
                 if (isInventory && (!config.pm_inventory || !hasModule('INVENTORY', orgId))) return null;
                 return (
-                  <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: '#f97316' }}>
-                    <div className="subconfig-strip-label" style={{ color: '#ea580c' }}>
+                  <div key={`sub-${m.key}`} className="subconfig-strip" style={{ borderLeftColor: isCustomers ? '#25D366' : '#f97316' }}>
+                    <div className="subconfig-strip-label" style={{ color: isCustomers ? '#16a34a' : '#ea580c' }}>
                       {m.title.toUpperCase()} OPTIONS
                     </div>
                     <div className="subconfig-strip-body">
@@ -1440,6 +1442,11 @@ function ConfigurationsContent() {
                             </div>
                           </div>
                         </>
+                      )}
+                      {isCustomers && (
+                        <div style={{ width: '100%', marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                          <WhatsAppGatewayCard orgId={orgId} orgName={orgName} />
+                        </div>
                       )}
                     </div>
                   </div>

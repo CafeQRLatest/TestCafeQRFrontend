@@ -26,7 +26,7 @@ export const getApiUrl = () => {
         if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostname)) {
           return `http://${hostname}:8080`;
         }
-        const isTestEnv = hostname.includes('test') || hostname.includes('staging') || hostname.includes('pages.dev') || hostname.includes('vercel.app');
+        const isTestEnv = hostname.includes('test') || hostname.includes('staging');
         if (isTestEnv) {
           return 'https://test-api.cafeqr.in';
         }

@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { FaPrint } from 'react-icons/fa';
+import Cookies from 'js-cookie';
 import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../utils/printServiceClient';
+import { getApiUrl } from '../utils/api';
 
 export default function CloudPrintStation({ onJobsChanged }) {
   const router = useRouter();
@@ -56,12 +58,13 @@ export default function CloudPrintStation({ onJobsChanged }) {
     let alive = true;
     let timerId = null;
     let running = false;
+    const sseConnectedRef = { current: false };
 
-    const tick = async () => {
+    const triggerClaim = async () => {
       if (!alive || running) return;
       // Skip this tick if a local print job is in progress
       if (localPrintActiveRef.current) {
-        if (alive) timerId = window.setTimeout(tick, 2000);
+        if (alive) timerId = window.setTimeout(triggerClaim, 2000);
         return;
       }
       running = true;
@@ -72,24 +75,71 @@ export default function CloudPrintStation({ onJobsChanged }) {
         if (!alive) return;
         claimedCount = jobs ? jobs.length : 0;
         setLastCount(claimedCount);
-        setStatus(claimedCount ? 'Printed' : 'Idle');
+        setStatus(claimedCount ? 'Printed' : (sseConnectedRef.current ? 'Live' : 'Idle'));
         if (claimedCount) onJobsChanged?.();
       } catch {
-        if (alive) setStatus('Waiting');
+        if (!alive) return;
+        setStatus(sseConnectedRef.current ? 'Live' : 'Waiting');
       } finally {
         running = false;
         if (alive) {
-          const nextDelay = claimedCount > 0 ? 200 : 1000;
-          timerId = window.setTimeout(tick, nextDelay);
+          // If jobs were claimed, immediately check again to drain queue
+          if (claimedCount > 0) {
+            timerId = window.setTimeout(triggerClaim, 300);
+          } else if (!sseConnectedRef.current) {
+            // Only poll if SSE is NOT connected (safety fallback)
+            const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
+            const baseDelay = isTabHidden ? 25000 : 15000;
+            const jitter = Math.floor(Math.random() * 2000);
+            timerId = window.setTimeout(triggerClaim, baseDelay + jitter);
+          }
         }
       }
     };
 
-    timerId = window.setTimeout(tick, 1000);
+    // Establish real-time SSE stream
+    let eventSource = null;
+    try {
+      const baseUrl = getApiUrl();
+      const token = Cookies.get('access_token') || Cookies.get('token') || (typeof window !== 'undefined' ? window.localStorage.getItem('access_token') : null);
+      const sseUrl = `${baseUrl}/api/v1/print-jobs/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+      eventSource = new EventSource(sseUrl, { withCredentials: true });
+
+      eventSource.addEventListener('init', () => {
+        if (!alive) return;
+        sseConnectedRef.current = true;
+        setStatus('Live');
+        // Initial catch-up check on connect
+        triggerClaim();
+      });
+
+      eventSource.addEventListener('NEW_JOB', () => {
+        if (!alive) return;
+        triggerClaim();
+      });
+
+      eventSource.onerror = () => {
+        if (!alive) return;
+        sseConnectedRef.current = false;
+        setStatus('Waiting');
+        // Start safety fallback check if disconnected
+        if (!running && !timerId) {
+          timerId = window.setTimeout(triggerClaim, 5000);
+        }
+      };
+    } catch (e) {
+      console.warn('[CloudPrintStation] SSE stream unavailable, using fallback:', e);
+      sseConnectedRef.current = false;
+      timerId = window.setTimeout(triggerClaim, 2000);
+    }
 
     return () => {
       alive = false;
       if (timerId) window.clearTimeout(timerId);
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   }, [enabled, onJobsChanged]);
 
