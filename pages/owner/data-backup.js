@@ -10,6 +10,7 @@ import {
   FaSyncAlt, FaTrashAlt, FaInfoCircle, FaClock, FaKey, FaLock,
 } from 'react-icons/fa';
 import styles from '../../components/backup/DataBackup.module.css';
+import { formatTzDate } from '../../utils/timezoneUtils';
 
 export default function DataBackupPage() {
   return (
@@ -735,10 +736,7 @@ function formatBytes(bytes) {
 function formatDate(iso) {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
+    return formatTzDate(iso, null);
   } catch {
     return iso;
   }

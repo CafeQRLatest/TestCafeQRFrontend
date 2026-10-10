@@ -123,6 +123,8 @@ const OFFSET_FALLBACK = {
   '+12:00': 'Pacific/Auckland',
 };
 
+import Cookies from 'js-cookie';
+
 /**
  * Resolves the profile's timezone string to an IANA timezone ID.
  *
@@ -131,14 +133,25 @@ const OFFSET_FALLBACK = {
  *  - "India (GMT+5:30)"
  *  - "Asia/Kolkata"   (passthrough)
  *  - "UTC+5:30"
- *  - null/undefined   → falls back to browser timezone
+ *  - null/undefined   → falls back to browser timezone or Asia/Kolkata
  *
  * @param {string|null} profileTz - The timezone string from AuthContext
  * @returns {string} IANA timezone ID
  */
 export function resolveTimezone(profileTz) {
   if (!profileTz) {
-    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = (window.localStorage ? (window.localStorage.getItem('timezone') || window.localStorage.getItem('TIMEZONE')) : null)
+          || (typeof Cookies !== 'undefined' ? Cookies.get('timezone') : null);
+        if (stored) return resolveTimezone(stored);
+      }
+    } catch {}
+    try {
+      const bTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (bTz && bTz !== 'UTC') return bTz;
+    } catch {}
+    return 'Asia/Kolkata';
   }
 
   const s = profileTz.trim();
@@ -164,8 +177,12 @@ export function resolveTimezone(profileTz) {
     if (OFFSET_FALLBACK[offset]) return OFFSET_FALLBACK[offset];
   }
 
-  // Last resort: browser timezone
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return 'UTC'; }
+  // Last resort: browser timezone or default Asia/Kolkata
+  try {
+    const bTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (bTz && bTz !== 'UTC') return bTz;
+  } catch {}
+  return 'Asia/Kolkata';
 }
 
 /**
@@ -190,6 +207,9 @@ export function formatTzDate(value, profileTz, options = {}) {
       // Backend LocalDateTime is generated in UTC. Append Z to force UTC parsing.
       if (typeof value === 'string' && value.length >= 19 && value.includes('T') && !value.includes('Z') && !value.match(/[+-]\d{2}:\d{2}$/)) {
         strVal = value + 'Z';
+      } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        // Calendar date with no time (LocalDate): anchor at noon UTC so it never shifts to another day.
+        strVal = value + 'T12:00:00Z';
       }
       date = new Date(strVal);
     }
@@ -348,4 +368,31 @@ export function businessTimeToUtc(localIso, profileTz) {
   const actualDate = new Date(targetMs - offsetMs);
   
   return actualDate.toISOString();
+}
+
+
+/**
+ * Splits an instant into the branch's wall-clock parts (year, month 1-12, day, hour 0-23).
+ * Accepts the same inputs as formatTzDate (backend LocalDateTime strings are treated as UTC).
+ * Returns null for invalid input.
+ */
+export function getBranchParts(value, profileTz) {
+  if (!value) return null;
+  let date;
+  if (value instanceof Date) {
+    date = value;
+  } else {
+    let strVal = String(value);
+    if (typeof value === 'string' && value.length >= 19 && value.includes('T') && !value.includes('Z') && !value.match(/[+-]\d{2}:\d{2}$/)) {
+      strVal = value + 'Z';
+    }
+    date = new Date(strVal);
+  }
+  if (isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveTimezone(profileTz),
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const get = (t) => parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24 };
 }

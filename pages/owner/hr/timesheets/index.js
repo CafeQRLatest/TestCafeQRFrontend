@@ -5,6 +5,7 @@ import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
+import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function TimesheetsDashboard({ embedded = false }) {
   const router = useRouter();
@@ -261,8 +262,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
   const formatTime = (isoStr) => {
     if (!isoStr) return 'N/A';
     try {
-      const d = new Date(isoStr);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return formatTzDate(isoStr, null, { format: 'time' });
     } catch (e) {
       return isoStr;
     }

@@ -10,7 +10,8 @@ import {
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
   FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle,
   FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar,
-  FaSearch, FaTimes, FaHistory
+  FaSearch, FaTimes, FaHistory, FaClock, FaCalendarAlt, FaMoneyBillWave,
+  FaCogs, FaSlidersH, FaMoneyCheckAlt
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -19,7 +20,7 @@ export default function MainMenuPage() {
 
 function MainMenuContent() {
   const router = useRouter();
-  const { loading: authLoading, isAuthenticated } = useAuth();
+  const { loading: authLoading, isAuthenticated, userRole } = useAuth();
   const [assignedMenus, setAssignedMenus] = useState([]);
   const [config, setConfig] = useState(null);
   const [fetching, setFetching] = useState(true);
@@ -108,12 +109,20 @@ function MainMenuContent() {
     'Loyalty':            { name: 'Loyalty',              desc: 'Reward points & tiers',         icon: <FaCrown />,        color: '#f59e0b', bg: '#fffbeb', cat: 'Customers' },
     'Analytics':          { name: 'Analytics',            desc: 'Business intelligence',         icon: <FaChartBar />,     color: '#8b5cf6', bg: '#f5f3ff', cat: 'Insights' },
     'Sales_Insight':      { name: 'Sales',                desc: 'Sales performance',             icon: <FaChartLine />,    color: '#06b6d4', bg: '#ecfeff', cat: 'Insights' },
-    'Payroll & HR':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
-    'HR & Payroll':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Operations', url: '/owner/hr' },
+    'Payroll & HR':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr' },
+    'HR & Payroll':       { name: 'Payroll & HR',         desc: 'Staff, attendance & payroll',   icon: <FaIdBadge />,      color: '#f97316', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr' },
+    'Timesheets':         { name: 'Timesheets',           desc: 'Attendance & shift tracking',   icon: <FaClock />,        color: '#10b981', bg: '#f0fdf4', cat: 'Payroll & HR', url: '/owner/hr?tab=timesheets' },
+    'Leaves':             { name: 'Leave Approvals',      desc: 'Time-off requests & balances',  icon: <FaCalendarAlt />,  color: '#8b5cf6', bg: '#f5f3ff', cat: 'Payroll & HR', url: '/owner/hr?tab=leaves' },
+    'Salary Advances':    { name: 'Salary Advances',      desc: 'Disbursements & recovery',      icon: <FaMoneyBillWave />,color: '#f59e0b', bg: '#fffbeb', cat: 'Payroll & HR', url: '/owner/hr?tab=advances' },
+    'Advances':           { name: 'Salary Advances',      desc: 'Disbursements & recovery',      icon: <FaMoneyBillWave />,color: '#f59e0b', bg: '#fffbeb', cat: 'Payroll & HR', url: '/owner/hr?tab=advances' },
+    'Salary Components':  { name: 'Salary Rules',         desc: 'Earnings, deductions & rules',  icon: <FaCogs />,         color: '#06b6d4', bg: '#ecfeff', cat: 'Payroll & HR', url: '/owner/hr?tab=rules' },
+    'HR Policy Settings': { name: 'HR Settings',          desc: 'Attendance & OT policies',      icon: <FaSlidersH />,     color: '#64748b', bg: '#f8fafc', cat: 'Payroll & HR', url: '/owner/hr?tab=settings' },
+    'Payroll Processing': { name: 'Run Payroll',          desc: 'Salaries, payslips & sync',     icon: <FaMoneyCheckAlt />,color: '#ea580c', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr?tab=payroll' },
+    'Payroll':            { name: 'Run Payroll',          desc: 'Salaries, payslips & sync',     icon: <FaMoneyCheckAlt />,color: '#ea580c', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr?tab=payroll' },
     'Sales History':      { name: 'Sales History',        desc: 'Completed & cancelled orders',   icon: <FaHistory />,      color: '#f97316', bg: '#fff7ed', cat: 'Insights',   url: '/owner/sales-history' },
   };
 
-  const categoryOrder = ['Operations', 'Insights', 'Customers', 'Account'];
+  const categoryOrder = ['Operations', 'Payroll & HR', 'Insights', 'Customers', 'Account'];
 
   const hasPointOfSale = assignedMenus.some(menu => menu.name === 'Point of Sale');
   const canAccessPos = hasPointOfSale || assignedMenus.some(menu => menu.name === 'Sales');
@@ -130,6 +139,14 @@ function MainMenuContent() {
     baseMenus = baseMenus.filter(m => m.name !== 'Point of Sale' && m.name !== 'Sales');
   } else {
     baseMenus = baseMenus.filter(m => m.name !== 'POS (V2)' && m.name !== 'Sales History');
+  }
+
+  const HR_MENU_NAMES = ["Payroll & HR", "HR & Payroll", "Timesheets", "Leaves", "Advances", "Salary Components", "HR Policy Settings", "Payroll Processing"];
+  const hasHrAccess = userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || assignedMenus.some(m => HR_MENU_NAMES.includes(m.name));
+  const isHrEnabled = isMenuVisibleForConfig('Payroll & HR', config);
+
+  if (isHrEnabled && hasHrAccess && !baseMenus.some(m => m.name === 'Payroll & HR' || m.name === 'HR & Payroll')) {
+    baseMenus.push({ name: 'Payroll & HR', description: 'Staff, attendance & payroll', url: '/owner/hr' });
   }
 
   const allowedMenus = baseMenus.filter(m => {

@@ -856,8 +856,14 @@ const CATEGORY_MAPPING = {
   "Partners": "ACCOUNT",
   "Data Backup": "ACCOUNT",
   "Document Sequences": "ACCOUNT",
-  "Payroll & HR": "OPERATIONS",
-  "HR & Payroll": "OPERATIONS"
+  "Payroll & HR": "PAYROLL & HR",
+  "HR & Payroll": "PAYROLL & HR",
+  "Timesheets": "PAYROLL & HR",
+  "Leaves": "PAYROLL & HR",
+  "Advances": "PAYROLL & HR",
+  "Salary Components": "PAYROLL & HR",
+  "HR Policy Settings": "PAYROLL & HR",
+  "Payroll Processing": "PAYROLL & HR"
 };
 
 const MENU_ORDER = [
@@ -923,6 +929,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
     "OPERATIONS": [],
     "ADD ON": [],
     "CUSTOMERS": [],
+    "PAYROLL & HR": [],
     "INSIGHTS": [],
     "ACCOUNT": []
   };
@@ -936,7 +943,11 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
       return;
     }
     const cat = categoryMapping[m.name] || "OPERATIONS";
-    groupedMenus[cat].push(m);
+    if (groupedMenus[cat]) {
+      groupedMenus[cat].push(m);
+    } else {
+      groupedMenus["OPERATIONS"].push(m);
+    }
   });
 
   Object.keys(groupedMenus).forEach(cat => {
@@ -951,8 +962,8 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
   if (isMenuVisibleForConfig("Payroll & HR", config)) {
     if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
-      if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
-        groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+      if (!groupedMenus["PAYROLL & HR"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+        groupedMenus["PAYROLL & HR"].push({ name: "Payroll & HR", url: "/owner/hr" });
       }
     }
   }
@@ -1182,8 +1193,14 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Partners": "ACCOUNT",
     "Data Backup": "ACCOUNT",
     "Document Sequences": "ACCOUNT",
-    "Payroll & HR": "OPERATIONS",
-    "HR & Payroll": "OPERATIONS"
+    "Payroll & HR": "PAYROLL & HR",
+    "HR & Payroll": "PAYROLL & HR",
+    "Timesheets": "PAYROLL & HR",
+    "Leaves": "PAYROLL & HR",
+    "Advances": "PAYROLL & HR",
+    "Salary Components": "PAYROLL & HR",
+    "HR Policy Settings": "PAYROLL & HR",
+    "Payroll Processing": "PAYROLL & HR"
   };
 
   const menuOrder = [
@@ -1237,6 +1254,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "OPERATIONS": [],
     "ADD ON": [],
     "CUSTOMERS": [],
+    "PAYROLL & HR": [],
     "INSIGHTS": [],
     "ACCOUNT": []
   };
@@ -1250,7 +1268,11 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
       return;
     }
     const cat = categoryMapping[m.name] || "OPERATIONS";
-    groupedMenus[cat].push(m);
+    if (groupedMenus[cat]) {
+      groupedMenus[cat].push(m);
+    } else {
+      groupedMenus["OPERATIONS"].push(m);
+    }
   });
 
   Object.keys(groupedMenus).forEach(cat => {
@@ -1265,8 +1287,8 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
   if (isMenuVisibleForConfig("Payroll & HR", config)) {
     if (userRole === 'OWNER' || userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN' || hasHrAccess) {
-      if (!groupedMenus["OPERATIONS"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
-        groupedMenus["OPERATIONS"].push({ name: "Payroll & HR", url: "/owner/hr" });
+      if (!groupedMenus["PAYROLL & HR"].some(m => m.name === "Payroll & HR" || m.name === "HR & Payroll")) {
+        groupedMenus["PAYROLL & HR"].push({ name: "Payroll & HR", url: "/owner/hr" });
       }
     }
   }

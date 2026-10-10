@@ -145,7 +145,7 @@ export default function DocumentViewerPopup({
   const auth = useAuth() || {};
   const { posType, timezone: authTimezone } = auth;
   const docType = propDocType || propType || 'order';
-  const effectiveTz = timezone || authTimezone || 'Asia/Kolkata';
+  const effectiveTz = timezone || authTimezone || config?.timezone || currentOrder?.timezone || 'Asia/Kolkata';
   const formatDateFn = typeof formatTzDateProp === 'function'
     ? (val, tz, opts) => formatTzDateProp(val, tz || effectiveTz, opts)
     : (val, tz, opts) => formatTzDateUtil(val, tz || effectiveTz, opts);
@@ -612,6 +612,14 @@ export default function DocumentViewerPopup({
       vendorName: isSalePayment ? null : (currentOrder.vendorName || vendor?.name || p.vendorName),
       customerName: isSalePayment ? (currentOrder.customerName || primaryCustomer?.name || p.customerName) : null,
       customerPhone: isSalePayment ? (currentOrder.customerPhone || primaryCustomer?.phone) : null,
+      createdBy: p.createdBy || p.created_by || currentOrder.createdBy || currentOrder.created_by,
+      createdAt: p.createdAt || p.created_at || p.paymentDate || p.payment_date || currentOrder.createdAt || currentOrder.created_at,
+      updatedBy: p.updatedBy || p.updated_by || p.createdBy || p.created_by || currentOrder.updatedBy || currentOrder.updated_by || currentOrder.createdBy,
+      updatedAt: p.updatedAt || p.updated_at || p.paymentDate || p.payment_date || currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt,
+      terminalName: p.terminalName || p.terminal_name || currentOrder.terminalName || currentOrder.terminal_name || fetchedTerminal,
+      terminalId: p.terminalId || p.terminal_id || currentOrder.terminalId || currentOrder.terminal_id,
+      terminalCode: p.terminalCode || p.terminal_code || currentOrder.terminalCode || currentOrder.terminal_code,
+      paymentDate: p.paymentDate || p.payment_date || p.createdAt || currentOrder.paymentDate || currentOrder.paidAt || currentOrder.updatedAt || currentOrder.createdAt,
     }, 'payment');
   };
 
@@ -1115,30 +1123,61 @@ export default function DocumentViewerPopup({
 
         {/* ── Created/Updated auditing info with date & time ── */}
         {(() => {
-          const rawDocDate = (() => {
-            if (docType === 'invoice') {
-              return invoiceData?.invoiceDate || invoiceData?.invoice_date || invoiceData?.createdAt || currentOrder.invoiceDate || currentOrder.invoice_date || currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at;
-            }
-            if (docType === 'payment') {
-              return currentOrder.paymentDate || currentOrder.payment_date || currentOrder.paidAt || currentOrder.paid_at || currentOrder.createdAt || currentOrder.created_at;
-            }
-            return currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at;
-          })();
+          const orderDateVal = currentOrder.orderDate || currentOrder.order_date || currentOrder.createdAt || currentOrder.created_at;
+          const invoiceDateVal = invoiceData?.invoiceDate || invoiceData?.invoice_date || currentOrder.invoiceDate || currentOrder.invoice_date || invoiceData?.createdAt;
+          const paymentDateVal = currentOrder.paymentDate || currentOrder.payment_date || currentOrder.paidAt || currentOrder.paid_at;
 
-          if (!currentOrder.createdBy && !currentOrder.updatedBy && !currentOrder.createdAt && !currentOrder.created_at && !rawDocDate) {
+          const isInvoice = docType === 'invoice';
+          const isPayment = docType === 'payment';
+
+          // When viewing an invoice document, only show Invoice Date (no Order Date).
+          // For orders/bills, show Order Date. For payments, show Payment Date.
+          const showOrderDate = !isInvoice && !isPayment && !!orderDateVal;
+          const showInvoiceDate = isInvoice && !!(invoiceDateVal || orderDateVal);
+          const showPaymentDate = isPayment && !!(paymentDateVal || orderDateVal);
+
+          const dateCellCount = (showOrderDate ? 1 : 0) + (showInvoiceDate ? 1 : 0) + (showPaymentDate ? 1 : 0);
+          if (!currentOrder.createdBy && !currentOrder.updatedBy && !currentOrder.createdAt && !currentOrder.created_at && dateCellCount === 0) {
             return null;
           }
+
+          const totalCols = dateCellCount + 2; // + Created By + Last Updated By
+          const rowClass = totalCols >= 4 ? "dv-row4" : (totalCols === 3 ? "dv-row3" : "dv-row2");
 
           return (
             <>
               <div className="dv-rule" />
-              <div className={rawDocDate ? "dv-row3" : "dv-row2"}>
-                {rawDocDate && (
+              <div className={rowClass}>
+                {showOrderDate && (
                   <div className="dv-cell">
-                    <span className="dv-lbl">{docType === 'payment' ? 'Payment Date' : (docType === 'invoice' ? 'Invoice Date' : 'Order Date')}</span>
+                    <span className="dv-lbl">Order Date</span>
                     <span className="dv-val" style={{ fontSize: '13px' }}>
                       {formatDateFn(
-                        rawDocDate,
+                        orderDateVal,
+                        effectiveTz,
+                        { format: 'datetime' }
+                      )}
+                    </span>
+                  </div>
+                )}
+                {showInvoiceDate && (
+                  <div className="dv-cell">
+                    <span className="dv-lbl">Invoice Date</span>
+                    <span className="dv-val" style={{ fontSize: '13px' }}>
+                      {formatDateFn(
+                        invoiceDateVal || orderDateVal,
+                        effectiveTz,
+                        { format: 'datetime' }
+                      )}
+                    </span>
+                  </div>
+                )}
+                {showPaymentDate && (
+                  <div className="dv-cell">
+                    <span className="dv-lbl">Payment Date</span>
+                    <span className="dv-val" style={{ fontSize: '13px' }}>
+                      {formatDateFn(
+                        paymentDateVal || orderDateVal,
                         effectiveTz,
                         { format: 'datetime' }
                       )}
@@ -1147,10 +1186,12 @@ export default function DocumentViewerPopup({
                 )}
                 <div className="dv-cell">
                   <span className="dv-lbl">Created By</span>
-                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>
+                    {currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName || (auth?.firstName ? `${auth.firstName} ${auth.lastName || ''}`.trim() : 'Staff User')}
+                  </span>
                   <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
                     {formatDateFn(
-                      currentOrder.createdAt || currentOrder.created_at || rawDocDate,
+                      currentOrder.createdAt || currentOrder.created_at || paymentDateVal || orderDateVal,
                       effectiveTz,
                       { format: 'datetime' }
                     )}
@@ -1158,10 +1199,12 @@ export default function DocumentViewerPopup({
                 </div>
                 <div className="dv-cell">
                   <span className="dv-lbl">Last Updated By</span>
-                  <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
+                  <span className="dv-val" style={{ fontSize: '13px' }}>
+                    {currentOrder.updatedBy || currentOrder.updated_by || currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName || (auth?.firstName ? `${auth.firstName} ${auth.lastName || ''}`.trim() : 'Staff User')}
+                  </span>
                   <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
                     {formatDateFn(
-                      currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
+                      currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at || paymentDateVal || orderDateVal,
                       effectiveTz,
                       { format: 'datetime' }
                     )}

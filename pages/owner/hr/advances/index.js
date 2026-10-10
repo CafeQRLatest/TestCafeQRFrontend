@@ -6,6 +6,7 @@ import { hrService } from '../../../../services/hrService';
 import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
 import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function SalaryAdvances({ embedded = false }) {
   const router = useRouter();
@@ -206,7 +207,7 @@ export default function SalaryAdvances({ embedded = false }) {
                 advances.map(adv => (
                   <tr key={adv.id}>
                     <td className="font-bold">{adv.employeeName}</td>
-                    <td>{new Date(adv.advanceDate).toLocaleDateString()}</td>
+                    <td>{formatTzDate(adv.advanceDate, null, { format: 'date' })}</td>
                     <td className="font-bold">{currencySymbol}{adv.totalAmount?.toFixed(2)}</td>
                     <td className="text-red-500">-{currencySymbol}{adv.monthlyInstallmentAmount?.toFixed(2)}/mo</td>
                     <td className="font-bold text-orange-600">{currencySymbol}{adv.remainingBalance?.toFixed(2)}</td>

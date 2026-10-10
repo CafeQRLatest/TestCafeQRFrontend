@@ -6,6 +6,7 @@ import { hrService } from '../../../../services/hrService';
 import api from '../../../../utils/api';
 import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint, FaCheck } from 'react-icons/fa';
+import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function PayrollDashboard({ embedded = false }) {
   const router = useRouter();
@@ -277,9 +278,7 @@ export default function PayrollDashboard({ embedded = false }) {
                   payrollRuns.map(run => {
                     const formatPeriodDate = (dateVal) => {
                       if (!dateVal) return 'N/A';
-                      const d = new Date(dateVal);
-                      if (isNaN(d.getTime())) return dateVal;
-                      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                      return formatTzDate(dateVal, null, { format: 'date' });
                     };
                     return (
                       <tr key={run.id}>
@@ -351,7 +350,7 @@ export default function PayrollDashboard({ embedded = false }) {
               <div>
                 <h3>Salary Slips - {selectedRun?.name}</h3>
                 <p className="modal-sub">
-                  {selectedRun && `${new Date(selectedRun.startDate).toLocaleDateString()} - ${new Date(selectedRun.endDate).toLocaleDateString()}`}
+                  {selectedRun && `${formatTzDate(selectedRun.startDate, null, { format: 'date' })} - ${formatTzDate(selectedRun.endDate, null, { format: 'date' })}`}
                 </p>
               </div>
               <button className="btn-secondary" onClick={() => setShowSlipsModal(false)}>Close</button>
@@ -444,7 +443,7 @@ export default function PayrollDashboard({ embedded = false }) {
                 <div className="pay-period-box">
                   <span className="label">PAY PERIOD</span>
                   <span className="value">
-                    {selectedRun ? `${new Date(selectedRun.startDate).toLocaleDateString()} - ${new Date(selectedRun.endDate).toLocaleDateString()}` : 'N/A'}
+                    {selectedRun ? `${formatTzDate(selectedRun.startDate, null, { format: 'date' })} - ${formatTzDate(selectedRun.endDate, null, { format: 'date' })}` : 'N/A'}
                   </span>
                 </div>
               </div>

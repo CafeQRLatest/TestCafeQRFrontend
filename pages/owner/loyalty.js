@@ -29,6 +29,7 @@ import {
   FaInfoCircle,
   FaTrashAlt,
 } from 'react-icons/fa';
+import { formatTzDate } from '../../utils/timezoneUtils';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,13 +65,7 @@ function fmtSign(n) {
 function formatDate(iso) {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatTzDate(iso, null);
   } catch {
     return iso;
   }

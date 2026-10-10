@@ -21,9 +21,9 @@ function fmt(n, dp = 2) {
   return Number(n || 0).toFixed(dp);
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, targetTz = null) {
   if (!dateStr) return '—';
-  const tz = (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || null;
+  const tz = targetTz || (typeof window !== 'undefined' ? (Cookies.get('timezone') || localStorage.getItem('timezone') || localStorage.getItem('TIMEZONE')) : null) || 'Asia/Kolkata';
   const result = formatTzDate(dateStr, tz, { format: 'datetime' });
   return result === '—' ? String(dateStr) : result;
 }

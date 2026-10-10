@@ -6,7 +6,7 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import PremiumDateTimePicker from '../components/PremiumDateTimePicker';
 import NiceSelect from '../components/NiceSelect';
 import DocumentViewerPopup from '../components/purchasing/DocumentViewerPopup';
-import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../utils/timezoneUtils';
+import { formatTzDate, getBusinessNow, businessTimeToUtc, getBranchParts } from '../utils/timezoneUtils';
 import {
   FaChartPie, FaChartBar, FaThList,
   FaExclamationTriangle, FaTimes, FaReceipt,
@@ -307,7 +307,7 @@ function Dashboard() {
           ) : view==='chart' ? (
             <ChartView orders={orders} themeColor={themeColor} orderType={orderType} vendors={vendors} warehouses={warehouses} currencySymbol={currencySymbol} />
           ) : view==='graph' ? (
-            <GraphView orders={orders} themeColor={themeColor} themeColorRgb={themeColorRgb} orderType={orderType} dateFrom={dateFrom} dateTo={dateTo} vendors={vendors} warehouses={warehouses} currencySymbol={currencySymbol} />
+            <GraphView orders={orders} themeColor={themeColor} themeColorRgb={themeColorRgb} orderType={orderType} dateFrom={dateFrom} dateTo={dateTo} vendors={vendors} warehouses={warehouses} currencySymbol={currencySymbol} timezone={timezone} />
           ) : (
             <TableView orders={orders} themeColor={themeColor} orderType={orderType} onViewOrder={(o) => setViewingDoc({ order: o, type: 'order' })} currencySymbol={currencySymbol} />
           )}
@@ -1042,7 +1042,7 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
 /* ═══════════════════════════════════════════════════════════════════════════
    GRAPH VIEW — Animated bar chart of revenue + order count per type
    ═══════════════════════════════════════════════════════════════════════════ */
-function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dateTo, vendors = [], warehouses = [], currencySymbol = '₹' }) {
+function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dateTo, vendors = [], warehouses = [], currencySymbol = '₹', timezone }) {
   const fmtC = n => `${currencySymbol}${fmt(n)}`;
   const [metric, setMetric] = useState('revenue'); // 'revenue' | 'count'
   const isSale = orderType === 'SALE';
@@ -1158,68 +1158,58 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
     const safe = Array.isArray(orders) ? orders : [];
     const activeSales = safe.filter(o => o.status !== 'CANCELLED');
     
-    // Parse filters
-    const start = new Date(dateFrom);
-    const end = new Date(dateTo);
-    
-    // Check if we are doing hourly grouping (diff <= 36 hours)
-    const diffHours = Math.abs(end - start) / (1000 * 60 * 60);
-    const isHourly = diffHours <= 36;
-    
+    // dateFrom/dateTo are branch wall-clock values (YYYY-MM-DDTHH:mm); orders are UTC instants.
+    // Bin everything on branch wall-clock time so the chart does not depend on the browser's timezone.
+    const wall = (v) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}))?/.exec(String(v || ''));
+      return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0)) : NaN; // wall time held as a UTC number
+    };
+    const start = wall(dateFrom);
+    const end = wall(dateTo);
+    if (isNaN(start) || isNaN(end)) return [];
+
+    const HOUR = 3600 * 1000;
+    const isHourly = Math.abs(end - start) / HOUR <= 36; // diff <= 36 hours -> hourly grouping
     const bins = {};
-    
+
+    const orderKey = (o) => {
+      const dateVal = o.orderDate || o.createdAt || o.created_at;
+      const p = getBranchParts(dateVal, timezone);
+      if (!p) return null;
+      const pad = (n) => String(n).padStart(2, '0');
+      const day = `${p.year}-${pad(p.month)}-${pad(p.day)}`;
+      return isHourly ? `${day}T${pad(p.hour)}` : day;
+    };
+
     if (isHourly) {
-      // Generate hourly slots
-      let current = new Date(start);
-      current.setMinutes(0, 0, 0);
-      while (current <= end) {
-        const key = current.toISOString().substring(0, 13) + ':00'; // YYYY-MM-DDTHH:00
-        const label = current.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        bins[key] = { label, revenue: 0, count: 0, timestamp: current.getTime() };
-        current.setHours(current.getHours() + 1);
+      for (let t = start; t <= end; t += HOUR) {
+        const d = new Date(t);
+        const key = d.toISOString().substring(0, 13); // YYYY-MM-DDTHH (branch wall time)
+        const label = `${String(d.getUTCHours()).padStart(2, '0')}:00`;
+        bins[key] = { label, revenue: 0, count: 0, timestamp: t };
       }
-      
-      // Accumulate order values
-      activeSales.forEach(o => {
-        const dateVal = o.orderDate || o.createdAt || o.created_at;
-        if (!dateVal) return;
-        const d = new Date(dateVal);
-        d.setMinutes(0, 0, 0);
-        const key = d.toISOString().substring(0, 13) + ':00';
-        if (bins[key]) {
-          bins[key].revenue += (o.totalAmount || 0);
-          bins[key].count++;
-        }
-      });
     } else {
-      // Generate daily slots
-      let current = new Date(start);
-      current.setHours(0, 0, 0, 0);
-      const endDay = new Date(end);
-      endDay.setHours(0, 0, 0, 0);
-      
-      while (current <= endDay) {
-        const key = current.toISOString().substring(0, 10); // YYYY-MM-DD
-        const label = current.toLocaleDateString([], { day: '2-digit', month: 'short' });
-        bins[key] = { label, revenue: 0, count: 0, timestamp: current.getTime() };
-        current.setDate(current.getDate() + 1);
+      const DAY = 24 * HOUR;
+      const firstDay = Math.floor(start / DAY) * DAY;
+      const lastDay = Math.floor(end / DAY) * DAY;
+      for (let t = firstDay; t <= lastDay; t += DAY) {
+        const d = new Date(t);
+        const key = d.toISOString().substring(0, 10); // YYYY-MM-DD (branch wall date)
+        const label = d.toLocaleDateString([], { day: '2-digit', month: 'short', timeZone: 'UTC' });
+        bins[key] = { label, revenue: 0, count: 0, timestamp: t };
       }
-      
-      // Accumulate order values
-      activeSales.forEach(o => {
-        const dateVal = o.orderDate || o.createdAt || o.created_at;
-        if (!dateVal) return;
-        const d = new Date(dateVal);
-        const key = d.toISOString().substring(0, 10);
-        if (bins[key]) {
-          bins[key].revenue += (o.totalAmount || 0);
-          bins[key].count++;
-        }
-      });
     }
-    
+
+    activeSales.forEach((o) => {
+      const key = orderKey(o);
+      if (key && bins[key]) {
+        bins[key].revenue += (o.totalAmount || 0);
+        bins[key].count++;
+      }
+    });
+
     return Object.values(bins).sort((a, b) => a.timestamp - b.timestamp);
-  }, [orders, dateFrom, dateTo]);
+  }, [orders, dateFrom, dateTo, timezone]);
 
   const maxVal = useMemo(() => {
     if (trendData.length === 0) return 1;

@@ -273,7 +273,7 @@ export default function CreditVendorTable({
                                               {displayNo}
                                             </span>
                                           </td>
-                                          <td>{displayDate ? new Date(displayDate).toLocaleDateString() : '—'}</td>
+                                          <td>{displayDate ? formatTzDate(displayDate, timezone, { format: 'date' }) : '—'}</td>
                                           <td>
                                             {renderOrderStatus(order)}
                                           </td>

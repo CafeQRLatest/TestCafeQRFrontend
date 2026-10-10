@@ -5,6 +5,7 @@ import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaCalendarAlt, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function LeaveManagement({ embedded = false }) {
   const router = useRouter();
@@ -204,7 +205,7 @@ export default function LeaveManagement({ embedded = false }) {
                 leaves.map(leave => (
                   <tr key={leave.id}>
                     <td className="font-bold">{leave.employeeName}</td>
-                    <td>{new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}</td>
+                    <td>{formatTzDate(leave.startDate, null, { format: 'date' })} - {formatTzDate(leave.endDate, null, { format: 'date' })}</td>
                     <td><span className={`type-badge ${leave.leaveType.toLowerCase()}`}>{leave.leaveType}</span></td>
                     <td>{leave.totalDays}</td>
                     <td><span className={`status-badge ${leave.status.toLowerCase()}`}>{leave.status}</span></td>

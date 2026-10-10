@@ -69,9 +69,9 @@ async function imgToBase64(url) {
   }
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, targetTz = null) {
   if (!dateStr) return '';
-  const tz = (typeof window !== 'undefined' ? Cookies.get('timezone') : null) || null;
+  const tz = targetTz || (typeof window !== 'undefined' ? (Cookies.get('timezone') || localStorage.getItem('timezone') || localStorage.getItem('TIMEZONE')) : null) || 'Asia/Kolkata';
   const result = formatTzDate(dateStr, tz, { format: 'datetime' });
   return result === '—' ? '' : result;
 }
@@ -297,6 +297,14 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   const fssai       = clientData?.fssaiNumber || cfg.fssaiLicense || '';
   const footerText  = regTpl.showFooter !== false ? (regTpl.footer || cfg.billFooter || cfg.billFooterText || '') : '';
 
+  const effectiveTz = 
+    order?.timezone || 
+    branchData?.timezone || 
+    clientData?.timezone || 
+    cfg?.timezone || 
+    (typeof window !== 'undefined' ? (Cookies.get('timezone') || localStorage.getItem('timezone') || localStorage.getItem('TIMEZONE')) : null) || 
+    'Asia/Kolkata';
+
   const orderNo    = order.orderNo || order.order_no || (order?.id ? `#${String(order.id).slice(0, 8)}` : '');
   const invoiceNo  = invoiceData?.invoiceNo || invoiceData?.invoice_no || order?.invoiceNo || order?.invoice_no || '';
   const paymentRef = invoiceData?.referenceNo || invoiceData?.reference_no || order?.referenceNo || order?.reference || '';
@@ -472,7 +480,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   metaField('ORDER NO', orderNo, col2x, metaY);
 
   const metaY2 = metaY + 11;
-  metaFieldLight('DATE', formatDate(orderDate), col1x, metaY2);
+  metaFieldLight('DATE', formatDate(orderDate, effectiveTz), col1x, metaY2);
   
   const shouldShowType = !clientData?.posType || String(clientData.posType).trim().toUpperCase() !== 'OTHERS';
   const isMeaningfulRef = paymentRef && !isMixed && paymentRef.trim().toUpperCase() !== String(payMethod).trim().toUpperCase() && paymentRef.trim().toUpperCase() !== 'CASH';
