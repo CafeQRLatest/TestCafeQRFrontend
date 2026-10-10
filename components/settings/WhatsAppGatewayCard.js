@@ -116,10 +116,26 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
         setFeedbackMsg({ text: `✓ Test receipt sent successfully to +${testPhone}!`, type: 'success' });
         setTestPhone('');
       } else {
-        setFeedbackMsg({ text: data.message || 'Failed to send test message.', type: 'error' });
+        let errMsg = data.message || 'Failed to send test message.';
+        try {
+          const match = errMsg.match(/\{.*\}$/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            if (parsed.message) errMsg = parsed.message;
+          }
+        } catch (_) {}
+        setFeedbackMsg({ text: errMsg, type: 'error' });
       }
     } catch (err) {
-      setFeedbackMsg({ text: err.response?.data?.message || 'Error sending test message.', type: 'error' });
+      let errMsg = err.response?.data?.message || err.message || 'Error sending test message.';
+      try {
+        const match = errMsg.match(/\{.*\}$/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (parsed.message) errMsg = parsed.message;
+        }
+      } catch (_) {}
+      setFeedbackMsg({ text: errMsg, type: 'error' });
     } finally {
       setTestSending(false);
     }
