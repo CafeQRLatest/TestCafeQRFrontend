@@ -1441,16 +1441,14 @@ export default function OrdersPage() {
       const settledOrder = res?.data?.data || order;
       if (targetPhone) {
         try {
-          const generated = await generateInvoicePdfDoc(settledOrder, config);
-          if (generated?.pdfBase64) {
-            await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: settledOrder.id || order.id,
-              phone: targetPhone,
-              pdfBase64: generated.pdfBase64,
-            });
-          }
-        } catch (pdfErr) {
-          console.warn('[orders:auto-settle] Could not send official PDF over WhatsApp:', pdfErr);
+          const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
+          await api.post('/api/v1/whatsapp/send-order-bill', {
+            orderId: settledOrder.id || order.id,
+            phone: targetPhone,
+            frontendUrl: originUrl
+          });
+        } catch (waErr) {
+          console.warn('[orders:auto-settle] Could not send WhatsApp digital bill:', waErr);
         }
       }
       notify('success', 'Order auto-settled (pre-paid online)');
@@ -1590,16 +1588,14 @@ export default function OrdersPage() {
       const settledOrder = res?.data?.data;
       if (settledOrder && targetPhone) {
         try {
-          const generated = await generateInvoicePdfDoc(settledOrder, config);
-          if (generated?.pdfBase64) {
-            await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: settledOrder.id,
-              phone: targetPhone,
-              pdfBase64: generated.pdfBase64,
-            });
-          }
-        } catch (pdfErr) {
-          console.warn('[orders:settle] Could not send official PDF over WhatsApp:', pdfErr);
+          const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
+          await api.post('/api/v1/whatsapp/send-order-bill', {
+            orderId: settledOrder.id,
+            phone: targetPhone,
+            frontendUrl: originUrl
+          });
+        } catch (waErr) {
+          console.warn('[orders:settle] Could not send WhatsApp digital bill:', waErr);
         }
       }
       setPaymentOrder(null);

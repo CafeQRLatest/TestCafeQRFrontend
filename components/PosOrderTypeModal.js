@@ -1748,21 +1748,19 @@ export default function PosOrderTypeModal({
       const res = await api.post(url, payloadToSend);
       const settledOrder = res?.data?.data || paymentOrder;
 
-      // Automatically dispatch official invoice PDF via WhatsApp using finalized settled order
+      // Automatically dispatch smart digital e-bill via WhatsApp
       const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
       if (phone && settledOrder?.id) {
         (async () => {
           try {
-            const generated = await generateInvoicePdfDoc(settledOrder, config);
-            if (generated?.pdfBase64) {
-              await api.post('/api/v1/whatsapp/send-order-bill', {
-                orderId: settledOrder.id,
-                phone: String(phone).trim(),
-                pdfBase64: generated.pdfBase64
-              });
-            }
-          } catch (pdfErr) {
-            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp PDF bill:', pdfErr);
+            const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
+            await api.post('/api/v1/whatsapp/send-order-bill', {
+              orderId: settledOrder.id,
+              phone: String(phone).trim(),
+              frontendUrl: originUrl
+            });
+          } catch (waErr) {
+            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp digital bill:', waErr);
           }
         })();
       }

@@ -876,16 +876,14 @@ export default function SalesHistoryPage() {
 
       if (settledOrder && targetPhone) {
         try {
-          const generated = await generateInvoicePdfDoc(settledOrder, config);
-          if (generated?.pdfBase64) {
-            await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: settledOrder.id || paymentOrder?.id,
-              phone: targetPhone,
-              pdfBase64: generated.pdfBase64,
-            });
-          }
-        } catch (pdfErr) {
-          console.warn('[sales-history:settle] Could not send official PDF over WhatsApp:', pdfErr);
+          const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
+          await api.post('/api/v1/whatsapp/send-order-bill', {
+            orderId: settledOrder.id || paymentOrder?.id,
+            phone: targetPhone,
+            frontendUrl: originUrl
+          });
+        } catch (waErr) {
+          console.warn('[sales-history:settle] Could not send WhatsApp digital bill:', waErr);
         }
       }
 

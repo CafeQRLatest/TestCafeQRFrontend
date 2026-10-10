@@ -170,46 +170,52 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     return null;
   };
 
-  // 1. Fetch invoice data first to get any branch/org ID stored there
+  // 1. Fetch invoice, config, and branch details (or use pre-bundled public data)
   let invoiceData = null;
-  try {
-    const { data } = await api.get(`/api/v1/invoices/order/${order.id}`);
-    invoiceData = data?.data || null;
-  } catch { /* use order only */ }
-
-  const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || configOverride?.orgId || configOverride?.branchId || getCookie('orgId');
-  const custId = order.customerId || order.customer_id || (Array.isArray(order.customers) && order.customers[0]?.id) || order.creditCustomerId || order.credit_customer_id || invoiceData?.customerId;
-  const loyaltyCustId = order.loyaltyCustomerId || order.loyalty_customer_id || custId;
-
-  // 2. Fetch configuration, branch/client, customer, and loyalty details concurrently
   let cfg = configOverride ? { ...configOverride } : null;
   let branchData = null;
   let clientData = null;
   let fetchedCustomer = null;
   let fetchedLoyalty = null;
 
-  try {
-    const configPromise = cfg
-      ? Promise.resolve({ data: { data: cfg } })
-      : api.get(branchId ? `/api/v1/configurations/branch/${branchId}/effective` : '/api/v1/configurations').catch(() => null);
+  if (order?._publicData) {
+    invoiceData = order._publicData.invoiceData || null;
+    cfg = order._publicData.cfg || cfg || {};
+    branchData = order._publicData.branchData || null;
+    clientData = order._publicData.clientData || null;
+  } else {
+    try {
+      const { data } = await api.get(`/api/v1/invoices/order/${order.id}`);
+      invoiceData = data?.data || null;
+    } catch { /* use order only */ }
 
-    const [configRes, branchRes, clientRes, custRes, loyRes] = await Promise.allSettled([
-      configPromise,
-      branchId ? api.get(`/api/v1/organizations/${branchId}`).catch(() => null) : Promise.resolve(null),
-      api.get('/api/v1/clients/me').catch(() => null),
-      custId ? api.get(`/api/v1/customers/${custId}`).catch(() => null) : Promise.resolve(null),
-      loyaltyCustId ? api.get(`/api/v1/loyalty/customers/${loyaltyCustId}`).catch(() => null) : Promise.resolve(null)
-    ]);
+    const branchId = order.orgId || order.org_id || order.branchId || order.branch_id || order.organizationId || order.organization_id || invoiceData?.orgId || invoiceData?.org_id || configOverride?.orgId || configOverride?.branchId || getCookie('orgId');
+    const custId = order.customerId || order.customer_id || (Array.isArray(order.customers) && order.customers[0]?.id) || order.creditCustomerId || order.credit_customer_id || invoiceData?.customerId;
+    const loyaltyCustId = order.loyaltyCustomerId || order.loyalty_customer_id || custId;
 
-    if (!cfg && configRes.status === 'fulfilled') {
-      cfg = configRes.value?.data?.data || {};
+    try {
+      const configPromise = cfg
+        ? Promise.resolve({ data: { data: cfg } })
+        : api.get(branchId ? `/api/v1/configurations/branch/${branchId}/effective` : '/api/v1/configurations').catch(() => null);
+
+      const [configRes, branchRes, clientRes, custRes, loyRes] = await Promise.allSettled([
+        configPromise,
+        branchId ? api.get(`/api/v1/organizations/${branchId}`).catch(() => null) : Promise.resolve(null),
+        api.get('/api/v1/clients/me').catch(() => null),
+        custId ? api.get(`/api/v1/customers/${custId}`).catch(() => null) : Promise.resolve(null),
+        loyaltyCustId ? api.get(`/api/v1/loyalty/customers/${loyaltyCustId}`).catch(() => null) : Promise.resolve(null)
+      ]);
+
+      if (!cfg && configRes.status === 'fulfilled') {
+        cfg = configRes.value?.data?.data || {};
+      }
+      if (branchRes.status === 'fulfilled') branchData = branchRes.value?.data?.data || null;
+      if (clientRes.status === 'fulfilled') clientData = clientRes.value?.data?.data || null;
+      if (custRes.status === 'fulfilled') fetchedCustomer = custRes.value?.data?.data || null;
+      if (loyRes.status === 'fulfilled') fetchedLoyalty = loyRes.value?.data?.data || null;
+    } catch (err) {
+      console.warn('Failed to load configuration/org/client/loyalty details:', err);
     }
-    if (branchRes.status === 'fulfilled') branchData = branchRes.value?.data?.data || null;
-    if (clientRes.status === 'fulfilled') clientData = clientRes.value?.data?.data || null;
-    if (custRes.status === 'fulfilled') fetchedCustomer = custRes.value?.data?.data || null;
-    if (loyRes.status === 'fulfilled') fetchedLoyalty = loyRes.value?.data?.data || null;
-  } catch (err) {
-    console.warn('Failed to load configuration/org/client/loyalty details:', err);
   }
 
   cfg = cfg || {};
@@ -234,26 +240,28 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   // 4. Payment splits & history
   let splits = Array.isArray(order?.paymentSplits || order?.payment_splits) ? (order.paymentSplits || order.payment_splits) : [];
   let paymentsList = Array.isArray(order?.payments) ? order.payments : [];
-  try {
-    const orderIdToFetch = order?.id || order?.orderId;
-    if (orderIdToFetch) {
-      const { data } = await api.get(`/api/v1/orders/${orderIdToFetch}/payments`);
-      const rawPayments = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-      const fetched = rawPayments.filter(p => String(p.docStatus || p.doc_status || '').toUpperCase() !== 'VOID' && String(p.isactive || 'Y').toUpperCase() !== 'N');
-      if (fetched.length > 0) {
-        paymentsList = fetched;
-      }
-    }
-  } catch { /* ignore */ }
-
-  const isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
-  if (isMixedFlag && order?.id && splits.length === 0) {
+  if (!order?._publicData) {
     try {
-      const { data } = await api.get(`/api/v1/orders/${order.id}/payment-splits`);
-      if (Array.isArray(data?.data) && data.data.length > 0) {
-        splits = data.data;
+      const orderIdToFetch = order?.id || order?.orderId;
+      if (orderIdToFetch) {
+        const { data } = await api.get(`/api/v1/orders/${orderIdToFetch}/payments`);
+        const rawPayments = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+        const fetched = rawPayments.filter(p => String(p.docStatus || p.doc_status || '').toUpperCase() !== 'VOID' && String(p.isactive || 'Y').toUpperCase() !== 'N');
+        if (fetched.length > 0) {
+          paymentsList = fetched;
+        }
       }
     } catch { /* ignore */ }
+
+    const isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
+    if (isMixedFlag && order?.id && splits.length === 0) {
+      try {
+        const { data } = await api.get(`/api/v1/orders/${order.id}/payment-splits`);
+        if (Array.isArray(data?.data) && data.data.length > 0) {
+          splits = data.data;
+        }
+      } catch { /* ignore */ }
+    }
   }
 
   if ((!splits || splits.length === 0) && paymentsList.length > 0) {
@@ -807,3 +815,89 @@ export async function downloadInvoicePdf(order, configOverride = null) {
     doc.save(filename);
   }
 }
+
+/**
+ * Downloads the official GST tax invoice PDF on the public customer e-bill page
+ * using pre-bundled PublicDigitalInvoiceDto data. Zero authenticated API calls needed.
+ */
+export async function downloadPublicInvoicePdf(dto) {
+  if (!dto) return;
+
+  const virtualOrder = {
+    id: dto.orderId || dto.invoiceId,
+    orderNo: dto.orderNo || dto.invoiceNo,
+    invoiceNo: dto.invoiceNo,
+    createdAt: dto.invoiceDate,
+    customerName: dto.customerName,
+    customerPhone: dto.customerPhone,
+    customerAddress: dto.customerAddress,
+    customerGstin: dto.customerGstin,
+    tableNumber: dto.tableNumber,
+    fulfillmentType: dto.fulfillmentType,
+    paymentMethod: dto.paymentMethod,
+    referenceNo: (dto.paymentSplits && dto.paymentSplits.length > 1) ? 'MIXED' : (dto.paymentMethod || ''),
+    paymentSplits: (dto.paymentSplits || []).map(sp => ({
+      paymentMethod: sp.paymentMethod,
+      amount: Number(sp.amount || 0)
+    })),
+    grossAmount: dto.grossAmount,
+    totalDiscountAmount: dto.totalDiscountAmount,
+    totalAmount: dto.subtotal,
+    totalTaxAmount: dto.totalTaxAmount,
+    roundOffAmount: dto.roundOffAmount,
+    grandTotal: dto.grandTotal,
+    lines: (dto.lines || []).map(l => ({
+      productName: l.productName,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      taxRate: l.taxRate,
+      lineTotal: l.lineTotal,
+      description: l.description
+    }))
+  };
+
+  const virtualConfig = {
+    currencySymbol: dto.currencySymbol || '₹',
+    taxLabelGlobal: dto.taxLabel || 'GST',
+    logoUrl: dto.logoUrl,
+    billFooter: dto.billFooter,
+    restaurantName: dto.storeName,
+    phone: dto.storePhone,
+    address: dto.storeAddress,
+    gstin: dto.gstin,
+    fssaiLicense: dto.fssaiNumber
+  };
+
+  const virtualBranch = {
+    name: dto.storeName,
+    address: dto.storeAddress,
+    phone: dto.storePhone,
+    gstin: dto.gstin
+  };
+
+  const virtualClient = {
+    name: dto.storeName,
+    address: dto.storeAddress,
+    phone: dto.storePhone,
+    gstNumber: dto.gstin,
+    fssaiNumber: dto.fssaiNumber
+  };
+
+  virtualOrder._publicData = {
+    invoiceData: {
+      invoiceNo: dto.invoiceNo,
+      invoiceDate: dto.invoiceDate,
+      grossAmount: dto.grossAmount,
+      totalTaxAmount: dto.totalTaxAmount,
+      totalDiscountAmount: dto.totalDiscountAmount,
+      totalAmount: dto.grandTotal,
+      roundOffAmount: dto.roundOffAmount
+    },
+    cfg: virtualConfig,
+    branchData: virtualBranch,
+    clientData: virtualClient
+  };
+
+  return downloadInvoicePdf(virtualOrder, virtualConfig);
+}
+
