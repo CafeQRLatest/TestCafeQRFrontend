@@ -877,14 +877,18 @@ export default function SalesHistoryPage() {
       if (settledOrder && targetPhone) {
         try {
           const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-          await api.post('/api/v1/whatsapp/send-order-bill', {
+          console.log('[sales-history:settle] Dispatching WhatsApp digital bill to:', targetPhone, 'orderId:', settledOrder.id || paymentOrder?.id);
+          const res = await api.post('/api/v1/whatsapp/send-order-bill', {
             orderId: settledOrder.id || paymentOrder?.id,
             phone: targetPhone,
             frontendUrl: originUrl
           });
+          console.log('[sales-history:settle] WhatsApp digital bill dispatched successfully:', res?.data);
         } catch (waErr) {
-          console.warn('[sales-history:settle] Could not send WhatsApp digital bill:', waErr);
+          console.warn('[sales-history:settle] Could not send WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
         }
+      } else {
+        console.log('[sales-history:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
 
       if (!payload?.confirmStockWarning) {

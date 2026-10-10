@@ -1754,15 +1754,19 @@ export default function PosOrderTypeModal({
         (async () => {
           try {
             const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-            await api.post('/api/v1/whatsapp/send-order-bill', {
+            console.log('[PosOrderTypeModal:settle] Dispatching WhatsApp digital bill to:', phone, 'orderId:', settledOrder.id);
+            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
               orderId: settledOrder.id,
               phone: String(phone).trim(),
               frontendUrl: originUrl
             });
+            console.log('[PosOrderTypeModal:settle] WhatsApp digital bill dispatched successfully:', res?.data);
           } catch (waErr) {
-            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp digital bill:', waErr);
+            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
           }
         })();
+      } else {
+        console.log('[PosOrderTypeModal:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
 
       if (!settlementPayload?.confirmStockWarning) {

@@ -125,6 +125,27 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
     }
   };
 
+  const handleHealContact = async () => {
+    if (!testPhone || testPhone.trim().length < 10) {
+      setFeedbackMsg({ text: 'Please enter a 10-digit customer mobile number to heal session.', type: 'error' });
+      return;
+    }
+    setTestSending(true);
+    setFeedbackMsg({ text: '', type: '' });
+    try {
+      const res = await api.post('/api/v1/whatsapp/clear-contact-session', { phone: testPhone.trim(), sessionId });
+      const data = res.data?.data || res.data || {};
+      setFeedbackMsg({ 
+        text: `✓ Signal session reset for +${testPhone}. Next message will re-negotiate fresh encryption keys.`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      setFeedbackMsg({ text: err.response?.data?.message || 'Failed to refresh contact session.', type: 'error' });
+    } finally {
+      setTestSending(false);
+    }
+  };
+
   const isConnected = gatewayStatus === 'CONNECTED';
   const isScanQr = gatewayStatus === 'SCAN_QR' || !!qrCodeUrl;
 
@@ -215,7 +236,20 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                   {testSending ? <FaSpinner className="spinning" size={12} /> : <FaPaperPlane size={12} />}
                   <span>{testSending ? 'Sending...' : 'Send Test Bill'}</span>
                 </button>
+                <button 
+                  type="button" 
+                  onClick={handleHealContact} 
+                  disabled={testSending || !testPhone.trim()} 
+                  className="wa-btn-heal"
+                  title="Resets encryption key ratchet for this contact if recipient sees 'Waiting for this message'"
+                >
+                  <FaSyncAlt size={11} className={testSending ? 'spinning' : ''} />
+                  <span>Heal Session</span>
+                </button>
               </form>
+              <div className="wa-e2ee-hint">
+                💡 <em>If recipient sees "Waiting for this message": keep your restaurant phone online with WhatsApp open for 1-2 minutes to complete multi-device encryption sync, or click "Heal Session".</em>
+              </div>
             </div>
 
             {/* Unlink Action */}
@@ -739,6 +773,40 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
         .wa-btn-test:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+
+        .wa-btn-heal {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 9px 14px;
+          border-radius: 8px;
+          background: #f1f5f9;
+          color: #475569;
+          border: 1.5px solid #cbd5e1;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .wa-btn-heal:hover:not(:disabled) {
+          background: #e2e8f0;
+          color: #0f172a;
+          border-color: #94a3b8;
+        }
+
+        .wa-btn-heal:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .wa-e2ee-hint {
+          font-size: 11.5px;
+          color: #64748b;
+          line-height: 1.4;
+          margin-top: 4px;
         }
 
         .wa-disconnect-row {

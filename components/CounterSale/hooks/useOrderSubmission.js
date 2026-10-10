@@ -329,23 +329,27 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         rememberTrending(cart);
       }
 
-      // Automatically dispatch official invoice PDF via WhatsApp if settled with customer phone
+      // Automatically dispatch official digital e-bill via WhatsApp if settled with customer phone
       const customerPhone = paymentPayload?.customerPhone || primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone || savedOrder?.customerPhone;
       if (effectiveOrderMode === 'settle' && savedOrder?.id && customerPhone && !knownOffline) {
         (async () => {
+          const formattedPhone = String(customerPhone).trim();
+          console.log('[useOrderSubmission] Order settled. Dispatching WhatsApp digital bill to:', formattedPhone, 'orderId:', savedOrder.id);
           try {
-            const generated = await generateInvoicePdfDoc(printOrder, config);
-            if (generated?.pdfBase64) {
-              await api.post('/api/v1/whatsapp/send-order-bill', {
-                orderId: savedOrder.id,
-                phone: String(customerPhone).trim(),
-                pdfBase64: generated.pdfBase64
-              });
-            }
-          } catch (pdfErr) {
-            console.warn('[useOrderSubmission] Failed to dispatch WhatsApp invoice PDF:', pdfErr);
+            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
+              orderId: savedOrder.id,
+              phone: formattedPhone,
+              frontendUrl: typeof window !== 'undefined' ? window.location.origin : undefined
+            });
+            console.log('[useOrderSubmission] WhatsApp digital bill dispatched successfully:', res?.data);
+          } catch (whatsAppErr) {
+            console.warn('[useOrderSubmission] Failed to dispatch WhatsApp digital bill:', whatsAppErr?.response?.data || whatsAppErr?.message || whatsAppErr);
           }
         })();
+      } else if (effectiveOrderMode === 'settle' && savedOrder?.id && !customerPhone) {
+        console.log('[useOrderSubmission] Order settled without customer phone number. Skipping WhatsApp digital bill dispatch.');
+      } else if (effectiveOrderMode === 'settle' && knownOffline) {
+        console.log('[useOrderSubmission] Device is in offline mode. Skipping instant WhatsApp digital bill dispatch.');
       }
 
       // Always clear cart, order notes, and customer selection after successful order creation

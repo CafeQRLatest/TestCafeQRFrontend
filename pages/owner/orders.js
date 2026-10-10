@@ -1442,14 +1442,18 @@ export default function OrdersPage() {
       if (targetPhone) {
         try {
           const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-          await api.post('/api/v1/whatsapp/send-order-bill', {
+          console.log('[orders:auto-settle] Dispatching WhatsApp digital bill to:', targetPhone, 'orderId:', settledOrder.id || order.id);
+          const res = await api.post('/api/v1/whatsapp/send-order-bill', {
             orderId: settledOrder.id || order.id,
             phone: targetPhone,
             frontendUrl: originUrl
           });
+          console.log('[orders:auto-settle] WhatsApp digital bill dispatched successfully:', res?.data);
         } catch (waErr) {
-          console.warn('[orders:auto-settle] Could not send WhatsApp digital bill:', waErr);
+          console.warn('[orders:auto-settle] Could not send WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
         }
+      } else {
+        console.log('[orders:auto-settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
       notify('success', 'Order auto-settled (pre-paid online)');
       await requestLiveRefresh({ background: true, forceTableFetch: true });
@@ -1589,14 +1593,18 @@ export default function OrdersPage() {
       if (settledOrder && targetPhone) {
         try {
           const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-          await api.post('/api/v1/whatsapp/send-order-bill', {
+          console.log('[orders:settle] Dispatching WhatsApp digital bill to:', targetPhone, 'orderId:', settledOrder.id);
+          const res = await api.post('/api/v1/whatsapp/send-order-bill', {
             orderId: settledOrder.id,
             phone: targetPhone,
             frontendUrl: originUrl
           });
+          console.log('[orders:settle] WhatsApp digital bill dispatched successfully:', res?.data);
         } catch (waErr) {
-          console.warn('[orders:settle] Could not send WhatsApp digital bill:', waErr);
+          console.warn('[orders:settle] Could not send WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
         }
+      } else {
+        console.log('[orders:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
       setPaymentOrder(null);
       setEditingOrder(null); // Only hide the edit panel after payment success!

@@ -240,6 +240,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   // 4. Payment splits & history
   let splits = Array.isArray(order?.paymentSplits || order?.payment_splits) ? (order.paymentSplits || order.payment_splits) : [];
   let paymentsList = Array.isArray(order?.payments) ? order.payments : [];
+  let isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
   if (!order?._publicData) {
     try {
       const orderIdToFetch = order?.id || order?.orderId;
@@ -253,7 +254,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
       }
     } catch { /* ignore */ }
 
-    const isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
+    isMixedFlag = order?.referenceNo === 'MIXED' || order?.reference === 'MIXED' || order?.paymentMethod === 'MIXED' || paymentsList.length > 1;
     if (isMixedFlag && order?.id && splits.length === 0) {
       try {
         const { data } = await api.get(`/api/v1/orders/${order.id}/payment-splits`);

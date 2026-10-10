@@ -1763,15 +1763,19 @@ function SalesContent() {
         (async () => {
           try {
             const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-            await api.post('/api/v1/whatsapp/send-order-bill', {
+            console.log('[sales:settle] Dispatching WhatsApp digital bill to:', phone, 'orderId:', settledOrder.id);
+            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
               orderId: settledOrder.id,
               phone: String(phone).trim(),
               frontendUrl: originUrl
             });
+            console.log('[sales:settle] WhatsApp digital bill dispatched successfully:', res?.data);
           } catch (waErr) {
-            console.warn('[sales:settle] Could not dispatch WhatsApp digital bill:', waErr);
+            console.warn('[sales:settle] Could not dispatch WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
           }
         })();
+      } else {
+        console.log('[sales:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
       // Immediately update local state so table reverts to AVAILABLE
       setFloorOrders((current) => current.map((item) =>
