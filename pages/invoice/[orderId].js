@@ -332,7 +332,7 @@ export default function PublicInvoicePage() {
               {/* Bill Footer note if set */}
               {invoice.billFooter && (
                 <div className="ebill-custom-footer">
-                  "{invoice.billFooter}"
+                  &ldquo;{invoice.billFooter}&rdquo;
                 </div>
               )}
             </section>

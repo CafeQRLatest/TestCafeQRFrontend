@@ -269,7 +269,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                 </button>
               </form>
               <div className="wa-e2ee-hint">
-                💡 <em>If recipient sees "Waiting for this message": keep your restaurant phone online with WhatsApp open for 1-2 minutes to complete multi-device encryption sync, or click "Heal Session".</em>
+                💡 <em>If recipient sees &ldquo;Waiting for this message&rdquo;: keep your restaurant phone online with WhatsApp open for 1-2 minutes to complete multi-device encryption sync, or click &ldquo;Heal Session&rdquo;.</em>
               </div>
             </div>
 
@@ -299,7 +299,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                 <li>
                   <span className="step-num">1</span>
                   <div className="step-content">
-                    <strong>Open WhatsApp</strong> on the cafe's phone.
+                    <strong>Open WhatsApp</strong> on the cafe&apos;s phone.
                   </div>
                 </li>
                 <li>
@@ -318,7 +318,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
 
               <div className="wa-security-note">
                 <FaShieldAlt size={14} color="#64748b" />
-                <span>100% Free & Secure. Messages route directly through your restaurant's WhatsApp Web session with zero per-message charges.</span>
+                <span>100% Free & Secure. Messages route directly through your restaurant&apos;s WhatsApp Web session with zero per-message charges.</span>
               </div>
             </div>
 
