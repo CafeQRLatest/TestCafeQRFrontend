@@ -23,10 +23,13 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
   const [testSending, setTestSending] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState({ text: '', type: '' });
   const pollTimerRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   const sessionId = orgId && orgId !== '0' ? `org_${orgId}` : undefined;
 
   const fetchStatus = async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const params = sessionId ? { sessionId } : {};
       const res = await api.get('/api/v1/whatsapp/status', { params });
@@ -40,12 +43,14 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
         setQrCodeUrl(null);
       } else {
         // If SCAN_QR, CONNECTING, or hasQr, proactively fetch latest QR code
-        fetchQr();
+        await fetchQr();
       }
     } catch (err) {
       setGatewayStatus('DISCONNECTED');
       setQrCodeUrl(null);
       setConnectedUser(null);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
 
