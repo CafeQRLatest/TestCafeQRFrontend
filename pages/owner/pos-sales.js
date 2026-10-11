@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { fetchSalesScreenDetails, fetchBootstrap, fetchSaleConfigurations } from '../../components/PosSale/services/posSaleApi';
 
-import { isKitchenModuleEnabled } from '../../utils/moduleVisibility';
+import { isKitchenModuleEnabled, getCachedConfig, setCachedConfig } from '../../utils/moduleVisibility';
 import NiceSelect from '../../components/NiceSelect';
 import { FaExclamationCircle } from 'react-icons/fa';
 import { normalizeOrder } from '../../utils/normalizeOrder';
@@ -37,7 +37,7 @@ export default function PosSalesPage() {
   const { isAuthenticated, loading: authLoading, orgId, switchBranch } = useAuth();
 
   const [activeView, setActiveView] = useState('order_type'); // 'order_type' | 'billing' | 'branch_select' | 'loading'
-  const [config, setConfig] = useState(null);
+  const [config, setConfig] = useState(() => getCachedConfig());
   const [bootstrapData, setBootstrapData] = useState(null);
   const [tables, setTables] = useState([]);
   const [creditCustomers, setCreditCustomers] = useState([]);
@@ -140,6 +140,7 @@ export default function PosSalesPage() {
           cfg = configRes.value;
           if (isEffectActive && isMountedRef.current) {
             setConfig(cfg);
+            setCachedConfig(cfg);
           }
         }
 

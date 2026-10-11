@@ -56,7 +56,7 @@ import {
 import PaymentDialog from './PaymentDialog';
 import KotPrint from './KotPrint';
 import EditOrderPanel from './EditOrderPanel';
-import { isKitchenModuleEnabled } from '../utils/moduleVisibility';
+import { isKitchenModuleEnabled, getCachedConfig } from '../utils/moduleVisibility';
 import { getFCMToken } from '../lib/firebase/messaging';
 import {
   getStoredPushToken,
@@ -916,7 +916,8 @@ export default function PosOrderTypeModal({
   const { orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
   const { notify, showConfirm } = useNotification();
 
-  const isTableConfigOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);
+  const effectiveConfig = config || (typeof window !== 'undefined' ? getCachedConfig() : null);
+  const isTableConfigOn = Boolean(effectiveConfig?.tableManagementEnabled ?? effectiveConfig?.tableEnabled ?? true);
   const isDeliveryConfigOn = Boolean(config?.onlineDeliveryEnabled ?? config?.pm_online_delivery ?? false);
   const isKitchenEnabled = Boolean(
     config?.sendToKitchenEnabled !== false &&
@@ -1076,9 +1077,7 @@ export default function PosOrderTypeModal({
   useEffect(() => {
     if (!hasInitializedTypeRef.current && config) {
       hasInitializedTypeRef.current = true;
-      if (!isTableConfigOn) {
-        setActiveType('TAKEAWAY');
-      }
+      setActiveType(isTableConfigOn ? 'TABLE' : 'TAKEAWAY');
     } else if (config && activeType === 'DELIVERY' && !isDeliveryConfigOn) {
       setActiveType(isTableConfigOn ? 'TABLE' : 'TAKEAWAY');
     }
