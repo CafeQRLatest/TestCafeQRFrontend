@@ -25,7 +25,7 @@ export default function UsersManagementPage() {
 }
 
 function UsersContent() {
-  const { logout, userRole } = useAuth();
+  const { logout, userRole, syncRolePermissions } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [orgs, setOrgs] = useState([]);
@@ -277,6 +277,18 @@ function UsersContent() {
         setMsgType('success');
         setMessage("Role permissions updated!");
         fetchData(resp.data.data);
+        if (typeof syncRolePermissions === 'function' && userRole && selectedRole?.name && (
+          selectedRole.name.toUpperCase() === userRole.toUpperCase() ||
+          `ROLE_${selectedRole.name.toUpperCase()}` === userRole.toUpperCase() ||
+          selectedRole.name.toUpperCase() === `ROLE_${userRole.toUpperCase()}`
+        )) {
+          syncRolePermissions({
+            canCancelOrder: selectedRole.canCancelOrder !== false,
+            canDeleteOrderItem: selectedRole.canDeleteOrderItem !== false,
+            canDecrementOrderItem: selectedRole.canDecrementOrderItem !== false,
+            canPrintOrder: selectedRole.canPrintOrder !== false,
+          });
+        }
       } else {
         throw new Error(resp.data.message || "Failed to update role");
       }

@@ -207,6 +207,33 @@ export const AuthProvider = ({ children }) => {
           }
         }).catch(err => console.error("[AuthContext] Subscription sync error:", err));
 
+        // Fetch latest role permissions and user profile
+        api.get('/api/v1/users/me', { skipAuthRedirect: true }).then(res => {
+          if (res.data?.success && res.data?.data) {
+            const u = res.data.data;
+            if (u.canCancelOrder !== undefined) {
+              setCanCancelOrder(u.canCancelOrder);
+              setStorageItem('canCancelOrder', String(u.canCancelOrder), cookieOptions);
+            }
+            if (u.canDeleteOrderItem !== undefined) {
+              setCanDeleteOrderItem(u.canDeleteOrderItem);
+              setStorageItem('canDeleteOrderItem', String(u.canDeleteOrderItem), cookieOptions);
+            }
+            if (u.canDecrementOrderItem !== undefined) {
+              setCanDecrementOrderItem(u.canDecrementOrderItem);
+              setStorageItem('canDecrementOrderItem', String(u.canDecrementOrderItem), cookieOptions);
+            }
+            if (u.canPrintOrder !== undefined) {
+              setCanPrintOrder(u.canPrintOrder);
+              setStorageItem('canPrintOrder', String(u.canPrintOrder), cookieOptions);
+            }
+            if (u.role) {
+              setUserRole(u.role);
+              setStorageItem('userRole', u.role, cookieOptions);
+            }
+          }
+        }).catch(() => {});
+
         // Fetch assigned menus for the logged-in user
         fetchAssignedMenus();
       } else {
@@ -217,6 +244,27 @@ export const AuthProvider = ({ children }) => {
     } finally {
       console.log('[AuthContext] Session init complete, setting loading = false');
       setLoading(false);
+    }
+  }, []);
+
+  const syncRolePermissions = useCallback((perms) => {
+    if (!perms) return;
+    const cookieOptions = getFrontendCookieOptions();
+    if (perms.canCancelOrder !== undefined) {
+      setCanCancelOrder(perms.canCancelOrder);
+      setStorageItem('canCancelOrder', String(perms.canCancelOrder), cookieOptions);
+    }
+    if (perms.canDeleteOrderItem !== undefined) {
+      setCanDeleteOrderItem(perms.canDeleteOrderItem);
+      setStorageItem('canDeleteOrderItem', String(perms.canDeleteOrderItem), cookieOptions);
+    }
+    if (perms.canDecrementOrderItem !== undefined) {
+      setCanDecrementOrderItem(perms.canDecrementOrderItem);
+      setStorageItem('canDecrementOrderItem', String(perms.canDecrementOrderItem), cookieOptions);
+    }
+    if (perms.canPrintOrder !== undefined) {
+      setCanPrintOrder(perms.canPrintOrder);
+      setStorageItem('canPrintOrder', String(perms.canPrintOrder), cookieOptions);
     }
   }, []);
 
@@ -547,6 +595,7 @@ export const AuthProvider = ({ children }) => {
       canDeleteOrderItem,
       canDecrementOrderItem,
       canPrintOrder,
+      syncRolePermissions,
       activeModules,
       activeModulesDetailed,
       termsAcceptedVersion,
