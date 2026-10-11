@@ -285,6 +285,7 @@ function LiveOrderBoardView({
   actionBusy,
   clickedActions = {},
   canCancelOrder,
+  canPrintOrder = true,
   timezone = null,
   onSelectOrder,
   onPrintKot,
@@ -652,16 +653,21 @@ function LiveOrderBoardView({
                   borderTop: '1px solid #f8fafc',
                 }} onClick={e => e.stopPropagation()}>
                   {/* Row 1: Auxiliary action buttons (Bill, KOT, Invoice, Edit, Cancel) */}
-                  <div className={`board-card-aux-row ${!canCancelOrder ? 'four-cols' : ''}`} style={{
-                    display: 'grid',
-                    gridTemplateColumns: canCancelOrder ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)',
-                    gap: 4,
-                    width: '100%'
-                  }}>
-                    <button
-                      type="button"
-                      className={`pos-action-bar-btn ${isBillBusy ? 'btn-is-busy' : ''}`}
-                      disabled={isThisOrderBusy}
+                  {(() => {
+                    const showPrint = canPrintOrder !== false;
+                    const totalCols = (showPrint ? 2 : 0) + 2 + (canCancelOrder ? 1 : 0);
+                    return (
+                      <div className="board-card-aux-row" style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
+                        gap: 4,
+                        width: '100%'
+                      }}>
+                        {showPrint && (
+                          <button
+                            type="button"
+                            className={`pos-action-bar-btn ${isBillBusy ? 'btn-is-busy' : ''}`}
+                            disabled={isThisOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         height: 29,
@@ -694,7 +700,9 @@ function LiveOrderBoardView({
                       )}
                       <span>{isBillBusy ? 'Bill...' : (hasBilled ? 'Billed' : 'Bill')}</span>
                     </button>
+                    )}
 
+                    {showPrint && (
                     <button
                       type="button"
                       className={`pos-action-bar-btn ${isKotBusy ? 'btn-is-busy' : ''}`}
@@ -731,6 +739,7 @@ function LiveOrderBoardView({
                       )}
                       <span>{isKotBusy ? 'KOT...' : (hasKot ? 'Sent' : 'KOT')}</span>
                     </button>
+                    )}
 
                     <button
                       type="button"
@@ -845,6 +854,8 @@ function LiveOrderBoardView({
                       </button>
                     )}
                   </div>
+                    );
+                  })()}
 
                   {/* Row 2: Prominent Centered Settle Payment Button */}
                   <div className="board-card-settle-wrap" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
@@ -902,7 +913,7 @@ export default function PosOrderTypeModal({
   onPrintOrder
 }) {
   const router = useRouter();
-  const { orgId, timezone, canCancelOrder, hasModule } = useAuth();
+  const { orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
   const { notify, showConfirm } = useNotification();
 
   const isTableConfigOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);
@@ -1930,6 +1941,7 @@ export default function PosOrderTypeModal({
         actionBusy={actionBusy}
         clickedActions={clickedActions}
         canCancelOrder={canCancelOrder}
+        canPrintOrder={canPrintOrder}
         timezone={timezone}
         onNewOrder={onNewOrder}
         newOrderLabel={newOrderLabel}
@@ -2636,10 +2648,11 @@ export default function PosOrderTypeModal({
                 <div className="pos-order-modal-footer" style={S.modalFooter}>
                   {/* Row 1: Auxiliary Tools Toolbar (Bill, KOT, Invoice, Edit, Cancel) arranged neatly at top */}
                   <div className="pos-modal-aux-grid" style={S.modalAuxGrid}>
-                    <button
-                      type="button"
-                      className={`pos-action-bar-btn ${isModalBillBusy ? 'btn-is-busy' : ''}`}
-                      disabled={isModalOrderBusy}
+                    {canPrintOrder !== false && (
+                      <button
+                        type="button"
+                        className={`pos-action-bar-btn ${isModalBillBusy ? 'btn-is-busy' : ''}`}
+                        disabled={isModalOrderBusy}
                       style={{
                         ...S.actionBarBtn,
                         fontWeight: hasModalBilled ? 700 : 600,
@@ -2666,7 +2679,9 @@ export default function PosOrderTypeModal({
                       )}
                       <span>{isModalBillBusy ? 'Bill...' : (hasModalBilled ? 'Billed' : 'Bill')}</span>
                     </button>
+                    )}
 
+                    {canPrintOrder !== false && (
                     <button
                       type="button"
                       className={`pos-action-bar-btn ${isModalKotBusy ? 'btn-is-busy' : ''}`}
@@ -2697,6 +2712,7 @@ export default function PosOrderTypeModal({
                       )}
                       <span>{isModalKotBusy ? 'KOT...' : (hasModalKot ? 'KOT Sent' : 'KOT')}</span>
                     </button>
+                    )}
 
                     <button
                       type="button"

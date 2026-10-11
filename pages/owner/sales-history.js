@@ -277,7 +277,7 @@ const HistBoardCard = styled.div`
 export default function SalesHistoryPage() {
   const router = useRouter();
   const { notify, showConfirm } = useNotification();
-  const { timezone, orgId, canCancelOrder } = useAuth();
+  const { timezone, orgId, canCancelOrder, canPrintOrder } = useAuth();
 
   const isMountedRef = useRef(true);
   const historyAbortControllerRef = useRef(null);
@@ -1313,34 +1313,36 @@ export default function SalesHistoryPage() {
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: canCancelOrder ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
+                          gridTemplateColumns: `repeat(${(canPrintOrder !== false ? 1 : 0) + 2 + (canCancelOrder ? 1 : 0)}, 1fr)`,
                           gap: 4,
                           marginTop: 2
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          type="button"
-                          onClick={() => handlePrintBill(order)}
-                          title="Print Bill"
-                          style={{
-                            padding: '5px 4px',
-                            borderRadius: 5,
-                            border: '1px solid #fed7aa',
-                            background: '#fff7ed',
-                            color: '#ea580c',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 3,
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          <FaPrint size={9} /> Print
-                        </button>
+                        {canPrintOrder !== false && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrintBill(order)}
+                            title="Print Bill"
+                            style={{
+                              padding: '5px 4px',
+                              borderRadius: 5,
+                              border: '1px solid #fed7aa',
+                              background: '#fff7ed',
+                              color: '#ea580c',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 3,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            <FaPrint size={9} /> Print
+                          </button>
+                        )}
 
                         <button
                           type="button"
@@ -1504,9 +1506,11 @@ export default function SalesHistoryPage() {
                           <HistActionGroup>
                             {!isCancelled && (
                               <>
-                                <HistActionBtn type="button" onClick={() => handlePrintBill(order)} title="Print Bill">
-                                  <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
-                                </HistActionBtn>
+                                {canPrintOrder !== false && (
+                                  <HistActionBtn type="button" onClick={() => handlePrintBill(order)} title="Print Bill">
+                                    <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
+                                  </HistActionBtn>
+                                )}
 
                                 <HistActionBtn
                                   type="button"

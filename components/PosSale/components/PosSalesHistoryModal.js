@@ -237,7 +237,7 @@ const LoadMoreBtn = styled.button`
 `;
 
 export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹', onPrint }) {
-  const { timezone } = useAuth();
+  const { timezone, canPrintOrder } = useAuth();
   const { orders, loading, hasMore, fetchHistory, searchHistoryDebounced, loadMore } = usePosSalesHistory();
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -300,7 +300,7 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
                   <th className="col-optional">Items</th>
                   <th style={{ textAlign: 'right' }}>Total</th>
                   <th>Status</th>
-                  {onPrint && <th style={{ textAlign: 'center', width: '90px' }}>Print</th>}
+                  {onPrint && canPrintOrder !== false && <th style={{ textAlign: 'center', width: '90px' }}>Print</th>}
                 </tr>
               </thead>
               <tbody>
@@ -330,7 +330,7 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
                     <td>
                       <StatusBadge $status={ord.status}>{ord.status}</StatusBadge>
                     </td>
-                    {onPrint && (
+                    {onPrint && canPrintOrder !== false && (
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                           <button

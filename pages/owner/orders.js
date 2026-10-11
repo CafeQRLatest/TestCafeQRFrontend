@@ -347,7 +347,7 @@ function getStatusBorderColor(status) {
 export default function OrdersPage() {
   const { notify } = useNotification();
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch, canCancelOrder, hasModule } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule } = useAuth();
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
   const historyAbortControllerRef = useRef(null);
@@ -2200,9 +2200,11 @@ export default function OrdersPage() {
                                   {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&
                                    String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && (
                                     <>
-                                      <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
-                                        <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
-                                      </HistActionBtn>
+                                      {canPrintOrder !== false && (
+                                        <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>
+                                          <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print
+                                        </HistActionBtn>
+                                      )}
                                       <HistActionBtn type="button" $tone="orange" title="Download PDF Invoice" onClick={async () => {
                                         try {
                                           const full = await loadFullOrder(order.id);
@@ -2584,21 +2586,25 @@ export default function OrdersPage() {
                       }}>
                         <FaEdit /> Edit
                       </ActionBtn>
-                      <ActionBtn $variant="secondary" onClick={() => {
-                        handlePrintKot(selectedTableOrder);
-                        setSelectedTableOrder(null);
-                      }}>
-                        <FaPrint /> KOT
-                      </ActionBtn>
-                      <ActionBtn $variant="secondary" onClick={() => {
-                        if (localPrintWillHandleKind('bill')) {
-                          handlePrintBill(selectedTableOrder);
-                        }
-                        updateStatus(selectedTableOrder.id, 'BILLED');
-                        setSelectedTableOrder(null);
-                      }}>
-                        <FaReceipt /> Bill
-                      </ActionBtn>
+                      {canPrintOrder !== false && (
+                        <>
+                          <ActionBtn $variant="secondary" onClick={() => {
+                            handlePrintKot(selectedTableOrder);
+                            setSelectedTableOrder(null);
+                          }}>
+                            <FaPrint /> KOT
+                          </ActionBtn>
+                          <ActionBtn $variant="secondary" onClick={() => {
+                            if (localPrintWillHandleKind('bill')) {
+                              handlePrintBill(selectedTableOrder);
+                            }
+                            updateStatus(selectedTableOrder.id, 'BILLED');
+                            setSelectedTableOrder(null);
+                          }}>
+                            <FaReceipt /> Bill
+                          </ActionBtn>
+                        </>
+                      )}
                       <ActionBtn $variant="danger" onClick={(e) => {
                         e.stopPropagation();
                         setCancelReason('');

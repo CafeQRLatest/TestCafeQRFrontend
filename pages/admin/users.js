@@ -309,7 +309,8 @@ function UsersContent() {
       isactive: 'Y',
       canCancelOrder: true,
       canDeleteOrderItem: true,
-      canDecrementOrderItem: true
+      canDecrementOrderItem: true,
+      canPrintOrder: true
     });
   };
 
@@ -609,6 +610,17 @@ function UsersContent() {
                           <div className="perm-info">
                             <span className="perm-name">Decrement Quantity</span>
                             <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow reducing item quantity</p>
+                          </div>
+                        </div>
+
+                        <div 
+                          className={`perm-chip ${selectedRole.canPrintOrder !== false ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canPrintOrder: selectedRole.canPrintOrder === false ? true : false})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Print Orders</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow print buttons and print station</p>
                           </div>
                         </div>
                       </div>

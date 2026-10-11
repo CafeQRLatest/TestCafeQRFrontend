@@ -245,6 +245,7 @@ export default function TablePopover({
   onMove,
   onEditTable,
   canCancelOrder = true,
+  canPrintOrder = true,
 }) {
   const [showMove, setShowMove] = useState(false);
   const status = useMemo(() => {
@@ -342,12 +343,16 @@ export default function TablePopover({
             <Divider />
 
             <ActionGrid>
-              <ActionButton type="button" $bg="#f0f9ff" $color="#0369a1" disabled={busy} onClick={() => onBill?.(order)}>
-                <FaPrint /> Bill
-              </ActionButton>
-              <ActionButton type="button" $bg="#fff7ed" $color="#ea580c" disabled={busy} onClick={() => onKot?.(order)}>
-                <FaFire /> KOT
-              </ActionButton>
+              {canPrintOrder !== false && (
+                <>
+                  <ActionButton type="button" $bg="#f0f9ff" $color="#0369a1" disabled={busy} onClick={() => onBill?.(order)}>
+                    <FaPrint /> Bill
+                  </ActionButton>
+                  <ActionButton type="button" $bg="#fff7ed" $color="#ea580c" disabled={busy} onClick={() => onKot?.(order)}>
+                    <FaFire /> KOT
+                  </ActionButton>
+                </>
+              )}
               <ActionButton type="button" $bg="#ecfdf5" $color="#047857" disabled={busy} onClick={() => onEdit?.(order)}>
                 <FaEdit /> Edit
               </ActionButton>

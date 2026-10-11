@@ -61,6 +61,7 @@ export const AuthProvider = ({ children }) => {
   const [canCancelOrder, setCanCancelOrder] = useState(true);
   const [canDeleteOrderItem, setCanDeleteOrderItem] = useState(true);
   const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);
+  const [canPrintOrder, setCanPrintOrder] = useState(true);
   const [activeModules, setActiveModules] = useState([]);
   const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);
   const [termsAcceptedVersion, setTermsAcceptedVersion] = useState(null);
@@ -114,6 +115,7 @@ export const AuthProvider = ({ children }) => {
       const storedCanCancelOrder = getStorageItem('canCancelOrder');
       const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');
       const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
+      const storedCanPrintOrder = getStorageItem('canPrintOrder');
       const storedModules = getStorageItem('activeModules');
       const storedModulesDetailed = getStorageItem('activeModulesDetailed');
       const storedTermsVersion = getStorageItem('termsAcceptedVersion');
@@ -142,6 +144,7 @@ export const AuthProvider = ({ children }) => {
       if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');
       if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
       if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
+      if (storedCanPrintOrder !== undefined) setCanPrintOrder(storedCanPrintOrder === 'true');
       if (storedModules) {
         try {
           setActiveModules(JSON.parse(storedModules));
@@ -249,10 +252,12 @@ export const AuthProvider = ({ children }) => {
     const pCanCancelOrder = data.canCancelOrder !== undefined ? data.canCancelOrder : true;
     const pCanDeleteOrderItem = data.canDeleteOrderItem !== undefined ? data.canDeleteOrderItem : true;
     const pCanDecrementOrderItem = data.canDecrementOrderItem !== undefined ? data.canDecrementOrderItem : true;
+    const pCanPrintOrder = data.canPrintOrder !== undefined ? data.canPrintOrder : true;
 
     setCanCancelOrder(pCanCancelOrder);
     setCanDeleteOrderItem(pCanDeleteOrderItem);
     setCanDecrementOrderItem(pCanDecrementOrderItem);
+    setCanPrintOrder(pCanPrintOrder);
     
     const cookieOptions = getFrontendCookieOptions();
     
@@ -293,6 +298,7 @@ export const AuthProvider = ({ children }) => {
     setStorageItem('canCancelOrder', String(pCanCancelOrder), cookieOptions);
     setStorageItem('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
     setStorageItem('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
+    setStorageItem('canPrintOrder', String(pCanPrintOrder), cookieOptions);
 
     // Fetch assigned menus immediately after login
     fetchAssignedMenus();
@@ -399,6 +405,7 @@ export const AuthProvider = ({ children }) => {
     removeStorageItem('canCancelOrder', removeOptions);
     removeStorageItem('canDeleteOrderItem', removeOptions);
     removeStorageItem('canDecrementOrderItem', removeOptions);
+    removeStorageItem('canPrintOrder', removeOptions);
     removeStorageItem('activeModulesDetailed', removeOptions);
     removeStorageItem('termsAcceptedVersion', removeOptions);
     removeStorageItem('termsAcceptedAt', removeOptions);
@@ -539,6 +546,7 @@ export const AuthProvider = ({ children }) => {
       canCancelOrder,
       canDeleteOrderItem,
       canDecrementOrderItem,
+      canPrintOrder,
       activeModules,
       activeModulesDetailed,
       termsAcceptedVersion,

@@ -412,7 +412,7 @@ export default function Sales() {
 
 function SalesContent() {
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch, canCancelOrder } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder } = useAuth();
   const isSalesBranchMissing = !orgId;
   const canSelectBranchInSales = isSuperAdminRole(userRole);
   const [tables, setTables] = useState([]);
@@ -2104,6 +2104,7 @@ function SalesContent() {
             onEdit={handleEditOrder}
             onCancel={handleCancelHistoryOrder}
             canCancelOrder={canCancelOrder}
+            canPrintOrder={canPrintOrder}
             creditEnabled={Boolean(config?.creditEnabled)}
             onNewOrder={handleNewOrder}
             orgId={orgId}
@@ -2210,6 +2211,7 @@ function SalesContent() {
             onEdit={handleEditOrder}
             onCancel={handleCancelOrder}
             canCancelOrder={canCancelOrder}
+            canPrintOrder={canPrintOrder}
             onPay={handleSettleOrder}
             onMove={handleMoveOrder}
             onEditTable={handleEditTableSettings}
@@ -2332,6 +2334,7 @@ function OrderHistory({
   onEdit,
   onCancel,
   canCancelOrder = true,
+  canPrintOrder = true,
   creditEnabled = false,
   onNewOrder,
   orgId,
@@ -2549,9 +2552,11 @@ function OrderHistory({
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <ActionGroup style={{ justifyContent: 'center' }}>
-                        <ActionButton type="button" onClick={() => onPrint(order, 'bill')} title="Print Bill">
-                          <FaPrint style={{ color: '#f97316', fontSize: 11 }} /> Print Bill
-                        </ActionButton>
+                        {canPrintOrder !== false && (
+                          <ActionButton type="button" onClick={() => onPrint(order, 'bill')} title="Print Bill">
+                            <FaPrint style={{ color: '#f97316', fontSize: 11 }} /> Print Bill
+                          </ActionButton>
+                        )}
                         <ActionButton type="button" onClick={() => onEdit ? onEdit(order) : null} title="Edit Order">
                           <FaEdit style={{ color: '#475569', fontSize: 11 }} /> Edit
                         </ActionButton>
