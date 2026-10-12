@@ -87,6 +87,7 @@ namespace CafeQR.PrintService
         public string ColorMode { get; set; } = "GRAYSCALE";
         public int Copies { get; set; } = 1;
         public bool AutoCut { get; set; } = true;
+        public bool SoundAlert { get; set; } = false;
         public int FeedLines { get; set; } = 3;
         public bool Enabled { get; set; } = true;
         public bool ShowLogo { get; set; } = true;

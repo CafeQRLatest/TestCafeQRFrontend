@@ -362,10 +362,14 @@ async function printUniversalNow(opts: Options) {
   const localAutoCut = window.localStorage.getItem(`${prefix}AUTO_CUT`) ?? window.localStorage.getItem('PRINT_WIN_AUTOCUT');
   const isCutEnabled = localAutoCut !== null ? (localAutoCut === '1' || localAutoCut === 'true') : false;
 
+  const localSoundAlert = window.localStorage.getItem(`${prefix}SOUND_ALERT`) ?? window.localStorage.getItem('PRINT_WIN_SOUND_ALERT');
+  const isSoundEnabled = localSoundAlert !== null ? (localSoundAlert === '1' || localSoundAlert === 'true') : false;
+
   const payload = textToEscPos(opts.text, {
     codepage: opts.codepage,
     feed: feedCount,
     cut: isCutEnabled ? 'full' : 'none',
+    sound: isSoundEnabled,
     scale: opts.scale || autoScale,
   });
 

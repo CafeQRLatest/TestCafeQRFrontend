@@ -54,6 +54,7 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   const leftDots = config?.left_dots ?? '0';
   const rightDots = config?.right_dots ?? '0';
   const autoCut = config?.auto_cut ?? false;
+  const soundAlert = config?.sound_alert ?? false;
   const guardCols = config?.guard_cols ?? '1'; // Added support for guard/safe cols if needed
   const safeCols = config?.safe_cols ?? '0';
 
@@ -83,6 +84,7 @@ export default function PrinterSetupCard({ restaurantId, config, onConfigChange,
   const setLeftDots = (v) => onConfigChange?.('left_dots', v);
   const setRightDots = (v) => onConfigChange?.('right_dots', v);
   const setAutoCut = (v) => onConfigChange?.('auto_cut', v);
+  const setSoundAlert = (v) => onConfigChange?.('sound_alert', v);
   const setGuardCols = (v) => onConfigChange?.('guard_cols', v);
   const setSafeCols = (v) => onConfigChange?.('safe_cols', v);
 
@@ -493,6 +495,7 @@ function saveNetworkPrinters() {
     localStorage.setItem('PRINTER_MODE', 'winspool');
     localStorage.setItem('PRINTER_READY', '1');
     localStorage.setItem('PRINT_WIN_AUTOCUT', autoCut ? '1' : '0');
+    localStorage.setItem('PRINT_WIN_SOUND_ALERT', soundAlert ? '1' : '0');
     localStorage.setItem('CAFEQR_PRINT_STATION_ENABLED', '1');
     localStorage.setItem('CAFEQR_MAIN_OFFLINE_DEVICE', '1');
 
@@ -730,12 +733,18 @@ function saveNetworkPrinters() {
 
             <div className="divider" />
 
-            <div className="form-row">
+            <div className="form-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
                <label className="checkbox-wrap">
                   <input type="checkbox" checked={autoCut} onChange={e => setAutoCut(e.target.checked)} />
                   <span className="check-label" style={{fontSize:'13.5px', fontWeight:600}}>Enable Auto-Cut (ESC/POS)</span>
                </label>
-               <button onClick={saveWired} className="btn-primary mini">Save Windows Config</button>
+               <label className="checkbox-wrap">
+                  <input type="checkbox" checked={soundAlert} onChange={e => setSoundAlert(e.target.checked)} />
+                  <span className="check-label" style={{fontSize:'13.5px', fontWeight:600}}>Enable Sound Alert / Buzzer (ESC/POS)</span>
+               </label>
+               <div style={{ marginTop: '4px' }}>
+                  <button onClick={saveWired} className="btn-primary mini">Save Windows Config</button>
+               </div>
             </div>
 
             <div className="download-hub-banner">

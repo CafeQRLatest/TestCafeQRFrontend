@@ -1,5 +1,5 @@
 // utils/escpos.ts
-export function textToEscPos(text: string, opts?: { codepage?: number; feed?: number; cut?: 'full'|'partial'|'none'; scale?: 'normal'|'large'; }) {
+export function textToEscPos(text: string, opts?: { codepage?: number; feed?: number; cut?: 'full'|'partial'|'none'; scale?: 'normal'|'large'; sound?: boolean; }) {
   const ESC = 0x1b;
   const GS  = 0x1d;
   const bytes: number[] = [];
@@ -73,6 +73,11 @@ export function textToEscPos(text: string, opts?: { codepage?: number; feed?: nu
 
   if (opts?.cut !== 'none') {
     bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
+  }
+
+  if (opts?.sound) {
+    bytes.push(ESC, 0x42, 0x02, 0x02);
+    bytes.push(0x07);
   }
   return new Uint8Array(bytes);
 }

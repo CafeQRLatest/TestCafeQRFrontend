@@ -104,6 +104,11 @@ namespace CafeQR.PrintService
                 {
                     stream.Write(new byte[] { 0x1D, 0x56, 0x00 }, 0, 3);
                 }
+                if (ValueBool(effectiveTemplate, "soundAlert", profile.SoundAlert))
+                {
+                    stream.Write(new byte[] { 0x1B, 0x42, 0x02, 0x02 }, 0, 4);
+                    stream.WriteByte(0x07);
+                }
                 var bytes = stream.ToArray();
                 Log.Info($"[Thermal Print] Final ESC/POS stream size: {bytes.Length} bytes");
                 return bytes;
@@ -431,6 +436,7 @@ namespace CafeQR.PrintService
             if (profile.RightMargin > 0) result["rightMargin"] = profile.RightMargin;
             if (profile.LineSpacing > 0) result["lineSpacing"] = profile.LineSpacing;
             result["autoCut"] = profile.AutoCut;
+            result["soundAlert"] = profile.SoundAlert;
             result["feedLines"] = profile.FeedLines;
             return result;
         }

@@ -73,6 +73,11 @@ export function textToEscPos(text, opts) {
   if (opts?.cut !== 'none') {
     bytes.push(GS, 0x56, opts?.cut === 'partial' ? 0x01 : 0x00);
   }
+
+  if (opts?.sound) {
+    bytes.push(ESC, 0x42, 0x02, 0x02);
+    bytes.push(0x07);
+  }
   return new Uint8Array(bytes);
 }
 

@@ -74,6 +74,7 @@ const DEFAULT_THERMAL_LAYOUT = {
   rightMargin: 0,
   lineSpacing: 0,
   autoCut: true,
+  soundAlert: false,
   feedLines: 3,
   showRestaurantName: true,
   showDailyBillNo: true,
@@ -237,6 +238,7 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SAFE_COLS`, String(template.safeCols ?? 0));
   localStorage.setItem(`${prefix}FEED_LINES`, String(template.feedLines ?? 3));
   localStorage.setItem(`${prefix}AUTO_CUT`, template.autoCut !== false ? '1' : '0');
+  localStorage.setItem(`${prefix}SOUND_ALERT`, template.soundAlert ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_RESTAURANT_NAME`, template.showRestaurantName !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_DAILY_BILL_NO`, template.showDailyBillNo !== false ? '1' : '0');
   localStorage.setItem(`${prefix}SHOW_CUSTOMER_DETAILS`, template.showCustomerDetails !== false ? '1' : '0');
@@ -273,6 +275,7 @@ const profileDefaults = (format = 'THERMAL') => ({
   orientation: 'PORTRAIT',
   copies: 1,
   autoCut: format === 'THERMAL',
+  soundAlert: false,
   feedLines: format === 'THERMAL' ? 3 : 0,
   enabled: true,
   documents: format === 'REGULAR' ? ['BILL', 'INVOICE', 'KOT', 'LABEL'] : ['BILL', 'INVOICE', 'KOT', 'LABEL'],
@@ -1417,6 +1420,10 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
               <label className="check">
                 <input type="checkbox" checked={template.autoCut !== false} onChange={(event) => update({ autoCut: event.target.checked })} />
                 <span>Auto-cut</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={template.soundAlert === true} onChange={(event) => update({ soundAlert: event.target.checked })} />
+                <span>Sound alert (Buzzer)</span>
               </label>
               {visibilityOptions.map(([key, label]) => (
                 <label className="check" key={key}>
