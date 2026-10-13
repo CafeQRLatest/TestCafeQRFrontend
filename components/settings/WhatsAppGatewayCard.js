@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fa';
 import api from '../../utils/api';
 
-export default function WhatsAppGatewayCard({ orgId, orgName }) {
+export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, customTitle, customSubtitle }) {
   const [gatewayStatus, setGatewayStatus] = useState('CHECKING'); // 'CHECKING' | 'CONNECTED' | 'SCAN_QR' | 'DISCONNECTED'
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [connectedUser, setConnectedUser] = useState(null);
@@ -25,7 +25,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
   const pollTimerRef = useRef(null);
   const isFetchingRef = useRef(false);
 
-  const sessionId = orgId && orgId !== '0' ? `org_${orgId}` : undefined;
+  const sessionId = customSessionId || (orgId && orgId !== '0' ? `org_${orgId}` : undefined);
 
   const fetchStatus = async () => {
     if (isFetchingRef.current) return;
@@ -180,7 +180,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
           </div>
           <div className="wa-header-text">
             <div className="wa-title-row">
-              <h3>WhatsApp Digital Bill Delivery</h3>
+              <h3>{customTitle || 'WhatsApp Digital Bill Delivery'}</h3>
               {orgName && (
                 <span className="wa-branch-pill">
                   📍 {orgName}
@@ -195,7 +195,7 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                 {gatewayStatus === 'DISCONNECTED' && 'Offline / Unlinked'}
               </span>
             </div>
-            <p>Automatically sends branded tax invoices to customer WhatsApp numbers upon order settlement free of cost.</p>
+            <p>{customSubtitle || 'Automatically sends branded tax invoices to customer WhatsApp numbers upon order settlement free of cost.'}</p>
           </div>
         </div>
         <button 
@@ -233,7 +233,9 @@ export default function WhatsAppGatewayCard({ orgId, orgName }) {
                   <strong>+{connectedUser?.phone || 'Cafe QR Official'}</strong>
                 </div>
                 <p className="wa-desc">
-                  Every order settled in POS Sales, Live Orders, or Credit Settlements with a customer phone will automatically receive a digital receipt.
+                  {customSessionId === 'cafeqr_official'
+                    ? 'Official Cafe QR WhatsApp number linked for sending system OTPs for Client signups, logins, and Customer table & delivery orders.'
+                    : 'Every order settled in POS Sales, Live Orders, or Credit Settlements with a customer phone will automatically receive a digital receipt.'}
                 </p>
               </div>
             </div>

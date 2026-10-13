@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { FaEye, FaEyeSlash } from 'react-icons/fa'
+import { FaEye, FaEyeSlash, FaWhatsapp } from 'react-icons/fa'
 import { useAuth } from '../context/AuthContext'
 import { getApiUrl } from '../utils/api'
 
@@ -14,6 +14,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [msgType, setMsgType] = useState('error')
   const [landingUrl, setLandingUrl] = useState('https://cafeqr.in')
+  
+  // WhatsApp OTP Login States
+  const [authMethod, setAuthMethod] = useState('PASSWORD') // 'PASSWORD' | 'WHATSAPP'
+  const [phone, setPhone] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
   
   // Destructure isActive from useAuth
   const { login, isAuthenticated, isActive, subscriptionStatus } = useAuth()
@@ -66,6 +73,77 @@ export default function LoginPage() {
     }
   }
 
+  // Handle Send WhatsApp OTP
+  const handleSendWhatsAppOtp = async (e) => {
+    if (e) e.preventDefault()
+    const cleanPhone = phone.trim().replace(/[^0-9]/g, '')
+    if (cleanPhone.length < 10) {
+      setMsgType('error')
+      setMessage('Please enter a valid 10-digit mobile number')
+      return
+    }
+    setLoading(true)
+    setMessage('')
+    try {
+      const response = await fetch(`${getApiUrl()}/api/v1/auth/whatsapp/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Failed to send WhatsApp OTP')
+      setOtpSent(true)
+      setResendCooldown(30)
+      setMsgType('success')
+      setMessage('OTP sent to your WhatsApp!')
+    } catch (err) {
+      setMsgType('error')
+      setMessage(err.message || 'Failed to send WhatsApp OTP')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle Verify WhatsApp OTP
+  const handleVerifyWhatsAppOtp = async (e) => {
+    e.preventDefault()
+    if (!otp.trim()) {
+      setMsgType('error')
+      setMessage('Please enter the 6-digit OTP')
+      return
+    }
+    setLoading(true)
+    setMessage('')
+    try {
+      const cleanPhone = phone.trim().replace(/[^0-9]/g, '')
+      const response = await fetch(`${getApiUrl()}/api/v1/auth/whatsapp/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ phone: cleanPhone, otp: otp.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || 'Invalid or expired OTP')
+      if (data.data?.exists && data.data?.auth) {
+        login(data.data.auth)
+      } else {
+        setMsgType('error')
+        setMessage('No account found with this phone. Please sign up first.')
+      }
+    } catch (err) {
+      setMsgType('error')
+      setMessage(err.message || 'Verification failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setInterval(() => setResendCooldown(c => c - 1), 1000)
+    return () => clearInterval(timer)
+  }, [resendCooldown])
+
   return (
     <div className="page-wrapper">
       <div className="mobile-card">
@@ -79,60 +157,158 @@ export default function LoginPage() {
         </div>
 
         <div className="form-body">
-          <form onSubmit={handleLogin}>
-            <div className="input-group">
-              <label htmlFor="email">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="name@company.com"
-                disabled={loading}
-              />
-            </div>
+          {/* Method Selector Tabs */}
+          <div className="method-tabs">
+            <button
+              type="button"
+              className={`method-tab ${authMethod === 'PASSWORD' ? 'active' : ''}`}
+              onClick={() => { setAuthMethod('PASSWORD'); setMessage(''); }}
+            >
+              Password Login
+            </button>
+            <button
+              type="button"
+              className={`method-tab ${authMethod === 'WHATSAPP' ? 'active' : ''}`}
+              onClick={() => { setAuthMethod('WHATSAPP'); setMessage(''); }}
+            >
+              <FaWhatsapp style={{ color: '#25D366', fontSize: 16 }} />
+              WhatsApp OTP
+            </button>
+          </div>
 
-            <div className="input-group">
-              <label htmlFor="password">Password</label>
-              <div className="pw-wrapper">
+          {authMethod === 'PASSWORD' ? (
+            <form onSubmit={handleLogin}>
+              <div className="input-group">
+                <label htmlFor="email">Email Address</label>
                 <input
-                  type={showPassword ? "text" : "password"}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="••••••••"
+                  placeholder="name@company.com"
                   disabled={loading}
                 />
-                <button 
-                  type="button" 
-                  className="toggle-pw"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
-                </button>
               </div>
-            </div>
 
-            <div className="forgot-link">
-              <Link href="/forgot-password">Forgot Password?</Link>
-            </div>
+              <div className="input-group">
+                <label htmlFor="password">Password</label>
+                <div className="pw-wrapper">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    disabled={loading}
+                  />
+                  <button 
+                    type="button" 
+                    className="toggle-pw"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              </div>
 
-            {message && <div className={`alert ${msgType}`}>{message}</div>}
+              <div className="forgot-link">
+                <Link href="/forgot-password">Forgot Password?</Link>
+              </div>
 
-            <button type="submit" disabled={loading} className="submit-btn">
-              {loading ? "SIGNING IN..." : "SIGN IN"}
-            </button>
+              {message && <div className={`alert ${msgType}`}>{message}</div>}
 
-            <div className="signup-link">
-              <p>Don&apos;t have an account? <a href={landingUrl} target="_blank" rel="noopener noreferrer">Buy POS Kit & Sign Up</a></p>
-            </div>
+              <button type="submit" disabled={loading} className="submit-btn">
+                {loading ? "SIGNING IN..." : "SIGN IN"}
+              </button>
 
-            <div className="copyright-footer">
-              &copy; 2026 CAFEQR POS. ALL RIGHTS RESERVED.
-            </div>
-          </form>
+              <div className="signup-link">
+                <p>Don&apos;t have an account? <a href={landingUrl} target="_blank" rel="noopener noreferrer">Buy POS Kit & Sign Up</a></p>
+              </div>
+
+              <div className="copyright-footer">
+                &copy; 2026 CAFEQR POS. ALL RIGHTS RESERVED.
+              </div>
+            </form>
+          ) : (
+            /* WhatsApp OTP Login Form */
+            <form onSubmit={otpSent ? handleVerifyWhatsAppOtp : handleSendWhatsAppOtp}>
+              <div className="input-group">
+                <label htmlFor="phone">Registered Mobile Number</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <span style={{ 
+                    padding: '14px 12px', background: '#f1f5f9', border: '1px solid #e2e8f0', 
+                    borderRadius: 12, fontWeight: 700, fontSize: 14, color: '#475569', display: 'flex', alignItems: 'center' 
+                  }}>+91</span>
+                  <input
+                    type="tel"
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => { setPhone(e.target.value); setMessage(''); }}
+                    required
+                    placeholder="e.g. 9496958200"
+                    disabled={loading || otpSent}
+                    style={{ flex: 1 }}
+                    autoFocus
+                  />
+                  {otpSent && (
+                    <button
+                      type="button"
+                      onClick={() => { setOtpSent(false); setOtp(''); setMessage(''); }}
+                      style={{ background: 'none', border: 'none', color: '#f97316', fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: '0 8px' }}
+                    >
+                      Change
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {otpSent && (
+                <div className="input-group">
+                  <label htmlFor="otp">6-Digit WhatsApp OTP</label>
+                  <input
+                    type="text"
+                    id="otp"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => { setOtp(e.target.value); setMessage(''); }}
+                    required
+                    placeholder="Enter code"
+                    disabled={loading}
+                    autoFocus
+                    style={{ letterSpacing: 6, fontSize: 18, textAlign: 'center' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                    <button
+                      type="button"
+                      disabled={resendCooldown > 0 || loading}
+                      onClick={handleSendWhatsAppOtp}
+                      style={{ background: 'none', border: 'none', color: resendCooldown > 0 ? '#94a3b8' : '#115e59', fontWeight: 700, fontSize: 12, cursor: resendCooldown > 0 ? 'default' : 'pointer' }}
+                    >
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {message && <div className={`alert ${msgType}`}>{message}</div>}
+
+              <button type="submit" disabled={loading} className="submit-btn" style={{ background: '#115e59' }}>
+                {loading 
+                  ? (otpSent ? "VERIFYING..." : "SENDING OTP...") 
+                  : (otpSent ? "VERIFY & SIGN IN" : "CONTINUE WITH WHATSAPP")}
+              </button>
+
+              <div className="signup-link">
+                <p>Don&apos;t have an account? <a href={landingUrl} target="_blank" rel="noopener noreferrer">Buy POS Kit & Sign Up</a></p>
+              </div>
+
+              <div className="copyright-footer">
+                &copy; 2026 CAFEQR POS. ALL RIGHTS RESERVED.
+              </div>
+            </form>
+          )}
         </div>
       </div>
 
@@ -202,16 +378,18 @@ export default function LoginPage() {
         .forgot-link a { font-size: 14px; color: #475569; text-decoration: none; font-weight: 600; }
         .forgot-link a:hover { color: #f97316; text-decoration: underline; }
 
-        .submit-btn {
-          width: 100%; padding: 16px;
-          background: #115e59; color: white;
-          border: none; border-radius: 12px;
-          font-size: 15px; font-weight: 700;
-          cursor: pointer; transition: all 0.2s;
-          box-shadow: 0 10px 20px -5px rgba(17, 94, 89, 0.3);
+        .method-tabs {
+          display: flex; gap: 8px; margin: 0 auto 28px; width: 100%; max-width: 360px;
+          background: #f1f5f9; padding: 4px; border-radius: 14px;
         }
-        .submit-btn:hover { background: #0f4b47; transform: translateY(-2px); }
-        .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .method-tab {
+          flex: 1; padding: 10px 12px; border: none; border-radius: 10px;
+          font-size: 13px; font-weight: 700; color: #64748b; background: transparent;
+          cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .method-tab.active {
+          background: white; color: #0f172a; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
 
         .alert { 
           padding: 12px 16px; border-radius: 10px; font-size: 14px; font-weight: 600;

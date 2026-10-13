@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Head from 'next/head'
 import axios from 'axios'
 import NiceSelect from '../../components/NiceSelect'
+import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'founder_key'
@@ -1151,6 +1152,9 @@ function Dashboard({ founderKey }) {
               <button className={`founder-tab ${viewMode === 'chart' ? 'active' : ''}`} onClick={() => setViewMode('chart')}>
                 Status Chart
               </button>
+              <button className={`founder-tab ${viewMode === 'whatsapp' ? 'active' : ''}`} onClick={() => setViewMode('whatsapp')}>
+                💬 Official WhatsApp Gateway
+              </button>
             </div>
 
             {/* View 1: Clients List Grid & Table */}
@@ -1360,6 +1364,17 @@ function Dashboard({ founderKey }) {
                     })}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* View 4: Official WhatsApp Gateway */}
+            {viewMode === 'whatsapp' && (
+              <div style={{ marginTop: 12, marginBottom: 24 }}>
+                <WhatsAppGatewayCard
+                  customSessionId="cafeqr_official"
+                  customTitle="Official Cafe QR App WhatsApp (System Authentication & OTP)"
+                  customSubtitle="Linked official WhatsApp number used to dispatch OTP verification codes for Client signups, logins, and Customer table & delivery orders."
+                />
               </div>
             )}
 
