@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Head from 'next/head'
 import axios from 'axios'
+import Cookies from 'js-cookie'
+import { getFrontendCookieOptions } from '../../utils/cookieOptions'
 import NiceSelect from '../../components/NiceSelect'
 import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard'
 
@@ -58,6 +60,53 @@ const STATUS_META = {
   UNPAID:  { label: 'Unpaid',  bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0' },
 }
 const getStatusMeta = (s) => STATUS_META[(s || '').toUpperCase()] || STATUS_META.UNPAID
+
+const HEALTH_META = {
+  HEALTHY: { label: 'Active',   bg: '#ECFDF5', color: '#059669', border: '#A7F3D0', dot: '#10B981' },
+  AT_RISK: { label: 'At Risk',  bg: '#FFFBEB', color: '#B45309', border: '#FDE68A', dot: '#F59E0B' },
+  DORMANT: { label: 'Dormant',  bg: '#F8FAFC', color: '#64748B', border: '#E2E8F0', dot: '#94A3B8' },
+  EXPIRED: { label: 'Expired',  bg: '#FEF2F2', color: '#DC2626', border: '#FECACA', dot: '#EF4444' },
+}
+const getHealthMeta = (s) => HEALTH_META[(s || '').toUpperCase()] || HEALTH_META.DORMANT
+
+function HealthBadge({ status, tooltip }) {
+  const meta = getHealthMeta(status)
+  return (
+    <span title={tooltip || meta.label} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      background: meta.bg, color: meta.color,
+      border: `1px solid ${meta.border}`,
+      borderRadius: 999, padding: '2px 8px',
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', whiteSpace: 'nowrap',
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
+      {meta.label}
+    </span>
+  )
+}
+
+const ONBOARDING_MAP = {
+  PROFILE_INCOMPLETE: { label: 'Profile Pending', color: '#94A3B8' },
+  MENU_PENDING:       { label: 'Menu Pending',    color: '#3B82F6' },
+  TABLES_PENDING:     { label: 'Tables Pending',  color: '#8B5CF6' },
+  FIRST_ORDER_PENDING:{ label: '1st Order Need',  color: '#F59E0B' },
+  ACTIVATED:          { label: 'Activated',       color: '#10B981' },
+}
+
+function OnboardingPill({ step, score }) {
+  const meta = ONBOARDING_MAP[step] || ONBOARDING_MAP.PROFILE_INCOMPLETE
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 105 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, fontWeight: 700, color: meta.color }}>
+        <span>{meta.label}</span>
+        <span style={{ color: T.textMuted }}>{score || 20}%</span>
+      </div>
+      <div style={{ width: '100%', height: 4, background: '#E2E8F0', borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ width: `${score || 20}%`, height: '100%', background: meta.color, borderRadius: 999 }} />
+      </div>
+    </div>
+  )
+}
 
 const MODULE_COLORS = {
   KOT:             { color: '#FF7A00', bg: '#FFF3E8' },
@@ -187,7 +236,7 @@ function RenderModulesList({ modules }) {
   )
 }
 
-function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPaymentModal, onPrintReceipt }) {
+function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPaymentModal, onPrintReceipt, onInspectStore, onNudgeWhatsApp }) {
   const [expanded, setExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
 
@@ -216,24 +265,43 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
         style={{ cursor: 'pointer', transition: 'background 0.12s' }}
         className={expanded ? 'expanded-tr' : ''}
       >
-        {/* Client Name & Email */}
+        {/* Client Name, Health Badge & Email */}
         <td style={{ padding: '12px 18px' }}>
           <div>
-            <div style={{ 
-              fontWeight: 700, 
-              color: clientDisplayName === 'Unnamed Business' ? T.textMuted : T.textMain, 
-              fontSize: 13.5, 
-              fontStyle: clientDisplayName === 'Unnamed Business' ? 'italic' : 'normal',
-              fontFamily: 'Outfit, sans-serif' 
-            }}>{clientDisplayName}</div>
-            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1 }}>{client.email || '—'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ 
+                fontWeight: 700, 
+                color: clientDisplayName === 'Unnamed Business' ? T.textMuted : T.textMain, 
+                fontSize: 13.5, 
+                fontStyle: clientDisplayName === 'Unnamed Business' ? 'italic' : 'normal',
+                fontFamily: 'Outfit, sans-serif' 
+              }}>{clientDisplayName}</span>
+              <HealthBadge status={client.healthStatus} />
+            </div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{client.email || '—'}</div>
           </div>
         </td>
 
         {/* Owner Details */}
         <td style={{ padding: '12px 18px' }}>
-          <div style={{ color: T.textSub, fontSize: 13 }}>{client.ownerName || '—'}</div>
+          <div style={{ color: T.textSub, fontSize: 13, fontWeight: 600 }}>{client.ownerName || '—'}</div>
           {client.phone && <div style={{ color: T.textMuted, fontSize: 11, marginTop: 1 }}>{client.phone}</div>}
+        </td>
+
+        {/* Commerce Activity (GMV & Orders) */}
+        <td style={{ padding: '12px 18px' }}>
+          <div style={{ color: T.textMain, fontWeight: 700, fontSize: 13, fontFamily: 'Outfit, sans-serif' }}>
+            {fmtRupees(client.gmvPaise || 0)} <span style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: 'uppercase' }}>GMV</span>
+          </div>
+          <div style={{ fontSize: 11, color: T.textSub, marginTop: 1 }}>
+            <span>{client.orderCount || 0} order{client.orderCount !== 1 ? 's' : ''}</span>
+            {client.lastOrderAt && <span style={{ color: T.textMuted }}> · {fmtDate(client.lastOrderAt)}</span>}
+          </div>
+        </td>
+
+        {/* Onboarding Progress */}
+        <td style={{ padding: '12px 18px' }}>
+          <OnboardingPill step={client.onboardingStep} score={client.onboardingScore} />
         </td>
 
         {/* Subscription Status & Expiry combined */}
@@ -251,37 +319,49 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
           </div>
         </td>
 
-        {/* Modules (Compact List) */}
-        <td style={{ padding: '12px 18px' }}>
-          <RenderModulesList modules={activeModules} />
-        </td>
-
         {/* Revenue */}
         <td style={{ padding: '12px 18px', textAlign: 'right' }}>
-          <div style={{ color: T.green, fontWeight: 700, fontSize: 14.5, fontFamily: 'Outfit, sans-serif' }}>
+          <div style={{ color: T.green, fontWeight: 700, fontSize: 14, fontFamily: 'Outfit, sans-serif' }}>
             {fmtRupees(client.totalPaidPaise)}
           </div>
           <div style={{ color: T.textMuted, fontSize: 11, marginTop: 1 }}>{client.paymentCount} payment{client.paymentCount !== 1 ? 's' : ''}</div>
         </td>
 
-        {/* Expand Toggle */}
+        {/* Quick Actions & Expand Toggle */}
         <td style={{ padding: '12px 18px', textAlign: 'center' }}>
-          <span className="expand-trigger-btn" style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 24, height: 24, borderRadius: 8,
-            background: expanded ? T.primarySoft : T.bg,
-            border: `1px solid ${expanded ? T.primary + '44' : T.border}`,
-            color: expanded ? T.primary : T.textMuted, fontSize: 11,
-            transition: 'all 0.2s',
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}>▾</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onInspectStore(client) }}
+              style={{
+                background: `linear-gradient(135deg, ${T.primary}, #FF4D00)`,
+                color: '#fff', border: 'none', borderRadius: 8, padding: '5px 10px',
+                fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: `0 2px 8px ${T.primary}33`,
+                transition: 'all 0.15s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+              title="Inspect store in POS / Admin mode without password"
+            >
+              👁️ Inspect
+            </button>
+            <span className="expand-trigger-btn" style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24, borderRadius: 8,
+              background: expanded ? T.primarySoft : T.bg,
+              border: `1px solid ${expanded ? T.primary + '44' : T.border}`,
+              color: expanded ? T.primary : T.textMuted, fontSize: 11,
+              transition: 'all 0.2s',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}>▾</span>
+          </div>
         </td>
       </tr>
 
       {/* Expanded panel */}
       {expanded && (
         <tr>
-          <td colSpan={6} style={{ padding: 0 }}>
+          <td colSpan={7} style={{ padding: 0 }}>
             <div style={{
               background: '#FAFBFF',
               borderBottom: `2px solid ${T.primary}22`,
@@ -290,7 +370,7 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
               {/* Tabs */}
               <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, paddingLeft: 24, background: T.bgWhite }}>
                 {[
-                  { id: 'details',  label: 'Client Details' },
+                  { id: 'details',  label: 'Client Details & Vitality' },
                   { id: 'modules',  label: 'Modules' },
                   { id: 'payments', label: `Payments (${client.paymentCount})` },
                 ].map(tab => (
@@ -315,6 +395,12 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
                       {[
                         ['Business Name', client.name], ['Legal Name', client.legalName],
                         ['Owner', client.ownerName], ['Email', client.email], ['Phone', client.phone],
+                        ['Platform Food GMV', fmtRupees(client.gmvPaise || 0)],
+                        ['Total Orders Taken', `${client.orderCount || 0} orders`],
+                        ['Last Order Timestamp', fmtDateTime(client.lastOrderAt)],
+                        ['Active Menu Products', `${client.menuItemsCount || 0} items`],
+                        ['Table QR Codes', `${client.tablesCount || 0} tables`],
+                        ['Onboarding Stage', `${ONBOARDING_MAP[client.onboardingStep]?.label || 'Profile Pending'} (${client.onboardingScore || 20}%)`],
                         ['Country', client.country], ['Currency', client.currency], ['Timezone', client.timezone],
                         ['POS Type', client.posType], ['Address', client.address], ['Website', client.website],
                         ['Primary Language', client.primaryLanguage], ['Pin Code', client.pinCode],
@@ -338,15 +424,25 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
                     </div>
 
                     {/* Quick Admin Actions Row */}
-                    <div style={{ marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ marginTop: 24, borderTop: `1px solid ${T.border}`, paddingTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                       <button 
-                        onClick={(e) => { e.stopPropagation(); onToggleActive(client.id) }} 
-                        style={{ padding: '9px 18px', background: client.isactive === 'Y' ? T.redSoft : T.greenSoft, color: client.isactive === 'Y' ? T.red : T.green, border: `1px solid ${client.isactive === 'Y' ? T.red + '33' : T.green + '33'}`, borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                        onClick={(e) => { e.stopPropagation(); onInspectStore(client) }} 
+                        style={{ padding: '9px 18px', background: `linear-gradient(135deg, ${T.primary}, #FF4D00)`, color: '#fff', border: 'none', borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: `0 4px 12px ${T.primary}33`, transition: 'all 0.15s' }}
                         onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
                         onMouseLeave={e => e.currentTarget.style.transform = 'none'}
                       >
-                        {client.isactive === 'Y' ? 'Suspend Account' : 'Activate Account'}
+                        👁️ Inspect Store POS (Ghost Mode)
                       </button>
+                      {client.phone && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onNudgeWhatsApp(client.phone) }} 
+                          style={{ padding: '9px 18px', background: '#25D366', color: '#fff', border: 'none', borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 4px 12px rgba(37,211,102,0.3)', transition: 'all 0.15s' }}
+                          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                          onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                        >
+                          💬 WhatsApp Nudge
+                        </button>
+                      )}
                       <button 
                         onClick={(e) => { e.stopPropagation(); onOpenExtendModal(client) }} 
                         style={{ padding: '9px 18px', background: T.primarySoft, color: T.primary, border: `1px solid ${T.primary}33`, borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
@@ -354,6 +450,14 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
                         onMouseLeave={e => e.currentTarget.style.transform = 'none'}
                       >
                         Extend Subscription
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); onToggleActive(client.id) }} 
+                        style={{ padding: '9px 18px', background: client.isactive === 'Y' ? T.redSoft : T.greenSoft, color: client.isactive === 'Y' ? T.red : T.green, border: `1px solid ${client.isactive === 'Y' ? T.red + '33' : T.green + '33'}`, borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                      >
+                        {client.isactive === 'Y' ? 'Suspend Account' : 'Activate Account'}
                       </button>
                     </div>
                   </div>
@@ -409,15 +513,137 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
   )
 }
 
+// ─── Onboarding Funnel Component ─────────────────────────────────────────────
+function OnboardingFunnelView({ clients, onNudgeWhatsApp, onInspectStore }) {
+  const total = clients.length || 1
+  const stage1 = clients.length
+  const stage2 = clients.filter(c => c.name && c.name !== '—' && c.name !== 'Unnamed Business').length
+  const stage3 = clients.filter(c => (c.menuItemsCount || 0) >= 3).length
+  const stage4 = clients.filter(c => (c.tablesCount || 0) >= 1).length
+  const stage5 = clients.filter(c => (c.orderCount || 0) >= 1).length
+  const stage6 = clients.filter(c => (c.subscriptionStatus || '').toUpperCase() === 'ACTIVE' && c.totalPaidPaise > 0).length
+
+  const stages = [
+    { title: '1. Registered Signups', count: stage1, desc: 'All registered accounts', color: T.blue },
+    { title: '2. Profile Configured', count: stage2, desc: 'Named business & contact', color: '#6366F1' },
+    { title: '3. Menu Populated', count: stage3, desc: 'Added ≥ 3 menu products', color: '#8B5CF6' },
+    { title: '4. Tables & QR Created', count: stage4, desc: 'Created ≥ 1 table QR', color: T.orange },
+    { title: '5. First Live Order Placed', count: stage5, desc: 'Processed ≥ 1 food order', color: T.green },
+    { title: '6. Paying Subscriber', count: stage6, desc: 'Active subscription payment', color: '#059669' },
+  ]
+
+  const stuckIncomplete = clients.filter(c => c.onboardingStep === 'PROFILE_INCOMPLETE')
+  const stuckMenu = clients.filter(c => c.onboardingStep === 'MENU_PENDING')
+  const stuckTables = clients.filter(c => c.onboardingStep === 'TABLES_PENDING')
+  const stuckFirstOrder = clients.filter(c => c.onboardingStep === 'FIRST_ORDER_PENDING')
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Funnel Pipeline Visual */}
+      <div style={{ background: T.bgWhite, border: `1px solid ${T.border}`, borderRadius: 16, padding: '24px 28px', boxShadow: T.shadow }}>
+        <h4 style={{ margin: '0 0 6px 0', fontSize: 17, fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}>Tenant Activation & Drop-off Funnel</h4>
+        <p style={{ margin: '0 0 24px 0', fontSize: 12, color: T.textMuted }}>Diagnose exactly which onboarding step clients drop off at and proactively intervene</p>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+          {stages.map((st, i) => {
+            const pctOfTotal = Math.round((st.count / total) * 100)
+            const prevCount = i > 0 ? stages[i-1].count : total
+            const convFromPrev = prevCount > 0 ? Math.round((st.count / prevCount) * 100) : 0
+            return (
+              <div key={st.title} style={{
+                background: '#FAFBFF', border: `1px solid ${T.border}`,
+                borderTop: `4px solid ${st.color}`, borderRadius: 14,
+                padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 8
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase' }}>{st.title}</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: T.textMain, fontFamily: 'Outfit, sans-serif' }}>{st.count}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: st.color }}>{pctOfTotal}%</span>
+                </div>
+                <div style={{ fontSize: 11, color: T.textMuted }}>{st.desc}</div>
+                {i > 0 && (
+                  <div style={{ fontSize: 11, color: convFromPrev < 50 ? T.red : T.green, fontWeight: 600, marginTop: 'auto', paddingTop: 6, borderTop: `1px dashed ${T.border}` }}>
+                    {convFromPrev}% conversion from step {i}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Actionable Drop-off Intervention Buckets */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 18 }}>
+        {[
+          { title: '⚠️ Stalled at Profile Setup', subtitle: 'Need business name and phone', clients: stuckIncomplete, badgeColor: T.red, nudge: 'Hi, we saw you registered for Cafe QR! Can we help you set up your restaurant name and logo?' },
+          { title: '⚠️ Stalled at Menu Upload', subtitle: '0 or fewer than 3 menu products', clients: stuckMenu, badgeColor: '#3B82F6', nudge: 'Hi Chef! Do you need help uploading your digital menu items to Cafe QR? Send us your PDF/photo menu and we will upload it for you!' },
+          { title: '⚠️ Stalled at Table QR Setup', subtitle: 'Menu ready, 0 tables created', clients: stuckTables, badgeColor: '#8B5CF6', nudge: 'Hi! Your menu is ready on Cafe QR. Have you generated and printed your table QR standees yet?' },
+          { title: '🚀 Ready for First Order', subtitle: 'Tables set, 0 orders placed yet', clients: stuckFirstOrder, badgeColor: T.orange, nudge: 'Hi! Your Cafe QR setup is 80% complete! Scan a table QR to place your first test order.' },
+        ].map(bucket => (
+          <div key={bucket.title} style={{ background: T.bgWhite, border: `1px solid ${T.border}`, borderRadius: 16, padding: '20px 22px', boxShadow: T.shadow }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: T.textMain, fontFamily: 'Outfit, sans-serif' }}>{bucket.title}</span>
+              <span style={{ background: T.bg, padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 800, color: bucket.badgeColor, border: `1px solid ${T.border}` }}>
+                {bucket.clients.length}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>{bucket.subtitle}</div>
+            {bucket.clients.length === 0 ? (
+              <p style={{ fontSize: 12, color: T.textMuted, margin: '20px 0', textAlign: 'center' }}>None! All clients have progressed past this step.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
+                {bucket.clients.slice(0, 15).map(c => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', background: '#F8FAFC', borderRadius: 10, border: `1px solid ${T.border}` }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: T.textMain, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.name && c.name !== '—' ? c.name : 'Unnamed Business'}
+                      </div>
+                      <div style={{ fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.email || c.phone || 'No contact'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 }}>
+                      <button
+                        onClick={() => onInspectStore(c)}
+                        style={{ background: T.bgWhite, border: `1px solid ${T.border}`, borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, color: T.primary, cursor: 'pointer' }}
+                        title="Inspect POS"
+                      >
+                        Inspect
+                      </button>
+                      {c.phone && (
+                        <button
+                          onClick={() => onNudgeWhatsApp(c.phone, bucket.nudge)}
+                          style={{ background: '#25D366', border: 'none', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+                          title="WhatsApp Nudge"
+                        >
+                          💬 Nudge
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 function exportToCSV(clients) {
-  const headers = ['Name', 'Legal Name', 'Owner', 'Email', 'Phone', 'Country', 'Sub Status', 'Expiry', 'Days Left', 'Active Modules', 'Total Paid (₹)', 'Payments', 'Registered']
+  const headers = ['Name', 'Legal Name', 'Owner', 'Email', 'Phone', 'Health', 'Platform GMV (₹)', 'Orders Taken', 'Last Order Date', 'Onboarding Status', 'Sub Status', 'Expiry', 'Days Left', 'Total Paid (₹)', 'Payments', 'Registered']
   const rows = clients.map(c => [
-    c.name || '', c.legalName || '', c.ownerName || '', c.email || '', c.phone || '', c.country || '',
+    c.name || '', c.legalName || '', c.ownerName || '', c.email || '', c.phone || '',
+    c.healthStatus || 'HEALTHY',
+    ((c.gmvPaise || 0) / 100).toFixed(2),
+    c.orderCount || 0,
+    c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString('en-IN') : 'None',
+    `${c.onboardingStep || 'PROFILE_INCOMPLETE'} (${c.onboardingScore || 20}%)`,
     c.subscriptionStatus || '',
     c.subscriptionExpiryDate ? new Date(c.subscriptionExpiryDate).toLocaleDateString('en-IN') : '',
     c.daysLeft,
-    (c.subscriptionModules || []).filter(m => m.status === 'ACTIVE').map(m => m.moduleName).join('; '),
     (c.totalPaidPaise / 100).toFixed(2), c.paymentCount,
     c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN') : '',
   ])
@@ -440,7 +666,7 @@ async function exportToPDF(clients) {
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(255, 122, 0); // Brand Orange
-  doc.text('Cafe QR - Clients Report', 14, 15);
+  doc.text('Cafe QR - Executive Clients & Platform Report', 14, 15);
 
   // Subtitle
   doc.setFont('Helvetica', 'normal');
@@ -449,24 +675,27 @@ async function exportToPDF(clients) {
   doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 14, 21);
 
   // Table Columns
-  const tableColumn = ["Client", "Owner Details", "Email", "Subscription", "Expiry", "Revenue"];
+  const tableColumn = ["Client & Health", "Owner Details", "Commerce Activity", "Onboarding", "Subscription", "Revenue"];
   const tableRows = [];
 
   clients.forEach(c => {
     const clientName = c.name && c.name !== '—' ? c.name : 'Unnamed Business';
+    const health = c.healthStatus ? ` [${c.healthStatus}]` : '';
     const ownerName = c.ownerName || '—';
     const phone = c.phone || '';
-    const ownerText = ownerName + (phone ? `\nPhone: ${phone}` : '');
+    const ownerText = ownerName + (phone ? `\nPhone: ${phone}` : '') + (c.email ? `\n${c.email}` : '');
+    const commerceText = `GMV: ${fmtRupees(c.gmvPaise || 0)}\nOrders: ${c.orderCount || 0}` + (c.lastOrderAt ? `\nLast: ${fmtDate(c.lastOrderAt)}` : '');
+    const onboardingText = `${c.onboardingStep || 'INCOMPLETE'}\n(${c.onboardingScore || 20}%)`;
     const daysLeftText = c.daysLeft > 0 ? ` (${c.daysLeft}d left)` : '';
-    const expiryText = `${fmtDate(c.subscriptionExpiryDate)}${daysLeftText}`;
+    const subText = `${c.subscriptionStatus || 'UNPAID'}\n${fmtDate(c.subscriptionExpiryDate)}${daysLeftText}`;
     const revenueText = `${fmtRupees(c.totalPaidPaise)}\n(${c.paymentCount} payments)`;
 
     tableRows.push([
-      clientName,
+      clientName + health,
       ownerText,
-      c.email || '—',
-      c.subscriptionStatus || 'UNPAID',
-      expiryText,
+      commerceText,
+      onboardingText,
+      subText,
       revenueText
     ]);
   });
@@ -483,16 +712,16 @@ async function exportToPDF(clients) {
       fontSize: 9
     },
     bodyStyles: {
-      fontSize: 8.5,
+      fontSize: 8,
       textColor: [15, 23, 42],
     },
     columnStyles: {
       0: { cellWidth: 45 },
       1: { cellWidth: 50 },
-      2: { cellWidth: 60 },
-      3: { cellWidth: 30 },
+      2: { cellWidth: 45 },
+      3: { cellWidth: 40 },
       4: { cellWidth: 45 },
-      5: { cellWidth: 40, halign: 'right' }
+      5: { cellWidth: 35, halign: 'right' }
     },
     margin: { top: 25, bottom: 15 },
     didDrawPage: function(data) {
@@ -503,7 +732,7 @@ async function exportToPDF(clients) {
     }
   });
 
-  doc.save(`clients-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`cafeqr-executive-report-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ─── Print Receipt ───────────────────────────────────────────────────────────
@@ -833,6 +1062,7 @@ function Dashboard({ founderKey }) {
   // Filtering & Search
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [healthFilter, setHealthFilter] = useState('ALL')
   const [posTypeFilter, setPosTypeFilter] = useState('ALL')
   const [countryFilter, setCountryFilter] = useState('ALL')
   const [activeFilter, setActiveFilter] = useState('ALL') // 'ALL' | 'ACTIVE' | 'SUSPENDED'
@@ -842,13 +1072,14 @@ function Dashboard({ founderKey }) {
   const [sortDir, setSortDir] = useState('asc')
   
   // Views
-  const [viewMode, setViewMode] = useState('table') // 'table' | 'graph' | 'chart'
+  const [viewMode, setViewMode] = useState('table') // 'table' | 'funnel' | 'graph' | 'chart' | 'whatsapp'
 
-  // Modals for admin actions
+  // Modals & Impersonation for admin actions
   const [extendModalClient, setExtendModalClient] = useState(null)
   const [paymentModalClient, setPaymentModalClient] = useState(null)
   const [extendDays, setExtendDays] = useState(30)
   const [extendLoading, setExtendLoading] = useState(false)
+  const [inspectLoadingId, setInspectLoadingId] = useState(null)
 
   const [payAmount, setPayAmount] = useState('')
   const [payId, setPayId] = useState('')
@@ -948,6 +1179,11 @@ function Dashboard({ founderKey }) {
       list = list.filter(c => (c.subscriptionStatus || '').toUpperCase() === statusFilter)
     }
 
+    // Health Filter
+    if (healthFilter !== 'ALL') {
+      list = list.filter(c => c.healthStatus === healthFilter)
+    }
+
     // POS Type Filter
     if (posTypeFilter !== 'ALL') {
       list = list.filter(c => c.posType === posTypeFilter)
@@ -975,15 +1211,19 @@ function Dashboard({ founderKey }) {
 
     list.sort((a, b) => {
       let va, vb
-      if (sortBy === 'name')    { va = a.name || '';              vb = b.name || '' }
-      if (sortBy === 'status')  { va = a.subscriptionStatus || ''; vb = b.subscriptionStatus || '' }
-      if (sortBy === 'revenue') { va = a.totalPaidPaise;           vb = b.totalPaidPaise }
-      if (sortBy === 'expiry')  { va = a.subscriptionExpiryDate || ''; vb = b.subscriptionExpiryDate || '' }
+      if (sortBy === 'name')           { va = a.name || '';                    vb = b.name || '' }
+      if (sortBy === 'status')         { va = a.subscriptionStatus || '';      vb = b.subscriptionStatus || '' }
+      if (sortBy === 'revenue')        { va = a.totalPaidPaise || 0;           vb = b.totalPaidPaise || 0 }
+      if (sortBy === 'expiry')         { va = a.subscriptionExpiryDate || '';  vb = b.subscriptionExpiryDate || '' }
+      if (sortBy === 'gmv')            { va = a.gmvPaise || 0;                 vb = b.gmvPaise || 0 }
+      if (sortBy === 'orders')         { va = a.orderCount || 0;               vb = b.orderCount || 0 }
+      if (sortBy === 'onboarding')     { va = a.onboardingScore || 0;          vb = b.onboardingScore || 0 }
+      if (sortBy === 'health')         { va = a.healthStatus || '';            vb = b.healthStatus || '' }
       if (typeof va === 'number') return sortDir === 'asc' ? va - vb : vb - va
       return sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va))
     })
     return list
-  }, [data, search, statusFilter, posTypeFilter, countryFilter, activeFilter, sortBy, sortDir])
+  }, [data, search, statusFilter, healthFilter, posTypeFilter, countryFilter, activeFilter, sortBy, sortDir])
 
   // Actions
   const handleToggleActive = async (clientId) => {
@@ -1045,6 +1285,67 @@ function Dashboard({ founderKey }) {
     } finally {
       setPayLoading(false)
     }
+  }
+
+  // 1-Click Founder Impersonation (Ghost Support Mode) - Zero credential leakage
+  const handleInspectStore = async (client) => {
+    if (!client || !client.id) return
+    try {
+      setInspectLoadingId(client.id)
+      const res = await axios.post(
+        `${API_BASE}/api/v1/founder/client/${client.id}/impersonate`,
+        {},
+        { headers: { 'X-Founder-Key': founderKey } }
+      )
+      const authData = res.data?.data
+      if (!authData || !authData.token) {
+        throw new Error('Failed to obtain impersonation session token')
+      }
+
+      // Securely populate frontend session cookies and storage
+      // NO console logging or query parameter exposure
+      const cookieOpts = getFrontendCookieOptions()
+      Cookies.set('token', authData.token, cookieOpts)
+      Cookies.set('auth_token', authData.token, cookieOpts)
+      Cookies.set('client_id', String(authData.clientId || client.id), cookieOpts)
+      Cookies.set('client_uuid', authData.clientUuid || client.clientUuid || '', cookieOpts)
+      Cookies.set('username', authData.username || client.name || 'Admin', cookieOpts)
+      Cookies.set('roles', JSON.stringify(authData.roles || ['ROLE_CLIENT_ADMIN']), cookieOpts)
+      if (authData.posType) {
+        Cookies.set('pos_type', authData.posType, cookieOpts)
+      }
+
+      localStorage.setItem('token', authData.token)
+      localStorage.setItem('auth_token', authData.token)
+      localStorage.setItem('user', JSON.stringify({
+        id: authData.userId,
+        username: authData.username,
+        roles: authData.roles,
+        clientId: authData.clientId,
+        clientUuid: authData.clientUuid,
+        clientName: authData.clientName || client.name,
+        posType: authData.posType || client.posType
+      }))
+
+      // Open store in new tab with completely clean URL (zero tokens in URL)
+      window.open('/admin', '_blank')
+    } catch (err) {
+      alert('Store inspection failed: ' + (err.response?.data?.message || err.message))
+    } finally {
+      setInspectLoadingId(null)
+    }
+  }
+
+  // Quick Action: WhatsApp Nudge for Onboarding Drop-offs
+  const handleNudgeWhatsApp = (phone, customMsg) => {
+    if (!phone) {
+      alert('No phone number registered for this client.')
+      return
+    }
+    const clean = phone.replace(/[^0-9]/g, '')
+    const formattedPhone = clean.length === 10 ? `91${clean}` : clean
+    const text = encodeURIComponent(customMsg || 'Hello from Cafe QR Support! We noticed you recently registered your cafe. Would you like a 5-minute quick setup walkthrough?')
+    window.open(`https://wa.me/${formattedPhone}?text=${text}`, '_blank')
   }
 
   const toggleSort = (col) => {
@@ -1131,20 +1432,45 @@ function Dashboard({ founderKey }) {
 
         {!loading && !error && data && (
           <>
-            {/* Stats Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 14, marginBottom: 24 }}>
-              <StatCard label="Total Clients" value={data.stats.totalClients}                  sub="All registered"  accent={T.blue}   onClick={() => setStatusFilter('ALL')} />
-              <StatCard label="Active"         value={data.stats.activeClients}                 sub="Paid & valid"    accent={T.green}  onClick={() => setStatusFilter('ACTIVE')} />
-              <StatCard label="Trial"          value={data.stats.trialClients}                  sub="Free trial"      accent={T.orange} onClick={() => setStatusFilter('TRIAL')} />
-              <StatCard label="Expired"        value={data.stats.expiredClients}                sub="Need renewal"    accent={T.red}    onClick={() => setStatusFilter('EXPIRED')} />
-              <StatCard label="Unpaid"         value={data.stats.unpaidClients}                 sub="Never paid"      accent="#94A3B8"  onClick={() => setStatusFilter('UNPAID')} />
-              <StatCard label="Total Revenue"  value={fmtRupees(data.stats.totalRevenuePaise)}  sub="All time"        accent={T.green}  />
+            {/* Stats Cards - Tier 1: SaaS Financial Engine & Subscriptions */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>💼 SaaS Unit Economics & Subscriptions</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12 }}>
+                <StatCard label="Total Clients" value={data.stats.totalClients}                  sub="All registered"  accent={T.blue}   onClick={() => setStatusFilter('ALL')} />
+                <StatCard label="Active"         value={data.stats.activeClients}                 sub="Paid & valid"    accent={T.green}  onClick={() => setStatusFilter('ACTIVE')} />
+                <StatCard label="Trial"          value={data.stats.trialClients}                  sub="Free trial"      accent={T.orange} onClick={() => setStatusFilter('TRIAL')} />
+                <StatCard label="Expired"        value={data.stats.expiredClients}                sub="Need renewal"    accent={T.red}    onClick={() => setStatusFilter('EXPIRED')} />
+                <StatCard label="Unpaid"         value={data.stats.unpaidClients}                 sub="Never paid"      accent="#94A3B8"  onClick={() => setStatusFilter('UNPAID')} />
+                <StatCard label="Active MRR"     value={data.stats.mrrPaise ? fmtRupees(data.stats.mrrPaise) : '₹0'} sub="Monthly run-rate" accent={T.green} />
+                <StatCard label="Run-Rate ARR"   value={fmtRupees((data.stats.mrrPaise || 0) * 12)} sub="Annualized run-rate" accent={T.primary} />
+                <StatCard label="ARPU"           value={fmtRupees(data.stats.arpuPaise || 0)}     sub="Avg / paid client" accent={T.blue} />
+                <StatCard label="Realized Cash"  value={fmtRupees(data.stats.totalRevenuePaise)}  sub="All time collections" accent={T.green} />
+              </div>
+            </div>
+
+            {/* Stats Cards - Tier 2: Merchant Platform Commerce & Vitality */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🔥 Merchant Commerce & Platform Vitality</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
+                <StatCard label="Platform GMV"        value={fmtRupees(data.stats.platformGmvPaise || 0)} sub="Total food sales" accent={T.primary} />
+                <StatCard label="Total Food Orders"   value={(data.stats.totalOrdersCount || 0).toLocaleString('en-IN')} sub="POS + QR orders" accent={T.blue} />
+                <StatCard label="Active Cafes Today"  value={data.stats.activeCafesToday || 0} sub="Orders in last 24h" accent={T.green} />
+                <StatCard label="Active Cafes (7d)"   value={data.stats.activeCafes7Days || 0} sub="Orders in last 7 days" accent={T.green} />
+                <StatCard label="Tenant Activation"   value={`${(data.stats.activationRatePercent || 0).toFixed(1)}%`} sub="Took live orders" accent={T.orange} />
+              </div>
             </div>
 
             {/* View Selection Tabs */}
             <div className="founder-tabs">
               <button className={`founder-tab ${viewMode === 'table' ? 'active' : ''}`} onClick={() => setViewMode('table')}>
-                Clients Table
+                Clients Table ({filteredClients.length})
+              </button>
+              <button className={`founder-tab ${viewMode === 'funnel' ? 'active' : ''}`} onClick={() => setViewMode('funnel')}>
+                🎯 Onboarding Funnel
               </button>
               <button className={`founder-tab ${viewMode === 'graph' ? 'active' : ''}`} onClick={() => setViewMode('graph')}>
                 Revenue Graph
@@ -1156,6 +1482,17 @@ function Dashboard({ founderKey }) {
                 💬 Official WhatsApp Gateway
               </button>
             </div>
+
+            {/* View: Onboarding Funnel */}
+            {viewMode === 'funnel' && (
+              <div style={{ marginBottom: 24 }}>
+                <OnboardingFunnelView
+                  clients={filteredClients}
+                  onNudgeWhatsApp={handleNudgeWhatsApp}
+                  onInspectStore={handleInspectStore}
+                />
+              </div>
+            )}
 
             {/* View 1: Clients List Grid & Table */}
             {viewMode === 'table' && (
@@ -1171,9 +1508,9 @@ function Dashboard({ founderKey }) {
                   <input
                     id="search-clients"
                     value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Search by business, owner, email..."
+                    placeholder="Search by business, owner, email, phone..."
                     style={{
-                      flex: '1 1 240px', minWidth: 160, background: T.bg,
+                      flex: '1 1 220px', minWidth: 160, background: T.bg,
                       border: `1.5px solid ${T.border}`, color: T.textMain,
                       borderRadius: 10, padding: '9px 14px', fontSize: 13,
                       fontFamily: 'inherit', outline: 'none', transition: 'all 0.2s',
@@ -1183,7 +1520,7 @@ function Dashboard({ founderKey }) {
                   />
 
                   {/* Subscription Status Dropdown */}
-                  <div style={{ width: 180 }}>
+                  <div style={{ width: 170 }}>
                     <NiceSelect 
                       value={statusFilter}
                       onChange={setStatusFilter}
@@ -1197,8 +1534,23 @@ function Dashboard({ founderKey }) {
                     />
                   </div>
 
+                  {/* Merchant Health Status Dropdown */}
+                  <div style={{ width: 175 }}>
+                    <NiceSelect 
+                      value={healthFilter}
+                      onChange={setHealthFilter}
+                      options={[
+                        { value: 'ALL', label: 'All Health Status' },
+                        { value: 'HEALTHY', label: 'Healthy (Live Orders)' },
+                        { value: 'AT_RISK', label: 'At Risk (>7d Idle)' },
+                        { value: 'CHURNED', label: 'Churned (>30d Idle)' },
+                        { value: 'STALLED', label: 'Stalled Setup' }
+                      ]}
+                    />
+                  </div>
+
                   {/* Country Dropdown */}
-                  <div style={{ width: 150 }}>
+                  <div style={{ width: 140 }}>
                     <NiceSelect 
                       value={countryFilter}
                       onChange={setCountryFilter}
@@ -1210,7 +1562,7 @@ function Dashboard({ founderKey }) {
                   </div>
 
                   {/* POS Type Dropdown */}
-                  <div style={{ width: 150 }}>
+                  <div style={{ width: 140 }}>
                     <NiceSelect 
                       value={posTypeFilter}
                       onChange={setPosTypeFilter}
@@ -1222,7 +1574,7 @@ function Dashboard({ founderKey }) {
                   </div>
 
                   {/* Account Status Dropdown */}
-                  <div style={{ width: 160 }}>
+                  <div style={{ width: 150 }}>
                     <NiceSelect 
                       value={activeFilter}
                       onChange={setActiveFilter}
@@ -1244,9 +1596,17 @@ function Dashboard({ founderKey }) {
                   <table className="founder-tbl">
                     <thead>
                       <tr>
-                        {[['Client','name'],['Owner',null],['Subscription','status'],['Modules',null],['Revenue','revenue'],['',null]].map(([label,key],i) => (
-                          <th key={label+i} onClick={key ? () => toggleSort(key) : undefined}
-                            style={{ textAlign: i === 4 ? 'right' : 'left', cursor: key ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        {[
+                          ['Client & Health', 'name'],
+                          ['Owner Details', null],
+                          ['Activity (GMV & Orders)', 'gmv'],
+                          ['Onboarding', 'onboarding'],
+                          ['Subscription', 'status'],
+                          ['Revenue', 'revenue'],
+                          ['Action', null]
+                        ].map(([label, key], i) => (
+                          <th key={label + i} onClick={key ? () => toggleSort(key) : undefined}
+                            style={{ textAlign: i === 5 ? 'right' : i === 6 ? 'center' : 'left', cursor: key ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap' }}>
                             {label}{key && <SortIcon col={key} />}
                           </th>
                         ))}
@@ -1255,7 +1615,7 @@ function Dashboard({ founderKey }) {
                     <tbody>
                       {filteredClients.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ padding: '60px 20px', textAlign: 'center', color: T.textMuted }}>
+                          <td colSpan={7} style={{ padding: '60px 20px', textAlign: 'center', color: T.textMuted }}>
                             <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
                             <div style={{ fontWeight: 650, fontSize: 14 }}>No clients match your filters</div>
                           </td>
@@ -1269,6 +1629,8 @@ function Dashboard({ founderKey }) {
                           onOpenExtendModal={setExtendModalClient}
                           onOpenPaymentModal={setPaymentModalClient}
                           onPrintReceipt={handlePrintReceipt}
+                          onInspectStore={handleInspectStore}
+                          onNudgeWhatsApp={handleNudgeWhatsApp}
                         />
                       ))}
                     </tbody>

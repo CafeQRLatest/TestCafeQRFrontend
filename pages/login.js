@@ -63,7 +63,6 @@ export default function LoginPage() {
       if (!response.ok) throw new Error(data.message || 'Login failed')
       
       // Fix: login expects the AuthResponse, which is in the 'data' field of ApiResponse
-      console.log('Login Response Data:', data.data);
       login(data.data)
       setLoading(false)
     } catch (e) {
