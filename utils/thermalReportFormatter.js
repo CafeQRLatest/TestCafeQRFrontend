@@ -27,7 +27,51 @@ function rowTwoCols(label, val, width) {
   return label + ' '.repeat(width - label.length - val.length) + val;
 }
 
-export function buildThermalReportText(tabKey, data, config, timezone, dateRange) {
+// Helper to wrap text without truncating long names
+function wrapText(str, width) {
+  if (!str) return [''];
+  const text = String(str).trim();
+  if (text.length <= width) return [text];
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = '';
+
+  for (const w of words) {
+    if (!current) {
+      if (w.length <= width) {
+        current = w;
+      } else {
+        let remaining = w;
+        while (remaining.length > width) {
+          lines.push(remaining.substring(0, width));
+          remaining = remaining.substring(width);
+        }
+        current = remaining;
+      }
+    } else {
+      if ((current + ' ' + w).length <= width) {
+        current += ' ' + w;
+      } else {
+        lines.push(current);
+        if (w.length <= width) {
+          current = w;
+        } else {
+          let remaining = w;
+          while (remaining.length > width) {
+            lines.push(remaining.substring(0, width));
+            remaining = remaining.substring(width);
+          }
+          current = remaining;
+        }
+      }
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
+export function buildThermalReportText(tabKey, data, config, timezone, dateRange, options = {}) {
   const W = parseInt(config?.print_cols || '32', 10);
   const dashes = '-'.repeat(W);
   const lines = [];
@@ -81,25 +125,61 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
   }
 
   else if (tabKey === 'items') {
-    lines.push(center('ITEM SALES', W));
+    lines.push(center('ITEM SALES REPORT', W));
+    if (options?.category && options.category !== 'ALL') {
+      lines.push(center(`CATEGORY: ${String(options.category).toUpperCase()}`, W));
+    } else {
+      lines.push(center('CATEGORY: ALL', W));
+    }
+    if (options?.sortLabel) {
+      lines.push(center(`SORT: ${String(options.sortLabel).toUpperCase()}`, W));
+    }
     lines.push(dashes);
     if (!data || data.length === 0) {
       lines.push('No item data');
     } else {
-      // Columns: Item (grow), Qty(4), Rev(max 10)
-      const qtyW = 4;
-      const revW = Math.min(10, Math.floor(W * 0.3));
-      const itemW = W - qtyW - revW - 2; // -2 for spaces
+      // Columns: Item (grow), Qty(5), Rev(min 9, max 10)
+      const qtyW = 5;
+      const revW = Math.min(10, Math.max(9, Math.floor(W * 0.32)));
+      const itemW = Math.max(8, W - qtyW - revW - 2); // -2 for spaces
       
       lines.push(left('ITEM', itemW) + ' ' + right('QTY', qtyW) + ' ' + right('REV', revW));
       lines.push(dashes);
       
+      let calcQty = 0;
+      let calcRev = 0;
+
       data.forEach(item => {
-        const n = left(item.productName, itemW);
-        const q = right(String(item.quantitySold), qtyW);
-        const r = right(formatAmount(item.revenue), revW);
-        lines.push(n + ' ' + q + ' ' + r);
+        const qVal = Number(item.quantitySold || 0);
+        const rVal = Number(item.revenue || 0);
+        calcQty += qVal;
+        calcRev += rVal;
+
+        const qFormatted = item.uomPrecision != null
+          ? qVal.toFixed(item.uomPrecision)
+          : String(qVal);
+        const q = right(qFormatted, qtyW);
+        const r = right(formatAmount(rVal), revW);
+
+        const nameLines = wrapText(item.productName || 'Unknown Item', itemW);
+        // First line with item name + QTY + REV
+        lines.push(left(nameLines[0] || '', itemW) + ' ' + q + ' ' + r);
+        // Subsequent lines for wrapped name without truncation
+        for (let i = 1; i < nameLines.length; i++) {
+          lines.push(left(nameLines[i], itemW));
+        }
       });
+
+      lines.push(dashes);
+      const totalQty = options?.totalQty != null ? options.totalQty : calcQty;
+      const totalRev = options?.totalAmount != null ? options.totalAmount : calcRev;
+      const totalLabel = (options?.category && options.category !== 'ALL')
+        ? `${String(options.category).toUpperCase()} TOTAL:`
+        : 'TOTAL AMOUNT:';
+
+      lines.push(rowTwoCols('ITEMS COUNT:', String(data.length), W));
+      lines.push(rowTwoCols('TOTAL QTY:', String(totalQty), W));
+      lines.push(rowTwoCols(totalLabel, `${sym} ${formatAmount(totalRev)}`, W));
     }
   }
 

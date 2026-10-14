@@ -9,7 +9,8 @@ import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
   FaChevronRight, FaBan, FaBook, FaMoneyBillWave, FaMobileAlt, FaWallet,
-  FaInfoCircle, FaCoins, FaTag, FaPrint
+  FaInfoCircle, FaCoins, FaTag, FaPrint,
+  FaSort, FaSortUp, FaSortDown, FaSearch
 } from 'react-icons/fa';
 
 const SALES_TABS = [
@@ -52,11 +53,103 @@ export default function SalesReportView({
   const [hourly, setHourly] = useState([]);
   const [creditReport, setCreditReport] = useState(null);
 
+  // Item Sales sorting and filtering state
+  const [itemCategoryFilter, setItemCategoryFilter] = useState('ALL');
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
+  const [itemSortField, setItemSortField] = useState('revenue');
+  const [itemSortDir, setItemSortDir] = useState('desc'); // 'asc' | 'desc'
+
   const [invoiceFilter, setInvoiceFilter] = useState('ALL');
   const [invoicePage, setInvoicePage] = useState(0);
   const [expandedInvoice, setExpandedInvoice] = useState(null);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const INVOICE_PAGE_SIZE = 25;
+
+  // Extract distinct categories from item sales
+  const itemCategories = useMemo(() => {
+    const cats = new Set();
+    items.forEach(i => {
+      const c = (i.categoryName || '').trim();
+      if (c) cats.add(c);
+    });
+    return Array.from(cats).sort((a, b) => a.localeCompare(b));
+  }, [items]);
+
+  // Filtered and sorted items dataset
+  const filteredAndSortedItems = useMemo(() => {
+    let result = items.slice();
+
+    if (itemCategoryFilter !== 'ALL') {
+      result = result.filter(i => {
+        const c = (i.categoryName || '').trim();
+        return c.toLowerCase() === itemCategoryFilter.toLowerCase();
+      });
+    }
+
+    if (itemSearchTerm.trim()) {
+      const q = itemSearchTerm.trim().toLowerCase();
+      result = result.filter(i => {
+        const prod = (i.productName || '').toLowerCase();
+        const cat = (i.categoryName || '').toLowerCase();
+        return prod.includes(q) || cat.includes(q);
+      });
+    }
+
+    result.sort((a, b) => {
+      let valA, valB;
+      if (itemSortField === 'productName') {
+        valA = (a.productName || '').toLowerCase();
+        valB = (b.productName || '').toLowerCase();
+        return itemSortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      if (itemSortField === 'categoryName') {
+        valA = (a.categoryName || '').toLowerCase();
+        valB = (b.categoryName || '').toLowerCase();
+        return itemSortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      if (itemSortField === 'quantitySold') {
+        valA = Number(a.quantitySold || 0);
+        valB = Number(b.quantitySold || 0);
+        return itemSortDir === 'asc' ? valA - valB : valB - valA;
+      }
+      // default: revenue
+      valA = Number(a.revenue || 0);
+      valB = Number(b.revenue || 0);
+      return itemSortDir === 'asc' ? valA - valB : valB - valA;
+    });
+
+    return result;
+  }, [items, itemCategoryFilter, itemSearchTerm, itemSortField, itemSortDir]);
+
+  // Aggregate totals for the filtered category
+  const categoryTotals = useMemo(() => {
+    const totalQuantity = filteredAndSortedItems.reduce((acc, i) => acc + Number(i.quantitySold || 0), 0);
+    const totalRevenue = filteredAndSortedItems.reduce((acc, i) => acc + Number(i.revenue || 0), 0);
+    const overallRevenue = items.reduce((acc, i) => acc + Number(i.revenue || 0), 0);
+    return {
+      totalQuantity,
+      totalRevenue,
+      overallRevenue
+    };
+  }, [filteredAndSortedItems, items]);
+
+  const handleItemSort = (field) => {
+    if (itemSortField === field) {
+      setItemSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setItemSortField(field);
+      setItemSortDir(field === 'productName' || field === 'categoryName' ? 'asc' : 'desc');
+    }
+  };
+
+  const renderSortIndicator = (field) => {
+    if (itemSortField !== field) {
+      return <FaSort className="rpt-sort-icon inactive" />;
+    }
+    return itemSortDir === 'asc'
+      ? <FaSortUp className="rpt-sort-icon active" />
+      : <FaSortDown className="rpt-sort-icon active" />;
+  };
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -144,18 +237,28 @@ export default function SalesReportView({
     }
   };
 
-  const handlePrint = async (tabKey) => {
+  const handlePrint = async (tabKey, customData = null) => {
     let dataToPrint = null;
-    switch (tabKey) {
-      case 'summary': dataToPrint = summary; break;
-      case 'items': dataToPrint = items; break;
-      case 'payments': dataToPrint = payments; break;
-      case 'tax': dataToPrint = taxData; break;
-      case 'hourly': dataToPrint = hourly; break;
-      case 'credit': dataToPrint = creditReport; break;
-      default: return;
+    let extraMeta = {};
+    if (tabKey === 'items') {
+      dataToPrint = customData?.items || filteredAndSortedItems;
+      extraMeta = {
+        category: customData?.category || itemCategoryFilter,
+        totalQty: customData?.totalQty != null ? customData.totalQty : categoryTotals.totalQuantity,
+        totalAmount: customData?.totalAmount != null ? customData.totalAmount : categoryTotals.totalRevenue,
+        sortLabel: `${itemSortField} (${itemSortDir})`,
+      };
+    } else {
+      switch (tabKey) {
+        case 'summary': dataToPrint = summary; break;
+        case 'payments': dataToPrint = payments; break;
+        case 'tax': dataToPrint = taxData; break;
+        case 'hourly': dataToPrint = hourly; break;
+        case 'credit': dataToPrint = creditReport; break;
+        default: return;
+      }
     }
-    const text = buildThermalReportText(tabKey, dataToPrint, config, timezone, { start: dateFrom, end: dateTo });
+    const text = buildThermalReportText(tabKey, dataToPrint, config, timezone, { start: dateFrom, end: dateTo }, extraMeta);
     try {
       await printUniversal({ text, jobKind: 'bill', allowSystemDialog: true });
     } catch (e) {
@@ -584,58 +687,177 @@ export default function SalesReportView({
   };
 
   const renderItems = () => {
-    const maxRev = items.length ? Math.max(...items.map(i => Number(i.revenue || 0)), 1) : 1;
+    const maxRev = filteredAndSortedItems.length ? Math.max(...filteredAndSortedItems.map(i => Number(i.revenue || 0)), 1) : 1;
+
     return (
       <>
-        <div className="rpt-sales-toolbar">
-          <button className="rpt-sales-btn" onClick={() => exportCSV(
-            ['Product Name,Category,Qty Sold,Revenue'],
-            items.map(i => [i.productName, i.categoryName, i.quantitySold, i.revenue].map(csvCell).join(',')),
-            'item_sales'
-          )}><FaFileCsv /> CSV</button>
-          <button className="rpt-sales-btn" onClick={() => exportExcel(
-            items.map(i => ({
-              'Product Name': i.productName,
-              'Category': i.categoryName,
-              'Qty Sold': Number(i.quantitySold || 0),
-              'Revenue': Number(i.revenue || 0)
-            })),
-            'Item Sales', 'item_sales'
-          )}><FaFileExcel /> Excel</button>
-          <button className="rpt-sales-btn" onClick={() => handlePrint('items')}><FaPrint /> Print</button>
+        <div className="rpt-sales-toolbar rpt-sales-item-toolbar">
+          <div className="rpt-sales-filter-group">
+            <NiceSelect
+              value={itemCategoryFilter}
+              onChange={(val) => setItemCategoryFilter(val)}
+              options={[
+                { value: 'ALL', label: `All Categories (${itemCategories.length})` },
+                ...itemCategories.map(c => ({ value: c, label: c }))
+              ]}
+              style={{ minWidth: 160 }}
+            />
+            <div className="rpt-sales-search-box">
+              <input
+                type="text"
+                placeholder="Search product…"
+                value={itemSearchTerm}
+                onChange={(e) => setItemSearchTerm(e.target.value)}
+                className="rpt-sales-search-input"
+              />
+              <FaSearch className="rpt-sales-search-icon" />
+            </div>
+          </div>
+
+          <div className="rpt-sales-actions-group">
+            <button className="rpt-sales-btn" onClick={() => {
+              const catSuffix = itemCategoryFilter !== 'ALL' ? `_${itemCategoryFilter.toLowerCase().replace(/\s+/g, '_')}` : '';
+              exportCSV(
+                ['#', 'Product Name', 'Category', 'Qty Sold', 'Revenue'],
+                [
+                  ...filteredAndSortedItems.map((i, idx) => [
+                    idx + 1, i.productName, i.categoryName, i.quantitySold, i.revenue
+                  ].map(csvCell).join(',')),
+                  ['', 'Total', itemCategoryFilter === 'ALL' ? 'All Categories' : itemCategoryFilter, categoryTotals.totalQuantity, categoryTotals.totalRevenue].map(csvCell).join(',')
+                ],
+                `item_sales${catSuffix}`
+              );
+            }}><FaFileCsv /> CSV</button>
+
+            <button className="rpt-sales-btn" onClick={() => {
+              const catSuffix = itemCategoryFilter !== 'ALL' ? `_${itemCategoryFilter.toLowerCase().replace(/\s+/g, '_')}` : '';
+              const data = filteredAndSortedItems.map((i, idx) => ({
+                '#': idx + 1,
+                'Product Name': i.productName,
+                'Category': i.categoryName,
+                'Qty Sold': Number(i.quantitySold || 0),
+                'Revenue': Number(i.revenue || 0)
+              }));
+              data.push({
+                '#': '',
+                'Product Name': 'Total',
+                'Category': itemCategoryFilter === 'ALL' ? 'All Categories' : itemCategoryFilter,
+                'Qty Sold': Number(categoryTotals.totalQuantity || 0),
+                'Revenue': Number(categoryTotals.totalRevenue || 0)
+              });
+              exportExcel(data, 'Item Sales', `item_sales${catSuffix}`);
+            }}><FaFileExcel /> Excel</button>
+
+            <button className="rpt-sales-btn" onClick={() => handlePrint('items')}><FaPrint /> Print</button>
+          </div>
         </div>
 
-        {items.length === 0 ? <div className="rpt-sales-empty">No items sold</div> : (
-          <div className="rpt-sales-tbl-wrap">
-            <table className="rpt-sales-tbl">
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }}>#</th>
-                  <th>Product</th>
-                  <th>Category</th>
-                  <th className="r">Qty Sold</th>
-                  <th className="r">Revenue</th>
-                  <th style={{ width: 140 }}>Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td style={{ color: '#94a3b8', fontWeight: 600 }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
-                    <td><span className="rpt-sales-pill">{item.categoryName || 'General'}</span></td>
-                    <td className="r" style={{ fontWeight: 600 }}>{item.uomPrecision != null ? Number(item.quantitySold || 0).toFixed(item.uomPrecision) : Number(item.quantitySold || 0)}</td>
-                    <td className="r rpt-sales-amt">{SYM}{fmt(item.revenue)}</td>
-                    <td>
-                      <div className="rpt-sales-bar-wrap">
-                        <div className="rpt-sales-bar" style={{ width: `${(Number(item.revenue || 0) / maxRev * 100).toFixed(0)}%` }} />
+        {items.length === 0 ? (
+          <div className="rpt-sales-empty">No items sold for selected range</div>
+        ) : filteredAndSortedItems.length === 0 ? (
+          <div className="rpt-sales-empty">No products found matching filters</div>
+        ) : (
+          <>
+            <div className="rpt-sales-tbl-wrap">
+              <table className="rpt-sales-tbl">
+                <thead>
+                  <tr>
+                    <th style={{ width: 44, textAlign: 'center' }}>#</th>
+                    <th className="sortable-th" onClick={() => handleItemSort('productName')}>
+                      <div className="th-content">
+                        <span>Product</span>
+                        {renderSortIndicator('productName')}
                       </div>
+                    </th>
+                    <th className="sortable-th" onClick={() => handleItemSort('categoryName')}>
+                      <div className="th-content">
+                        <span>Category</span>
+                        {renderSortIndicator('categoryName')}
+                      </div>
+                    </th>
+                    <th className="r sortable-th" onClick={() => handleItemSort('quantitySold')}>
+                      <div className="th-content r">
+                        <span>Qty Sold</span>
+                        {renderSortIndicator('quantitySold')}
+                      </div>
+                    </th>
+                    <th className="r sortable-th" onClick={() => handleItemSort('revenue')}>
+                      <div className="th-content r">
+                        <span>Revenue</span>
+                        {renderSortIndicator('revenue')}
+                      </div>
+                    </th>
+                    <th style={{ width: 140 }}>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAndSortedItems.map((item, idx) => (
+                    <tr key={`${item.productName}-${item.categoryName}-${idx}`}>
+                      <td style={{ color: '#94a3b8', fontWeight: 600, textAlign: 'center' }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
+                      <td><span className="rpt-sales-pill">{item.categoryName || 'General'}</span></td>
+                      <td className="r" style={{ fontWeight: 600 }}>{item.uomPrecision != null ? Number(item.quantitySold || 0).toFixed(item.uomPrecision) : Number(item.quantitySold || 0)}</td>
+                      <td className="r rpt-sales-amt">{SYM}{fmt(item.revenue)}</td>
+                      <td>
+                        <div className="rpt-sales-bar-wrap">
+                          <div className="rpt-sales-bar" style={{ width: `${(Number(item.revenue || 0) / maxRev * 100).toFixed(0)}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="rpt-sales-tbl-total-row">
+                    <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700, color: '#64748b' }}>
+                      {itemCategoryFilter === 'ALL'
+                        ? `Grand Total (${filteredAndSortedItems.length} items)`
+                        : `${itemCategoryFilter} Total (${filteredAndSortedItems.length} items)`}
+                    </td>
+                    <td className="r" style={{ fontWeight: 800, color: '#1e293b' }}>
+                      {categoryTotals.totalQuantity}
+                    </td>
+                    <td className="r rpt-sales-amt" style={{ color: '#10b981', fontSize: '14.5px', fontWeight: 850 }}>
+                      {SYM}{fmt(categoryTotals.totalRevenue)}
+                    </td>
+                    <td style={{ color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
+                      {itemCategoryFilter === 'ALL'
+                        ? '100%'
+                        : `${categoryTotals.overallRevenue > 0 ? ((categoryTotals.totalRevenue / categoryTotals.overallRevenue) * 100).toFixed(1) : '0.0'}%`}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </tfoot>
+              </table>
+            </div>
+
+            {itemCategoryFilter !== 'ALL' && (
+              <div className="rpt-sales-cat-summary-card">
+                <div className="rpt-sales-cat-summary-left">
+                  <div className="rpt-sales-cat-tag">
+                    <FaTag /> <span>{itemCategoryFilter}</span>
+                  </div>
+                  <span className="rpt-sales-cat-meta">{filteredAndSortedItems.length} Products Sold in this Category</span>
+                </div>
+                <div className="rpt-sales-cat-summary-metrics">
+                  <div className="rpt-sales-cat-stat">
+                    <span className="rpt-sales-cat-stat-label">Total Qty Sold</span>
+                    <span className="rpt-sales-cat-stat-val">{categoryTotals.totalQuantity}</span>
+                  </div>
+                  <div className="rpt-sales-cat-stat primary">
+                    <span className="rpt-sales-cat-stat-label">Total Category Amount</span>
+                    <span className="rpt-sales-cat-stat-val highlight">{SYM}{fmt(categoryTotals.totalRevenue)}</span>
+                  </div>
+                  <div className="rpt-sales-cat-stat">
+                    <span className="rpt-sales-cat-stat-label">Category Share</span>
+                    <span className="rpt-sales-cat-stat-val">
+                      {categoryTotals.overallRevenue > 0
+                        ? ((categoryTotals.totalRevenue / categoryTotals.overallRevenue) * 100).toFixed(1)
+                        : '0.0'}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </>
     );
@@ -1066,6 +1288,54 @@ export default function SalesReportView({
         .rpt-sales-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; font-size: 12px; font-weight: 700; color: #64748b; }
         .rpt-sales-loading, .rpt-sales-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-weight: 700; font-size: 14px; }
         .rpt-sales-error { margin-bottom: 16px; padding: 12px 14px; border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; font-size: 12px; font-weight: 800; }
+
+        /* Item Sales Toolbar & Responsive Controls */
+        .rpt-sales-item-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .rpt-sales-filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 300px; }
+        .rpt-sales-actions-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .rpt-sales-search-box { position: relative; flex: 1 1 170px; min-width: 140px; max-width: 260px; }
+        .rpt-sales-search-input { width: 100%; padding: 7.5px 30px 7.5px 12px; border-radius: 10px; border: 1.5px solid #e2e8f0; font-size: 11.5px; font-weight: 600; color: #1e293b; background: #fff; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+        .rpt-sales-search-input:focus { border-color: #f97316; }
+        .rpt-sales-search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 11px; pointer-events: none; }
+
+        /* Sortable Column Headers */
+        .sortable-th { cursor: pointer; user-select: none; transition: background 0.15s ease, color 0.15s ease; }
+        .sortable-th:hover { background: #fff7ed !important; color: #f97316 !important; }
+        .th-content { display: inline-flex; align-items: center; gap: 6px; }
+        .th-content.r { justify-content: flex-end; width: 100%; }
+        .rpt-sort-icon { font-size: 10px; transition: color 0.15s ease; }
+        .rpt-sort-icon.inactive { color: #cbd5e1; }
+        .rpt-sort-icon.active { color: #f97316; }
+
+        /* Table Total Row */
+        .rpt-sales-tbl-total-row td { background: #f8fafc; border-top: 2px solid #e2e8f0; border-bottom: 2px solid #e2e8f0; padding: 10px 16px; font-size: 13px; }
+
+        /* Category Total Summary Card Below Table */
+        .rpt-sales-cat-summary-card { margin-top: 14px; padding: 14px 18px; background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%); border: 1.5px solid #fed7aa; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; box-shadow: 0 4px 14px rgba(249, 115, 22, 0.06); }
+        .rpt-sales-cat-summary-left { display: flex; flex-direction: column; gap: 4px; }
+        .rpt-sales-cat-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f97316; color: #fff; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25); width: fit-content; }
+        .rpt-sales-cat-meta { font-size: 11px; color: #64748b; font-weight: 600; }
+        .rpt-sales-cat-summary-metrics { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .rpt-sales-cat-stat { display: flex; flex-direction: column; align-items: flex-end; padding: 6px 12px; background: #fff; border-radius: 10px; border: 1px solid #ffedd5; min-width: 100px; }
+        .rpt-sales-cat-stat.primary { background: #fff; border-color: #f97316; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.12); }
+        .rpt-sales-cat-stat-label { font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+        .rpt-sales-cat-stat-val { font-size: 14px; font-weight: 800; color: #1e293b; }
+        .rpt-sales-cat-stat-val.highlight { color: #ea580c; font-size: 16px; font-weight: 900; }
+
+        @media (max-width: 768px) {
+          .rpt-sales-item-toolbar { flex-direction: column; align-items: stretch; }
+          .rpt-sales-filter-group { width: 100%; }
+          .rpt-sales-actions-group { width: 100%; justify-content: flex-end; }
+          .rpt-sales-cat-summary-card { flex-direction: column; align-items: stretch; }
+          .rpt-sales-cat-summary-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; width: 100%; }
+          .rpt-sales-cat-stat { align-items: flex-start; min-width: 0; }
+        }
+        @media (max-width: 480px) {
+          .rpt-sales-filter-group { flex-direction: column; align-items: stretch; }
+          .rpt-sales-search-box { max-width: 100%; }
+          .rpt-sales-actions-group { justify-content: stretch; }
+          .rpt-sales-actions-group .rpt-sales-btn { flex: 1; justify-content: center; }
+        }
       `}</style>
     </div>
   );
