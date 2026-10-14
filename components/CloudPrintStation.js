@@ -5,11 +5,9 @@ import Cookies from 'js-cookie';
 import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { getApiUrl } from '../utils/api';
-import { useAuth } from '../context/AuthContext';
 
 export default function CloudPrintStation({ onJobsChanged }) {
   const router = useRouter();
-  const { canPrintOrder } = useAuth();
   const isPosPage = router?.pathname?.includes('/pos-sales') || router?.pathname?.includes('/sales');
   const [enabled, setEnabled] = useState(false);
   const [widgetVisible, setWidgetVisible] = useState(true);
@@ -55,7 +53,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
   }, []);
 
   useEffect(() => {
-    if (!enabled || canPrintOrder === false) return undefined;
+    if (!enabled) return undefined;
 
     let alive = true;
     let timerId = null;
@@ -143,9 +141,8 @@ export default function CloudPrintStation({ onJobsChanged }) {
         eventSource.close();
       }
     };
-  }, [enabled, canPrintOrder, onJobsChanged]);
+  }, [enabled, onJobsChanged]);
 
-  if (canPrintOrder === false) return null;
   if (!enabled) return null;
   if (!widgetVisible) return null;
 
