@@ -693,15 +693,17 @@ export default function SalesReportView({
       <>
         <div className="rpt-sales-toolbar rpt-sales-item-toolbar">
           <div className="rpt-sales-filter-group">
-            <NiceSelect
-              value={itemCategoryFilter}
-              onChange={(val) => setItemCategoryFilter(val)}
-              options={[
-                { value: 'ALL', label: `All Categories (${itemCategories.length})` },
-                ...itemCategories.map(c => ({ value: c, label: c }))
-              ]}
-              style={{ minWidth: 160 }}
-            />
+            <div className="rpt-item-select-wrap">
+              <NiceSelect
+                value={itemCategoryFilter}
+                onChange={(val) => setItemCategoryFilter(val)}
+                options={[
+                  { value: 'ALL', label: `All Categories (${itemCategories.length})` },
+                  ...itemCategories.map(c => ({ value: c, label: c }))
+                ]}
+                style={{ width: '100%', height: '38px' }}
+              />
+            </div>
             <div className="rpt-sales-search-box">
               <input
                 type="text"
@@ -762,7 +764,7 @@ export default function SalesReportView({
               <table className="rpt-sales-tbl">
                 <thead>
                   <tr>
-                    <th style={{ width: 44, textAlign: 'center' }}>#</th>
+                    <th style={{ width: 34, textAlign: 'center' }}>#</th>
                     <th className="sortable-th" onClick={() => handleItemSort('productName')}>
                       <div className="th-content">
                         <span>Product</span>
@@ -787,18 +789,18 @@ export default function SalesReportView({
                         {renderSortIndicator('revenue')}
                       </div>
                     </th>
-                    <th style={{ width: 140 }}>Share</th>
+                    <th className="col-share" style={{ width: 120 }}>Share</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAndSortedItems.map((item, idx) => (
                     <tr key={`${item.productName}-${item.categoryName}-${idx}`}>
                       <td style={{ color: '#94a3b8', fontWeight: 600, textAlign: 'center' }}>{idx + 1}</td>
-                      <td style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
+                      <td className="col-product" style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
                       <td><span className="rpt-sales-pill">{item.categoryName || 'General'}</span></td>
                       <td className="r" style={{ fontWeight: 600 }}>{item.uomPrecision != null ? Number(item.quantitySold || 0).toFixed(item.uomPrecision) : Number(item.quantitySold || 0)}</td>
                       <td className="r rpt-sales-amt">{SYM}{fmt(item.revenue)}</td>
-                      <td>
+                      <td className="col-share">
                         <div className="rpt-sales-bar-wrap">
                           <div className="rpt-sales-bar" style={{ width: `${(Number(item.revenue || 0) / maxRev * 100).toFixed(0)}%` }} />
                         </div>
@@ -819,7 +821,7 @@ export default function SalesReportView({
                     <td className="r rpt-sales-amt" style={{ color: '#10b981', fontSize: '14.5px', fontWeight: 850 }}>
                       {SYM}{fmt(categoryTotals.totalRevenue)}
                     </td>
-                    <td style={{ color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
+                    <td className="col-share" style={{ color: '#64748b', fontSize: '11px', fontWeight: 700 }}>
                       {itemCategoryFilter === 'ALL'
                         ? '100%'
                         : `${categoryTotals.overallRevenue > 0 ? ((categoryTotals.totalRevenue / categoryTotals.overallRevenue) * 100).toFixed(1) : '0.0'}%`}
@@ -1290,18 +1292,19 @@ export default function SalesReportView({
         .rpt-sales-error { margin-bottom: 16px; padding: 12px 14px; border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; font-size: 12px; font-weight: 800; }
 
         /* Item Sales Toolbar & Responsive Controls */
-        .rpt-sales-item-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-        .rpt-sales-filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1 1 300px; }
-        .rpt-sales-actions-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .rpt-sales-search-box { position: relative; flex: 1 1 170px; min-width: 140px; max-width: 260px; }
-        .rpt-sales-search-input { width: 100%; padding: 7.5px 30px 7.5px 12px; border-radius: 10px; border: 1.5px solid #e2e8f0; font-size: 11.5px; font-weight: 600; color: #1e293b; background: #fff; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+        .rpt-sales-item-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .rpt-sales-filter-group { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .rpt-item-select-wrap { width: 175px; flex-shrink: 0; }
+        .rpt-sales-search-box { position: relative; width: 185px; flex-shrink: 0; }
+        .rpt-sales-search-input { width: 100%; height: 38px; padding: 0 30px 0 12px; border-radius: 10px; border: 1.5px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #1e293b; background: #fff; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
         .rpt-sales-search-input:focus { border-color: #f97316; }
         .rpt-sales-search-icon { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 11px; pointer-events: none; }
+        .rpt-sales-actions-group { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
         /* Sortable Column Headers */
         .sortable-th { cursor: pointer; user-select: none; transition: background 0.15s ease, color 0.15s ease; }
         .sortable-th:hover { background: #fff7ed !important; color: #f97316 !important; }
-        .th-content { display: inline-flex; align-items: center; gap: 6px; }
+        .th-content { display: inline-flex; align-items: center; gap: 5px; }
         .th-content.r { justify-content: flex-end; width: 100%; }
         .rpt-sort-icon { font-size: 10px; transition: color 0.15s ease; }
         .rpt-sort-icon.inactive { color: #cbd5e1; }
@@ -1322,19 +1325,26 @@ export default function SalesReportView({
         .rpt-sales-cat-stat-val { font-size: 14px; font-weight: 800; color: #1e293b; }
         .rpt-sales-cat-stat-val.highlight { color: #ea580c; font-size: 16px; font-weight: 900; }
 
-        @media (max-width: 768px) {
-          .rpt-sales-item-toolbar { flex-direction: column; align-items: stretch; }
-          .rpt-sales-filter-group { width: 100%; }
-          .rpt-sales-actions-group { width: 100%; justify-content: flex-end; }
-          .rpt-sales-cat-summary-card { flex-direction: column; align-items: stretch; }
-          .rpt-sales-cat-summary-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; width: 100%; }
-          .rpt-sales-cat-stat { align-items: flex-start; min-width: 0; }
-        }
-        @media (max-width: 480px) {
-          .rpt-sales-filter-group { flex-direction: column; align-items: stretch; }
-          .rpt-sales-search-box { max-width: 100%; }
-          .rpt-sales-actions-group { justify-content: stretch; }
-          .rpt-sales-actions-group .rpt-sales-btn { flex: 1; justify-content: center; }
+        @media (max-width: 639px) {
+          .rpt-sales-view { padding-bottom: 80px; }
+          .rpt-sales-item-toolbar { flex-direction: column; align-items: stretch; gap: 8px; }
+          .rpt-sales-filter-group { display: flex; flex-direction: row; width: 100%; gap: 6px; }
+          .rpt-item-select-wrap { width: 50%; flex: 1 1 50%; min-width: 0; }
+          .rpt-sales-search-box { width: 50%; flex: 1 1 50%; min-width: 0; }
+          .rpt-sales-actions-group { width: 100%; display: flex; gap: 6px; justify-content: stretch; }
+          .rpt-sales-actions-group .rpt-sales-btn { flex: 1 1 0; justify-content: center; padding: 7px 4px; font-size: 10.5px; gap: 4px; }
+
+          .rpt-sales-tbl { min-width: 100%; }
+          .rpt-sales-tbl th, .rpt-sales-tbl td { padding: 7px 5px; font-size: 11px; }
+          .col-product { white-space: normal !important; line-height: 1.25; word-break: break-word; max-width: 115px; min-width: 80px; }
+          .col-share { display: none !important; }
+
+          .rpt-sales-cat-summary-card { padding: 10px 12px; gap: 8px; }
+          .rpt-sales-cat-summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; }
+          .rpt-sales-cat-stat { padding: 6px 4px; align-items: center; text-align: center; min-width: 0; }
+          .rpt-sales-cat-stat-label { font-size: 8px; }
+          .rpt-sales-cat-stat-val { font-size: 12px; }
+          .rpt-sales-cat-stat-val.highlight { font-size: 13px; }
         }
       `}</style>
     </div>
