@@ -97,6 +97,9 @@ export default function PushNotificationBridge() {
         } else {
           playSoundAlert(detail.type, detail.category);
         }
+
+        // Instantly wake up the cloud print station to claim and print the new order with 0ms delay
+        window.dispatchEvent(new CustomEvent('cafeqr-cloud-print-wakeup'));
       }
 
       // Stop alarm signal received from service worker when notification is dismissed or clicked

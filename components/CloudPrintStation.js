@@ -39,7 +39,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
       if (doneTimeoutId) clearTimeout(doneTimeoutId);
       doneTimeoutId = setTimeout(() => {
         localPrintActiveRef.current = false;
-      }, 10000); // 10s cooldown safety buffer
+      }, 2000); // 2s cooldown safety buffer
     };
 
     window.addEventListener('cafeqr-local-print-active', handleActive);
@@ -56,7 +56,8 @@ export default function CloudPrintStation({ onJobsChanged }) {
     if (!enabled) return undefined;
 
     let alive = true;
-    let timerId = null;
+    let pulseTimerId = null;
+    let claimTimerId = null;
     let running = false;
     let eventSource = null;
     let isLeader = false;
@@ -67,7 +68,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
     const triggerClaim = async () => {
       if (!alive || running || !isLeader) return;
       if (localPrintActiveRef.current) {
-        if (alive) timerId = window.setTimeout(triggerClaim, 2000);
+        if (alive) claimTimerId = window.setTimeout(triggerClaim, 1000);
         return;
       }
       running = true;
@@ -87,7 +88,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
         running = false;
         if (alive && isLeader) {
           if (claimedCount > 0) {
-            timerId = window.setTimeout(triggerClaim, 300);
+            claimTimerId = window.setTimeout(triggerClaim, 300);
           }
         }
       }
@@ -110,8 +111,8 @@ export default function CloudPrintStation({ onJobsChanged }) {
       } finally {
         if (alive && isLeader) {
           const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
-          const delay = isTabHidden ? 15000 : 3000;
-          timerId = window.setTimeout(pulseCheck, delay);
+          const delay = isTabHidden ? 10000 : 3000;
+          pulseTimerId = window.setTimeout(pulseCheck, delay);
         }
       }
     };
@@ -172,27 +173,37 @@ export default function CloudPrintStation({ onJobsChanged }) {
     }
 
     // Instant Wakeup Handlers
+    const handleWakeup = () => {
+      if (alive && isLeader) {
+        triggerClaim();
+      }
+    };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && alive && isLeader) {
-        if (timerId) window.clearTimeout(timerId);
+        if (pulseTimerId) window.clearTimeout(pulseTimerId);
         pulseCheck();
       }
     };
     const handleOnline = () => {
       if (alive && isLeader) {
-        if (timerId) window.clearTimeout(timerId);
+        if (pulseTimerId) window.clearTimeout(pulseTimerId);
         pulseCheck();
       }
     };
 
+    window.addEventListener('cafeqr-cloud-print-wakeup', handleWakeup);
+    window.addEventListener('focus', handleVisibility);
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('online', handleOnline);
 
     return () => {
       alive = false;
       if (lockReleaseResolve) lockReleaseResolve();
-      if (timerId) window.clearTimeout(timerId);
+      if (pulseTimerId) window.clearTimeout(pulseTimerId);
+      if (claimTimerId) window.clearTimeout(claimTimerId);
       if (eventSource) eventSource.close();
+      window.removeEventListener('cafeqr-cloud-print-wakeup', handleWakeup);
+      window.removeEventListener('focus', handleVisibility);
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('online', handleOnline);
     };

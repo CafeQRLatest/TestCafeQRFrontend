@@ -1143,7 +1143,16 @@ export default function PosOrderTypeModal({
         // Strictly filter to live orders only
         const raw = res.data?.data || [];
         const onlyLive = raw.filter(isLiveOrder);
-        setLiveOrders(onlyLive);
+        setLiveOrders(prev => {
+          if (Array.isArray(prev) && prev.length > 0) {
+            const prevIds = new Set(prev.map(o => o.id));
+            const hasNew = onlyLive.some(o => o?.id && !prevIds.has(o.id));
+            if (hasNew && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('cafeqr-cloud-print-wakeup'));
+            }
+          }
+          return onlyLive;
+        });
       }
     } catch (err) {
       console.warn('Failed to fetch live sales orders:', err?.message || err);
