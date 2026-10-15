@@ -1810,14 +1810,28 @@ export default function PosOrderTypeModal({
       fetchLiveOrders();
       onRefreshTables?.();
 
-      // Auto-print receipt on settlement
-      if (typeof onPrintOrder === 'function') {
-        onPrintOrder(settledOrder, 'bill');
-      } else if (localPrintWillHandleKind('bill')) {
-        setPrintKind('bill');
-        setPrintOrder({ ...settledOrder, _manualPrint: true });
-        if (settledOrder?.id) {
-          markCloudPrintJobPrinted(settledOrder, 'bill').catch(() => {});
+      // Auto-print receipt on settlement:
+      // Kitchen / Table orders should NOT auto-trigger final bill print on "Settle & Finish"
+      // (Cashier can print bill manually via the dedicated "Bill" button whenever needed)
+      const preStatus = String(paymentOrder?.orderStatus || paymentOrder?.order_status || '').toUpperCase();
+      const isKitchenOrder = Boolean(
+        paymentOrder?.tableNumber ||
+        paymentOrder?.table_number ||
+        paymentOrder?.tableId ||
+        paymentOrder?.table_id ||
+        ['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY', 'BILLED'].includes(preStatus) ||
+        ['DINE_IN', 'TABLE'].includes(String(paymentOrder?.fulfillmentType || paymentOrder?.orderType || '').toUpperCase())
+      );
+
+      if (!isKitchenOrder) {
+        if (typeof onPrintOrder === 'function') {
+          onPrintOrder(settledOrder, 'bill');
+        } else if (localPrintWillHandleKind('bill')) {
+          setPrintKind('bill');
+          setPrintOrder({ ...settledOrder, _manualPrint: true });
+          if (settledOrder?.id) {
+            markCloudPrintJobPrinted(settledOrder, 'bill').catch(() => {});
+          }
         }
       }
     } catch (e) {

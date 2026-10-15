@@ -1787,7 +1787,16 @@ function SalesContent() {
       setPaymentOrder(null);
       setEditingOrder(null); // Only hide the edit panel after payment success!
       publishAccountingRefresh(payload?.paymentMethod === 'CREDIT' ? 'order-credit-completed' : 'order-settled', settledOrder);
-      if (localPrintWillHandleKind('bill')) {
+      const preStatus = String(paymentOrder?.orderStatus || paymentOrder?.order_status || '').toUpperCase();
+      const isKitchenOrder = Boolean(
+        paymentOrder?.tableNumber ||
+        paymentOrder?.table_number ||
+        paymentOrder?.tableId ||
+        paymentOrder?.table_id ||
+        ['KITCHEN', 'CONFIRMED', 'IN_PROGRESS', 'READY', 'BILLED'].includes(preStatus) ||
+        ['DINE_IN', 'TABLE'].includes(String(paymentOrder?.fulfillmentType || paymentOrder?.orderType || '').toUpperCase())
+      );
+      if (!isKitchenOrder && localPrintWillHandleKind('bill')) {
         await handlePrintOrder(settledOrder, 'bill');
       }
       refreshSalesState();
