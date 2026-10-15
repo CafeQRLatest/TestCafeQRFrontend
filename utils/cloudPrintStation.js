@@ -331,19 +331,58 @@ export async function enqueueCloudPrintJob(order, kind = 'bill') {
   return normalizeJob(data?.data);
 }
 
+export async function checkPrintPulse(version = 0) {
+  if (isKnownOffline() || isCloudPrintCoolingDown()) return { hasNew: false, version };
+  try {
+    const { data } = await api.get('/api/v1/print-jobs/pulse', {
+      params: { version },
+      backgroundSync: true,
+      skipAuthRedirect: true,
+      skipOfflineCache: true,
+    });
+    return data?.data || { hasNew: false, version };
+  } catch (error) {
+    return { hasNew: false, version };
+  }
+}
+
+const inflightMarkPrinted = new Map();
+
 export async function markCloudPrintJobPrinted(order, kind = 'bill') {
   if (!order?.id || order?.offline || isKnownOffline()) return [];
-  const { data } = await api.post(`/api/v1/print-jobs/orders/${order.id}/${kind}/printed`, null, {
-    backgroundSync: true,
-    skipAuthRedirect: true,
-    skipOfflineQueue: true,
-  });
-  noteCloudPrintSuccess();
-  const jobs = (data?.data || []).map(normalizeJob);
-  if (isBrowser()) {
-    window.dispatchEvent(new CustomEvent('cafeqr-cloud-print-jobs-changed', { detail: { jobs } }));
+  const key = `${order.id}:${kind}`;
+  const now = Date.now();
+  const existing = inflightMarkPrinted.get(key);
+  if (existing && (now - existing.timestamp < 10000)) {
+    return existing.promise;
   }
-  return jobs;
+
+  const promise = (async () => {
+    try {
+      const { data } = await api.post(`/api/v1/print-jobs/orders/${order.id}/${kind}/printed`, null, {
+        backgroundSync: true,
+        skipAuthRedirect: true,
+        skipOfflineQueue: true,
+      });
+      noteCloudPrintSuccess();
+      const jobs = (data?.data || []).map(normalizeJob);
+      if (isBrowser()) {
+        window.dispatchEvent(new CustomEvent('cafeqr-cloud-print-jobs-changed', { detail: { jobs } }));
+      }
+      return jobs;
+    } catch (err) {
+      throw err;
+    } finally {
+      setTimeout(() => {
+        if (inflightMarkPrinted.get(key)?.timestamp === now) {
+          inflightMarkPrinted.delete(key);
+        }
+      }, 5000);
+    }
+  })();
+
+  inflightMarkPrinted.set(key, { timestamp: now, promise });
+  return promise;
 }
 
 async function printClaimedJob(job) {

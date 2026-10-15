@@ -288,26 +288,15 @@ export default function PosSalesPage() {
     const order = normalizeOrder(rawOrder);
     const resolvedPrintKind = resolveCreatedPrintKind(order, kind);
 
-    // Auto-print locally if local print is configured
+    // Auto-print locally in 0ms if local print is configured
     if (localPrintWillHandleKind(resolvedPrintKind)) {
-      let orderForPrint = order;
-      if (order?.id) {
-        try {
-          await markCloudPrintJobPrinted(order, resolvedPrintKind);
-        } catch (error) {
-          console.warn('Unable to pre-emptively mark cloud print job printed:', error?.message || error);
-        }
-        if (resolvedPrintKind === 'bill' || resolvedPrintKind === 'kot') {
-          try {
-            const { data } = await api.get(`/api/v1/orders/${order.id}`);
-            orderForPrint = data?.data || order;
-          } catch (error) {
-            console.warn('Unable to hydrate order before auto print:', error?.message || error);
-          }
-        }
-      }
-      setPrintOrder(orderForPrint);
+      setPrintOrder(order);
       setPrintKind(resolvedPrintKind);
+      if (order?.id) {
+        markCloudPrintJobPrinted(order, resolvedPrintKind).catch((error) => {
+          console.warn('Unable to pre-emptively mark cloud print job printed:', error?.message || error);
+        });
+      }
     }
 
     // Navigate back to board/order-type

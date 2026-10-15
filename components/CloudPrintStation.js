@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { FaPrint } from 'react-icons/fa';
 import Cookies from 'js-cookie';
-import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';
+import { claimAndPrintCloudJobs, isPrintStationEnabled, checkPrintPulse } from '../utils/cloudPrintStation';
 import { isNativePrintServicePaired } from '../utils/printServiceClient';
 import { getApiUrl } from '../utils/api';
 
@@ -58,11 +58,14 @@ export default function CloudPrintStation({ onJobsChanged }) {
     let alive = true;
     let timerId = null;
     let running = false;
+    let eventSource = null;
+    let isLeader = false;
+    let lockReleaseResolve = null;
     const sseConnectedRef = { current: false };
+    const lastVersionRef = { current: 0 };
 
     const triggerClaim = async () => {
-      if (!alive || running) return;
-      // Skip this tick if a local print job is in progress
+      if (!alive || running || !isLeader) return;
       if (localPrintActiveRef.current) {
         if (alive) timerId = window.setTimeout(triggerClaim, 2000);
         return;
@@ -82,64 +85,116 @@ export default function CloudPrintStation({ onJobsChanged }) {
         setStatus(sseConnectedRef.current ? 'Live' : 'Waiting');
       } finally {
         running = false;
-        if (alive) {
-          // If jobs were claimed, immediately check again to drain queue
+        if (alive && isLeader) {
           if (claimedCount > 0) {
             timerId = window.setTimeout(triggerClaim, 300);
-          } else if (!sseConnectedRef.current) {
-            // Only poll if SSE is NOT connected (safety fallback)
-            const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
-            const baseDelay = isTabHidden ? 25000 : 15000;
-            const jitter = Math.floor(Math.random() * 2000);
-            timerId = window.setTimeout(triggerClaim, baseDelay + jitter);
           }
         }
       }
     };
 
-    // Establish real-time SSE stream
-    let eventSource = null;
-    try {
-      const baseUrl = getApiUrl();
-      const token = Cookies.get('access_token') || Cookies.get('token') || (typeof window !== 'undefined' ? window.localStorage.getItem('access_token') : null);
-      const sseUrl = `${baseUrl}/api/v1/print-jobs/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
-
-      eventSource = new EventSource(sseUrl, { withCredentials: true });
-
-      eventSource.addEventListener('init', () => {
+    const pulseCheck = async () => {
+      if (!alive || !isLeader) return;
+      try {
+        const res = await checkPrintPulse(lastVersionRef.current);
         if (!alive) return;
-        sseConnectedRef.current = true;
-        setStatus('Live');
-        // Initial catch-up check on connect
-        triggerClaim();
-      });
-
-      eventSource.addEventListener('NEW_JOB', () => {
-        if (!alive) return;
-        triggerClaim();
-      });
-
-      eventSource.onerror = () => {
-        if (!alive) return;
-        sseConnectedRef.current = false;
-        setStatus('Waiting');
-        // Start safety fallback check if disconnected
-        if (!running && !timerId) {
-          timerId = window.setTimeout(triggerClaim, 5000);
+        if (res && typeof res.version === 'number') {
+          if (res.hasNew || res.version > lastVersionRef.current) {
+            lastVersionRef.current = res.version;
+            triggerClaim();
+          } else {
+            lastVersionRef.current = res.version;
+          }
         }
-      };
-    } catch (e) {
-      console.warn('[CloudPrintStation] SSE stream unavailable, using fallback:', e);
-      sseConnectedRef.current = false;
-      timerId = window.setTimeout(triggerClaim, 2000);
+      } catch {
+      } finally {
+        if (alive && isLeader) {
+          const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
+          const delay = isTabHidden ? 15000 : 3000;
+          timerId = window.setTimeout(pulseCheck, delay);
+        }
+      }
+    };
+
+    const startWorker = () => {
+      isLeader = true;
+      setStatus(sseConnectedRef.current ? 'Live' : 'Idle');
+
+      // 1. Establish SSE stream for instant push
+      try {
+        const baseUrl = getApiUrl();
+        const token = Cookies.get('access_token') || Cookies.get('token') || (typeof window !== 'undefined' ? window.localStorage.getItem('access_token') : null);
+        const sseUrl = `${baseUrl}/api/v1/print-jobs/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+        eventSource = new EventSource(sseUrl, { withCredentials: true });
+
+        eventSource.addEventListener('init', () => {
+          if (!alive) return;
+          sseConnectedRef.current = true;
+          setStatus('Live');
+          triggerClaim();
+        });
+
+        eventSource.addEventListener('NEW_JOB', () => {
+          if (!alive) return;
+          triggerClaim();
+        });
+
+        eventSource.onerror = () => {
+          if (!alive) return;
+          sseConnectedRef.current = false;
+          setStatus('Waiting');
+        };
+      } catch (e) {
+        console.warn('[CloudPrintStation] SSE stream unavailable:', e);
+        sseConnectedRef.current = false;
+      }
+
+      // 2. Start zero-database in-memory pulse loop
+      pulseCheck();
+    };
+
+    // Tab Leader Election using Web Locks API
+    if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request) {
+      navigator.locks.request('cafeqr_print_station_leader', async () => {
+        if (!alive) return;
+        startWorker();
+        await new Promise((resolve) => {
+          lockReleaseResolve = resolve;
+        });
+      }).catch(() => {
+        if (alive && !isLeader) {
+          startWorker();
+        }
+      });
+    } else {
+      startWorker();
     }
+
+    // Instant Wakeup Handlers
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && alive && isLeader) {
+        if (timerId) window.clearTimeout(timerId);
+        pulseCheck();
+      }
+    };
+    const handleOnline = () => {
+      if (alive && isLeader) {
+        if (timerId) window.clearTimeout(timerId);
+        pulseCheck();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleOnline);
 
     return () => {
       alive = false;
+      if (lockReleaseResolve) lockReleaseResolve();
       if (timerId) window.clearTimeout(timerId);
-      if (eventSource) {
-        eventSource.close();
-      }
+      if (eventSource) eventSource.close();
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
     };
   }, [enabled, onJobsChanged]);
 

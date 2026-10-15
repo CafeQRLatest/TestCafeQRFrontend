@@ -1,0 +1,536 @@
+[33mcommit d51d3b5310cfad1a2802edac4e83f984798b7f4a[m
+Author: sayooojjayarajanuk <uksayoojjayarajan@gmail.com>
+Date:   Sun Oct 11 21:01:45 2026 +0530
+
+    feat(role): add canPrintOrder permission and enforce print visibility across POS and sales screens
+
+[1mdiff --git a/components/CloudPrintStation.js b/components/CloudPrintStation.js[m
+[1mindex 343774b..3d39fc3 100644[m
+[1m--- a/components/CloudPrintStation.js[m
+[1m+++ b/components/CloudPrintStation.js[m
+[36m@@ -5,9 +5,11 @@[m [mimport Cookies from 'js-cookie';[m
+ import { claimAndPrintCloudJobs, isPrintStationEnabled } from '../utils/cloudPrintStation';[m
+ import { isNativePrintServicePaired } from '../utils/printServiceClient';[m
+ import { getApiUrl } from '../utils/api';[m
+[32m+[m[32mimport { useAuth } from '../context/AuthContext';[m
+ [m
+ export default function CloudPrintStation({ onJobsChanged }) {[m
+   const router = useRouter();[m
+[32m+[m[32m  const { canPrintOrder } = useAuth();[m
+   const isPosPage = router?.pathname?.includes('/pos-sales') || router?.pathname?.includes('/sales');[m
+   const [enabled, setEnabled] = useState(false);[m
+   const [widgetVisible, setWidgetVisible] = useState(true);[m
+[36m@@ -53,7 +55,7 @@[m [mexport default function CloudPrintStation({ onJobsChanged }) {[m
+   }, []);[m
+ [m
+   useEffect(() => {[m
+[31m-    if (!enabled) return undefined;[m
+[32m+[m[32m    if (!enabled || canPrintOrder === false) return undefined;[m
+ [m
+     let alive = true;[m
+     let timerId = null;[m
+[36m@@ -141,8 +143,9 @@[m [mexport default function CloudPrintStation({ onJobsChanged }) {[m
+         eventSource.close();[m
+       }[m
+     };[m
+[31m-  }, [enabled, onJobsChanged]);[m
+[32m+[m[32m  }, [enabled, canPrintOrder, onJobsChanged]);[m
+ [m
+[32m+[m[32m  if (canPrintOrder === false) return null;[m
+   if (!enabled) return null;[m
+   if (!widgetVisible) return null;[m
+ [m
+[1mdiff --git a/components/PosOrderTypeModal.js b/components/PosOrderTypeModal.js[m
+[1mindex b9f8fc4..3012e53 100644[m
+[1m--- a/components/PosOrderTypeModal.js[m
+[1m+++ b/components/PosOrderTypeModal.js[m
+[36m@@ -285,6 +285,7 @@[m [mfunction LiveOrderBoardView({[m
+   actionBusy,[m
+   clickedActions = {},[m
+   canCancelOrder,[m
+[32m+[m[32m  canPrintOrder = true,[m
+   timezone = null,[m
+   onSelectOrder,[m
+   onPrintKot,[m
+[36m@@ -652,16 +653,21 @@[m [mfunction LiveOrderBoardView({[m
+                   borderTop: '1px solid #f8fafc',[m
+                 }} onClick={e => e.stopPropagation()}>[m
+                   {/* Row 1: Auxiliary action buttons (Bill, KOT, Invoice, Edit, Cancel) */}[m
+[31m-                  <div className={`board-card-aux-row ${!canCancelOrder ? 'four-cols' : ''}`} style={{[m
+[31m-                    display: 'grid',[m
+[31m-                    gridTemplateColumns: canCancelOrder ? 'repeat(5, 1fr)' : 'repeat(4, 1fr)',[m
+[31m-                    gap: 4,[m
+[31m-                    width: '100%'[m
+[31m-                  }}>[m
+[31m-                    <button[m
+[31m-                      type="button"[m
+[31m-                      className={`pos-action-bar-btn ${isBillBusy ? 'btn-is-busy' : ''}`}[m
+[31m-                      disabled={isThisOrderBusy}[m
+[32m+[m[32m                  {(() => {[m
+[32m+[m[32m                    const showPrint = canPrintOrder !== false;[m
+[32m+[m[32m                    const totalCols = (showPrint ? 2 : 0) + 2 + (canCancelOrder ? 1 : 0);[m
+[32m+[m[32m                    return ([m
+[32m+[m[32m                      <div className="board-card-aux-row" style={{[m
+[32m+[m[32m                        display: 'grid',[m
+[32m+[m[32m                        gridTemplateColumns: `repeat(${totalCols}, 1fr)`,[m
+[32m+[m[32m                        gap: 4,[m
+[32m+[m[32m                        width: '100%'[m
+[32m+[m[32m                      }}>[m
+[32m+[m[32m                        {showPrint && ([m
+[32m+[m[32m                          <button[m
+[32m+[m[32m                            type="button"[m
+[32m+[m[32m                            className={`pos-action-bar-btn ${isBillBusy ? 'btn-is-busy' : ''}`}[m
+[32m+[m[32m                            disabled={isThisOrderBusy}[m
+                       style={{[m
+                         ...S.actionBarBtn,[m
+                         height: 29,[m
+[36m@@ -694,7 +700,9 @@[m [mfunction LiveOrderBoardView({[m
+                       )}[m
+                       <span>{isBillBusy ? 'Bill...' : (hasBilled ? 'Billed' : 'Bill')}</span>[m
+                     </button>[m
+[32m+[m[32m                    )}[m
+ [m
+[32m+[m[32m                    {showPrint && ([m
+                     <button[m
+                       type="button"[m
+                       className={`pos-action-bar-btn ${isKotBusy ? 'btn-is-busy' : ''}`}[m
+[36m@@ -731,6 +739,7 @@[m [mfunction LiveOrderBoardView({[m
+                       )}[m
+                       <span>{isKotBusy ? 'KOT...' : (hasKot ? 'Sent' : 'KOT')}</span>[m
+                     </button>[m
+[32m+[m[32m                    )}[m
+ [m
+                     <button[m
+                       type="button"[m
+[36m@@ -845,6 +854,8 @@[m [mfunction LiveOrderBoardView({[m
+                       </button>[m
+                     )}[m
+                   </div>[m
+[32m+[m[32m                    );[m
+[32m+[m[32m                  })()}[m
+ [m
+                   {/* Row 2: Prominent Centered Settle Payment Button */}[m
+                   <div className="board-card-settle-wrap" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>[m
+[36m@@ -902,7 +913,7 @@[m [mexport default function PosOrderTypeModal({[m
+   onPrintOrder[m
+ }) {[m
+   const router = useRouter();[m
+[31m-  const { orgId, timezone, canCancelOrder, hasModule } = useAuth();[m
+[32m+[m[32m  const { orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();[m
+   const { notify, showConfirm } = useNotification();[m
+ [m
+   const isTableConfigOn = Boolean(config?.tableManagementEnabled ?? config?.tableEnabled);[m
+[36m@@ -1930,6 +1941,7 @@[m [mexport default function PosOrderTypeModal({[m
+         actionBusy={actionBusy}[m
+         clickedActions={clickedActions}[m
+         canCancelOrder={canCancelOrder}[m
+[32m+[m[32m        canPrintOrder={canPrintOrder}[m
+         timezone={timezone}[m
+         onNewOrder={onNewOrder}[m
+         newOrderLabel={newOrderLabel}[m
+[36m@@ -2636,10 +2648,11 @@[m [mexport default function PosOrderTypeModal({[m
+                 <div className="pos-order-modal-footer" style={S.modalFooter}>[m
+                   {/* Row 1: Auxiliary Tools Toolbar (Bill, KOT, Invoice, Edit, Cancel) arranged neatly at top */}[m
+                   <div className="pos-modal-aux-grid" style={S.modalAuxGrid}>[m
+[31m-                    <button[m
+[31m-                      type="button"[m
+[31m-                      className={`pos-action-bar-btn ${isModalBillBusy ? 'btn-is-busy' : ''}`}[m
+[31m-                      disabled={isModalOrderBusy}[m
+[32m+[m[32m                    {canPrintOrder !== false && ([m
+[32m+[m[32m                      <button[m
+[32m+[m[32m                        type="button"[m
+[32m+[m[32m                        className={`pos-action-bar-btn ${isModalBillBusy ? 'btn-is-busy' : ''}`}[m
+[32m+[m[32m                        disabled={isModalOrderBusy}[m
+                       style={{[m
+                         ...S.actionBarBtn,[m
+                         fontWeight: hasModalBilled ? 700 : 600,[m
+[36m@@ -2666,7 +2679,9 @@[m [mexport default function PosOrderTypeModal({[m
+                       )}[m
+                       <span>{isModalBillBusy ? 'Bill...' : (hasModalBilled ? 'Billed' : 'Bill')}</span>[m
+                     </button>[m
+[32m+[m[32m                    )}[m
+ [m
+[32m+[m[32m                    {canPrintOrder !== false && ([m
+                     <button[m
+                       type="button"[m
+                       className={`pos-action-bar-btn ${isModalKotBusy ? 'btn-is-busy' : ''}`}[m
+[36m@@ -2697,6 +2712,7 @@[m [mexport default function PosOrderTypeModal({[m
+                       )}[m
+                       <span>{isModalKotBusy ? 'KOT...' : (hasModalKot ? 'KOT Sent' : 'KOT')}</span>[m
+                     </button>[m
+[32m+[m[32m                    )}[m
+ [m
+                     <button[m
+                       type="button"[m
+[1mdiff --git a/components/PosSale/components/PosSalesHistoryModal.js b/components/PosSale/components/PosSalesHistoryModal.js[m
+[1mindex 8de80d6..20d210f 100644[m
+[1m--- a/components/PosSale/components/PosSalesHistoryModal.js[m
+[1m+++ b/components/PosSale/components/PosSalesHistoryModal.js[m
+[36m@@ -237,7 +237,7 @@[m [mconst LoadMoreBtn = styled.button`[m
+ `;[m
+ [m
+ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹', onPrint }) {[m
+[31m-  const { timezone } = useAuth();[m
+[32m+[m[32m  const { timezone, canPrintOrder } = useAuth();[m
+   const { orders, loading, hasMore, fetchHistory, searchHistoryDebounced, loadMore } = usePosSalesHistory();[m
+   const [searchTerm, setSearchTerm] = useState('');[m
+ [m
+[36m@@ -300,7 +300,7 @@[m [mexport default function PosSalesHistoryModal({ open, onClose, currencySym = '₹[m
+                   <th className="col-optional">Items</th>[m
+                   <th style={{ textAlign: 'right' }}>Total</th>[m
+                   <th>Status</th>[m
+[31m-                  {onPrint && <th style={{ textAlign: 'center', width: '90px' }}>Print</th>}[m
+[32m+[m[32m                  {onPrint && canPrintOrder !== false && <th style={{ textAlign: 'center', width: '90px' }}>Print</th>}[m
+                 </tr>[m
+               </thead>[m
+               <tbody>[m
+[36m@@ -330,7 +330,7 @@[m [mexport default function PosSalesHistoryModal({ open, onClose, currencySym = '₹[m
+                     <td>[m
+                       <StatusBadge $status={ord.status}>{ord.status}</StatusBadge>[m
+                     </td>[m
+[31m-                    {onPrint && ([m
+[32m+[m[32m                    {onPrint && canPrintOrder !== false && ([m
+                       <td style={{ textAlign: 'center' }}>[m
+                         <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>[m
+                           <button[m
+[1mdiff --git a/components/TablePopover.js b/components/TablePopover.js[m
+[1mindex 763be65..1e3de6e 100644[m
+[1m--- a/components/TablePopover.js[m
+[1m+++ b/components/TablePopover.js[m
+[36m@@ -245,6 +245,7 @@[m [mexport default function TablePopover({[m
+   onMove,[m
+   onEditTable,[m
+   canCancelOrder = true,[m
+[32m+[m[32m  canPrintOrder = true,[m
+ }) {[m
+   const [showMove, setShowMove] = useState(false);[m
+   const status = useMemo(() => {[m
+[36m@@ -342,12 +343,16 @@[m [mexport default function TablePopover({[m
+             <Divider />[m
+ [m
+             <ActionGrid>[m
+[31m-              <ActionButton type="button" $bg="#f0f9ff" $color="#0369a1" disabled={busy} onClick={() => onBill?.(order)}>[m
+[31m-                <FaPrint /> Bill[m
+[31m-              </ActionButton>[m
+[31m-              <ActionButton type="button" $bg="#fff7ed" $color="#ea580c" disabled={busy} onClick={() => onKot?.(order)}>[m
+[31m-                <FaFire /> KOT[m
+[31m-              </ActionButton>[m
+[32m+[m[32m              {canPrintOrder !== false && ([m
+[32m+[m[32m                <>[m
+[32m+[m[32m                  <ActionButton type="button" $bg="#f0f9ff" $color="#0369a1" disabled={busy} onClick={() => onBill?.(order)}>[m
+[32m+[m[32m                    <FaPrint /> Bill[m
+[32m+[m[32m                  </ActionButton>[m
+[32m+[m[32m                  <ActionButton type="button" $bg="#fff7ed" $color="#ea580c" disabled={busy} onClick={() => onKot?.(order)}>[m
+[32m+[m[32m                    <FaFire /> KOT[m
+[32m+[m[32m                  </ActionButton>[m
+[32m+[m[32m                </>[m
+[32m+[m[32m              )}[m
+               <ActionButton type="button" $bg="#ecfdf5" $color="#047857" disabled={busy} onClick={() => onEdit?.(order)}>[m
+                 <FaEdit /> Edit[m
+               </ActionButton>[m
+[1mdiff --git a/context/AuthContext.js b/context/AuthContext.js[m
+[1mindex dce0b45..4f5827a 100644[m
+[1m--- a/context/AuthContext.js[m
+[1m+++ b/context/AuthContext.js[m
+[36m@@ -61,6 +61,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+   const [canCancelOrder, setCanCancelOrder] = useState(true);[m
+   const [canDeleteOrderItem, setCanDeleteOrderItem] = useState(true);[m
+   const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);[m
+[32m+[m[32m  const [canPrintOrder, setCanPrintOrder] = useState(true);[m
+   const [activeModules, setActiveModules] = useState([]);[m
+   const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);[m
+   const [termsAcceptedVersion, setTermsAcceptedVersion] = useState(null);[m
+[36m@@ -114,6 +115,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+       const storedCanCancelOrder = getStorageItem('canCancelOrder');[m
+       const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');[m
+       const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');[m
+[32m+[m[32m      const storedCanPrintOrder = getStorageItem('canPrintOrder');[m
+       const storedModules = getStorageItem('activeModules');[m
+       const storedModulesDetailed = getStorageItem('activeModulesDetailed');[m
+       const storedTermsVersion = getStorageItem('termsAcceptedVersion');[m
+[36m@@ -142,6 +144,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+       if (storedCanCancelOrder !== undefined) setCanCancelOrder(storedCanCancelOrder === 'true');[m
+       if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');[m
+       if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');[m
+[32m+[m[32m      if (storedCanPrintOrder !== undefined) setCanPrintOrder(storedCanPrintOrder === 'true');[m
+       if (storedModules) {[m
+         try {[m
+           setActiveModules(JSON.parse(storedModules));[m
+[36m@@ -249,10 +252,12 @@[m [mexport const AuthProvider = ({ children }) => {[m
+     const pCanCancelOrder = data.canCancelOrder !== undefined ? data.canCancelOrder : true;[m
+     const pCanDeleteOrderItem = data.canDeleteOrderItem !== undefined ? data.canDeleteOrderItem : true;[m
+     const pCanDecrementOrderItem = data.canDecrementOrderItem !== undefined ? data.canDecrementOrderItem : true;[m
+[32m+[m[32m    const pCanPrintOrder = data.canPrintOrder !== undefined ? data.canPrintOrder : true;[m
+ [m
+     setCanCancelOrder(pCanCancelOrder);[m
+     setCanDeleteOrderItem(pCanDeleteOrderItem);[m
+     setCanDecrementOrderItem(pCanDecrementOrderItem);[m
+[32m+[m[32m    setCanPrintOrder(pCanPrintOrder);[m
+     [m
+     const cookieOptions = getFrontendCookieOptions();[m
+     [m
+[36m@@ -293,6 +298,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+     setStorageItem('canCancelOrder', String(pCanCancelOrder), cookieOptions);[m
+     setStorageItem('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);[m
+     setStorageItem('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);[m
+[32m+[m[32m    setStorageItem('canPrintOrder', String(pCanPrintOrder), cookieOptions);[m
+ [m
+     // Fetch assigned menus immediately after login[m
+     fetchAssignedMenus();[m
+[36m@@ -399,6 +405,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+     removeStorageItem('canCancelOrder', removeOptions);[m
+     removeStorageItem('canDeleteOrderItem', removeOptions);[m
+     removeStorageItem('canDecrementOrderItem', removeOptions);[m
+[32m+[m[32m    removeStorageItem('canPrintOrder', removeOptions);[m
+     removeStorageItem('activeModulesDetailed', removeOptions);[m
+     removeStorageItem('termsAcceptedVersion', removeOptions);[m
+     removeStorageItem('termsAcceptedAt', removeOptions);[m
+[36m@@ -539,6 +546,7 @@[m [mexport const AuthProvider = ({ children }) => {[m
+       canCancelOrder,[m
+       canDeleteOrderItem,[m
+       canDecrementOrderItem,[m
+[32m+[m[32m      canPrintOrder,[m
+       activeModules,[m
+       activeModulesDetailed,[m
+       termsAcceptedVersion,[m
+[1mdiff --git a/pages/admin/users.js b/pages/admin/users.js[m
+[1mindex 13ed3af..ce6ffee 100644[m
+[1m--- a/pages/admin/users.js[m
+[1m+++ b/pages/admin/users.js[m
+[36m@@ -309,7 +309,8 @@[m [mfunction UsersContent() {[m
+       isactive: 'Y',[m
+       canCancelOrder: true,[m
+       canDeleteOrderItem: true,[m
+[31m-      canDecrementOrderItem: true[m
+[32m+[m[32m      canDecrementOrderItem: true,[m
+[32m+[m[32m      canPrintOrder: true[m
+     });[m
+   };[m
+ [m
+[36m@@ -611,6 +612,17 @@[m [mfunction UsersContent() {[m
+                             <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow reducing item quantity</p>[m
+                           </div>[m
+                         </div>[m
+[32m+[m
+[32m+[m[32m                        <div[m[41m [m
+[32m+[m[32m                          className={`perm-chip ${selectedRole.canPrintOrder !== false ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}[m
+[32m+[m[32m                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canPrintOrder: selectedRole.canPrintOrder === false ? true : false})}[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                          <div className="perm-toggle"></div>[m
+[32m+[m[32m                          <div className="perm-info">[m
+[32m+[m[32m                            <span className="perm-name">Print Orders</span>[m
+[32m+[m[32m                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow print buttons and print station</p>[m
+[32m+[m[32m                          </div>[m
+[32m+[m[32m                        </div>[m
+                       </div>[m
+                    </section>[m
+                 </div>[m
+[1mdiff --git a/pages/owner/orders.js b/pages/owner/orders.js[m
+[1mindex eae62ae..fba0110 100644[m
+[1m--- a/pages/owner/orders.js[m
+[1m+++ b/pages/owner/orders.js[m
+[36m@@ -347,7 +347,7 @@[m [mfunction getStatusBorderColor(status) {[m
+ export default function OrdersPage() {[m
+   const { notify } = useNotification();[m
+   const router = useRouter();[m
+[31m-  const { timezone, orgId, userRole, switchBranch, canCancelOrder, hasModule } = useAuth();[m
+[32m+[m[32m  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule } = useAuth();[m
+   const sliderRef = useRef(null);[m
+   const historyFiltersTouchedRef = useRef(false);[m
+   const historyAbortControllerRef = useRef(null);[m
+[36m@@ -2200,9 +2200,11 @@[m [mexport default function OrdersPage() {[m
+                                   {String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'CANCELLED' &&[m
+                                    String(order?.orderStatus || order?.order_status || '').toUpperCase() !== 'VOID' && ([m
+                                     <>[m
+[31m-                                      <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>[m
+[31m-                                        <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print[m
+[31m-                                      </HistActionBtn>[m
+[32m+[m[32m                                      {canPrintOrder !== false && ([m
+[32m+[m[32m                                        <HistActionBtn type="button" onClick={() => handlePrintBill(order)}>[m
+[32m+[m[32m                                          <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print[m
+[32m+[m[32m                                        </HistActionBtn>[m
+[32m+[m[32m                                      )}[m
+                                       <HistActionBtn type="button" $tone="orange" title="Download PDF Invoice" onClick={async () => {[m
+                                         try {[m
+                                           const full = await loadFullOrder(order.id);[m
+[36m@@ -2584,21 +2586,25 @@[m [mexport default function OrdersPage() {[m
+                       }}>[m
+                         <FaEdit /> Edit[m
+                       </ActionBtn>[m
+[31m-                      <ActionBtn $variant="secondary" onClick={() => {[m
+[31m-                        handlePrintKot(selectedTableOrder);[m
+[31m-                        setSelectedTableOrder(null);[m
+[31m-                      }}>[m
+[31m-                        <FaPrint /> KOT[m
+[31m-                      </ActionBtn>[m
+[31m-                      <ActionBtn $variant="secondary" onClick={() => {[m
+[31m-                        if (localPrintWillHandleKind('bill')) {[m
+[31m-                          handlePrintBill(selectedTableOrder);[m
+[31m-                        }[m
+[31m-                        updateStatus(selectedTableOrder.id, 'BILLED');[m
+[31m-                        setSelectedTableOrder(null);[m
+[31m-                      }}>[m
+[31m-                        <FaReceipt /> Bill[m
+[31m-                      </ActionBtn>[m
+[32m+[m[32m                      {canPrintOrder !== false && ([m
+[32m+[m[32m                        <>[m
+[32m+[m[32m                          <ActionBtn $variant="secondary" onClick={() => {[m
+[32m+[m[32m                            handlePrintKot(selectedTableOrder);[m
+[32m+[m[32m                            setSelectedTableOrder(null);[m
+[32m+[m[32m                          }}>[m
+[32m+[m[32m                            <FaPrint /> KOT[m
+[32m+[m[32m                          </ActionBtn>[m
+[32m+[m[32m                          <ActionBtn $variant="secondary" onClick={() => {[m
+[32m+[m[32m                            if (localPrintWillHandleKind('bill')) {[m
+[32m+[m[32m                              handlePrintBill(selectedTableOrder);[m
+[32m+[m[32m                            }[m
+[32m+[m[32m                            updateStatus(selectedTableOrder.id, 'BILLED');[m
+[32m+[m[32m                            setSelectedTableOrder(null);[m
+[32m+[m[32m                          }}>[m
+[32m+[m[32m                            <FaReceipt /> Bill[m
+[32m+[m[32m                          </ActionBtn>[m
+[32m+[m[32m                        </>[m
+[32m+[m[32m                      )}[m
+                       <ActionBtn $variant="danger" onClick={(e) => {[m
+                         e.stopPropagation();[m
+                         setCancelReason('');[m
+[1mdiff --git a/pages/owner/sales-history.js b/pages/owner/sales-history.js[m
+[1mindex 8255a1a..4fb3a64 100644[m
+[1m--- a/pages/owner/sales-history.js[m
+[1m+++ b/pages/owner/sales-history.js[m
+[36m@@ -277,7 +277,7 @@[m [mconst HistBoardCard = styled.div`[m
+ export default function SalesHistoryPage() {[m
+   const router = useRouter();[m
+   const { notify, showConfirm } = useNotification();[m
+[31m-  const { timezone, orgId, canCancelOrder } = useAuth();[m
+[32m+[m[32m  const { timezone, orgId, canCancelOrder, canPrintOrder } = useAuth();[m
+ [m
+   const isMountedRef = useRef(true);[m
+   const historyAbortControllerRef = useRef(null);[m
+[36m@@ -1313,34 +1313,36 @@[m [mexport default function SalesHistoryPage() {[m
+                       <div[m
+                         style={{[m
+                           display: 'grid',[m
+[31m-                          gridTemplateColumns: canCancelOrder ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',[m
+[32m+[m[32m                          gridTemplateColumns: `repeat(${(canPrintOrder !== false ? 1 : 0) + 2 + (canCancelOrder ? 1 : 0)}, 1fr)`,[m
+                           gap: 4,[m
+                           marginTop: 2[m
+                         }}[m
+                         onClick={(e) => e.stopPropagation()}[m
+                       >[m
+[31m-                        <button[m
+[31m-                          type="button"[m
+[31m-                          onClick={() => handlePrintBill(order)}[m
+[31m-                          title="Print Bill"[m
+[31m-                          style={{[m
+[31m-                            padding: '5px 4px',[m
+[31m-                            borderRadius: 5,[m
+[31m-                            border: '1px solid #fed7aa',[m
+[31m-                            background: '#fff7ed',[m
+[31m-                            color: '#ea580c',[m
+[31m-                            fontSize: 10,[m
+[31m-                            fontWeight: 700,[m
+[31m-                            cursor: 'pointer',[m
+[31m-                            display: 'inline-flex',[m
+[31m-                            alignItems: 'center',[m
+[31m-                            justifyContent: 'center',[m
+[31m-                            gap: 3,[m
+[31m-                            whiteSpace: 'nowrap'[m
+[31m-                          }}[m
+[31m-                        >[m
+[31m-                          <FaPrint size={9} /> Print[m
+[31m-                        </button>[m
+[32m+[m[32m                        {canPrintOrder !== false && ([m
+[32m+[m[32m                          <button[m
+[32m+[m[32m                            type="button"[m
+[32m+[m[32m                            onClick={() => handlePrintBill(order)}[m
+[32m+[m[32m                            title="Print Bill"[m
+[32m+[m[32m                            style={{[m
+[32m+[m[32m                              padding: '5px 4px',[m
+[32m+[m[32m                              borderRadius: 5,[m
+[32m+[m[32m                              border: '1px solid #fed7aa',[m
+[32m+[m[32m                              background: '#fff7ed',[m
+[32m+[m[32m                              color: '#ea580c',[m
+[32m+[m[32m                              fontSize: 10,[m
+[32m+[m[32m                              fontWeight: 700,[m
+[32m+[m[32m                              cursor: 'pointer',[m
+[32m+[m[32m                              display: 'inline-flex',[m
+[32m+[m[32m                              alignItems: 'center',[m
+[32m+[m[32m                              justifyContent: 'center',[m
+[32m+[m[32m                              gap: 3,[m
+[32m+[m[32m                              whiteSpace: 'nowrap'[m
+[32m+[m[32m                            }}[m
+[32m+[m[32m                          >[m
+[32m+[m[32m                            <FaPrint size={9} /> Print[m
+[32m+[m[32m                          </button>[m
+[32m+[m[32m                        )}[m
+ [m
+                         <button[m
+                           type="button"[m
+[36m@@ -1504,9 +1506,11 @@[m [mexport default function SalesHistoryPage() {[m
+                           <HistActionGroup>[m
+                             {!isCancelled && ([m
+                               <>[m
+[31m-                                <HistActionBtn type="button" onClick={() => handlePrintBill(order)} title="Print Bill">[m
+[31m-                                  <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print[m
+[31m-                                </HistActionBtn>[m
+[32m+[m[32m                                {canPrintOrder !== false && ([m
+[32m+[m[32m                                  <HistActionBtn type="button" onClick={() => handlePrintBill(order)} title="Print Bill">[m
+[32m+[m[32m                                    <FaPrint style={{ fontSize: 10, color: '#f97316' }} /> Print[m
+[32m+[m[32m                                  </HistActionBtn>[m
+[32m+[m[32m                                )}[m
+ [m
+                                 <HistActionBtn[m
+                                   type="button"[m
+[1mdiff --git a/pages/owner/sales.js b/pages/owner/sales.js[m
+[1mindex a507257..c3e2d29 100644[m
+[1m--- a/pages/owner/sales.js[m
+[1m+++ b/pages/owner/sales.js[m
+[36m@@ -412,7 +412,7 @@[m [mexport default function Sales() {[m
+ [m
+ function SalesContent() {[m
+   const router = useRouter();[m
+[31m-  const { timezone, orgId, userRole, switchBranch, canCancelOrder } = useAuth();[m
+[32m+[m[32m  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder } = useAuth();[m
+   const isSalesBranchMissing = !orgId;[m
+   const canSelectBranchInSales = isSuperAdminRole(userRole);[m
+   const [tables, setTables] = useState([]);[m
+[36m@@ -2104,6 +2104,7 @@[m [mfunction SalesContent() {[m
+             onEdit={handleEditOrder}[m
+             onCancel={handleCancelHistoryOrder}[m
+             canCancelOrder={canCancelOrder}[m
+[32m+[m[32m            canPrintOrder={canPrintOrder}[m
+             creditEnabled={Boolean(config?.creditEnabled)}[m
+             onNewOrder={handleNewOrder}[m
+             orgId={orgId}[m
+[36m@@ -2210,6 +2211,7 @@[m [mfunction SalesContent() {[m
+             onEdit={handleEditOrder}[m
+             onCancel={handleCancelOrder}[m
+             canCancelOrder={canCancelOrder}[m
+[32m+[m[32m            canPrintOrder={canPrintOrder}[m
+             onPay={handleSettleOrder}[m
+             onMove={handleMoveOrder}[m
+             onEditTable={handleEditTableSettings}[m
+[36m@@ -2332,6 +2334,7 @@[m [mfunction OrderHistory({[m
+   onEdit,[m
+   onCancel,[m
+   canCancelOrder = true,[m
+[32m+[m[32m  canPrintOrder = true,[m
+   creditEnabled = false,[m
+   onNewOrder,[m
+   orgId,[m
+[36m@@ -2549,9 +2552,11 @@[m [mfunction OrderHistory({[m
+                     </td>[m
+                     <td style={{ textAlign: 'center' }}>[m
+                       <ActionGroup style={{ justifyContent: 'center' }}>[m
+[31m-                        <ActionButton type="button" onClick={() => onPrint(order, 'bill')} title="Print Bill">[m
+[31m-                          <FaPrint style={{ color: '#f97316', fontSize: 11 }} /> Print Bill[m
+[31m-                        </ActionButton>[m
+[32m+[m[32m                        {canPrintOrder !== false && ([m
+[32m+[m[32m                          <ActionButton type="button" onClick={() => onPrint(order, 'bill')} title="Print Bill">[m
+[32m+[m[32m                            <FaPrint style={{ color: '#f97316', fontSize: 11 }} /> Print Bill[m
+[32m+[m[32m                          </ActionButton>[m
+[32m+[m[32m                        )}[m
+                         <ActionButton type="button" onClick={() => onEdit ? onEdit(order) : null} title="Edit Order">[m
+                           <FaEdit style={{ color: '#475569', fontSize: 11 }} /> Edit[m
+                         </ActionButton>[m
