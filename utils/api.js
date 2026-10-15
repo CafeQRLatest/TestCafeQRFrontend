@@ -43,6 +43,86 @@ const api = axios.create({
   withCredentials: true, 
 });
 
+// ── In-Flight Request Deduplication & Memory Cache for Static Metadata ──────
+// Strictly restricted to idempotent, read-only metadata to prevent 15x request storms.
+// POS V2, tables, orders, live sales, and print endpoints are STRICTLY EXCLUDED.
+const staticMemoryCache = new Map();
+const staticInFlightRequests = new Map();
+
+export const invalidateStaticCache = (pattern) => {
+  if (!pattern) {
+    staticMemoryCache.clear();
+    return;
+  }
+  for (const key of staticMemoryCache.keys()) {
+    if (key.includes(pattern)) {
+      staticMemoryCache.delete(key);
+    }
+  }
+};
+
+const isWhitelistedStaticGet = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const cleanUrl = url.split('?')[0];
+  return (
+    cleanUrl === '/api/v1/organizations' ||
+    cleanUrl.startsWith('/api/v1/organizations/') ||
+    cleanUrl === '/api/v1/configurations' ||
+    cleanUrl.startsWith('/api/v1/configurations/branch/') ||
+    cleanUrl === '/api/v1/subscription/status' ||
+    cleanUrl === '/api/v1/users/menus' ||
+    cleanUrl === '/api/v1/users/me' ||
+    cleanUrl === '/api/v1/clients/me' ||
+    cleanUrl === '/api/v1/terminals'
+  );
+};
+
+const originalGet = api.get.bind(api);
+api.get = function (url, config = {}) {
+  // If explicitly requested to skip cache or not whitelisted, pass directly to originalGet
+  if (config?.skipCache || !isWhitelistedStaticGet(url)) {
+    return originalGet(url, config);
+  }
+
+  const cacheKey = `${url}:${JSON.stringify(config.params || {})}`;
+  const now = Date.now();
+
+  // 1. Check memory cache (60s TTL)
+  const cached = staticMemoryCache.get(cacheKey);
+  if (cached && now - cached.timestamp < 60000) {
+    return Promise.resolve({
+      ...cached.response,
+      data: JSON.parse(JSON.stringify(cached.response.data)),
+      fromMemoryCache: true
+    });
+  }
+
+  // 2. In-flight request deduplication: reuse active pending promise
+  if (staticInFlightRequests.has(cacheKey)) {
+    return staticInFlightRequests.get(cacheKey).then(res => ({
+      ...res,
+      data: JSON.parse(JSON.stringify(res.data)),
+      fromInFlightDedupe: true
+    }));
+  }
+
+  const reqPromise = originalGet(url, config)
+    .then(res => {
+      if (res?.status >= 200 && res?.status < 300) {
+        staticMemoryCache.set(cacheKey, { timestamp: Date.now(), response: res });
+      }
+      staticInFlightRequests.delete(cacheKey);
+      return res;
+    })
+    .catch(err => {
+      staticInFlightRequests.delete(cacheKey);
+      throw err;
+    });
+
+  staticInFlightRequests.set(cacheKey, reqPromise);
+  return reqPromise;
+};
+
 const AUTH_COOKIE_NAMES = [
   'access_token',
   'refresh_token',
@@ -287,8 +367,18 @@ api.interceptors.response.use(
         console.warn('[Offline Cache] Unable to cache API response:', error?.message || error);
       });
 
-      // Synchronize localStorage configuration state on successful fetch or update
+      // Invalidate memory cache on successful mutation
+      const method = String(response.config?.method || '').toUpperCase();
       const url = response.config?.url || '';
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        if (url.includes('/configurations')) invalidateStaticCache('/configurations');
+        if (url.includes('/organizations')) invalidateStaticCache('/organizations');
+        if (url.includes('/subscription')) invalidateStaticCache('/subscription');
+        if (url.includes('/terminals')) invalidateStaticCache('/terminals');
+        if (url.includes('/users')) invalidateStaticCache('/users');
+      }
+
+      // Synchronize localStorage configuration state on successful fetch or update
       if (url.includes('/api/v1/configurations') && response.data?.success && response.data?.data) {
         const d = response.data.data;
         if (typeof window !== 'undefined') {

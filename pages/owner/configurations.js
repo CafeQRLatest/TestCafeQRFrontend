@@ -497,9 +497,15 @@ function ConfigurationsContent() {
       setLoading(true);
       setMessage(null);
       try {
-        const [resp, subResp] = await Promise.all([
+        const printParams = {};
+        if (orgId && orgId !== '0') {
+          printParams.orgId = orgId;
+        }
+
+        const [resp, subResp, printResp] = await Promise.all([
           api.get(configEndpoint),
-          api.get('/api/v1/subscription/status').catch(() => null)
+          api.get('/api/v1/subscription/status').catch(() => null),
+          api.get('/api/v1/print-configurations/effective', { params: printParams }).catch(() => null)
         ]);
 
         if (subResp?.data?.success) {
@@ -522,13 +528,6 @@ function ConfigurationsContent() {
                typeof r === 'object' ? r : { id: `tr-${i}-${Date.now()}`, name: `${d.taxLabelGlobal || 'Tax'} ${r}%`, value: r }
             );
           }
-
-          // Fetch Print Configurations concurrently
-          const printParams = {};
-          if (orgId && orgId !== '0') {
-            printParams.orgId = orgId;
-          }
-          const printResp = await api.get('/api/v1/print-configurations/effective', { params: printParams }).catch(() => null);
           
           let kot = DEFAULT_KOT_TEMPLATE;
           let receipt = DEFAULT_RECEIPT_TEMPLATE;

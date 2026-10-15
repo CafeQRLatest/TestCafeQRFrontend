@@ -95,6 +95,16 @@ async function applyOfflineSnapshot(data, options = {}) {
   const tables = data.tables || [];
   const orders = data.orders || [];
 
+  const cursorTime = (() => {
+    if (!data.serverTime) return new Date().toISOString();
+    try {
+      const d = new Date(data.serverTime);
+      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+    } catch (e) {
+      return new Date().toISOString();
+    }
+  })();
+
   await Promise.all([
     upsertEntities('products', products),
     upsertEntities('categories', categories),
@@ -111,9 +121,9 @@ async function applyOfflineSnapshot(data, options = {}) {
       orders,
       configuration: data.configuration || null,
     }),
-    setSyncMetadata('lastChangeCursor', data.serverTime || new Date().toISOString()),
+    setSyncMetadata('lastChangeCursor', cursorTime),
     options.bootstrap
-      ? setSyncMetadata('lastBootstrapAt', data.serverTime || new Date().toISOString())
+      ? setSyncMetadata('lastBootstrapAt', cursorTime)
       : Promise.resolve(),
   ]);
 
@@ -153,8 +163,16 @@ export async function refreshOfflineChanges(options = {}) {
     return bootstrapOfflineData(options);
   }
 
+  let formattedSince = since;
+  try {
+    const d = new Date(since);
+    if (!isNaN(d.getTime())) {
+      formattedSince = d.toISOString();
+    }
+  } catch (e) {}
+
   const response = await api.get('/api/v1/sync/changes', {
-    params: { since },
+    params: { since: formattedSince },
     skipOfflineCache: true,
     skipOfflineQueue: true,
     skipAuthRedirect: true,

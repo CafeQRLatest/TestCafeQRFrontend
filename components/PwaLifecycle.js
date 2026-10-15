@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
@@ -78,6 +78,8 @@ export default function PwaLifecycle() {
     };
   }, []);
 
+  const syncRegisteredRef = useRef(false);
+
   useEffect(() => {
     if (typeof window === 'undefined' || auth?.loading || isPublicRoute(router.pathname)) {
       return undefined;
@@ -92,6 +94,12 @@ export default function PwaLifecycle() {
       return undefined;
     }
 
+    // Only register once per authenticated session; do not tear down and recreate on route changes
+    if (syncRegisteredRef.current) {
+      return undefined;
+    }
+    syncRegisteredRef.current = true;
+
     const cleanupSync = registerOfflineSyncListeners();
     if (!isKnownOffline()) {
       refreshOfflineChanges().catch((error) => {
@@ -104,14 +112,16 @@ export default function PwaLifecycle() {
       });
     }
 
-    return () => cleanupSync?.();
+    return () => {
+      syncRegisteredRef.current = false;
+      cleanupSync?.();
+    };
   }, [
     auth?.clientId,
     auth?.isActive,
     auth?.isAuthenticated,
     auth?.loading,
     auth?.userId,
-    router.pathname,
   ]);
 
   const installApp = async () => {

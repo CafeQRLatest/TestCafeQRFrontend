@@ -41,8 +41,8 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
 
       if (st === 'CONNECTED') {
         setQrCodeUrl(null);
-      } else {
-        // If SCAN_QR, CONNECTING, or hasQr, proactively fetch latest QR code
+      } else if (st === 'SCAN_QR' || st === 'CONNECTING' || data.hasQr) {
+        // Only fetch QR if gateway indicates an active pairing QR is waiting
         await fetchQr();
       }
     } catch (err) {
@@ -72,17 +72,37 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
     }
   };
 
+  const gatewayStatusRef = useRef(gatewayStatus);
   useEffect(() => {
+    gatewayStatusRef.current = gatewayStatus;
+  }, [gatewayStatus]);
+
+  useEffect(() => {
+    let alive = true;
+    let timerId = null;
+
+    const poll = async () => {
+      if (!alive) return;
+      const isVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+      if (isVisible) {
+        await fetchStatus();
+      }
+      if (!alive) return;
+      const currentSt = gatewayStatusRef.current;
+      // Fast poll (4s) ONLY when user is scanning QR or connecting.
+      // Otherwise slow heartbeat (25s) when connected or idle to prevent server flooding.
+      const nextDelay = isVisible 
+        ? ((currentSt === 'SCAN_QR' || currentSt === 'CONNECTING') ? 4000 : 25000)
+        : 30000;
+      timerId = setTimeout(poll, nextDelay);
+    };
+
     fetchStatus();
-    fetchQr();
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    // Poll status every 3 seconds to detect when user scans the QR code or when new QR arrives
-    pollTimerRef.current = setInterval(() => {
-      fetchStatus();
-    }, 3000);
+    timerId = setTimeout(poll, 6000);
 
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      alive = false;
+      if (timerId) clearTimeout(timerId);
     };
   }, [sessionId]);
 
