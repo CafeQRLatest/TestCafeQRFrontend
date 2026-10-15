@@ -17,12 +17,12 @@ export type NativePrintSubmission = {
 };
 
 let lastOfflineTime = 0;
-const OFFLINE_COOLDOWN = 10000;
+const OFFLINE_COOLDOWN = 2500;
 
 function localToken() {
   if (typeof window === 'undefined') return '';
   return window.localStorage.getItem(TOKEN_KEY) || '';
-}
+}
 
 async function request(path: string, init: RequestInit = {}, timeoutMs = 300) {
   if (Date.now() - lastOfflineTime < OFFLINE_COOLDOWN) {
@@ -46,7 +46,6 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 300) {
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
     if (!response.ok) {
-      lastOfflineTime = Date.now();
       const error = new Error(data?.error || `PRINT_SERVICE_${response.status}`) as Error & {
         code?: string;
         status?: number;
@@ -59,7 +58,12 @@ async function request(path: string, init: RequestInit = {}, timeoutMs = 300) {
     }
     return data;
   } catch (err: any) {
-    lastOfflineTime = Date.now();
+    if (
+      err?.message !== 'PRINT_SERVICE_OFFLINE_CACHED' &&
+      (err?.name === 'TypeError' || err?.name === 'AbortError' || String(err?.message || '').includes('Failed to fetch'))
+    ) {
+      lastOfflineTime = Date.now();
+    }
     throw err;
   } finally {
     window.clearTimeout(timer);
@@ -126,7 +130,7 @@ export async function connectNativePrintService() {
 }
 
 export async function getPrintServicePrinters() {
-  return request('/v1/printers', { method: 'GET' }, 5000);
+  return request('/v1/printers', { method: 'GET' }, 7500);
 }
 
 export async function getLocalPrintJobs() {

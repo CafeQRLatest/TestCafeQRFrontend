@@ -93,6 +93,8 @@ namespace CafeQRPrintHub
         private readonly JavaScriptSerializer _serializer;
 
         private static string _savedConfiguration = "{}";
+        private static List<object> _cachedPrinters = new List<object>();
+        private static readonly object _printerCacheLock = new object();
 
         private static string ResolvePrinterNameFromProfile(string profileId)
         {
@@ -254,20 +256,35 @@ namespace CafeQRPrintHub
             if (req.HttpMethod == "GET" && (path == "/printers" || path == "/v1/printers"))
             {
                 List<object> printersList = new List<object>();
-                foreach (string printerName in PrinterSettings.InstalledPrinters)
+                try
                 {
-                    try
+                    foreach (string printerName in PrinterSettings.InstalledPrinters)
                     {
-                        PrinterSettings settings = new PrinterSettings { PrinterName = printerName };
-                        Dictionary<string, object> cap = new Dictionary<string, object>();
-                        cap["name"] = printerName;
-                        cap["connectionType"] = "WINDOWS_QUEUE";
-                        cap["isDefault"] = settings.IsDefaultPrinter;
-                        cap["isValid"] = settings.IsValid;
-                        cap["paperSizes"] = new List<object>();
-                        printersList.Add(cap);
+                        try
+                        {
+                            PrinterSettings settings = new PrinterSettings { PrinterName = printerName };
+                            Dictionary<string, object> cap = new Dictionary<string, object>();
+                            cap["name"] = printerName;
+                            cap["connectionType"] = "WINDOWS_QUEUE";
+                            cap["isDefault"] = settings.IsDefaultPrinter;
+                            cap["isValid"] = settings.IsValid;
+                            cap["paperSizes"] = new List<object>();
+                            printersList.Add(cap);
+                        }
+                        catch { }
                     }
-                    catch { }
+                }
+                catch (Exception)
+                {
+                    // Fall back to cached printers if Windows Spooler RPC is temporarily unavailable
+                    lock (_printerCacheLock)
+                    {
+                        if (_cachedPrinters != null && _cachedPrinters.Count > 0)
+                        {
+                            SendJsonResponse(context, 200, _cachedPrinters);
+                            return;
+                        }
+                    }
                 }
 
                 try
@@ -284,6 +301,19 @@ namespace CafeQRPrintHub
                     }
                 }
                 catch { }
+
+                lock (_printerCacheLock)
+                {
+                    if (printersList.Count > 0)
+                    {
+                        _cachedPrinters = printersList;
+                    }
+                    else if (_cachedPrinters != null && _cachedPrinters.Count > 0)
+                    {
+                        SendJsonResponse(context, 200, _cachedPrinters);
+                        return;
+                    }
+                }
 
                 SendJsonResponse(context, 200, printersList);
                 return;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
 import {
   FaAndroid,
@@ -653,6 +653,10 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     cancelLabel: 'Cancel',
   });
   const [hideWidget, setHideWidget] = useState(false);
+  const terminalsRef = useRef(terminals);
+  terminalsRef.current = terminals;
+  const scopeIdRef = useRef(scopeId);
+  scopeIdRef.current = scopeId;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -755,7 +759,8 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       setLocalAccessState('CONNECTED');
       setLocalAccessError('');
       if (result?.terminalId && !serviceTerminalSynced) {
-        const isValid = terminals.length === 0 || terminals.some(t => t.id === result.terminalId);
+        const currentTerminals = terminalsRef.current;
+        const isValid = currentTerminals.length === 0 || currentTerminals.some(t => t.id === result.terminalId);
         if (isValid) {
           selectTerminal(result.terminalId);
           setServiceTerminalSynced(true);
@@ -771,12 +776,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       };
 
       const [printers, configuration] = await Promise.all([
-        getPrintServicePrinters().catch(() => []),
+        getPrintServicePrinters().catch(() => null),
         isNativePrintServicePaired()
           ? getNativePrintConfiguration().catch(handleLocalError)
           : Promise.resolve(null),
       ]);
-      setLocalPrinters(Array.isArray(printers) ? printers : []);
+      if (Array.isArray(printers) && printers.length > 0) {
+        setLocalPrinters(printers);
+      }
       if (configuration) setLocalConfiguration(configuration);
       if (isNativePrintServicePaired()) {
         const rows = await getLocalPrintJobs().catch(handleLocalError);
@@ -786,7 +793,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       return { health: result, configuration };
     } catch (error) {
       setHealth(null);
-      setLocalPrinters([]);
+      // Retain existing detected printers in case of transient glitches so profiles are never cleared
       setLocalAccessState(interactive ? 'DENIED' : 'UNAVAILABLE');
       setLocalAccessError(
         interactive
@@ -795,12 +802,14 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       );
       return { health: null, configuration: null, error };
     }
-  }, [selectTerminal, serviceTerminalSynced, terminals]);
+  }, [selectTerminal, serviceTerminalSynced]);
 
   const loadCloud = useCallback(async (localState = null) => {
+    const currentScopeId = scopeIdRef.current;
     const terminalId = localState?.health?.terminalId
-      || scopeId
+      || currentScopeId
       || Cookies.get('terminalId')
+      || (typeof window !== 'undefined' ? window.localStorage.getItem(SELECTED_TERMINAL_KEY) : '')
       || '';
     const requests = [
       api.get('/api/v1/print-configurations/effective', {
@@ -812,12 +821,44 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     ];
     const [configuration, stationRows, terminalRows, categoryRows] = await Promise.all(requests);
 
+    // CRITICAL: Set terminals, stations, and categories immediately BEFORE any error checks
+    // so that the Terminal dropdown always lists available terminals
+    const availableTerminals = terminalRows.data?.data || [];
+    setStations((prev) => {
+      const next = stationRows.data?.data || [];
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+    setTerminals((prev) => {
+      const next = availableTerminals;
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+    setCategories((prev) => {
+      const next = (categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+
+    // Auto-select or validate terminal if in TERMINAL scope
+    if (availableTerminals.length > 0) {
+      const hasValidScope = currentScopeId && availableTerminals.some((t) => t.id === currentScopeId);
+      if (!hasValidScope) {
+        const fallbackTerminalId = localState?.health?.terminalId
+          || Cookies.get('terminalId')
+          || (typeof window !== 'undefined' ? window.localStorage.getItem(SELECTED_TERMINAL_KEY) : '')
+          || availableTerminals[0]?.id;
+        const validFallback = availableTerminals.some((t) => t.id === fallbackTerminalId)
+          ? fallbackTerminalId
+          : availableTerminals[0]?.id;
+        if (validFallback) {
+          selectTerminal(validFallback);
+        }
+      }
+    }
+
     let cloudSettings = configuration.error ? null : (configuration.data?.data || {});
     let finalConfiguration = configuration;
 
     if (configuration.error && terminalId) {
       if (configuration.error.response?.status === 400 || String(configuration.error.message).includes('Terminal not found')) {
-        selectTerminal('');
         try {
           const fallbackConfig = await api.get('/api/v1/print-configurations/effective', {
             params: { orgId: currentOrgId || undefined },
@@ -862,37 +903,18 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
         syncPrintConfigToLocalStorage(config);
       }
     } else if (finalConfiguration.error) {
-      throw finalConfiguration.error;
+      console.warn('[print-platform] Effective configuration warning:', finalConfiguration.error);
     } else {
-      // No cloud, no local, no error — fresh machine.
-      // Set PRINTER_MODE and PRINT_WIN_URL so the gateway doesn't throw
-      // PRINT_HUB_UNREACHABLE before any profile is saved.
       if (!isNativePrintServicePaired()) {
         syncPrintConfigToLocalStorage(DEFAULT_CONFIG);
       }
     }
+  }, [currentOrgId, selectTerminal]);
 
-    setStations((prev) => {
-      const next = stationRows.data?.data || [];
-      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
-    });
-    setTerminals((prev) => {
-      const next = terminalRows.data?.data || [];
-      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
-    });
-    setCategories((prev) => {
-      const next = (categoryRows.data?.data || []).map((row) => row?.name).filter(Boolean);
-      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
-    });
-
-    const availableTerminals = terminalRows.data?.data || [];
-    if (scopeId && availableTerminals.length > 0) {
-      const exists = availableTerminals.some((t) => t.id === scopeId);
-      if (!exists) {
-        selectTerminal('');
-      }
-    }
-  }, [currentOrgId, scopeId, selectTerminal]);
+  const refreshServiceRef = useRef(refreshService);
+  refreshServiceRef.current = refreshService;
+  const loadCloudRef = useRef(loadCloud);
+  loadCloudRef.current = loadCloud;
 
   useEffect(() => {
     let mounted = true;
@@ -902,15 +924,43 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       const canAutoConnect = secure && hasPrintServiceLocalAccess();
       if (!secure) setLocalAccessState('INSECURE');
       const localState = canAutoConnect
-        ? await refreshService()
+        ? await refreshServiceRef.current()
         : { health: null, configuration: null };
       if (!mounted) return;
-      await loadCloud(localState);
+      await loadCloudRef.current(localState);
     })().catch((error) => showMessage(error?.response?.data?.message || error.message));
     return () => {
       mounted = false;
     };
-  }, [loadCloud, refreshService]);
+  }, [currentOrgId]);
+
+  // When scopeId or scopeType changes after mount, load effective config for that scope
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (scopeType === 'TERMINAL' && !scopeId) return;
+    let active = true;
+    const terminalParam = scopeType === 'TERMINAL' ? scopeId : undefined;
+    api.get('/api/v1/print-configurations/effective', {
+      params: { terminalId: terminalParam, orgId: currentOrgId || undefined },
+    })
+      .then((res) => {
+        if (!active) return;
+        const cloudSettings = res.data?.data;
+        if (cloudSettings) {
+          setCloudConfiguration(cloudSettings);
+          const effective = sanitizeConfiguration(deepMerge(DEFAULT_CONFIG, cloudSettings));
+          setPrintConfig(effective);
+        }
+      })
+      .catch(() => { });
+    return () => {
+      active = false;
+    };
+  }, [scopeId, scopeType, currentOrgId]);
 
   useEffect(() => {
     if (localAccessState !== 'CONNECTED') {
@@ -920,9 +970,9 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
 
   useEffect(() => {
     if (localAccessState !== 'CONNECTED') return undefined;
-    const timer = window.setInterval(() => refreshService(), 10000);
+    const timer = window.setInterval(() => refreshServiceRef.current(), 10000);
     return () => window.clearInterval(timer);
-  }, [localAccessState, refreshService]);
+  }, [localAccessState]);
 
   const connectPrintService = async () => {
     setBusy(true);
@@ -1464,7 +1514,15 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
                   setScopeType(value);
                   if (value === 'ORGANIZATION') setScopeId(currentOrgId);
                   if (value === 'TERMINAL') {
-                    selectTerminal(health?.terminalId || Cookies.get('terminalId') || terminals[0]?.id || '');
+                    const currentValid = scopeId && terminals.some((t) => t.id === scopeId);
+                    if (!currentValid) {
+                      const preferred = health?.terminalId
+                        || Cookies.get('terminalId')
+                        || (typeof window !== 'undefined' ? window.localStorage.getItem(SELECTED_TERMINAL_KEY) : '')
+                        || terminals[0]?.id
+                        || '';
+                      selectTerminal(preferred);
+                    }
                   }
                 }}
               >

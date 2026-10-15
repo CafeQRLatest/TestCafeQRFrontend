@@ -11,7 +11,7 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
   const current = options.find((o) => String(o.value ?? '') === String(value ?? ''));
 
   const filteredOptions = options.filter(o => 
-    o.label.toLowerCase().includes(search.toLowerCase())
+    String(o?.label ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
   // Update position when opening or scrolling
