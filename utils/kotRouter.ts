@@ -211,12 +211,11 @@ function isNativeAndroid(): boolean {
   }
 }
 
-// --- Print Consolidated Master KOT (if enabled) ---
+  // --- Print Consolidated Master KOT (if enabled) ---
   if (cfg.printMasterKot) {
-    const masterPrinters = cfg.masterKotPrinters && cfg.masterKotPrinters.length > 0 
-      ? cfg.masterKotPrinters 
+    const masterPrinters = (cfg.masterKotPrinters && cfg.masterKotPrinters.length > 0)
+      ? cfg.masterKotPrinters
       : cfg.kotDefaultPrinters;
-      
     if (masterPrinters && masterPrinters.length > 0) {
       const masterOrder: KotOrder = {
         ...order,
@@ -245,37 +244,37 @@ function isNativeAndroid(): boolean {
         winPrinterNames.length = 0; // Windows print queues do not exist on Android
       }
 
-    try {
-      for (const np of netPrinters) {
-        await printUniversal({
-          text,
-          jobKind: 'kot',
-          orderId: order.id ? String(order.id) : undefined,
-          orderNo: order.order_no,
-          offlineOperationId: opts?.offlineOperationId,
-          jobId: opts?.jobId ? `${opts.jobId}-master-net-${np.host}` : undefined,
-          ip: np.host,
-          port: np.port,
-          printTarget: 'master-kot',
-        });
+      try {
+        for (const np of netPrinters) {
+          await printUniversal({
+            text,
+            jobKind: 'kot',
+            orderId: order.id ? String(order.id) : undefined,
+            orderNo: order.order_no,
+            offlineOperationId: opts?.offlineOperationId,
+            jobId: opts?.jobId ? `${opts.jobId}-master-net-${np.host}` : undefined,
+            ip: np.host,
+            port: np.port,
+            printTarget: 'master-kot',
+          });
+        }
+        if (winPrinterNames.length || btAddresses.length || !netPrinters.length) {
+          await printUniversal({
+            text,
+            jobKind: 'kot',
+            orderId: order.id ? String(order.id) : undefined,
+            orderNo: order.order_no,
+            offlineOperationId: opts?.offlineOperationId,
+            jobId: opts?.jobId ? `${opts.jobId}-master` : undefined,
+            winPrinterNames: winPrinterNames.length ? winPrinterNames : undefined,
+            btAddresses: btAddresses.length ? btAddresses : undefined,
+            printTarget: 'master-kot',
+          });
+        }
+        results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'sent' });
+      } catch (err: any) {
+        results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'failed', error: err?.message || String(err) });
       }
-      if (winPrinterNames.length || btAddresses.length || !netPrinters.length) {
-        await printUniversal({
-          text,
-          jobKind: 'kot',
-          orderId: order.id ? String(order.id) : undefined,
-          orderNo: order.order_no,
-          offlineOperationId: opts?.offlineOperationId,
-          jobId: opts?.jobId ? `${opts.jobId}-master` : undefined,
-          winPrinterNames: winPrinterNames.length ? winPrinterNames : undefined,
-          btAddresses: btAddresses.length ? btAddresses : undefined,
-          printTarget: 'master-kot',
-        });
-      }
-      results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'sent' });
-    } catch (err: any) {
-      results.push({ stationId: 'master', stationName: 'Master KOT', itemCount: lines.length, status: 'failed', error: err?.message || String(err) });
-    }
     }
   }
 

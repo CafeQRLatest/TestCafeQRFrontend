@@ -368,8 +368,11 @@ export default function PosSalesPage() {
         return;
       }
 
+      const hasLines = (Array.isArray(order?.lines) && order.lines.length > 0) ||
+                       (Array.isArray(order?.order_lines) && order.order_lines.length > 0) ||
+                       (Array.isArray(order?.items) && order.items.length > 0);
       let fullOrder = order;
-      if (order?.id) {
+      if (!hasLines && order?.id) {
         try {
           const { data } = await api.get(`/api/v1/orders/${order.id}`);
           fullOrder = data?.data || order;

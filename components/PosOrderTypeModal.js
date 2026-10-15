@@ -1594,13 +1594,18 @@ export default function PosOrderTypeModal({
           console.warn('Bill command notice:', e?.response?.data?.message || e.message);
         }
       } else if (orderId) {
-        try {
-          const res = await api.get(`/api/v1/orders/${orderId}`);
-          if (res.data?.data) {
-            activeOrder = res.data.data;
+        const hasLines = (Array.isArray(order?.lines) && order.lines.length > 0) ||
+                         (Array.isArray(order?.order_lines) && order.order_lines.length > 0) ||
+                         (Array.isArray(order?.items) && order.items.length > 0);
+        if (!hasLines) {
+          try {
+            const res = await api.get(`/api/v1/orders/${orderId}`);
+            if (res.data?.data) {
+              activeOrder = res.data.data;
+            }
+          } catch (err) {
+            console.warn('Failed to load full order for print:', err);
           }
-        } catch (err) {
-          console.warn('Failed to load full order for print:', err);
         }
       }
 
@@ -1643,7 +1648,10 @@ export default function PosOrderTypeModal({
 
     try {
       let activeOrder = order;
-      if (orderId && (!order.lines || order.lines.length === 0)) {
+      const hasLines = (Array.isArray(order?.lines) && order.lines.length > 0) ||
+                       (Array.isArray(order?.order_lines) && order.order_lines.length > 0) ||
+                       (Array.isArray(order?.items) && order.items.length > 0);
+      if (orderId && !hasLines) {
         try {
           const res = await api.get(`/api/v1/orders/${orderId}`);
           if (res.data?.data) {
@@ -1801,6 +1809,17 @@ export default function PosOrderTypeModal({
       setSelectedLiveOrder(null);
       fetchLiveOrders();
       onRefreshTables?.();
+
+      // Auto-print receipt on settlement
+      if (typeof onPrintOrder === 'function') {
+        onPrintOrder(settledOrder, 'bill');
+      } else if (localPrintWillHandleKind('bill')) {
+        setPrintKind('bill');
+        setPrintOrder({ ...settledOrder, _manualPrint: true });
+        if (settledOrder?.id) {
+          markCloudPrintJobPrinted(settledOrder, 'bill').catch(() => {});
+        }
+      }
     } catch (e) {
       const isStockWarning = e.response?.status === 409 ||
         (e.response?.data?.message && String(e.response.data.message).startsWith('STOCK_WARNING:')) ||

@@ -94,8 +94,11 @@ export default function CloudPrintStation({ onJobsChanged }) {
       }
     };
 
+    let isPulseInFlight = false;
+
     const pulseCheck = async () => {
-      if (!alive || !isLeader) return;
+      if (!alive || !isLeader || isPulseInFlight) return;
+      isPulseInFlight = true;
       try {
         const res = await checkPrintPulse(lastVersionRef.current);
         if (!alive) return;
@@ -109,6 +112,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
         }
       } catch {
       } finally {
+        isPulseInFlight = false;
         if (alive && isLeader) {
           const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
           const delay = isTabHidden ? 10000 : 3000;
@@ -133,7 +137,6 @@ export default function CloudPrintStation({ onJobsChanged }) {
           if (!alive) return;
           sseConnectedRef.current = true;
           setStatus('Live');
-          triggerClaim();
         });
 
         eventSource.addEventListener('NEW_JOB', () => {

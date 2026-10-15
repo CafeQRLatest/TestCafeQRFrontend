@@ -103,13 +103,18 @@ function syncTemplateToLS(documentKey, template) {
  * Uses a short TTL cache to avoid hitting the API on every consecutive print.
  * Pass `force = true` to bypass the cache.
  */
+let syncInFlight = null;
+
 export async function ensurePrintTemplatesSynced(force = false) {
   if (typeof window === 'undefined') return;
-  try {
-    if (!force) {
-      const cachedAt = Number(localStorage.getItem(CACHE_KEY) || 0);
-      if (Date.now() - cachedAt < CACHE_TTL_MS) return; // still fresh
-    }
+  if (!force) {
+    const cachedAt = Number(localStorage.getItem(CACHE_KEY) || 0);
+    if (Date.now() - cachedAt < CACHE_TTL_MS) return; // still fresh
+  }
+  if (syncInFlight) return syncInFlight;
+
+  syncInFlight = (async () => {
+    try {
 
     const orgId = Cookies.get('orgId') || '';
     const terminalId = Cookies.get('terminalId') ||
@@ -168,11 +173,14 @@ export async function ensurePrintTemplatesSynced(force = false) {
 
     // Mark cache timestamp
     localStorage.setItem(CACHE_KEY, String(Date.now()));
-    console.log('[printTemplateSync] Print template settings synced from backend');
   } catch (err) {
     // Non-fatal: printUtils.js falls back to whatever is in localStorage (or its hardcoded defaults)
     console.warn('[printTemplateSync] Unable to sync print templates from backend:', err?.message || err);
+  } finally {
+    syncInFlight = null;
   }
+  })();
+  return syncInFlight;
 }
 
 /**

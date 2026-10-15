@@ -341,7 +341,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
       // This ensures buildKotText() / buildReceiptText() use the template settings
       // (paper width, columns, font sizes, header/footer, visibility toggles)
       // saved in Templates & Paper, rather than hardcoded defaults.
-      await ensurePrintTemplatesSynced();
+      ensurePrintTemplatesSynced().catch(() => null);
 
       try {
         const { data: cfgRes } = await api.get('/api/v1/configurations');

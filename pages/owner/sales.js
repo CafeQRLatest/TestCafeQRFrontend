@@ -1316,12 +1316,12 @@ function SalesContent() {
     if (localPrintWillHandleKind(printKind)) {
       let orderForPrint = order;
       if (order?.id) {
-        try {
-          await markCloudPrintJobPrinted(order, printKind);
-        } catch (error) {
+        markCloudPrintJobPrinted(order, printKind).catch((error) => {
           console.warn('Unable to pre-emptively mark cloud print job printed on creation:', error?.message || error);
-        }
-        if (printKind === 'bill' || printKind === 'kot') {
+        });
+        const hasLines = (Array.isArray(order.lines) && order.lines.length > 0) ||
+                         (Array.isArray(order.order_lines) && order.order_lines.length > 0);
+        if (!hasLines && (printKind === 'bill' || printKind === 'kot')) {
           try {
             const { data } = await api.get(`/api/v1/orders/${order.id}`);
             orderForPrint = data?.data || order;
@@ -1427,8 +1427,10 @@ function SalesContent() {
         showToast(kind === 'kot' ? 'KOT queued for the main print station' : 'Bill queued for the main print station');
         return;
       }
-
-      const fullOrder = await loadFullOrder(order.id);
+      const hasLines = (Array.isArray(order?.lines) && order.lines.length > 0) ||
+                       (Array.isArray(order?.order_lines) && order.order_lines.length > 0) ||
+                       (Array.isArray(order?.items) && order.items.length > 0);
+      const fullOrder = (!hasLines && order?.id) ? await loadFullOrder(order.id).catch(() => order) : order;
       setPrintOrder({ ...(fullOrder || order), _manualPrint: true });
       setPrintKind(kind);
       showToast(kind === 'kot' ? 'KOT sent to printer' : 'Bill sent to printer');

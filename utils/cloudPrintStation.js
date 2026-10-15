@@ -296,11 +296,13 @@ export async function getRestaurantProfile() {
 function normalizeJob(raw) {
   const payload = raw?.payload || {};
   const order = payload.order || raw.order || {};
+  const bill = payload.bill || raw.bill || null;
   const jobKind = String(raw?.jobKind || payload.jobKind || 'bill').toLowerCase();
   return {
     ...raw,
     kind: jobKind === 'kot' ? 'kot' : jobKind === 'invoice' ? 'invoice' : 'bill',
     order,
+    bill,
   };
 }
 
@@ -399,8 +401,8 @@ async function printClaimedJob(job) {
     profile.timezone = jobTz;
   }
 
-  // Sync customized templates from backend before building text
-  await ensurePrintTemplatesSynced();
+  // Asynchronously ensure templates stay fresh in localStorage without blocking print
+  ensurePrintTemplatesSynced().catch(() => null);
 
   const orderId = normalized.order?.id;
   const isDirected = Boolean(normalized.printerProfileId || normalized.payload?.reason === 'master');
@@ -450,7 +452,7 @@ async function printClaimedJob(job) {
   } else {
     const text = normalized.kind === 'kot'
       ? buildKotText(normalized.order, profile)
-      : buildReceiptText(normalized.order, null, profile);
+      : buildReceiptText(normalized.order, normalized.bill, profile);
 
     let targetIp = undefined;
     let targetPort = undefined;
@@ -493,11 +495,12 @@ async function printClaimedJob(job) {
     });
   }
 
-  await api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
+  // Acknowledge printed status to backend asynchronously so next job prints immediately
+  api.post(`/api/v1/print-jobs/${normalized.id}/printed`, null, {
     backgroundSync: true,
     skipAuthRedirect: true,
     skipOfflineQueue: true,
-  });
+  }).catch(() => null);
   return normalized;
 }
 
@@ -508,12 +511,17 @@ export async function claimAndPrintCloudJobs(limit = 3) {
 
   let data;
   try {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 5000) : null;
     const response = await api.post('/api/v1/print-jobs/claim', null, {
       params: { limit },
+      timeout: 5000,
+      signal: controller?.signal,
       backgroundSync: true,
       skipAuthRedirect: true,
       skipOfflineQueue: true,
     });
+    if (timeoutId) clearTimeout(timeoutId);
     data = response.data;
     noteCloudPrintSuccess();
   } catch (error) {
