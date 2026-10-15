@@ -13,7 +13,6 @@ import {
 } from 'react-icons/fa';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
-import CloudPrintStation from './CloudPrintStation';
 import { isMenuVisibleForConfig, isPosV2Enabled, isFeatureEnabled, setCachedConfig, getCachedConfig } from '../utils/moduleVisibility';
 import { getNetworkStatus } from '../utils/networkState';
 
@@ -353,7 +352,6 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
             ) : (
               children
             )}
-            <CloudPrintStation />
           </main>
         </div>
       </div>

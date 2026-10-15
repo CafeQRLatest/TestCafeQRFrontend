@@ -22,6 +22,7 @@ import {
 let syncInFlight = false;
 let reconnectInFlight = null;
 let lastKnownPendingCount = 0;
+let offlineSyncDisabledForSession = false;
 
 function emitSyncEvent(name, detail = {}) {
   if (typeof window === 'undefined') return;
@@ -131,18 +132,30 @@ async function applyOfflineSnapshot(data, options = {}) {
 }
 
 export async function bootstrapOfflineData(options = {}) {
+  if (offlineSyncDisabledForSession) {
+    return null;
+  }
   const forceProbe = Boolean(options.forceProbe);
   if (!forceProbe && !isOnline()) {
     return null;
   }
 
-  const response = await api.get('/api/v1/sync/bootstrap', {
-    skipOfflineCache: true,
-    skipOfflineQueue: true,
-    skipAuthRedirect: true,
-    backgroundSync: true,
-    allowOfflineProbe: forceProbe,
-  });
+  let response;
+  try {
+    response = await api.get('/api/v1/sync/bootstrap', {
+      skipOfflineCache: true,
+      skipOfflineQueue: true,
+      skipAuthRedirect: true,
+      backgroundSync: true,
+      allowOfflineProbe: forceProbe,
+    });
+  } catch (err) {
+    if (err?.response?.status === 400 && String(err?.response?.data?.message || '').toLowerCase().includes('disabled')) {
+      offlineSyncDisabledForSession = true;
+      return null;
+    }
+    throw err;
+  }
   const data = unwrapData(response);
 
   if (!data) {
@@ -153,6 +166,9 @@ export async function bootstrapOfflineData(options = {}) {
 }
 
 export async function refreshOfflineChanges(options = {}) {
+  if (offlineSyncDisabledForSession) {
+    return null;
+  }
   const forceProbe = Boolean(options.forceProbe);
   if (!forceProbe && !isOnline()) {
     return null;
@@ -171,14 +187,23 @@ export async function refreshOfflineChanges(options = {}) {
     }
   } catch (e) {}
 
-  const response = await api.get('/api/v1/sync/changes', {
-    params: { since: formattedSince },
-    skipOfflineCache: true,
-    skipOfflineQueue: true,
-    skipAuthRedirect: true,
-    backgroundSync: true,
-    allowOfflineProbe: forceProbe,
-  });
+  let response;
+  try {
+    response = await api.get('/api/v1/sync/changes', {
+      params: { since: formattedSince },
+      skipOfflineCache: true,
+      skipOfflineQueue: true,
+      skipAuthRedirect: true,
+      backgroundSync: true,
+      allowOfflineProbe: forceProbe,
+    });
+  } catch (err) {
+    if (err?.response?.status === 400 && String(err?.response?.data?.message || '').toLowerCase().includes('disabled')) {
+      offlineSyncDisabledForSession = true;
+      return null;
+    }
+    throw err;
+  }
   const data = unwrapData(response);
   const snapshot = data?.snapshot || data;
 
@@ -190,6 +215,9 @@ export async function refreshOfflineChanges(options = {}) {
 }
 
 export async function syncQueuedOperations() {
+  if (offlineSyncDisabledForSession) {
+    return { skipped: true, disabled: true };
+  }
   if (typeof window !== 'undefined') {
     try {
       const saved = window.localStorage.getItem('cafeqr_offline_config');

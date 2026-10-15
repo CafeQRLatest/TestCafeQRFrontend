@@ -66,7 +66,7 @@ export default function ExpenseReportView({
     try {
       const [expRes, catRes] = await Promise.allSettled([
         api.get('/api/v1/expenses', { params: expParams }),
-        api.get('/api/v1/expenses/categories')
+        api.get('/api/v1/expense-categories')
       ]);
 
       if (expRes.status === 'fulfilled' && expRes.value.data?.success) {

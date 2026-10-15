@@ -11,6 +11,7 @@ import PushNotificationBridge from '../components/PushNotificationBridge';
 import AppUpdateBridge from '../components/AppUpdateBridge';
 import InAppReviewBridge from '../components/InAppReviewBridge';
 import GoogleBusinessReviewBridge from '../components/GoogleBusinessReviewBridge';
+import CloudPrintStation from '../components/CloudPrintStation';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -47,6 +48,7 @@ export default function App({ Component, pageProps }) {
         <AppUpdateBridge />
         <InAppReviewBridge />
         <GoogleBusinessReviewBridge />
+        <CloudPrintStation />
       </NotificationProvider>
     </AuthProvider>
   );

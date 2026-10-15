@@ -115,7 +115,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
         isPulseInFlight = false;
         if (alive && isLeader) {
           const isTabHidden = typeof document !== 'undefined' && document.visibilityState !== 'visible';
-          const delay = isTabHidden ? 10000 : 3000;
+          const delay = isTabHidden ? 30000 : (sseConnectedRef.current ? 25000 : 3000);
           pulseTimerId = window.setTimeout(pulseCheck, delay);
         }
       }
