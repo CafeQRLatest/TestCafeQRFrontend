@@ -2897,6 +2897,7 @@ export default function PosOrderTypeModal({
         <div style={{ position: 'relative', zIndex: 10005 }}>
           <PaymentDialog
             order={paymentOrder}
+            orgId={paymentOrder?.orgId || paymentOrder?.organizationId || config?.orgId}
             loading={actionBusy === 'settle'}
             config={config}
             creditCustomers={creditCustomers}

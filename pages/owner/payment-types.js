@@ -6,6 +6,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import api from '../../utils/api';
+import { resetPaymentTypesCache } from '../../services/paymentApi';
 import {
   FaPlus, FaSearch, FaChevronRight, FaCreditCard,
   FaCheckCircle, FaTrash
@@ -180,6 +181,7 @@ function PaymentTypesContent() {
       }
       const resp = await (isNew ? api.post(url, payload) : api.put(url, payload));
       if (resp.data.success) {
+        resetPaymentTypesCache();
         notify('success', isNew ? 'Payment type created!' : 'Payment type updated!');
         fetchPaymentTypes();
         setSelected(null);
@@ -198,6 +200,7 @@ function PaymentTypesContent() {
       onConfirm: async () => {
         try {
           await api.delete(`/api/v1/payment-types/${id}`);
+          resetPaymentTypesCache();
           notify('success', 'Payment type deleted');
           fetchPaymentTypes();
         } catch (err) {

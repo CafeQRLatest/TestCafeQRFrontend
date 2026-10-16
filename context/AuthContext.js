@@ -3,6 +3,7 @@ import Cookies from 'js-cookie';
 import { useRouter } from 'next/router';
 import api from '../utils/api';
 import { getFrontendCookieOptions } from '../utils/cookieOptions';
+import { resetPaymentTypesCache } from '../services/paymentApi';
 
 const AuthContext = createContext();
 
@@ -506,6 +507,7 @@ export const AuthProvider = ({ children }) => {
   })();
 
   const switchBranch = (newOrgId, newOrgName, newTimezone, newPosType) => {
+    resetPaymentTypesCache();
     setOrgId(newOrgId || null);
     setOrgName(newOrgName || null);
     setTimezone(newTimezone || null);

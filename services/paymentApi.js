@@ -1,3 +1,4 @@
+import Cookies from 'js-cookie';
 import api from '../utils/api';
 
 /**
@@ -19,8 +20,11 @@ const paymentTypesCache = new Map();
  */
 export function fetchPaymentTypesByContext(context = 'SALES', orgId = null, options = {}) {
   const ctx = (context || 'SALES').toUpperCase();
-  const org = orgId != null ? String(orgId) : 'default';
-  const key = `${ctx}:${org}`;
+  const activeOrgId = orgId != null
+    ? orgId
+    : (typeof window !== 'undefined' ? (Cookies.get('orgId') || window.localStorage?.getItem('orgId')) : null);
+  const cleanOrg = (activeOrgId && String(activeOrgId) !== '0') ? String(activeOrgId) : 'default';
+  const key = `${ctx}:${cleanOrg}`;
 
   if (!paymentTypesCache.has(key)) {
     paymentTypesCache.set(
@@ -31,10 +35,14 @@ export function fetchPaymentTypesByContext(context = 'SALES', orgId = null, opti
           params: {
             ...(options.params || {}),
             applicableFor: ctx,
-            ...(orgId != null ? { orgId } : {}),
+            ...(cleanOrg !== 'default' ? { orgId: cleanOrg } : {}),
           },
         })
-        .then(({ data }) => data.data || [])
+        .then(({ data }) => {
+          if (Array.isArray(data?.data)) return data.data;
+          if (Array.isArray(data)) return data;
+          return [];
+        })
         .catch((err) => {
           // Invalidate so the next mount retries instead of caching a failure.
           paymentTypesCache.delete(key);

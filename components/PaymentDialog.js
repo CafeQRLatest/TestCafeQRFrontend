@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag, FaUser, FaPhoneAlt, FaSearch } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
@@ -57,8 +58,23 @@ export default function PaymentDialog({
   onCreditCustomerCreated,
   themeColor = 'orange',
   disableEditDiscount = false,
-  allowCustomerSelection = false
+  allowCustomerSelection = false,
+  orgId = null
 }) {
+  const { orgId: authOrgId } = useAuth();
+  const effectiveOrgId = useMemo(() => {
+    return (
+      orgId ||
+      order?.orgId ||
+      order?.org_id ||
+      order?.organizationId ||
+      config?.orgId ||
+      config?.organizationId ||
+      authOrgId ||
+      null
+    );
+  }, [orgId, order, config, authOrgId]);
+
   const dp = Number(config?.currencyDecimalPlaces ?? 2);
   const sym = config?.currencySymbol || '₹';
   const money = useCallback((value) => `${sym}${Number(value || 0).toFixed(dp)}`, [dp, sym]);
@@ -416,15 +432,15 @@ export default function PaymentDialog({
 
   useEffect(() => {
     let active = true;
-    fetchSalesPaymentTypes(null)
+    fetchSalesPaymentTypes(effectiveOrgId)
       .then(data => {
-        if (active) setPaymentTypes(data);
+        if (active) setPaymentTypes(Array.isArray(data) ? data : []);
       })
       .catch(err => {
         console.error('Failed to load active sales payment types:', err);
       });
     return () => { active = false; };
-  }, []);
+  }, [effectiveOrgId]);
 
   const selectOptions = useMemo(() => {
     const list = paymentTypes.length > 0 ? paymentTypes : [
@@ -439,6 +455,9 @@ export default function PaymentDialog({
       if (pt.sales !== 'Y') return false;
       if (pt.paymentType === 'CREDIT' && !creditEnabled) return false;
       if (pt.displayName?.toUpperCase() === 'MIXED') return false;
+      if (effectiveOrgId && pt.orgId && String(pt.orgId).toLowerCase() !== String(effectiveOrgId).toLowerCase()) {
+        return false;
+      }
       return true;
     });
 
@@ -450,7 +469,7 @@ export default function PaymentDialog({
 
     mapped.push({ value: 'MIXED', label: 'Mixed / Split Payment', paymentType: 'OTHERS' });
     return mapped;
-  }, [paymentTypes, creditEnabled]);
+  }, [paymentTypes, creditEnabled, effectiveOrgId]);
 
   const secondaryPaymentOptions = useMemo(() => {
     return selectOptions.filter(opt => opt.value !== 'LOYALTY' && opt.value !== 'MIXED');
