@@ -15,7 +15,8 @@ export default function LoginPage() {
   const [msgType, setMsgType] = useState('error')
   const [landingUrl, setLandingUrl] = useState('https://cafeqr.in')
   
-  // WhatsApp OTP Login States
+  // WhatsApp OTP Login States (Set to true to re-enable WhatsApp tab on POS login)
+  const SHOW_WHATSAPP_LOGIN = false
   const [authMethod, setAuthMethod] = useState('PASSWORD') // 'PASSWORD' | 'WHATSAPP'
   const [phone, setPhone] = useState('')
   const [otp, setOtp] = useState('')
@@ -156,24 +157,26 @@ export default function LoginPage() {
         </div>
 
         <div className="form-body">
-          {/* Method Selector Tabs */}
-          <div className="method-tabs">
-            <button
-              type="button"
-              className={`method-tab ${authMethod === 'PASSWORD' ? 'active' : ''}`}
-              onClick={() => { setAuthMethod('PASSWORD'); setMessage(''); }}
-            >
-              Password Login
-            </button>
-            <button
-              type="button"
-              className={`method-tab ${authMethod === 'WHATSAPP' ? 'active' : ''}`}
-              onClick={() => { setAuthMethod('WHATSAPP'); setMessage(''); }}
-            >
-              <FaWhatsapp style={{ color: '#25D366', fontSize: 16 }} />
-              WhatsApp OTP
-            </button>
-          </div>
+          {/* Method Selector Tabs - Set SHOW_WHATSAPP_LOGIN to true to re-enable WhatsApp OTP */}
+          {SHOW_WHATSAPP_LOGIN && (
+            <div className="method-tabs">
+              <button
+                type="button"
+                className={`method-tab ${authMethod === 'PASSWORD' ? 'active' : ''}`}
+                onClick={() => { setAuthMethod('PASSWORD'); setMessage(''); }}
+              >
+                Password Login
+              </button>
+              <button
+                type="button"
+                className={`method-tab ${authMethod === 'WHATSAPP' ? 'active' : ''}`}
+                onClick={() => { setAuthMethod('WHATSAPP'); setMessage(''); }}
+              >
+                <FaWhatsapp style={{ color: '#25D366', fontSize: 16 }} />
+                WhatsApp OTP
+              </button>
+            </div>
+          )}
 
           {authMethod === 'PASSWORD' ? (
             <form onSubmit={handleLogin}>
