@@ -296,7 +296,7 @@ export default function LoginPage() {
 
               {message && <div className={`alert ${msgType}`}>{message}</div>}
 
-              <button type="submit" disabled={loading} className="submit-btn" style={{ background: '#115e59' }}>
+              <button type="submit" disabled={loading} className="submit-btn">
                 {loading 
                   ? (otpSent ? "VERIFYING..." : "SENDING OTP...") 
                   : (otpSent ? "VERIFY & SIGN IN" : "CONTINUE WITH WHATSAPP")}
@@ -399,6 +399,30 @@ export default function LoginPage() {
         }
         .alert.error { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
         .alert.success { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
+
+        .submit-btn {
+          width: 100%;
+          padding: 16px;
+          background: #115e59;
+          color: white;
+          border: none;
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 10px 20px -5px rgba(17, 94, 89, 0.3);
+        }
+        .submit-btn:hover:not(:disabled) {
+          background: #0d4a46;
+          transform: translateY(-2px);
+          box-shadow: 0 15px 30px -5px rgba(17, 94, 89, 0.4);
+        }
+        .submit-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
 
         .signup-link { text-align: center; margin-top: 32px; font-size: 14px; color: #475569; }
         .signup-link :global(a) { color: #115e59; text-decoration: none; font-weight: 700; margin-left: 4px; }
