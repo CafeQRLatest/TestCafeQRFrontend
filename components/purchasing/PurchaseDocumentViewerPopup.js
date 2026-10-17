@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { 
@@ -32,52 +32,8 @@ export default function PurchaseDocumentViewerPopup({
   onCancelOrder,
 }) {
   const auth = useAuth() || {};
-  const { firstName, lastName, email: authEmail, userId: authUserId, userRole } = auth;
-  const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
   const activeTz = auth.timezone || timezone;
   const formatDateFn = formatTzDateProp || formatTzDateUtil;
-
-  const [usersList, setUsersList] = useState([]);
-
-  useEffect(() => {
-    api.get('/api/v1/users')
-      .then(res => {
-        const uList = res.data?.data || res.data || [];
-        if (Array.isArray(uList)) setUsersList(uList);
-      })
-      .catch(() => {});
-  }, []);
-
-  const isUuid = useCallback((str) => {
-    return typeof str === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str.trim());
-  }, []);
-
-  const resolveUserName = useCallback((rawVal) => {
-    if (!rawVal) return currentLoggedInName;
-    const str = String(rawVal).trim();
-    if (!str || str.toLowerCase() === 'system') return 'SYSTEM';
-
-    if (!isUuid(str)) {
-      return str;
-    }
-
-    if (authUserId && String(authUserId).toLowerCase() === str.toLowerCase()) {
-      return currentLoggedInName;
-    }
-
-    if (usersList && usersList.length > 0) {
-      const found = usersList.find(u => u && u.id && String(u.id).toLowerCase() === str.toLowerCase());
-      if (found) {
-        const nameStr = [found.firstName, found.lastName].filter(Boolean).join(' ');
-        if (nameStr) return nameStr;
-        if (found.name) return found.name;
-        if (found.email) return found.email;
-        if (found.username) return found.username;
-      }
-    }
-
-    return currentLoggedInName;
-  }, [authUserId, currentLoggedInName, isUuid, usersList]);
 
   const [activeDocType, setActiveDocType] = useState(docType || 'order');
   const [currentOrder, setCurrentOrder] = useState(order);
@@ -517,7 +473,7 @@ export default function PurchaseDocumentViewerPopup({
         <div className="dv-row2">
           <div className="dv-cell">
             <span className="dv-lbl">Created By</span>
-            <span className="dv-val" style={{ fontSize: '13px' }}>{resolveUserName(currentOrder.createdBy)}</span>
+            <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.createdBy || 'Staff User'}</span>
             <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
               {formatDateFn(
                 currentOrder.createdAt || currentOrder.created_at || currentOrder.orderDate || currentOrder.order_date,
@@ -528,7 +484,7 @@ export default function PurchaseDocumentViewerPopup({
           </div>
           <div className="dv-cell">
             <span className="dv-lbl">Last Updated By</span>
-            <span className="dv-val" style={{ fontSize: '13px' }}>{resolveUserName(currentOrder.updatedBy || currentOrder.createdBy)}</span>
+            <span className="dv-val" style={{ fontSize: '13px' }}>{currentOrder.updatedBy || currentOrder.createdBy || 'Staff User'}</span>
             <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
               {formatDateFn(
                 currentOrder.updatedAt || currentOrder.updated_at || currentOrder.createdAt || currentOrder.created_at,
@@ -695,8 +651,8 @@ export default function PurchaseDocumentViewerPopup({
                           <span className="dv-history-mono">{rev.orderNo}</span>
                           {(rev.createdBy || rev.updatedBy) && (
                             <span className="dv-history-meta" style={{ fontSize: '11px', color: '#64748b' }}>
-                              {rev.createdBy && <span>Created by: <strong>{resolveUserName(rev.createdBy)}</strong></span>}
-                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{resolveUserName(rev.updatedBy)}</strong></span>}
+                              {rev.createdBy && <span>Created by: <strong>{rev.createdBy}</strong></span>}
+                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{rev.updatedBy}</strong></span>}
                             </span>
                           )}
                         </div>
