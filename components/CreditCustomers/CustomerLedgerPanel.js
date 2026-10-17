@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FaWallet } from 'react-icons/fa';
+import { FaWallet, FaFileExcel, FaFilePdf } from 'react-icons/fa';
 import { formatTzDate } from '../../utils/timezoneUtils';
+import { useNotification } from '../../context/NotificationContext';
 import PageSizeSelect from './PageSizeSelect';
+import { exportCreditOrdersToExcel, exportCreditOrdersToPdf } from './creditOrdersExport';
 
 export default function CustomerLedgerPanel({
   customer,
@@ -11,10 +13,13 @@ export default function CustomerLedgerPanel({
   payments = [],
   timezone,
   money,
+  currencySymbol = '₹',
   handleViewOrder,
   handleViewPayment,
   openPayment,
 }) {
+  const { notify } = useNotification() || {};
+  const [exporting, setExporting] = useState(false);
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(10);
 
@@ -47,26 +52,134 @@ export default function CustomerLedgerPanel({
     return payments.slice(start, start + paymentPageSize);
   }, [payments, paymentPage, paymentPageSize]);
 
-  const renderPagination = (currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange) => {
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      await exportCreditOrdersToExcel({
+        customer,
+        orders: openOrders,
+        timezone,
+        currencySymbol,
+        notify,
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      await exportCreditOrdersToPdf({
+        customer,
+        orders: openOrders,
+        timezone,
+        currencySymbol,
+        notify,
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const renderPagination = (currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange, showExports = false) => {
     if (totalItems === 0) return null;
     const startRecord = (currentPage - 1) * pageSize + 1;
     const endRecord = Math.min(currentPage * pageSize, totalItems);
 
     return (
-      <div className="pagination-bar" style={{ marginTop: '8px', padding: '12px 16px' }}>
-        <PageSizeSelect
-          value={pageSize}
-          options={[5, 10, 25, 50]}
-          onChange={(newSize) => {
-            onPageSizeChange(newSize);
-            onPageChange(1);
-          }}
-          label="Per page"
-        />
-        <span className="pg-info">
+      <div
+        className="pagination-bar ledger-footer-bar"
+        style={{
+          marginTop: '10px',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          background: '#ffffff',
+          borderRadius: '0 0 10px 10px',
+          borderTop: '1px solid #f1f5f9',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <PageSizeSelect
+            value={pageSize}
+            options={[5, 10, 25, 50]}
+            onChange={(newSize) => {
+              onPageSizeChange(newSize);
+              onPageChange(1);
+            }}
+            label="Per page"
+          />
+
+          {showExports && openOrders.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="ledger-export-btn ledger-export-btn-excel"
+                onClick={handleExportExcel}
+                disabled={exporting}
+                title="Export all credit orders to Excel (.xlsx)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  borderRadius: '8px',
+                  border: '1px solid #10b981',
+                  background: '#ecfdf5',
+                  color: '#065f46',
+                  cursor: exporting ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(16, 185, 129, 0.12)',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.2',
+                }}
+              >
+                <FaFileExcel style={{ color: '#10b981', fontSize: '14px' }} />
+                <span>{exporting ? 'Exporting...' : 'Excel'}</span>
+              </button>
+
+              <button
+                type="button"
+                className="ledger-export-btn ledger-export-btn-pdf"
+                onClick={handleExportPdf}
+                disabled={exporting}
+                title="Export all credit orders to PDF (.pdf)"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  borderRadius: '8px',
+                  border: '1px solid #ef4444',
+                  background: '#fef2f2',
+                  color: '#991b1b',
+                  cursor: exporting ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(239, 68, 68, 0.12)',
+                  fontFamily: 'inherit',
+                  lineHeight: '1.2',
+                }}
+              >
+                <FaFilePdf style={{ color: '#ef4444', fontSize: '14px' }} />
+                <span>{exporting ? 'Exporting...' : 'PDF'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <span className="pg-info" style={{ color: '#64748b', fontSize: '12.5px', fontWeight: '500' }}>
           Showing {startRecord}–{endRecord} of {totalItems} records (Page {currentPage} of {totalPages})
         </span>
-        <div className="pg-controls">
+
+        <div className="pg-controls" style={{ display: 'flex', gap: '6px' }}>
           <button
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
@@ -159,7 +272,7 @@ export default function CustomerLedgerPanel({
                 ))}
               </tbody>
             </table>
-            {renderPagination(orderPage, totalOrderPages, orders.length, orderPageSize, setOrderPage, setOrderPageSize)}
+            {renderPagination(orderPage, totalOrderPages, openOrders.length, orderPageSize, setOrderPage, setOrderPageSize, true)}
           </div>
         )
       ) : (

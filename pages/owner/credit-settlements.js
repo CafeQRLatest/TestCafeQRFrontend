@@ -170,6 +170,7 @@ function CreditSettlementsContent() {
             paymentsByCustomer={paymentsByCustomer}
             timezone={timezone}
             money={money}
+            currencySymbol={SYM}
             openPayment={openCustomerPayment}
             toggleOrders={toggleCustomerOrders}
             toggleStatus={toggleCustomerStatus}

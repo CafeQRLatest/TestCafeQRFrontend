@@ -11,6 +11,7 @@ export default function CreditCustomerTable({
   paymentsByCustomer,
   timezone,
   money,
+  currencySymbol = '₹',
   openPayment,
   toggleOrders,
   toggleStatus,
@@ -60,6 +61,7 @@ export default function CreditCustomerTable({
               payments={paymentsByCustomer[customer.id] || []}
               timezone={timezone}
               money={money}
+              currencySymbol={currencySymbol}
               openPayment={openPayment}
               toggleOrders={toggleOrders}
               toggleStatus={toggleStatus}
