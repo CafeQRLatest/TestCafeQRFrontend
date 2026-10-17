@@ -143,7 +143,50 @@ export default function DocumentViewerPopup({
   onOrderUpdated = null,
 }) {
   const auth = useAuth() || {};
-  const { posType, timezone: authTimezone } = auth;
+  const { posType, timezone: authTimezone, userId: authUserId, firstName, lastName, email: authEmail, userRole } = auth;
+  const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
+  const [usersList, setUsersList] = React.useState([]);
+
+  React.useEffect(() => {
+    api.get('/api/v1/users')
+      .then(res => {
+        const uList = res.data?.data || res.data || [];
+        if (Array.isArray(uList)) setUsersList(uList);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isUuid = React.useCallback((str) => {
+    return typeof str === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(str.trim());
+  }, []);
+
+  const resolveUserName = React.useCallback((rawVal) => {
+    if (!rawVal) return currentLoggedInName;
+    const str = String(rawVal).trim();
+    if (!str || str.toLowerCase() === 'system') return 'SYSTEM';
+
+    if (!isUuid(str)) {
+      return str;
+    }
+
+    if (authUserId && String(authUserId).toLowerCase() === str.toLowerCase()) {
+      return currentLoggedInName;
+    }
+
+    if (usersList && usersList.length > 0) {
+      const found = usersList.find(u => u && u.id && String(u.id).toLowerCase() === str.toLowerCase());
+      if (found) {
+        const nameStr = [found.firstName, found.lastName].filter(Boolean).join(' ');
+        if (nameStr) return nameStr;
+        if (found.name) return found.name;
+        if (found.email) return found.email;
+        if (found.username) return found.username;
+      }
+    }
+
+    return currentLoggedInName;
+  }, [authUserId, currentLoggedInName, isUuid, usersList]);
+
   const docType = propDocType || propType || 'order';
   const effectiveTz = timezone || authTimezone || config?.timezone || currentOrder?.timezone || 'Asia/Kolkata';
   const formatDateFn = typeof formatTzDateProp === 'function'
@@ -1187,7 +1230,7 @@ export default function DocumentViewerPopup({
                 <div className="dv-cell">
                   <span className="dv-lbl">Created By</span>
                   <span className="dv-val" style={{ fontSize: '13px' }}>
-                    {currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName || (auth?.firstName ? `${auth.firstName} ${auth.lastName || ''}`.trim() : 'Staff User')}
+                    {resolveUserName(currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName)}
                   </span>
                   <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
                     {formatDateFn(
@@ -1200,7 +1243,7 @@ export default function DocumentViewerPopup({
                 <div className="dv-cell">
                   <span className="dv-lbl">Last Updated By</span>
                   <span className="dv-val" style={{ fontSize: '13px' }}>
-                    {currentOrder.updatedBy || currentOrder.updated_by || currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName || (auth?.firstName ? `${auth.firstName} ${auth.lastName || ''}`.trim() : 'Staff User')}
+                    {resolveUserName(currentOrder.updatedBy || currentOrder.updated_by || currentOrder.createdBy || currentOrder.created_by || currentOrder.staffName || currentOrder.cashierName)}
                   </span>
                   <span className="dv-sub" style={{ marginTop: '2px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>
                     {formatDateFn(
@@ -1364,8 +1407,8 @@ export default function DocumentViewerPopup({
                           <span className="dv-history-mono">{rev.orderNo}</span>
                           {(rev.createdBy || rev.updatedBy) && (
                             <span className="dv-history-meta" style={{ fontSize: '11px', color: '#64748b' }}>
-                              {rev.createdBy && <span>Created by: <strong>{rev.createdBy}</strong></span>}
-                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{rev.updatedBy}</strong></span>}
+                              {rev.createdBy && <span>Created by: <strong>{resolveUserName(rev.createdBy)}</strong></span>}
+                              {rev.updatedBy && rev.updatedBy !== rev.createdBy && <span style={{ marginLeft: 8 }}>• Updated by: <strong>{resolveUserName(rev.updatedBy)}</strong></span>}
                             </span>
                           )}
                         </div>
