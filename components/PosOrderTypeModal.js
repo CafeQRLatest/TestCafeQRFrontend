@@ -1172,18 +1172,28 @@ export default function PosOrderTypeModal({
     }
   }, [config?.creditEnabled]);
 
-  // Polling for live orders every 10 seconds
+  // Polling for live orders every 20 seconds; paused while the tab is hidden,
+  // and refreshed once when the tab becomes visible again.
   useEffect(() => {
     isMountedRef.current = true;
     fetchLiveOrders();
 
     const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
       fetchLiveOrders();
-    }, 10000);
+    }, 20000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLiveOrders();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMountedRef.current = false;
       clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchLiveOrders]);
 
