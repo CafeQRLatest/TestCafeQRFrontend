@@ -558,21 +558,6 @@ function TableContent() {
                       </div>
                     )}
                     
-                    {!editing.id && (
-                      <div className={`t-card ${editing.sendEmail ? 'active' : ''}`} onClick={() => setEditing({...editing, sendEmail: !editing.sendEmail})}>
-                        <div className={`tc-icon ${editing.sendEmail ? 'active' : ''}`}>
-                          <FaQrcode />
-                        </div>
-                        <div className="tc-content">
-                          <div className="tc-title">Email QR codes</div>
-                          <div className="tc-desc">Send access links to owner</div>
-                        </div>
-                        <div className={`switch ${editing.sendEmail ? 'on' : ''}`}>
-                          <input type="checkbox" checked={editing.sendEmail} readOnly />
-                          <span className="slider"></span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   <div className="fg-row">
