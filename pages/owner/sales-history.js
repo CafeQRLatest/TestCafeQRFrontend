@@ -281,7 +281,6 @@ export default function SalesHistoryPage() {
 
   const isMountedRef = useRef(true);
   const historyAbortControllerRef = useRef(null);
-  const historyFiltersTouchedRef = useRef(false);
   const debouncedSearchRef = useRef(null);
 
   const [config, setConfig] = useState(null);
@@ -428,7 +427,7 @@ export default function SalesHistoryPage() {
       const cleanQ = rawQ.replace(/^[#\s]+/, '');
       const queryToSend = cleanQ || rawQ;
 
-      // Always supply valid from and to timestamps so Spring @NotNull constraint is satisfied
+      // Always send from/to so the date range applies together with search, terminal and status
       let fromUtc = filters.from ? businessTimeToUtc(filters.from, activeTz) : undefined;
       let toUtc = filters.to ? businessTimeToUtc(filters.to, activeTz) : undefined;
       if (!fromUtc || !toUtc) {
@@ -473,12 +472,14 @@ export default function SalesHistoryPage() {
         }
       }
     } catch (e) {
-      if (e && e.name !== 'CanceledError') {
+      if (e && e.name !== 'CanceledError' && e.name !== 'AbortError') {
         console.error('Failed to fetch sales history', e);
         if (historyAbortControllerRef.current === controller && isMountedRef.current) {
           setHistoryOrders([]);
           setHistoryPage({ number: 0, size: 20, totalPages: 0, totalElements: 0 });
           setHistorySummary(null);
+          // Show the server's reason (e.g. range over 31 days) instead of a silent empty list
+          notify('error', e.response?.data?.message || 'Failed to load sales history');
         }
       }
     } finally {
@@ -489,7 +490,7 @@ export default function SalesHistoryPage() {
         }
       }
     }
-  }, [historyFilters, timezone, orgId, activeSegment]);
+  }, [historyFilters, timezone, orgId, activeSegment, notify]);
 
   // Initial load: load completed orders (or tab specified in query)
   useEffect(() => {
@@ -520,82 +521,25 @@ export default function SalesHistoryPage() {
 
   // Debounced search
   const handleSearchChange = useCallback((newQ) => {
-    setHistoryFilters(f => {
-      const updated = { ...f, q: newQ };
-      if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
-      if (!newQ || !newQ.trim()) {
+    const updated = { ...historyFilters, q: newQ };
+    setHistoryFilters(updated);
+
+    // Live tabs filter their own in-memory list; only history tabs query the server
+    if (!isHistoryTab) return;
+
+    if (debouncedSearchRef.current) clearTimeout(debouncedSearchRef.current);
+    if (!newQ || !newQ.trim()) {
+      fetchHistoryOrders(0, updated, activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
+    } else {
+      debouncedSearchRef.current = setTimeout(() => {
         fetchHistoryOrders(0, updated, activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
-      } else {
-        debouncedSearchRef.current = setTimeout(() => {
-          fetchHistoryOrders(0, updated, activeSegment === 'cancelled' ? 'CANCELLED' : 'COMPLETED');
-        }, 350);
-      }
-      return updated;
-    });
-  }, [fetchHistoryOrders, activeSegment]);
-
-  // Client-side quick filter on already loaded page (in addition to backend query)
-  const filteredHistoryOrders = useMemo(() => {
-    const rawQ = historyFilters.q?.trim() || '';
-    if (!rawQ) {
-      return historyOrders;
+      }, 350);
     }
-    const cleanQ = rawQ.toLowerCase().replace(/^[#\s]+/, '');
-    const lowerRawQ = rawQ.toLowerCase();
+  }, [historyFilters, fetchHistoryOrders, activeSegment, isHistoryTab]);
 
-    return historyOrders.filter((order) => {
-      const orderNo = String(order?.orderNo || order?.order_no || '').toLowerCase();
-      const rawDailyBill = String(order?.dailyBillNo ?? order?.daily_bill_no ?? '');
-      const dailyBillWithHash = `#${rawDailyBill}`.toLowerCase();
-      const dailyBillPlain = rawDailyBill.toLowerCase();
-
-      const customerNames = [
-        order?.customerName,
-        order?.customer_name,
-        order?.creditCustomerName,
-        order?.credit_customer_name,
-        ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.name) : [])
-      ].filter(Boolean).join(' ').toLowerCase();
-
-      const customerPhones = [
-        order?.customerPhone,
-        order?.customer_phone,
-        order?.creditCustomerPhone,
-        order?.credit_customer_phone,
-        ...(Array.isArray(order?.customers) ? order.customers.map(c => c?.phone) : [])
-      ].filter(Boolean).join(' ').toLowerCase();
-
-      const invoiceNo = String(order?.invoiceNo || order?.invoice_no || '').toLowerCase();
-      const paymentNo = String(order?.paymentNo || order?.payment_no || order?.referenceNo || order?.reference_no || '').toLowerCase();
-      const tableNum = String(order?.tableNumber || order?.table_number || '').toLowerCase();
-      const idStr = String(order?.id || '').toLowerCase();
-
-      const itemNames = (order?.lines || order?.orderLines || order?.items || [])
-        .map(i => `${i.name || ''} ${i.productName || i.product_name || ''} ${i.categoryName || i.category_name || ''}`)
-        .join(' ')
-        .toLowerCase();
-
-      const matches = (term) => {
-        if (!term) return false;
-        return (
-          orderNo.includes(term) ||
-          dailyBillPlain.includes(term) ||
-          dailyBillWithHash.includes(term) ||
-          customerNames.includes(term) ||
-          customerPhones.includes(term) ||
-          invoiceNo.includes(term) ||
-          paymentNo.includes(term) ||
-          tableNum.includes(term) ||
-          idStr.includes(term) ||
-          itemNames.includes(term)
-        );
-      };
-
-      return matches(cleanQ) || matches(lowerRawQ);
-    });
-  }, [historyOrders, historyFilters.q]);
-
-  // Combined orders to display based on active segment tab (Table, Takeaway, Delivery, Completed, Cancelled)
+  // Combined orders to display based on active segment tab (Table, Takeaway, Delivery, Completed, Cancelled).
+  // History tabs show the server's result as-is: the backend search is the single source of truth,
+  // so the page never hides rows the server matched (e.g. on invoice, reference or description).
   const displayedOrders = useMemo(() => {
     let list = [];
     if (activeSegment === 'table') {
@@ -605,10 +549,10 @@ export default function SalesHistoryPage() {
     } else if (activeSegment === 'delivery') {
       list = deliveryOrders;
     } else {
-      list = filteredHistoryOrders;
+      return historyOrders;
     }
 
-    if (!isHistoryTab && historyFilters.q?.trim()) {
+    if (historyFilters.q?.trim()) {
       const rawQ = historyFilters.q.trim();
       const cleanQ = rawQ.toLowerCase().replace(/^[#\s]+/, '');
       const lowerRawQ = rawQ.toLowerCase();
@@ -661,7 +605,7 @@ export default function SalesHistoryPage() {
     }
 
     return list;
-  }, [activeSegment, tableOrders, takeawayOrders, deliveryOrders, filteredHistoryOrders, historyFilters.q, isHistoryTab]);
+  }, [activeSegment, tableOrders, takeawayOrders, deliveryOrders, historyOrders, historyFilters.q]);
 
   // Print Bill Handler
   const handlePrintBill = async (order) => {
@@ -1060,7 +1004,6 @@ export default function SalesHistoryPage() {
                     <PremiumDateTimePicker
                       value={historyFilters.from}
                       onChange={(val) => {
-                        historyFiltersTouchedRef.current = true;
                         setHistoryFilters(f => ({ ...f, from: val }));
                         fetchHistoryOrders(0, { ...historyFilters, from: val });
                       }}
@@ -1070,7 +1013,6 @@ export default function SalesHistoryPage() {
                     <PremiumDateTimePicker
                       value={historyFilters.to}
                       onChange={(val) => {
-                        historyFiltersTouchedRef.current = true;
                         setHistoryFilters(f => ({ ...f, to: val }));
                         fetchHistoryOrders(0, { ...historyFilters, to: val });
                       }}
@@ -1087,7 +1029,6 @@ export default function SalesHistoryPage() {
                       ]}
                       value={historyFilters.terminalId || ''}
                       onChange={(val) => {
-                        historyFiltersTouchedRef.current = true;
                         const f = { ...historyFilters, terminalId: val };
                         setHistoryFilters(f);
                         fetchHistoryOrders(0, f);
@@ -1104,9 +1045,9 @@ export default function SalesHistoryPage() {
                   value={historyFilters.q || ''}
                   placeholder={
                     activeSegment === 'completed'
-                      ? "Search completed orders..."
+                      ? "Search order #, invoice #, product, customer, phone..."
                       : activeSegment === 'cancelled'
-                      ? "Search cancelled orders..."
+                      ? "Search order #, invoice #, product, customer, phone..."
                       : `Search ${activeSegment} orders...`
                   }
                   onChange={(e) => handleSearchChange(e.target.value)}

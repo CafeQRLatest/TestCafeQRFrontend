@@ -245,14 +245,14 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
   useEffect(() => {
     if (open) {
       setSearchTerm('');
-      fetchHistory({ search: '' });
+      fetchHistory({ q: '' });
     }
   }, [open, fetchHistory]);
 
   const handleSearchChange = (e) => {
     const val = e.target.value;
     setSearchTerm(val);
-    searchHistoryDebounced({ search: val });
+    searchHistoryDebounced({ q: val });
   };
 
   if (!open) return null;
@@ -277,7 +277,7 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
             </SearchIcon>
             <SearchInput
               type="text"
-              placeholder="Search by order #, customer name, phone..."
+              placeholder="Search by order #, invoice #, product, customer, phone..."
               value={searchTerm}
               onChange={handleSearchChange}
               autoFocus
@@ -374,7 +374,7 @@ export default function PosSalesHistoryModal({ open, onClose, currencySym = '₹
         </TableContainer>
 
         {hasMore && !loading && (
-          <LoadMoreBtn type="button" onClick={() => loadMore({ search: searchTerm })}>
+          <LoadMoreBtn type="button" onClick={() => loadMore({ q: searchTerm })}>
             Load More Transactions <FaChevronRight size={12} />
           </LoadMoreBtn>
         )}
