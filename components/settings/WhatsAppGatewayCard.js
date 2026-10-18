@@ -12,9 +12,18 @@ import {
   FaExclamationTriangle,
   FaFileInvoiceDollar
 } from 'react-icons/fa';
-import api from '../../utils/api';
+import axios from 'axios';
+import api, { getApiUrl } from '../../utils/api';
 
-export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, customTitle, customSubtitle }) {
+export default function WhatsAppGatewayCard({
+  orgId,
+  orgName,
+  customSessionId,
+  customTitle,
+  customSubtitle,
+  isFounder,
+  founderKey,
+}) {
   const [gatewayStatus, setGatewayStatus] = useState('CHECKING'); // 'CHECKING' | 'CONNECTED' | 'SCAN_QR' | 'DISCONNECTED'
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [connectedUser, setConnectedUser] = useState(null);
@@ -27,12 +36,44 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
 
   const sessionId = customSessionId || (orgId && orgId !== '0' ? `org_${orgId}` : undefined);
 
+  const isFounderMode = Boolean(
+    isFounder ||
+    customSessionId === 'cafeqr_official' ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/founder'))
+  );
+
+  const getEffectiveFounderKey = () => {
+    if (founderKey) return founderKey;
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('founder_key') || process.env.NEXT_PUBLIC_FOUNDER_KEY || '';
+    }
+    return '';
+  };
+
+  const getBaseApiUrl = () => {
+    return getApiUrl().replace(/\/api\/?$/, '').replace(/\/+$/, '');
+  };
+
+  const getFounderHeaders = () => {
+    const key = getEffectiveFounderKey();
+    return key ? { 'X-Founder-Key': key } : {};
+  };
+
   const fetchStatus = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
       const params = sessionId ? { sessionId } : {};
-      const res = await api.get('/api/v1/whatsapp/status', { params });
+      let res;
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/status`;
+        res = await axios.get(url, {
+          params,
+          headers: getFounderHeaders(),
+        });
+      } else {
+        res = await api.get('/api/v1/whatsapp/status', { params });
+      }
       const data = res.data?.data || res.data || {};
       
       const st = data.status || 'DISCONNECTED';
@@ -57,7 +98,16 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
   const fetchQr = async () => {
     try {
       const params = sessionId ? { sessionId } : {};
-      const res = await api.get('/api/v1/whatsapp/qr', { params });
+      let res;
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/qr`;
+        res = await axios.get(url, {
+          params,
+          headers: getFounderHeaders(),
+        });
+      } else {
+        res = await api.get('/api/v1/whatsapp/qr', { params });
+      }
       const data = res.data?.data || res.data || {};
       if (data.qr) {
         setQrCodeUrl(data.qr);
@@ -113,7 +163,14 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
     setLoading(true);
     setFeedbackMsg({ text: '', type: '' });
     try {
-      await api.post('/api/v1/whatsapp/disconnect', { sessionId });
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/disconnect`;
+        await axios.post(url, { sessionId }, {
+          headers: getFounderHeaders(),
+        });
+      } else {
+        await api.post('/api/v1/whatsapp/disconnect', { sessionId });
+      }
       setGatewayStatus('DISCONNECTED');
       setConnectedUser(null);
       setQrCodeUrl(null);
@@ -135,7 +192,15 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
     setTestSending(true);
     setFeedbackMsg({ text: '', type: '' });
     try {
-      const res = await api.post('/api/v1/whatsapp/test', { phone: testPhone.trim(), sessionId });
+      let res;
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/test`;
+        res = await axios.post(url, { phone: testPhone.trim(), sessionId }, {
+          headers: getFounderHeaders(),
+        });
+      } else {
+        res = await api.post('/api/v1/whatsapp/test', { phone: testPhone.trim(), sessionId });
+      }
       const data = res.data?.data || res.data || {};
       if (data.success !== false) {
         setFeedbackMsg({ text: `✓ Test receipt sent successfully to +${testPhone}!`, type: 'success' });
@@ -174,7 +239,15 @@ export default function WhatsAppGatewayCard({ orgId, orgName, customSessionId, c
     setTestSending(true);
     setFeedbackMsg({ text: '', type: '' });
     try {
-      const res = await api.post('/api/v1/whatsapp/clear-contact-session', { phone: testPhone.trim(), sessionId });
+      let res;
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/clear-contact-session`;
+        res = await axios.post(url, { phone: testPhone.trim(), sessionId }, {
+          headers: getFounderHeaders(),
+        });
+      } else {
+        res = await api.post('/api/v1/whatsapp/clear-contact-session', { phone: testPhone.trim(), sessionId });
+      }
       const data = res.data?.data || res.data || {};
       setFeedbackMsg({ 
         text: `✓ Signal session reset for +${testPhone}. Next message will re-negotiate fresh encryption keys.`, 

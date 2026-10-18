@@ -535,7 +535,11 @@ api.interceptors.response.use(
       console.error('[Auth] Token refresh failed, redirecting to login:', refreshError?.response?.data?.message || refreshError.message);
       clearAuthCookies();
 
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      if (
+        typeof window !== 'undefined' &&
+        window.location.pathname !== '/login' &&
+        !window.location.pathname.startsWith('/founder')
+      ) {
         window.location.href = '/login';
       }
 
