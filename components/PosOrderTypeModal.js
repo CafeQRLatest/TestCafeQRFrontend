@@ -45,6 +45,7 @@ import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { formatTzDate } from '../utils/timezoneUtils';
+import { subscribeLiveOrderChanges } from '../utils/liveOrderStream';
 import { downloadInvoicePdf, generateInvoicePdfDoc } from '../utils/invoicePdf';
 import {
   isAndroidPrintStationEnabled,
@@ -913,7 +914,7 @@ export default function PosOrderTypeModal({
   onPrintOrder
 }) {
   const router = useRouter();
-  const { orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
+  const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
   const { notify, showConfirm } = useNotification();
 
   const effectiveConfig = config || (typeof window !== 'undefined' ? getCachedConfig() : null);
@@ -1172,16 +1173,34 @@ export default function PosOrderTypeModal({
     }
   }, [config?.creditEnabled]);
 
-  // Polling for live orders every 20 seconds; paused while the tab is hidden,
-  // and refreshed once when the tab becomes visible again.
+  // Live orders refresh on a server "changed" signal. Polling stays as a fallback: every 60 seconds
+  // while the signal stream is connected, every 20 seconds when it is not. Polling pauses while the
+  // tab is hidden, and orders refresh once when the tab becomes visible again.
   useEffect(() => {
     isMountedRef.current = true;
     fetchLiveOrders();
 
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
-      fetchLiveOrders();
-    }, 20000);
+    let streamLive = false;
+    let interval = null;
+    const startPolling = () => {
+      clearInterval(interval);
+      interval = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        fetchLiveOrders();
+      }, streamLive ? 60000 : 20000);
+    };
+    startPolling();
+
+    const stopStream = subscribeLiveOrderChanges({
+      clientId,
+      orgId,
+      onChange: () => fetchLiveOrders(),
+      onStateChange: (live) => {
+        if (streamLive === live) return;
+        streamLive = live;
+        startPolling();
+      },
+    });
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -1193,9 +1212,10 @@ export default function PosOrderTypeModal({
     return () => {
       isMountedRef.current = false;
       clearInterval(interval);
+      stopStream();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [fetchLiveOrders]);
+  }, [fetchLiveOrders, clientId, orgId]);
 
   // Partition Live Orders by Fulfillment Type
   const { kitchenOrders, tableOrders, takeawayOrders, deliveryOrders, tableOrderMap } = useMemo(() => {
