@@ -391,8 +391,8 @@ export function getBranchParts(value, profileTz) {
   if (isNaN(date.getTime())) return null;
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: resolveTimezone(profileTz),
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(date);
   const get = (t) => parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
-  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24 };
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24, minute: get('minute') };
 }

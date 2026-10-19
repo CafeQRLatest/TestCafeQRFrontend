@@ -4,6 +4,7 @@ import { useNotification } from '../context/NotificationContext';
 import api from '../utils/api';
 import { SCOPE_ALL, SCOPE_GLOBAL } from '../constants/expenseScopes';
 import { useCurrencySymbol } from './useCurrencySymbol';
+import { businessTimeToUtc } from '../utils/timezoneUtils';
 
 const filterReducer = (state, action) => {
   return { ...state, [action.field]: action.value };
@@ -129,10 +130,11 @@ export function useExpenses() {
     return { scope: 'BRANCH', branchId: value || null };
   }, []);
 
+  // Filter dates are branch wall-clock times; convert them to UTC for the backend
   const toInstant = (dtLocal) => {
     if (!dtLocal) return undefined;
     try {
-      return new Date(`${dtLocal}:00`).toISOString();
+      return businessTimeToUtc(dtLocal, timezone);
     } catch {
       return undefined;
     }
@@ -223,7 +225,7 @@ export function useExpenses() {
     } finally {
       setLoading(false);
     }
-  }, [filters, isSuperAdmin, orgId, toScopeParams]);
+  }, [filters, isSuperAdmin, orgId, toScopeParams, timezone]);
 
   useEffect(() => {
     if (userRole) loadData();
