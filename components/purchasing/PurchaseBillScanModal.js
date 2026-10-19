@@ -12,6 +12,13 @@ import PremiumDateTimePicker from '../PremiumDateTimePicker';
 const cleanStr = (val, fb = '') => String(val ?? fb).trim();
 const normalizeKey = (val) => cleanStr(val).toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const trimPriceSuffix = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .replace(/\s*[\(\[]?\s*(?:(?:RS|INR|MRP|₹)[\s\.]*\d+(?:\.\d+)?|\d+[\s\.]*(?:RS|INR|\/-))\s*[\)\]]?\s*$/i, '')
+    .trim();
+};
+
 const getAiParseEndpoint = () => {
   const configuredEndpoint = cleanStr(process.env.NEXT_PUBLIC_AI_PARSE_URL);
   if (configuredEndpoint) return configuredEndpoint;
@@ -116,7 +123,7 @@ export default function PurchaseBillScanModal({
         img.src = e.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_DIM = 1600;
+          const MAX_DIM = 2048;
           let width = img.width;
           let height = img.height;
 
@@ -132,7 +139,7 @@ export default function PurchaseBillScanModal({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
+          resolve(canvas.toDataURL('image/jpeg', 0.86));
         };
         img.onerror = reject;
       };
@@ -151,7 +158,8 @@ export default function PurchaseBillScanModal({
 
   // Branch catalog matching helper
   const matchWithBranch = (extractedItem, productsList) => {
-    const billNameKey = normalizeKey(extractedItem.name || extractedItem.rawName);
+    const fullName = cleanStr(extractedItem.name || extractedItem.rawName);
+    const billNameKey = normalizeKey(fullName);
     const catalogCandidateKey = normalizeKey(extractedItem.matchedCatalogItem);
 
     // 1. Check if AI matched exact catalog candidate
@@ -170,21 +178,27 @@ export default function PurchaseBillScanModal({
       return { matchedProduct: exact, isIngredient: isIng, confidence: 'HIGH' };
     }
 
-    // 3. Substring / Token overlap match
-    const tokens = (extractedItem.name || '').toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    // 3. Substring / Token overlap match (require strong similarity to avoid overriding multi-word SKU with single generic word)
+    const tokens = fullName.toLowerCase().split(/\s+/).filter(t => t.length > 2);
     let bestMatch = null;
     let bestScore = 0;
 
     for (const p of productsList) {
+      const pNameKey = normalizeKey(p.name);
+      if (pNameKey && billNameKey.includes(pNameKey) && pNameKey.length >= 6) {
+        const isIng = p.isIngredient === true || String(p.productType).toUpperCase() === 'INGREDIENT';
+        return { matchedProduct: p, isIngredient: isIng, confidence: 'MEDIUM' };
+      }
+
       const pTokens = p.name.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-      const overlap = tokens.filter(t => pTokens.some(pt => pt.includes(t) || t.includes(pt)));
+      const overlap = tokens.filter(t => pTokens.some(pt => pt === t || (pt.length > 4 && t.includes(pt))));
       if (overlap.length > bestScore) {
         bestScore = overlap.length;
         bestMatch = p;
       }
     }
 
-    if (bestMatch && bestScore >= 1) {
+    if (bestMatch && bestScore >= 2) {
       const isIng = bestMatch.isIngredient === true || String(bestMatch.productType).toUpperCase() === 'INGREDIENT';
       return { matchedProduct: bestMatch, isIngredient: isIng, confidence: 'MEDIUM' };
     }
@@ -258,15 +272,16 @@ export default function PurchaseBillScanModal({
       // Align Line Items
       setScanProgressText('Aligning with branch products and ingredients...');
       const alignedLines = (data.items || []).map((it, idx) => {
-        const { matchedProduct, isIngredient, confidence } = matchWithBranch(it, products);
+        const cleanItemName = trimPriceSuffix(it.name) || trimPriceSuffix(it.rawName) || it.name || `Item ${idx + 1}`;
+        const { matchedProduct, isIngredient, confidence } = matchWithBranch({ ...it, name: cleanItemName }, products);
 
         return {
           id: `line_${idx}_${Date.now()}`,
           selected: true,
-          billName: it.name,
-          rawName: it.rawName || it.name,
+          billName: cleanItemName,
+          rawName: it.rawName || it.name || '',
           productId: matchedProduct ? String(matchedProduct.id) : '__NEW__',
-          productName: matchedProduct ? matchedProduct.name : it.name,
+          productName: matchedProduct ? matchedProduct.name : cleanItemName,
           isIngredient: isIngredient,
           confidence: confidence,
           quantity: it.quantity || 1,
@@ -293,10 +308,30 @@ export default function PurchaseBillScanModal({
     setBillItems(prev => prev.map((l, i) => i === idx ? { ...l, selected: !l.selected } : l));
   };
 
+  const handleUpdateItemName = (idx, newName) => {
+    setBillItems(prev => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const wasMapped = l.productId && l.productId !== '__NEW__';
+      const isSameAsMapped = wasMapped && products.some(p => String(p.id) === String(l.productId) && p.name === newName);
+      return {
+        ...l,
+        productName: newName,
+        billName: newName,
+        productId: (wasMapped && !isSameAsMapped) ? '__NEW__' : l.productId,
+        confidence: (wasMapped && !isSameAsMapped) ? 'NEW' : l.confidence,
+      };
+    }));
+  };
+
   const handleUpdateLineField = (idx, field, val) => {
     setBillItems(prev => prev.map((l, i) => {
       if (i !== idx) return l;
       const updated = { ...l, [field]: val };
+      if (field === 'productName') {
+        updated.billName = val;
+      } else if (field === 'billName') {
+        updated.productName = val;
+      }
       if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate') {
         const q = parseFloat(field === 'quantity' ? val : updated.quantity) || 0;
         const p = parseFloat(field === 'unitPrice' ? val : updated.unitPrice) || 0;
@@ -315,7 +350,7 @@ export default function PurchaseBillScanModal({
         return {
           ...l,
           productId: '__NEW__',
-          productName: l.billName,
+          productName: l.billName || l.productName,
           confidence: 'NEW',
           oldCostPrice: 0,
           currentStock: '—'
@@ -751,14 +786,14 @@ export default function PurchaseBillScanModal({
                     <thead>
                       <tr>
                         <th style={{ width: '40px' }}></th>
-                        <th>Bill Item Name</th>
-                        <th>Branch Product Mapping</th>
-                        <th>Type</th>
-                        <th style={{ width: '90px' }}>Qty</th>
-                        <th style={{ width: '90px' }}>Unit</th>
-                        <th style={{ width: '110px' }}>Cost Price</th>
-                        <th style={{ width: '80px' }}>Tax %</th>
-                        <th style={{ width: '110px' }}>Total</th>
+                        <th style={{ minWidth: '220px' }}>Product Name (Editable)</th>
+                        <th style={{ minWidth: '180px' }}>Branch Product Mapping</th>
+                        <th style={{ width: '90px' }}>Type</th>
+                        <th style={{ width: '80px' }}>Qty</th>
+                        <th style={{ width: '80px' }}>Unit</th>
+                        <th style={{ width: '100px' }}>Cost Price</th>
+                        <th style={{ width: '70px' }}>Tax %</th>
+                        <th style={{ width: '100px' }}>Total</th>
                         <th style={{ width: '40px' }}></th>
                       </tr>
                     </thead>
@@ -775,10 +810,25 @@ export default function PurchaseBillScanModal({
                           </td>
                           <td>
                             <div className="item-name-cell">
-                              <span className="raw-bill-name">{item.billName}</span>
-                              {item.confidence === 'HIGH' && <span className="match-tag high">High Match</span>}
-                              {item.confidence === 'MEDIUM' && <span className="match-tag medium">Fuzzy Match</span>}
-                              {item.confidence === 'NEW' && <span className="match-tag new">New Item</span>}
+                              <input 
+                                type="text"
+                                className="cell-input item-name-input"
+                                value={item.productName ?? item.billName ?? ''}
+                                onChange={e => handleUpdateItemName(idx, e.target.value)}
+                                placeholder="Enter product name..."
+                                title="Click to edit product name"
+                              />
+                              <div className="item-sub-meta">
+                                {item.rawName && item.rawName !== (item.productName || item.billName) && (
+                                  <span className="raw-bill-badge" title={`Original text on bill: ${item.rawName}`}>
+                                    Bill: {item.rawName}
+                                  </span>
+                                )}
+                                {item.confidence === 'HIGH' && <span className="match-tag high">High Match</span>}
+                                {item.confidence === 'MEDIUM' && <span className="match-tag medium">Fuzzy Match</span>}
+                                {item.confidence === 'NEW' && <span className="match-tag new">New Item</span>}
+                                {item.confidence === 'NEW_CREATED' && <span className="match-tag new">Created</span>}
+                              </div>
                             </div>
                           </td>
                           <td>
@@ -863,19 +913,42 @@ export default function PurchaseBillScanModal({
                             checked={item.selected} 
                             onChange={() => handleToggleLine(idx)} 
                           />
-                          <span className="card-bill-name">{item.billName}</span>
+                          <span className="card-select-text">Include in Order</span>
                         </label>
                         <div className="card-top-actions">
                           <button 
                             type="button"
                             className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}`}
                             onClick={() => handleToggleIngredient(idx)}
+                            title="Toggle Ingredient / Product"
                           >
                             {item.isIngredient ? 'Ingredient' : 'Product'}
                           </button>
-                          <button className="delete-row-btn" onClick={() => handleDeleteLine(idx)}>
+                          <button className="delete-row-btn" onClick={() => handleDeleteLine(idx)} title="Delete row">
                             <FaTrash />
                           </button>
+                        </div>
+                      </div>
+
+                      {/* Mobile Editable Item Name */}
+                      <div className="card-field-full">
+                        <label>Product Name <span className="edit-hint">(Tap to edit)</span></label>
+                        <input 
+                          type="text" 
+                          className="cell-input item-name-input"
+                          value={item.productName ?? item.billName ?? ''}
+                          onChange={e => handleUpdateItemName(idx, e.target.value)}
+                          placeholder="Enter product name..."
+                        />
+                        <div className="item-sub-meta">
+                          {item.rawName && item.rawName !== (item.productName || item.billName) && (
+                            <span className="raw-bill-badge" title={`Original text on bill: ${item.rawName}`}>
+                              Bill: {item.rawName}
+                            </span>
+                          )}
+                          {item.confidence === 'HIGH' && <span className="match-tag high">High Match</span>}
+                          {item.confidence === 'MEDIUM' && <span className="match-tag medium">Fuzzy Match</span>}
+                          {item.confidence === 'NEW' && <span className="match-tag new">New Item</span>}
                         </div>
                       </div>
 
@@ -1498,12 +1571,48 @@ export default function PurchaseBillScanModal({
         .item-name-cell {
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 4px;
+          min-width: 220px;
         }
 
-        .raw-bill-name {
-          font-weight: 700;
-          color: #0f172a;
+        .item-name-input {
+          font-weight: 700 !important;
+          color: #0f172a !important;
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          padding: 6px 10px;
+          height: 34px;
+          width: 100%;
+          font-size: 13px;
+          transition: all 0.15s ease;
+        }
+
+        .item-name-input:hover {
+          border-color: #94a3b8;
+        }
+
+        .item-name-input:focus {
+          border-color: #ea580c;
+          box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.15);
+          outline: none;
+        }
+
+        .item-sub-meta {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .raw-bill-badge {
+          font-size: 11px;
+          color: #64748b;
+          font-weight: 500;
+          max-width: 240px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .match-tag {
@@ -1657,10 +1766,33 @@ export default function PurchaseBillScanModal({
             cursor: pointer;
           }
 
-          .card-bill-name {
-            font-size: 14px;
+          .card-select-text {
+            font-size: 13px;
             font-weight: 700;
             color: #0f172a;
+          }
+
+          .card-field-full {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+
+          .card-field-full label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+          }
+
+          .card-field-full label .edit-hint {
+            font-size: 10px;
+            color: #ea580c;
+            text-transform: none;
+            font-weight: 600;
           }
 
           .card-top-actions {

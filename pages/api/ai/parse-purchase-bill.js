@@ -44,27 +44,35 @@ const BILL_SCHEMA = {
 
 function buildPrompt() {
   return `
-You are an expert procurement and accounting AI specializing in restaurant and cafe purchase bills, supplier invoices, delivery challans, and cash memos.
-The image provided may be a printed tax invoice, a cash receipt, or a HANDWRITTEN supplier chit/bill. Decipher handwriting, cursive writing, abbreviations, and regional terms accurately.
+You are an expert procurement and accounting AI specializing in restaurant, cafe, and grocery purchase bills, supplier invoices, delivery challans, and cash memos.
+The image provided may be a printed tax invoice, a cash receipt, or a HANDWRITTEN supplier chit/bill. Decipher handwriting, cursive writing, abbreviations, brand names, and regional terms accurately.
 
 Tasks:
-1. Extract the Supplier/Vendor Name (from header, logo, or stamp). If not visible, return "".
-2. Extract the Supplier Invoice / Bill Number / Reference. If not visible, return "".
-3. Extract the Invoice Date (format as YYYY-MM-DD or ISO string if readable). If missing, return "".
-4. Extract each line item purchased:
-   - "name": Clean, intelligible item name in English (e.g., "Cashew", "Arrowroot", "Basmati Rice", "Full Cream Milk", "Onions", "Boneless Chicken", "Sunflower Oil").
-   - "rawName": Text as printed or handwritten on the bill.
-   - "quantity": Number purchased (e.g. 5, 10.5, 25). If unreadable, default to 1.
-   - "unitOfMeasure": Standard unit (e.g. KG, G, LTR, ML, PCS, BOX, PKT, BAG, CAN, BOTTLE, TIN, UNIT). Infer from quantity or context if not explicitly written.
-   - "unitPrice": Cost price per unit (numeric). If only the line total is given, calculate unitPrice = lineTotal / quantity.
-   - "taxRate": Tax / GST rate percentage (e.g. 0, 5, 12, 18). Default 0 if absent.
+1. Extract the Supplier/Vendor Name (from header, logo, or stamp, e.g. "MEGHA AGENCY"). If not visible, return "".
+2. Extract the Supplier Invoice / Bill Number / Reference (e.g. "V-6537"). If not visible, return "".
+3. Extract the Invoice Date (format as YYYY-MM-DD or ISO string if readable, e.g. "2026-10-16"). If missing, return "".
+4. Extract EVERY SINGLE line item purchased across the ENTIRE invoice table:
+   - "name": The COMPLETE, FULL, and DESCRIPTIVE product name preserving all specifications: brand/sub-brand prefix (e.g., "Britannia", "B GD", "B50-50"), product title, flavor/variety, net weight/grammage (e.g., "200g", "150g", "300g"), and pack configuration / packet count (e.g., "x20p", "*16p", "60P", "72p").
+     CRITICAL: TRIM and EXCLUDE any printed retail price / MRP suffix (e.g. trim "Rs 45", "RS 40", "Rs 25", "Rs 10", "MRP 50", "(Rs 45)", etc.) from the product name, as that price belongs to the rate/price column.
+     Examples:
+       * "B GD Cashew 200gx20p Rs 45" -> "Britannia Good Day Cashew 200g x 20p" or "B GD Cashew 200gx20p" (TRIM the "Rs 45")
+       * "B Arrowroot 300g*16p Rs 50" -> "Britannia Arrowroot 300g x 16p" (TRIM the "Rs 50")
+       * "B50-50 Maska Chaska 120gx72p Rs 30" -> "Britannia 50-50 Maska Chaska 120g x 72p" (TRIM the "Rs 30")
+       * "BVita Marie Gold 300G ATC*20p RS45" -> "Britannia Vita Marie Gold 300g x 20p" (TRIM the "RS45")
+     CRITICAL: DO NOT truncate, abbreviate, or simplify product names to single generic words like "Cashew", "Arrowroot", or "Marie Gold". Different package sizes, weights, and pack counts are distinct inventory SKUs and MUST be preserved in full so each SKU is distinguishable.
+   - "rawName": Text exactly as printed or handwritten in the commodity/description column of the bill.
+   - "quantity": Number purchased. On wholesale invoices with both "Qty CB" (Carton Box) and "Qty NO" (Packets/Pieces), use "Qty NO" if it represents the billed individual units/packets, otherwise use the billed quantity. If unreadable, default to 1.
+   - "unitOfMeasure": Standard unit (e.g. PCS, PKT, BOX, KG, G, LTR, ML, CAN, BOTTLE, TIN, UNIT). For packaged biscuits/snacks, use "pcs" or "pkt".
+   - "unitPrice": Cost price / rate per unit. If only the line total is given, calculate unitPrice = lineTotal / quantity.
+   - "taxRate": Tax / GST rate percentage. For Indian GST invoices with CGST and SGST columns (e.g. CGST 2.5% + SGST 2.5%), add them together to get the total tax percentage (e.g. 5.0).
    - "taxAmount": Total tax on this line.
-   - "lineTotal": Total payable for this line item (quantity * unitPrice + tax - discount).
-   - "isIngredientLikely": Set to TRUE if this is a raw cooking material, food ingredient, vegetable, dairy, oil, meat, grain, spice, bakery raw material, or packaging item used to prepare dishes. Set to FALSE if it is a pre-packaged finished good for direct retail resale (e.g., canned soda, bottled beverage, prepackaged chips).
-5. Extract totals: "subtotal", "taxTotal", "grandTotal". If totals are unreadable, calculate from the sum of line items.
+   - "lineTotal": Total payable for this line item (Net Value / Total after discounts and taxes).
+   - "isIngredientLikely": Set to TRUE if this is a raw cooking material, food ingredient, vegetable, dairy, oil, meat, grain, spice, bakery raw material, or packaging item used to prepare cafe dishes. Set to FALSE if it is a pre-packaged finished good for direct retail resale (e.g., packaged biscuits, snacks, canned soda, bottled beverage, prepackaged chips).
+5. Extract totals: "subtotal" (Taxable Value sum), "taxTotal" (Total Tax sum), "grandTotal" (Invoice Net Total). If totals are unreadable, calculate from the sum of line items.
 
 Important Rules:
-- Do NOT skip items even if the handwriting is difficult. Use context clues to decipher them.
+- Extract EVERY line item in the table from top to bottom. Do NOT omit or stop after a few items. If the invoice has 23 items, extract all 23 items!
+- Strictly maintain 1:1 row alignment: the commodity name in row N must correspond to the quantity, rate, tax, and line total of row N. NEVER mix up rows.
 - Discard header rows, phone numbers, bank details, or footer notes from the items list.
 - For prices in Indian format (₹, Rs., /-, INR), strip currency symbols and return plain numbers.
 - Return only structured JSON matching the schema.
@@ -246,6 +254,13 @@ function cleanString(value, fallback = "") {
   return String(value ?? fallback).replace(/\s+/g, " ").trim();
 }
 
+function trimPriceSuffix(name) {
+  if (!name || typeof name !== "string") return "";
+  return name
+    .replace(/\s*[\(\[]?\s*(?:(?:RS|INR|MRP|₹)[\s\.]*\d+(?:\.\d+)?|\d+[\s\.]*(?:RS|INR|\/-))\s*[\)\]]?\s*$/i, "")
+    .trim();
+}
+
 function normalizeUom(uomStr) {
   const raw = cleanString(uomStr).toUpperCase().replace(/[^A-Z]/g, '');
   if (!raw) return 'units';
@@ -268,7 +283,7 @@ function normalizeBillResult(raw) {
 
   const normalizedItems = items
     .map((item) => {
-      const name = cleanString(item?.name || item?.rawName || '');
+      const name = trimPriceSuffix(cleanString(item?.name || item?.rawName || ''));
       const rawName = cleanString(item?.rawName || item?.name || '');
       const quantity = toQuantity(item?.quantity);
       let unitPrice = toPrice(item?.unitPrice);
