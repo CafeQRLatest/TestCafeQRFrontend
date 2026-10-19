@@ -158,21 +158,31 @@ export default function CloudPrintStation({ onJobsChanged }) {
       pulseCheck();
     };
 
+    let startupTimerId = null;
+    const scheduleStartWorker = () => {
+      if (startupTimerId) window.clearTimeout(startupTimerId);
+      startupTimerId = window.setTimeout(() => {
+        if (alive) {
+          startWorker();
+        }
+      }, 1500);
+    };
+
     // Tab Leader Election using Web Locks API
     if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.request) {
       navigator.locks.request('cafeqr_print_station_leader', async () => {
         if (!alive) return;
-        startWorker();
+        scheduleStartWorker();
         await new Promise((resolve) => {
           lockReleaseResolve = resolve;
         });
       }).catch(() => {
         if (alive && !isLeader) {
-          startWorker();
+          scheduleStartWorker();
         }
       });
     } else {
-      startWorker();
+      scheduleStartWorker();
     }
 
     // Instant Wakeup Handlers
@@ -201,6 +211,7 @@ export default function CloudPrintStation({ onJobsChanged }) {
 
     return () => {
       alive = false;
+      if (startupTimerId) window.clearTimeout(startupTimerId);
       if (lockReleaseResolve) lockReleaseResolve();
       if (pulseTimerId) window.clearTimeout(pulseTimerId);
       if (claimTimerId) window.clearTimeout(claimTimerId);
