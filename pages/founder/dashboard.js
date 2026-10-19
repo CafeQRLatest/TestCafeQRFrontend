@@ -1736,6 +1736,8 @@ function Dashboard({ founderKey }) {
                   customSessionId="cafeqr_official"
                   customTitle="Official Cafe QR App WhatsApp (System Authentication & OTP)"
                   customSubtitle="Linked official WhatsApp number used to dispatch OTP verification codes for Client signups, logins, and Customer table & delivery orders."
+                  isFounder={true}
+                  founderKey={founderKey}
                 />
               </div>
             )}
