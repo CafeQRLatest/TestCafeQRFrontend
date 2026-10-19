@@ -6,7 +6,7 @@ import {
   FaFolderOpen, FaBoxOpen, FaCheckCircle, FaExclamationCircle,
   FaSave, FaClipboardList, FaArrowLeft, FaCalendarAlt,
   FaHashtag, FaTruck, FaTimesCircle, FaFileAlt, FaUserTie,
-  FaShoppingCart, FaChevronRight
+  FaShoppingCart, FaChevronRight, FaCamera
 } from 'react-icons/fa';
 import api from '../../utils/api';
 import VariantSelector from '../VariantSelector';
@@ -38,7 +38,8 @@ export default function PurchaseForm({
   startFresh,
   styles,
   warehouseStock = {},
-  toast
+  toast,
+  onOpenScanModal
 }) {
   const searchRef = useRef(null);
   const searchInp = useRef(null);
@@ -248,18 +249,32 @@ export default function PurchaseForm({
         <div className={styles['po-main']}>
           {/* STEP 1: Supplier & Details */}
           <div className={`${styles['po-card']} ${step !== 1 ? styles['mobile-hidden'] : ''}`}>
-            {drafts.length > 0 && (
-              <div className={styles['card-header']} style={{ justifyContent: 'flex-end', marginBottom: '16px' }}>
-                <div className={styles['card-actions']}>
+            <div className={styles['card-header']} style={{ justifyContent: 'space-between', marginBottom: '16px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FaUserTie className={styles['card-icon']} style={{ color: '#ea580c' }} />
+                <span style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a' }}>Supplier & Warehouse</span>
+              </div>
+              <div className={styles['card-actions']} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {!isLocked && onOpenScanModal && (
+                  <button 
+                    type="button" 
+                    className="btn-scan-ai" 
+                    onClick={onOpenScanModal}
+                    title="Upload or take photo of supplier purchase bill"
+                  >
+                    <FaCamera /> <span>Scan Bill</span> <span className="ai-tag">AI</span>
+                  </button>
+                )}
+                {drafts.length > 0 && (
                   <button 
                     className={styles['btn-header-amber']} 
                     onClick={() => setShowDraftModal(true)}
                   >
                     <FaFolderOpen /> Drafts ({drafts.length})
                   </button>
-                </div>
+                )}
               </div>
-            )}
+            </div>
 
             <div className={styles['field-grid']}>
               {/* Vendor */}
@@ -361,7 +376,17 @@ export default function PurchaseForm({
                   <div className={styles['card-sub']}>Search and add products to this purchase order</div>
                 </div>
               </div>
-              <div className={styles['card-actions']}>
+              <div className={styles['card-actions']} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {!isLocked && onOpenScanModal && (
+                  <button 
+                    type="button" 
+                    className="btn-scan-ai" 
+                    onClick={onOpenScanModal}
+                    title="Upload or take photo of supplier purchase bill"
+                  >
+                    <FaCamera /> <span>Scan Bill</span> <span className="ai-tag">AI</span>
+                  </button>
+                )}
                 {po.lines.length > 0 && (
                   <span className={styles['items-badge']}>
                     {po.lines.length} item{po.lines.length > 1 ? 's' : ''}
@@ -1019,6 +1044,43 @@ export default function PurchaseForm({
           }}
         />
       )}
+
+      {/* ── Scoped Button Styles ────────────────────── */}
+      <style jsx>{`
+        .btn-scan-ai {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+          color: #ffffff;
+          border: none;
+          padding: 6px 14px;
+          border-radius: 20px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          box-shadow: 0 3px 10px rgba(234, 88, 12, 0.25);
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn-scan-ai:hover {
+          box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4);
+          transform: translateY(-1px);
+        }
+        .btn-scan-ai:active {
+          transform: scale(0.97);
+        }
+        .ai-tag {
+          background: white;
+          color: #ea580c;
+          font-size: 9px;
+          font-weight: 900;
+          padding: 1px 5px;
+          border-radius: 4px;
+          margin-left: 2px;
+          text-transform: uppercase;
+          line-height: 1;
+        }
+      `}</style>
     </div>
   );
 }

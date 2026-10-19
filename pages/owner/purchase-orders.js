@@ -11,11 +11,12 @@ import PurchaseTable from '../../components/purchasing/PurchaseTable';
 import PurchaseCards from '../../components/purchasing/PurchaseCards';
 import PurchaseForm from '../../components/purchasing/PurchaseForm';
 import PurchaseDocumentViewerPopup from '../../components/purchasing/PurchaseDocumentViewerPopup';
+import PurchaseBillScanModal from '../../components/purchasing/PurchaseBillScanModal';
 import { usePurchaseOrders } from '../../hooks/usePurchaseOrders';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import api from '../../utils/api';
 import { 
-  FaPlus, FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileInvoiceDollar, FaBan 
+  FaPlus, FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileInvoiceDollar, FaBan, FaCamera 
 } from 'react-icons/fa';
 import styles from '../../components/purchasing/Purchasing.module.css';
 
@@ -105,6 +106,30 @@ function PurchaseContent() {
       setView('history');
     }
   }, [router.query.view, setView]);
+
+  // ── AI Purchase Bill Scanner State ───────────────────────────────────────
+  const [showBillScanner, setShowBillScanner] = useState(false);
+
+  const handleApplyScannedBill = useCallback((scannedData) => {
+    setPo(prev => ({
+      ...prev,
+      vendorId: scannedData.vendorId || prev.vendorId,
+      warehouseId: scannedData.warehouseId || prev.warehouseId,
+      orderDate: scannedData.orderDate || prev.orderDate,
+      reference: scannedData.reference || prev.reference,
+      lines: scannedData.lines || [],
+      totalAmount: scannedData.subtotal || 0,
+      totalTaxAmount: scannedData.taxTotal || 0,
+      grandTotal: scannedData.grandTotal || 0,
+    }));
+    setStep(2);
+    setView('form');
+  }, [setPo, setStep, setView]);
+
+  const handleDirectCompleted = useCallback(() => {
+    fetchHistory();
+    setView('history');
+  }, [fetchHistory, setView]);
 
   // ── Multi-Select Bulk Actions State ───────────────────────────────────────
   const [selectedOrderIds, setSelectedOrderIds] = useState(new Set());
@@ -283,6 +308,49 @@ function PurchaseContent() {
         </Head>
         <DashboardLayout title="PO History" showBack={true} onBack={() => setView('form')}>
           <div className={`${styles['po-wrap']} po-wrap`}>
+            {/* Top Action Bar */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '12px', gap: '10px', flexWrap: 'wrap' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowBillScanner(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 3px 10px rgba(234, 88, 12, 0.25)',
+                }}
+              >
+                <FaCamera /> <span>Scan Bill</span> <span style={{ background: 'white', color: '#ea580c', fontSize: '9px', fontWeight: '900', padding: '1px 5px', borderRadius: '4px', marginLeft: '2px', textTransform: 'uppercase' }}>AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('form')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: '#0f172a',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <FaPlus /> <span>New PO</span>
+              </button>
+            </div>
+
             {/* Filter Card (FIRST) */}
             <div className={styles['hist-toolbar']} style={{ width: '100%', marginBottom: '12px' }}>
               <PurchaseFilters
@@ -635,6 +703,20 @@ function PurchaseContent() {
             </div>
           </div>
         )}
+
+        {/* AI Purchase Bill Scanner Modal */}
+        <PurchaseBillScanModal 
+          isOpen={showBillScanner}
+          onClose={() => setShowBillScanner(false)}
+          vendors={vendors}
+          warehouses={warehouses}
+          products={products}
+          warehouseStock={warehouseStock}
+          currencySymbol={currencySymbol}
+          onApplyToPo={handleApplyScannedBill}
+          onDirectCompleted={handleDirectCompleted}
+          toast={toast}
+        />
       </>
     );
   }
@@ -668,8 +750,23 @@ function PurchaseContent() {
           styles={styles}
           warehouseStock={warehouseStock}
           toast={toast}
+          onOpenScanModal={() => setShowBillScanner(true)}
         />
         {message && <Toast msg={message} type={msgType} onClose={() => setMessage(null)} />}
+
+        {/* AI Purchase Bill Scanner Modal */}
+        <PurchaseBillScanModal 
+          isOpen={showBillScanner}
+          onClose={() => setShowBillScanner(false)}
+          vendors={vendors}
+          warehouses={warehouses}
+          products={products}
+          warehouseStock={warehouseStock}
+          currencySymbol={currencySymbol}
+          onApplyToPo={handleApplyScannedBill}
+          onDirectCompleted={handleDirectCompleted}
+          toast={toast}
+        />
       </DashboardLayout>
     </>
   );
