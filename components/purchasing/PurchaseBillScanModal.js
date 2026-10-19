@@ -20,20 +20,40 @@ const trimPriceSuffix = (name) => {
 };
 
 const getAiParseEndpoint = () => {
-  const configuredEndpoint = cleanStr(process.env.NEXT_PUBLIC_AI_PARSE_URL);
-  if (configuredEndpoint) return configuredEndpoint;
+  // 1. Dedicated purchase bill endpoint env var if defined
+  const dedicatedEndpoint = cleanStr(process.env.NEXT_PUBLIC_AI_PURCHASE_BILL_URL);
+  if (dedicatedEndpoint) return dedicatedEndpoint;
 
-  const isNativeShell = typeof window !== 'undefined'
-    && window.Capacitor?.isNativePlatform?.();
-
-  if (isNativeShell) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (origin && !origin.includes('localhost') && !origin.startsWith('file:')) {
-      return `${origin}/api/ai/parse-purchase-bill`;
+  // 2. If generic AI parse url is configured, ensure it targets parse-purchase-bill, not parse-menu
+  const genericEndpoint = cleanStr(process.env.NEXT_PUBLIC_AI_PARSE_URL);
+  if (genericEndpoint) {
+    if (genericEndpoint.includes('/api/ai/parse-menu')) {
+      return genericEndpoint.replace('/api/ai/parse-menu', '/api/ai/parse-purchase-bill');
     }
-    return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-purchase-bill';
+    if (genericEndpoint.includes('/api/ai/parse-purchase-bill')) {
+      return genericEndpoint;
+    }
   }
 
+  // 3. Inspect runtime environment (Cloudflare Pages or native shell)
+  if (typeof window !== 'undefined') {
+    const origin = window.location?.origin || '';
+    const isNativeShell = window.Capacitor?.isNativePlatform?.();
+
+    // If running on Cloudflare Pages (*.pages.dev) where Next.js /api routes don't exist:
+    if (origin.includes('pages.dev')) {
+      return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-purchase-bill';
+    }
+
+    if (isNativeShell) {
+      if (origin && !origin.includes('localhost') && !origin.startsWith('file:') && !origin.includes('pages.dev')) {
+        return `${origin}/api/ai/parse-purchase-bill`;
+      }
+      return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-purchase-bill';
+    }
+  }
+
+  // 4. Default relative path for Next.js server (e.g. on Vercel or local dev)
   return '/api/ai/parse-purchase-bill';
 };
 

@@ -390,7 +390,12 @@ const ALLOWED_ORIGINS = new Set([
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || "";
-  if (ALLOWED_ORIGINS.has(origin)) {
+  if (
+    ALLOWED_ORIGINS.has(origin) ||
+    origin.endsWith(".pages.dev") ||
+    origin.endsWith(".cafeqr.in") ||
+    origin.includes("localhost:")
+  ) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
