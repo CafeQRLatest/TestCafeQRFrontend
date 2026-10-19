@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { 
-  FaCamera, FaUpload, FaCheck, FaTimes, FaWarehouse, FaUserTie, 
-  FaCalendarAlt, FaHashtag, FaRobot, FaMagic, FaExchangeAlt, 
+import {
+  FaCamera, FaUpload, FaCheck, FaTimes, FaWarehouse, FaUserTie,
+  FaCalendarAlt, FaHashtag, FaRobot, FaMagic, FaExchangeAlt,
   FaPlus, FaTrash, FaCheckCircle, FaExclamationTriangle, FaSearch,
   FaFileInvoiceDollar, FaLayerGroup, FaArrowRight, FaSpinner, FaEye
 } from 'react-icons/fa';
@@ -48,7 +48,7 @@ export default function PurchaseBillScanModal({
   onApplyToPo,
   onDirectCompleted,
   onProductsCreated,
-  toast = () => {},
+  toast = () => { },
 }) {
   const [step, setStep] = useState('upload'); // 'upload' | 'scanning' | 'review' | 'saving'
   const [file, setFile] = useState(null);
@@ -113,7 +113,7 @@ export default function PurchaseBillScanModal({
     ];
   }, [products]);
 
-  // Compress photo on device
+  // Compress photo  on device
   const compressImage = async (fileToCompress) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -645,20 +645,20 @@ export default function PurchaseBillScanModal({
           {step === 'upload' && (
             <div className="upload-view">
               {/* Native Inputs */}
-              <input 
-                ref={cameraInputRef} 
-                type="file" 
-                accept="image/*" 
-                capture="environment" 
-                style={{ display: 'none' }} 
-                onChange={handleSelectFile} 
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleSelectFile}
               />
-              <input 
-                ref={fileInputRef} 
-                type="file" 
-                accept="image/*,application/pdf" 
-                style={{ display: 'none' }} 
-                onChange={handleSelectFile} 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                style={{ display: 'none' }}
+                onChange={handleSelectFile}
               />
 
               {!preview ? (
@@ -668,7 +668,7 @@ export default function PurchaseBillScanModal({
                   </div>
                   <h3>Take a Photo or Upload Bill</h3>
                   <p>Supports printed invoices, wholesale cash receipts, and handwritten grocery/supply chits.</p>
-                  
+
                   <div className="upload-actions" onClick={e => e.stopPropagation()}>
                     <button className="action-btn camera" onClick={() => cameraInputRef.current?.click()}>
                       <FaCamera /> Take Photo
@@ -723,7 +723,7 @@ export default function PurchaseBillScanModal({
                 {/* Manual Vendor Selection */}
                 <div className="header-field">
                   <label><FaUserTie /> Supplier / Vendor <span className="req">*</span></label>
-                  <NiceSelect 
+                  <NiceSelect
                     options={vendorOptions}
                     value={selectedVendorId}
                     onChange={setSelectedVendorId}
@@ -737,7 +737,7 @@ export default function PurchaseBillScanModal({
                 {/* Manual Warehouse Selection */}
                 <div className="header-field">
                   <label><FaWarehouse /> Receiving Warehouse <span className="req">*</span></label>
-                  <NiceSelect 
+                  <NiceSelect
                     options={warehouseOptions}
                     value={selectedWarehouseId}
                     onChange={setSelectedWarehouseId}
@@ -748,21 +748,21 @@ export default function PurchaseBillScanModal({
                 {/* Supplier Invoice Number */}
                 <div className="header-field">
                   <label><FaHashtag /> Invoice / Bill Ref</label>
-                  <input 
-                    type="text" 
-                    className="text-input" 
-                    placeholder="e.g. INV-2024-001" 
-                    value={invoiceNumber} 
-                    onChange={e => setInvoiceNumber(e.target.value)} 
+                  <input
+                    type="text"
+                    className="text-input"
+                    placeholder="e.g. INV-2024-001"
+                    value={invoiceNumber}
+                    onChange={e => setInvoiceNumber(e.target.value)}
                   />
                 </div>
 
                 {/* Purchase Date */}
                 <div className="header-field">
                   <label><FaCalendarAlt /> Order Date & Time</label>
-                  <PremiumDateTimePicker 
-                    value={purchaseDate} 
-                    onChange={setPurchaseDate} 
+                  <PremiumDateTimePicker
+                    value={purchaseDate}
+                    onChange={setPurchaseDate}
                   />
                 </div>
               </div>
@@ -801,16 +801,16 @@ export default function PurchaseBillScanModal({
                       {billItems.map((item, idx) => (
                         <tr key={item.id} className={!item.selected ? 'row-deselected' : ''}>
                           <td>
-                            <input 
-                              type="checkbox" 
-                              checked={item.selected} 
+                            <input
+                              type="checkbox"
+                              checked={item.selected}
                               onChange={() => handleToggleLine(idx)}
                               className="checkbox-input"
                             />
                           </td>
                           <td>
                             <div className="item-name-cell">
-                              <input 
+                              <input
                                 type="text"
                                 className="cell-input item-name-input"
                                 value={item.productName ?? item.billName ?? ''}
@@ -832,7 +832,7 @@ export default function PurchaseBillScanModal({
                             </div>
                           </td>
                           <td>
-                            <NiceSelect 
+                            <NiceSelect
                               options={productOptions}
                               value={item.productId}
                               onChange={(val) => handleProductMappingChange(idx, val)}
@@ -841,7 +841,7 @@ export default function PurchaseBillScanModal({
                             />
                           </td>
                           <td>
-                            <button 
+                            <button
                               type="button"
                               className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}`}
                               onClick={() => handleToggleIngredient(idx)}
@@ -851,8 +851,8 @@ export default function PurchaseBillScanModal({
                             </button>
                           </td>
                           <td>
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               step="any"
                               className="cell-input qty"
                               value={item.quantity}
@@ -860,8 +860,8 @@ export default function PurchaseBillScanModal({
                             />
                           </td>
                           <td>
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               className="cell-input uom"
                               value={item.unitOfMeasure}
                               onChange={e => handleUpdateLineField(idx, 'unitOfMeasure', e.target.value)}
@@ -870,8 +870,8 @@ export default function PurchaseBillScanModal({
                           <td>
                             <div className="cost-input-wrapper">
                               <span className="sym">{currencySymbol}</span>
-                              <input 
-                                type="number" 
+                              <input
+                                type="number"
                                 step="any"
                                 className="cell-input cost"
                                 value={item.unitPrice}
@@ -880,8 +880,8 @@ export default function PurchaseBillScanModal({
                             </div>
                           </td>
                           <td>
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               step="any"
                               className="cell-input tax"
                               value={item.taxRate}
@@ -908,15 +908,15 @@ export default function PurchaseBillScanModal({
                     <div key={item.id} className={`mobile-item-card ${!item.selected ? 'card-deselected' : ''}`}>
                       <div className="card-top-row">
                         <label className="card-select-label">
-                          <input 
-                            type="checkbox" 
-                            checked={item.selected} 
-                            onChange={() => handleToggleLine(idx)} 
+                          <input
+                            type="checkbox"
+                            checked={item.selected}
+                            onChange={() => handleToggleLine(idx)}
                           />
                           <span className="card-select-text">Include in Order</span>
                         </label>
                         <div className="card-top-actions">
-                          <button 
+                          <button
                             type="button"
                             className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}`}
                             onClick={() => handleToggleIngredient(idx)}
@@ -933,8 +933,8 @@ export default function PurchaseBillScanModal({
                       {/* Mobile Editable Item Name */}
                       <div className="card-field-full">
                         <label>Product Name <span className="edit-hint">(Tap to edit)</span></label>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           className="cell-input item-name-input"
                           value={item.productName ?? item.billName ?? ''}
                           onChange={e => handleUpdateItemName(idx, e.target.value)}
@@ -954,7 +954,7 @@ export default function PurchaseBillScanModal({
 
                       <div className="card-mapping-field">
                         <label>Maps To:</label>
-                        <NiceSelect 
+                        <NiceSelect
                           options={productOptions}
                           value={item.productId}
                           onChange={(val) => handleProductMappingChange(idx, val)}
@@ -965,8 +965,8 @@ export default function PurchaseBillScanModal({
                       <div className="card-grid-inputs">
                         <div className="card-field">
                           <label>Qty</label>
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             step="any"
                             className="cell-input"
                             value={item.quantity}
@@ -975,8 +975,8 @@ export default function PurchaseBillScanModal({
                         </div>
                         <div className="card-field">
                           <label>Unit</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             className="cell-input"
                             value={item.unitOfMeasure}
                             onChange={e => handleUpdateLineField(idx, 'unitOfMeasure', e.target.value)}
@@ -986,8 +986,8 @@ export default function PurchaseBillScanModal({
                           <label>Cost Price</label>
                           <div className="cost-input-wrapper">
                             <span className="sym">{currencySymbol}</span>
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               step="any"
                               className="cell-input"
                               value={item.unitPrice}
@@ -1033,23 +1033,23 @@ export default function PurchaseBillScanModal({
         <div className="modal-footer">
           {step === 'review' && (
             <>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-footer-back"
                 onClick={() => setStep('upload')}
               >
                 Scan Another
               </button>
               <div className="footer-action-group">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-footer-apply"
                   onClick={handleApplyToPurchaseOrder}
                 >
                   <FaArrowRight /> Load into Purchase Order
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="btn-footer-direct"
                   onClick={handleDirectComplete}
                 >
