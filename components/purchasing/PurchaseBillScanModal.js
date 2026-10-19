@@ -40,6 +40,7 @@ export default function PurchaseBillScanModal({
   currencySymbol = '₹',
   onApplyToPo,
   onDirectCompleted,
+  onProductsCreated,
   toast = () => {},
 }) {
   const [step, setStep] = useState('upload'); // 'upload' | 'scanning' | 'review' | 'saving'
@@ -115,7 +116,7 @@ export default function PurchaseBillScanModal({
         img.src = e.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_DIM = 1200;
+          const MAX_DIM = 1600;
           let width = img.width;
           let height = img.height;
 
@@ -131,7 +132,7 @@ export default function PurchaseBillScanModal({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.75));
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
         };
         img.onerror = reject;
       };
@@ -208,19 +209,11 @@ export default function PurchaseBillScanModal({
       const base64Data = await compressImage(file);
       setScanProgressText('Deciphering invoice lines, rates & quantities with AI...');
 
-      // Prepare branch catalog summary for context-aware matching
-      const catalogSummary = (products || []).slice(0, 250).map(p => ({
-        id: p.id,
-        name: p.name,
-        isIngredient: p.isIngredient === true || String(p.productType).toUpperCase() === 'INGREDIENT'
-      }));
-
       const res = await fetch(getAiParseEndpoint(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image: base64Data,
-          catalog: catalogSummary
+          image: base64Data
         })
       });
 
@@ -388,46 +381,124 @@ export default function PurchaseBillScanModal({
     };
   }, [billItems]);
 
+  // Helper to ensure any __NEW__ items are auto-created in database and have real UUIDs
+  const ensureProductsExist = async (linesToEnsure) => {
+    const newLines = linesToEnsure.filter(l => l.productId === '__NEW__' || !l.productId);
+    if (newLines.length === 0) {
+      return linesToEnsure;
+    }
+
+    setScanProgressText(`Provisioning ${newLines.length} new items in catalog...`);
+
+    // Deduplicate by normalized name
+    const uniqueMap = new Map();
+    for (const line of newLines) {
+      const name = cleanStr(line.productName || line.billName || 'Purchase Item');
+      const key = normalizeKey(name);
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, {
+          name,
+          price: line.isIngredient ? 0 : (parseFloat(line.unitPrice) || 0),
+          costPrice: parseFloat(line.unitPrice) || 0,
+          isIngredient: Boolean(line.isIngredient),
+          productType: line.isIngredient ? 'INGREDIENT' : 'PRODUCT',
+          taxRate: parseFloat(line.taxRate) || 0,
+          isActive: true,
+          isAvailable: true,
+        });
+      }
+    }
+
+    const payload = Array.from(uniqueMap.values());
+    const res = await api.post('/api/v1/products/bulk', payload);
+    const createdList = res.data?.data || [];
+
+    const createdMap = new Map();
+    for (const prod of createdList) {
+      if (prod && prod.id) {
+        createdMap.set(normalizeKey(prod.name), prod);
+      }
+    }
+
+    if (onProductsCreated && createdList.length > 0) {
+      onProductsCreated(createdList);
+    }
+
+    return linesToEnsure.map(line => {
+      if (line.productId !== '__NEW__' && line.productId) {
+        return line;
+      }
+      const key = normalizeKey(line.productName || line.billName || '');
+      const matched = createdMap.get(key);
+      if (matched) {
+        return {
+          ...line,
+          productId: String(matched.id),
+          productName: matched.name,
+          confidence: 'NEW_CREATED',
+        };
+      }
+      return line;
+    });
+  };
+
   // Option A: Populate PO Form
-  const handleApplyToPurchaseOrder = () => {
+  const handleApplyToPurchaseOrder = async () => {
     const activeLines = billItems.filter(l => l.selected);
     if (activeLines.length === 0) {
       toast('Please select at least one item from the bill', 'error');
       return;
     }
 
-    const poLines = activeLines.map(l => {
-      const q = parseFloat(l.quantity) || 0;
-      const p = parseFloat(l.unitPrice) || 0;
-      const t = parseFloat(l.taxRate) || 0;
-      const sub = q * p;
-      const taxAmt = +(sub * t / 100).toFixed(2);
+    setStep('saving');
+    setError(null);
 
-      return {
-        productId: l.productId !== '__NEW__' ? l.productId : null,
-        productName: l.productName || l.billName,
-        isIngredient: l.isIngredient,
-        quantity: q,
-        unitPrice: p,
-        unitOfMeasure: l.unitOfMeasure,
-        taxRate: t,
-        taxAmount: taxAmt,
-        discountAmount: 0,
-        lineTotal: +(sub + taxAmt).toFixed(2),
-      };
-    });
+    try {
+      const resolvedLines = await ensureProductsExist(activeLines);
 
-    onApplyToPo({
-      vendorId: selectedVendorId,
-      warehouseId: selectedWarehouseId,
-      orderDate: purchaseDate,
-      reference: invoiceNumber,
-      lines: poLines,
-      ...calculatedTotals
-    });
+      // Verify all lines have a valid productId
+      const unresolved = resolvedLines.find(l => !l.productId || l.productId === '__NEW__');
+      if (unresolved) {
+        throw new Error(`Failed to provision product for "${unresolved.billName}". Please map it to an existing product.`);
+      }
 
-    toast(`✅ Loaded ${poLines.length} items from bill into Purchase Order!`, 'success');
-    onClose();
+      const poLines = resolvedLines.map(l => {
+        const q = parseFloat(l.quantity) || 0;
+        const p = parseFloat(l.unitPrice) || 0;
+        const t = parseFloat(l.taxRate) || 0;
+        const sub = q * p;
+        const taxAmt = +(sub * t / 100).toFixed(2);
+
+        return {
+          productId: l.productId,
+          productName: l.productName || l.billName,
+          isIngredient: l.isIngredient,
+          quantity: q,
+          unitPrice: p,
+          unitOfMeasure: l.unitOfMeasure,
+          taxRate: t,
+          taxAmount: taxAmt,
+          discountAmount: 0,
+          lineTotal: +(sub + taxAmt).toFixed(2),
+        };
+      });
+
+      onApplyToPo({
+        vendorId: selectedVendorId,
+        warehouseId: selectedWarehouseId,
+        orderDate: purchaseDate,
+        reference: invoiceNumber,
+        lines: poLines,
+        ...calculatedTotals
+      });
+
+      toast(`✅ Loaded ${poLines.length} items from bill into Purchase Order!`, 'success');
+      onClose();
+    } catch (err) {
+      console.error('Error preparing lines for Purchase Order:', err);
+      setError(err?.response?.data?.message || err.message || 'Failed to prepare items for Purchase Order.');
+      setStep('review');
+    }
   };
 
   // Option B: Direct Save & Complete via Existing PO API
@@ -446,17 +517,18 @@ export default function PurchaseBillScanModal({
       return;
     }
 
-    const hasNewItems = activeLines.some(l => l.productId === '__NEW__' || !l.productId);
-    if (hasNewItems) {
-      toast('Some items are marked as [New Item]. Please map them to existing products/ingredients or use "Load into Form" to create them.', 'error');
-      return;
-    }
-
     setStep('saving');
     setError(null);
 
     try {
-      const poLines = activeLines.map(l => {
+      const resolvedLines = await ensureProductsExist(activeLines);
+
+      const unresolved = resolvedLines.find(l => !l.productId || l.productId === '__NEW__');
+      if (unresolved) {
+        throw new Error(`Failed to provision product for "${unresolved.billName}". Please map it to an existing product.`);
+      }
+
+      const poLines = resolvedLines.map(l => {
         const q = parseFloat(l.quantity) || 0;
         const p = parseFloat(l.unitPrice) || 0;
         const t = parseFloat(l.taxRate) || 0;
@@ -465,7 +537,7 @@ export default function PurchaseBillScanModal({
 
         return {
           productId: l.productId,
-          productName: l.productName,
+          productName: l.productName || l.billName,
           quantity: q,
           unitPrice: p,
           unitOfMeasure: l.unitOfMeasure,
@@ -575,6 +647,10 @@ export default function PurchaseBillScanModal({
                 <div className="preview-container">
                   <div className="preview-media-box">
                     <img src={preview} alt="Selected Purchase Bill" />
+                  </div>
+                  <div style={{ margin: '12px 0 6px', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#475569', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FaMagic style={{ color: '#ea580c', flexShrink: 0 }} />
+                    <span><strong>Pro Tip:</strong> For fastest and most accurate scan, crop directly to the bill text and avoid dark background screens or window frames.</span>
                   </div>
                   <div className="preview-toolbar">
                     <button className="toolbar-btn secondary" onClick={() => { setFile(null); setPreview(null); }}>

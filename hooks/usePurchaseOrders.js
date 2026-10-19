@@ -284,6 +284,17 @@ export function usePurchaseOrders() {
     fetchDrafts();
   }, [fetchDrafts, toast, orgId, userRole]);
 
+  const reloadProducts = useCallback(async () => {
+    try {
+      const currentOrgId = orgId || (typeof window !== 'undefined' ? (require('js-cookie').default.get('orgId') || '') : '');
+      const params = currentOrgId ? { orgId: currentOrgId } : {};
+      const pR = await api.get('/api/v1/products', { params });
+      if (pR.data?.success) {
+        setProducts((pR.data.data || []).filter(p => p.isactive !== 'N' && p.isActive !== false && !p.hasIngredients));
+      }
+    } catch { /* silent */ }
+  }, [orgId]);
+
   useEffect(() => {
     if (view === 'history' && fromDate) fetchHistory();
   }, [view, fromDate, toDate, filterStatus, filterVendor, filterWarehouse, filterPayMethod, debouncedSearch, fetchHistory]);
@@ -362,16 +373,24 @@ export function usePurchaseOrders() {
     if (!po.lines || !po.lines.length) e.lines = 'Cart is empty. Please add at least one product.';
     const effectivePaymentMethod = paymentMethodOverride ?? po.paymentMethod;
     if (!effectivePaymentMethod) e.paymentMethod = 'Cannot complete purchase order: Payment type not set in payment type master for purchase';
+
+    const unmappedLines = (po.lines || []).filter(l => !l.productId);
+    if (unmappedLines.length > 0) {
+      e.lines = `${unmappedLines.length} item(s) have no valid product assigned. Please map them to existing products.`;
+    }
+
     setErrors(e);
 
     if (Object.keys(e).length > 0) {
       const missing = [];
       if (e.vendorId) missing.push('Vendor');
       if (e.warehouseId) missing.push('Warehouse');
-      if (e.lines) missing.push('Products in Cart');
+      if (e.lines) missing.push(unmappedLines.length > 0 ? `${unmappedLines.length} Unmapped Product(s)` : 'Products in Cart');
       if (e.paymentMethod) missing.push('Payment Method');
 
-      if (e.lines && missing.length === 1) {
+      if (unmappedLines.length > 0) {
+        toast(`Cannot proceed: ${unmappedLines.length} item(s) are missing a product link. Please map or re-add them.`, 'error');
+      } else if (e.lines && missing.length === 1) {
         toast('No products in cart! Please add at least one product before continuing.', 'error');
       } else {
         toast(`Please fill all mandatory fields: ${missing.join(', ')}`, 'error');
@@ -667,6 +686,7 @@ export function usePurchaseOrders() {
     stepOk,
     warehouseStock,
     fetchingStock,
+    reloadProducts,
     STATUS_CFG
   };
 }

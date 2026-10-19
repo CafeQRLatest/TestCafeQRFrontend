@@ -42,21 +42,17 @@ const BILL_SCHEMA = {
   required: ["items"],
 };
 
-function buildPrompt(catalogSummary = []) {
-  const catalogContext = catalogSummary.length > 0
-    ? `\nHere is the active branch catalog for matching:\n${catalogSummary.slice(0, 300).map(i => `- ${i.name} [Type: ${i.isIngredient ? 'INGREDIENT' : 'PRODUCT'}]`).join('\n')}\nIf any item on the bill matches or closely resembles an item in this catalog (even with different spellings, abbreviations like "Chkn" for "Chicken", or regional terms), set matchedCatalogItem to that exact catalog name.`
-    : '';
-
+function buildPrompt() {
   return `
 You are an expert procurement and accounting AI specializing in restaurant and cafe purchase bills, supplier invoices, delivery challans, and cash memos.
-The image provided may be a printed tax invoice, a cash receipt, or a HANDWRITTEN supplier chit/bill. Decipher messy handwriting, cursive writing, abbreviations, and regional terms accurately.
+The image provided may be a printed tax invoice, a cash receipt, or a HANDWRITTEN supplier chit/bill. Decipher handwriting, cursive writing, abbreviations, and regional terms accurately.
 
 Tasks:
 1. Extract the Supplier/Vendor Name (from header, logo, or stamp). If not visible, return "".
 2. Extract the Supplier Invoice / Bill Number / Reference. If not visible, return "".
 3. Extract the Invoice Date (format as YYYY-MM-DD or ISO string if readable). If missing, return "".
 4. Extract each line item purchased:
-   - "name": Clean, intelligible item name in English (e.g., "Basmati Rice", "Full Cream Milk", "Onions", "Boneless Chicken", "Sunflower Oil").
+   - "name": Clean, intelligible item name in English (e.g., "Cashew", "Arrowroot", "Basmati Rice", "Full Cream Milk", "Onions", "Boneless Chicken", "Sunflower Oil").
    - "rawName": Text as printed or handwritten on the bill.
    - "quantity": Number purchased (e.g. 5, 10.5, 25). If unreadable, default to 1.
    - "unitOfMeasure": Standard unit (e.g. KG, G, LTR, ML, PCS, BOX, PKT, BAG, CAN, BOTTLE, TIN, UNIT). Infer from quantity or context if not explicitly written.
@@ -66,7 +62,6 @@ Tasks:
    - "lineTotal": Total payable for this line item (quantity * unitPrice + tax - discount).
    - "isIngredientLikely": Set to TRUE if this is a raw cooking material, food ingredient, vegetable, dairy, oil, meat, grain, spice, bakery raw material, or packaging item used to prepare dishes. Set to FALSE if it is a pre-packaged finished good for direct retail resale (e.g., canned soda, bottled beverage, prepackaged chips).
 5. Extract totals: "subtotal", "taxTotal", "grandTotal". If totals are unreadable, calculate from the sum of line items.
-${catalogContext}
 
 Important Rules:
 - Do NOT skip items even if the handwriting is difficult. Use context clues to decipher them.
@@ -134,8 +129,10 @@ function getModels() {
   const envModel = (process.env.GEMINI_MODEL || process.env.AI_MODEL_NAME || "").trim();
   const defaults = [
     "gemini-2.5-flash-lite",
-    "gemini-2.5-flash",
     "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-2.5-flash",
     "gemini-2.0-flash-lite",
   ];
 
@@ -203,12 +200,13 @@ function responseMessageForError(error) {
 }
 
 function responseDetailsForError(error) {
+  const modelTag = error?.model ? ` (${error.model})` : "";
   if (isRetryableModelError(error)) {
-    return "The AI engine is temporarily experiencing high demand. Please retry in a few moments.";
+    return `The AI engine is temporarily experiencing high demand${modelTag}. Please retry in a few moments.`;
   }
 
   if (isQuotaError(error)) {
-    return "All configured Gemini API keys are currently rate-limited. Please try again after quota reset or configure GEMINI_API_KEYS.";
+    return `All configured Gemini API keys are currently rate-limited${modelTag}. Please try again after quota reset or configure GEMINI_API_KEYS.`;
   }
 
   return error?.details || error?.message || "Please try again with a clearer photo of the bill.";
@@ -423,8 +421,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const catalogSummary = Array.isArray(catalog) ? catalog : [];
-    const prompt = buildPrompt(catalogSummary);
+    const prompt = buildPrompt();
 
     const models = getModels();
     let lastError = null;
@@ -445,7 +442,7 @@ export default async function handler(req, res) {
             }
 
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 25_000);
+            const timeout = setTimeout(() => controller.abort(), 18_000);
 
             try {
               const parsed = await callGemini({
@@ -471,7 +468,23 @@ export default async function handler(req, res) {
                 data: normalized,
               });
             } catch (error) {
+              error.model = model;
               lastError = error;
+              console.warn(`Gemini bill parse failed. model=${model}, schema=${useSchema}, attempt=${attempt}, status=${error.status || "n/a"}:`, error.message);
+
+              if (error.name === "AbortError") {
+                if (attempt < 2) {
+                  await sleep(600);
+                  continue;
+                }
+                moveToNextModel = true;
+                break;
+              }
+
+              if (error.status === 404) {
+                moveToNextModel = true;
+                break;
+              }
 
               if (isAuthError(error)) {
                 coolDownKey(key, AUTH_COOLDOWN_MS, error.message);
@@ -486,11 +499,12 @@ export default async function handler(req, res) {
               }
 
               if (isRetryableModelError(error)) {
-                if (attempt === 1) {
-                  await sleep(1500);
-                  continue;
-                }
+                await sleep(500 * attempt);
                 moveToNextModel = true;
+                break;
+              }
+
+              if (error.status === 400 && useSchema) {
                 break;
               }
 

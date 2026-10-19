@@ -96,6 +96,7 @@ function PurchaseContent() {
     filteredProducts,
     stepOk,
     warehouseStock,
+    reloadProducts,
     STATUS_CFG,
   } = usePurchaseOrders();
 
@@ -765,6 +766,7 @@ function PurchaseContent() {
           currencySymbol={currencySymbol}
           onApplyToPo={handleApplyScannedBill}
           onDirectCompleted={handleDirectCompleted}
+          onProductsCreated={reloadProducts}
           toast={toast}
         />
       </DashboardLayout>
