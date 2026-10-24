@@ -8,7 +8,7 @@ import styled, { keyframes } from 'styled-components';
 import Cookies from 'js-cookie';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { getKitchenTerms } from '../../utils/businessTerms';
+import { isNonFoodType } from '../../utils/businessTerms';
 import { getQueuedOfflineOrders } from '../../utils/offlineStore';
 import { isKnownOffline } from '../../utils/networkState';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -352,7 +352,6 @@ export default function OrdersPage() {
   const { notify } = useNotification();
   const router = useRouter();
   const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule, posType } = useAuth();
-  const kitchenTerms = getKitchenTerms(posType);
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
   const historyAbortControllerRef = useRef(null);
@@ -1853,7 +1852,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <DashboardLayout title={`${kitchenTerms.area} Display System`}>
+    <DashboardLayout title={isNonFoodType(posType) ? 'Order Display System' : 'Kitchen Display System'}>
       <PageContainer>
         <OrdersWrap>
           <OrdersHeader>
