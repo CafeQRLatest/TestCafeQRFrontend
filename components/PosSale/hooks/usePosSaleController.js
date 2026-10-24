@@ -92,6 +92,8 @@ export default function usePosSaleController({
     variantLoading,
     variablePriceProduct,
     setVariablePriceProduct,
+    variablePriceQueue,
+    setVariablePriceQueue,
     productCartQuantity,
     baseProductCartLine,
     variantQuantityMap,
@@ -265,8 +267,9 @@ export default function usePosSaleController({
       setShowSettleDialog(false);
       setVariantProduct(null);
       setVariablePriceProduct(null);
+      setVariablePriceQueue([]);
     }
-  }, [currentTableKey, setCart, setOrderNote, clearCustomerSelection, handleClearAllDiscounts, setShowSettleDialog, setVariantProduct, setVariablePriceProduct]);
+  }, [currentTableKey, setCart, setOrderNote, clearCustomerSelection, handleClearAllDiscounts, setShowSettleDialog, setVariantProduct, setVariablePriceProduct, setVariablePriceQueue]);
 
   const handleZoom = useCallback((delta) => {
     setZoomLevel(prev => {
@@ -699,6 +702,7 @@ export default function usePosSaleController({
       variantProduct, setVariantProduct,
       variantLoading,
       variablePriceProduct, setVariablePriceProduct,
+      variablePriceQueue, setVariablePriceQueue,
       productCartQuantity,
       baseProductCartLine,
       variantQuantityMap,

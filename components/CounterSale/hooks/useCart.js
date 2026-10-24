@@ -9,6 +9,7 @@ export default function useCart({ notify }) {
   const [variantProduct, setVariantProduct] = useState(null);
   const [variantLoading, setVariantLoading] = useState(false);
   const [variablePriceProduct, setVariablePriceProduct] = useState(null);
+  const [variablePriceQueue, setVariablePriceQueue] = useState([]);
   
   // In-memory product details cache (persists for the POS session mount)
   const productDetailsCacheRef = useRef(new Map());
@@ -36,7 +37,7 @@ export default function useCart({ notify }) {
       entry.quantity += Number(item.qty || 0);
 
       if (item.variantId) {
-        entry.variantQuantities[String(item.variantId)] = Number(item.qty || 0);
+        entry.variantQuantities[String(item.variantId)] = (entry.variantQuantities[String(item.variantId)] || 0) + Number(item.qty || 0);
       } else {
         entry.baseLine = item;
       }
@@ -126,15 +127,17 @@ export default function useCart({ notify }) {
   }, [notify]);
 
   const addToCart = useCallback(async (product) => {
-    // Variable price products: open the price modal instead of adding directly
-    if (product.isVariablePrice) {
-      setVariablePriceProduct(product);
-      return;
-    }
+    // 1. Products with variants or add-ons: always open variant options first
     if (hasExtendedOptions(product)) {
       await openVariantSelector(product);
       return;
     }
+    // 2. Base product with variable price: open the price modal instead of adding directly
+    if (product.isVariablePrice) {
+      setVariablePriceProduct(product);
+      return;
+    }
+    // 3. Standard base product
     addPreparedToCart({ 
       ...product, 
       cartKey: `${product.id}:base`, 
@@ -145,27 +148,59 @@ export default function useCart({ notify }) {
   }, [openVariantSelector, addPreparedToCart]);
 
   const addVariablePriceToCart = useCallback((product, customPrice, qty = 1) => {
-    const uniqueKey = `${product.id}:vp_${Date.now()}`;
+    const isVariant = Boolean(product.variantId);
+    const baseKey = isVariant ? `${product.productId || product.id}:${product.variantId}` : `${product.productId || product.id}`;
+    const displayName = product.displayName || (product.variantName ? `${product.name} (${product.variantName})` : product.name);
+
     for (let i = 0; i < qty; i++) {
-      const entryKey = qty > 1 ? `${product.id}:vp_${Date.now()}_${i}` : uniqueKey;
+      const entryKey = `${baseKey}:vp_${Date.now()}_${i}_${Math.floor(Math.random() * 1000)}`;
       addPreparedToCart({
         ...product,
-        productId: product.id,
+        productId: product.productId || product.id,
+        variantId: product.variantId || null,
+        variantName: product.variantName || null,
         cartKey: entryKey,
-        displayName: product.name,
+        displayName,
+        name: displayName,
         price: customPrice,
         is_custom_price: true,
         qty: 1,
         description: null
       });
     }
-    setVariablePriceProduct(null);
-  }, [addPreparedToCart]);
+
+    if (variablePriceQueue.length > 0) {
+      const nextItem = variablePriceQueue[0];
+      setVariablePriceQueue(prev => prev.slice(1));
+      setVariablePriceProduct(nextItem);
+    } else {
+      setVariablePriceProduct(null);
+    }
+  }, [addPreparedToCart, variablePriceQueue]);
 
   const addVariantToCart = useCallback((variant, additionalItems = []) => {
     if (!variantProduct) return;
     if (variant) {
       const displayName = `${variantProduct.name} (${variant.label})`;
+
+      if (variantProduct.isVariablePrice) {
+        setVariantProduct(null);
+        setVariablePriceProduct({
+          ...variantProduct,
+          productId: variantProduct.id,
+          variantId: variant.id,
+          variantName: variant.label,
+          displayName,
+          name: displayName,
+          price: Number(variant.price || 0),
+          qty: 1
+        });
+        if (Array.isArray(additionalItems) && additionalItems.length > 0) {
+          additionalItems.forEach(item => addPreparedToCart(item));
+        }
+        return;
+      }
+
       addPreparedToCart({
         ...variantProduct,
         id: variantProduct.id,
@@ -190,6 +225,32 @@ export default function useCart({ notify }) {
   const syncVariantCart = useCallback((selectedVariants, additionalItems = []) => {
     if (!variantProduct) return;
     const productId = String(variantProduct.id);
+
+    if (variantProduct.isVariablePrice) {
+      const chosenVariants = (selectedVariants || []).filter(v => Number(v.quantity || 0) > 0);
+      setVariantProduct(null);
+
+      if (chosenVariants.length > 0) {
+        const queue = chosenVariants.map(variant => ({
+          ...variantProduct,
+          productId: variantProduct.id,
+          variantId: variant.id,
+          variantName: variant.label,
+          displayName: `${variantProduct.name} (${variant.label})`,
+          name: `${variantProduct.name} (${variant.label})`,
+          price: Number(variant.price || 0),
+          qty: Number(variant.quantity || 1)
+        }));
+
+        setVariablePriceProduct(queue[0]);
+        setVariablePriceQueue(queue.slice(1));
+      }
+
+      if (Array.isArray(additionalItems) && additionalItems.length > 0) {
+        additionalItems.forEach(item => addPreparedToCart(item));
+      }
+      return;
+    }
     
     const nextVariantLines = (selectedVariants || [])
       .map((variant) => {
@@ -224,7 +285,7 @@ export default function useCart({ notify }) {
     }
 
     setVariantProduct(null);
-  }, [variantProduct, addPreparedToCart]);
+  }, [variantProduct, cart, addPreparedToCart]);
 
   const updateQty = useCallback((key, delta) => {
     setCart(prev => prev.map(item => {
@@ -322,6 +383,8 @@ export default function useCart({ notify }) {
     variantLoading,
     variablePriceProduct,
     setVariablePriceProduct,
+    variablePriceQueue,
+    setVariablePriceQueue,
     productCartQuantity,
     baseProductCartLine,
     variantQuantityMap,

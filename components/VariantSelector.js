@@ -546,7 +546,14 @@ export default function VariantSelector({
                     >
                       <OptionMeta>
                         <strong>{stripSymbols(option.label)}</strong>
-                        <span>{currencySymbol}{Number(option.price || 0).toFixed(currencyDecimals)}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {currencySymbol}{Number(option.price || 0).toFixed(currencyDecimals)}
+                          {Boolean(product?.isVariablePrice || product?.is_variable_price || product?.variablePrice) && (
+                            <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', verticalAlign: 'middle' }}>
+                              OPEN
+                            </span>
+                          )}
+                        </span>
                         {stockMap && (
                           <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold', marginTop: '2px' }}>
                             Stock: {getOptionStock(stockMap, product, option)}

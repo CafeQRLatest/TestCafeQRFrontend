@@ -306,7 +306,10 @@ export default function PosSaleContainer(props) {
         {cart.variablePriceProduct && (
           <VariablePriceModal
             product={cart.variablePriceProduct}
-            onClose={() => cart.setVariablePriceProduct(null)}
+            onClose={() => {
+              cart.setVariablePriceProduct(null);
+              cart.setVariablePriceQueue?.([]);
+            }}
             onConfirm={cart.addVariablePriceToCart}
             sym={ui.sym}
             themeColor={ui.THEME.main}
@@ -337,6 +340,7 @@ export default function PosSaleContainer(props) {
             order={{
               lines: cart.items.map((item) => ({
                 productId: item.productId || item.id,
+                variantId: item.variantId || null,
                 productName: item.displayName || item.name || 'Item',
                 unitPrice: item.price,
                 quantity: item.qty,

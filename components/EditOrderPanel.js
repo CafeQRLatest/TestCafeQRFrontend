@@ -563,12 +563,6 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   };
 
   const addProduct = async (product) => {
-    // Variable price: show a prompt for custom price
-    const isVariable = Boolean(product.isVariablePrice || product.is_variable_price || product.variablePrice);
-    if (isVariable) {
-      setVariablePriceProduct(product);
-      return;
-    }
     const hasVariants = Boolean(product.hasVariants || product.has_variants || Number(product.variantCount || product.variant_count || 0) > 0);
     const hasUpsells = Boolean(product.hasUpsells || Number(product.upsellCount || 0) > 0);
     
@@ -576,15 +570,31 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
       await openVariantSelector(product);
       return;
     }
+
+    // Variable price: show a prompt for custom price
+    const isVariable = Boolean(product.isVariablePrice || product.is_variable_price || product.variablePrice);
+    if (isVariable) {
+      setVariablePriceProduct(product);
+      return;
+    }
+
     upsertLine(productToLine(product));
   };
 
   const handleConfirmVariablePrice = (product, customPrice, customQty = 1) => {
     if (!product || isNaN(customPrice) || customPrice < 0) return;
     const qty = Number(customQty) || 1;
-    const uniqueKey = `${product.id}:vp_${customPrice}_${Date.now()}`;
+    const isVariant = Boolean(product.variantId);
+    const baseKey = isVariant ? `${product.productId || product.id}:${product.variantId}` : `${product.productId || product.id}`;
+    const uniqueKey = `${baseKey}:vp_${customPrice}_${Date.now()}`;
+    const displayName = product.displayName || (product.variantName ? `${product.name} (${product.variantName})` : product.name);
     upsertLine({
       ...productToLine(product),
+      productId: product.productId || product.id,
+      variantId: product.variantId || null,
+      variantName: product.variantName || null,
+      productName: displayName,
+      displayName,
       cartKey: uniqueKey,
       quantity: qty,
       unitPrice: customPrice,
@@ -597,6 +607,42 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     
     if (variant) {
       const displayName = `${variantProduct.name} (${variant.label})`;
+      const isVariable = Boolean(variantProduct.isVariablePrice || variantProduct.is_variable_price || variantProduct.variablePrice);
+      if (isVariable) {
+        setVariantProduct(null);
+        setVariablePriceProduct({
+          ...variantProduct,
+          productId: variantProduct.id,
+          variantId: variant.id,
+          variantName: variant.label,
+          displayName,
+          name: displayName,
+          price: toNumber(variant.price),
+          qty: 1
+        });
+        if (additionalItems && additionalItems.length > 0) {
+          additionalItems.forEach(item => {
+            upsertLine({
+              cartKey: `${item.id}:base`,
+              productId: item.id,
+              productName: item.name,
+              displayName: item.name,
+              categoryName: item.categoryName || null,
+              isPackagedGood: Boolean(item.isPackagedGood),
+              quantity: item.qty || 1,
+              unitPrice: toNumber(item.price),
+              taxRate: toNullableNumber(item.taxRate ?? item.tax_rate),
+              unitOfMeasure: item.uomName || item.uom?.name || 'units',
+              discount_percent: 0,
+              discount_amount: 0,
+              discount: { type: 'amount', value: 0 },
+              originalQuantity: 0,
+            });
+          });
+        }
+        return;
+      }
+
       upsertLine({
         cartKey: `${variantProduct.id}:${variant.id}`,
         productId: variantProduct.id,
@@ -645,6 +691,49 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const syncLines = (selectedOptions, additionalItems = []) => {
     if (!variantProduct) return;
     const productId = String(variantProduct.id);
+
+    const isVariable = Boolean(variantProduct.isVariablePrice || variantProduct.is_variable_price || variantProduct.variablePrice);
+    if (isVariable) {
+      const chosenVariants = (selectedOptions || []).filter(v => Number(v.quantity || 0) > 0);
+      setVariantProduct(null);
+
+      if (chosenVariants.length > 0) {
+        const first = chosenVariants[0];
+        const displayName = `${variantProduct.name} (${first.label})`;
+        setVariablePriceProduct({
+          ...variantProduct,
+          productId: variantProduct.id,
+          variantId: first.id,
+          variantName: first.label,
+          displayName,
+          name: displayName,
+          price: toNumber(first.price),
+          qty: Number(first.quantity || 1)
+        });
+      }
+
+      if (additionalItems && additionalItems.length > 0) {
+        additionalItems.forEach(item => {
+          upsertLine({
+            cartKey: `${item.id}:base`,
+            productId: item.id,
+            productName: item.name,
+            displayName: item.name,
+            categoryName: item.categoryName || null,
+            isPackagedGood: Boolean(item.isPackagedGood),
+            quantity: item.qty || 1,
+            unitPrice: toNumber(item.price),
+            taxRate: toNullableNumber(item.taxRate ?? item.tax_rate),
+            unitOfMeasure: item.uomName || item.uom?.name || 'units',
+            discount_percent: 0,
+            discount_amount: 0,
+            discount: { type: 'amount', value: 0 },
+            originalQuantity: 0,
+          });
+        });
+      }
+      return;
+    }
     
     // Validate decrement and delete permissions for existing variant lines
     const existingProductLines = lines.filter(

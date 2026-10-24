@@ -189,7 +189,7 @@ export default function VariablePriceModal({
 }) {
   const basePrice = Number(product?.price || 0);
   const [price, setPrice] = useState(basePrice > 0 ? String(basePrice) : '');
-  const [qty, setQty] = useState('1');
+  const [qty, setQty] = useState(String(product?.qty || 1));
   const inputRef = useRef(null);
   const precision = uomPrecisionOf(product);
 
@@ -221,12 +221,14 @@ export default function VariablePriceModal({
     }
   };
 
+  const displayName = product?.displayName || (product?.variantName ? `${product?.name} (${product?.variantName})` : product?.name) || 'Product';
+
   return (
     <Overlay onClick={onClose}>
       <Modal onClick={e => e.stopPropagation()}>
         <Header>
           <ProductName>
-            {product?.name || 'Product'}
+            {displayName}
             <OpenBadge>OPEN</OpenBadge>
           </ProductName>
           {basePrice > 0 && (

@@ -101,4 +101,96 @@ describe('useCart Hook - Variant Selection & Caching', () => {
     expect(result.current.variantProduct.id).toBe('prod-B');
     expect(result.current.variantProduct.variants[0].name).toBe('Green');
   });
+
+  test('opens variant selector first when product has both variants and isVariablePrice: true', async () => {
+    fetchProductDetails.mockResolvedValue({
+      id: 'prod-chicken-65',
+      variants: [
+        { id: 'v-qtr', name: 'QUARTER', price: 150 },
+        { id: 'v-half', name: 'HALF', price: 250 }
+      ]
+    });
+
+    const { result } = renderHook(() => useCart({ notify: mockNotify }));
+
+    const product = {
+      id: 'prod-chicken-65',
+      name: 'Chicken 65',
+      hasVariants: true,
+      isVariablePrice: true,
+      price: 150
+    };
+
+    await act(async () => {
+      await result.current.addToCart(product);
+    });
+
+    // Should NOT open variablePriceProduct directly
+    expect(result.current.variablePriceProduct).toBeNull();
+    // Should load and open variantProduct
+    expect(result.current.variantProduct).not.toBeNull();
+    expect(result.current.variantProduct.id).toBe('prod-chicken-65');
+  });
+
+  test('addVariantToCart for variable price product opens VariablePriceModal with variant metadata', async () => {
+    fetchProductDetails.mockResolvedValue({
+      id: 'prod-chicken-65',
+      variants: [{ id: 'v-qtr', name: 'QUARTER', price: 150 }]
+    });
+
+    const { result } = renderHook(() => useCart({ notify: mockNotify }));
+
+    const product = {
+      id: 'prod-chicken-65',
+      name: 'Chicken 65',
+      hasVariants: true,
+      isVariablePrice: true,
+      price: 150
+    };
+
+    await act(async () => {
+      await result.current.addToCart(product);
+    });
+
+    // User selects the QUARTER variant
+    act(() => {
+      result.current.addVariantToCart({
+        id: 'v-qtr',
+        label: 'QUARTER',
+        price: 150
+      });
+    });
+
+    // Variant selector should close, variablePriceProduct should open for QUARTER
+    expect(result.current.variantProduct).toBeNull();
+    expect(result.current.variablePriceProduct).toEqual(expect.objectContaining({
+      productId: 'prod-chicken-65',
+      variantId: 'v-qtr',
+      variantName: 'QUARTER',
+      displayName: 'Chicken 65 (QUARTER)',
+      price: 150,
+      qty: 1
+    }));
+
+    // Cart should not have any items yet
+    expect(result.current.cart).toHaveLength(0);
+
+    // Cashier confirms custom price of 175
+    act(() => {
+      result.current.addVariablePriceToCart(result.current.variablePriceProduct, 175, 1);
+    });
+
+    // Item should now be in cart with custom price and variant metadata
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.cart[0]).toEqual(expect.objectContaining({
+      productId: 'prod-chicken-65',
+      variantId: 'v-qtr',
+      variantName: 'QUARTER',
+      displayName: 'Chicken 65 (QUARTER)',
+      price: 175,
+      is_custom_price: true,
+      qty: 1
+    }));
+  });
 });
+

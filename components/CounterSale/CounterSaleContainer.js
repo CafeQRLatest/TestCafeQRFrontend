@@ -154,7 +154,10 @@ export default function CounterSaleContainer(props) {
         {cart.variablePriceProduct && (
           <VariablePriceModal
             product={cart.variablePriceProduct}
-            onClose={() => cart.setVariablePriceProduct(null)}
+            onClose={() => {
+              cart.setVariablePriceProduct(null);
+              cart.setVariablePriceQueue?.([]);
+            }}
             onConfirm={cart.addVariablePriceToCart}
             sym={ui.sym}
             themeColor={ui.THEME.main}
