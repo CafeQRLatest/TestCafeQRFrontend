@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { hrService } from '../../services/hrService';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { FaTimes, FaSave, FaTrash, FaCheck, FaPlus } from 'react-icons/fa';
 
 export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) {
+  const currencySymbol = useCurrencySymbol();
   const [allComponents, setAllComponents] = useState([]);
   const [employeeComponents, setEmployeeComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -166,7 +168,7 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
                           <div className="rule-name">{item.componentName}</div>
                           <div className="rule-details">
                             {item.overrideAmount != null ? (
-                              <span className="override">Override: ${item.overrideAmount}</span>
+                              <span className="override">Override: {currencySymbol}{item.overrideAmount}</span>
                             ) : item.overridePercentage != null ? (
                               <span className="override">Override: {item.overridePercentage}%</span>
                             ) : (

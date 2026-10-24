@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { 
@@ -9,6 +10,7 @@ import {
 } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../CounterSale/domain/quantity';
 import { downloadPurchaseInvoicePdf } from '../../utils/purchaseInvoicePdf';
 
 /**
@@ -21,7 +23,7 @@ export default function PurchaseDocumentViewerPopup({
   vendors = [],
   warehouses = [],
   timezone,
-  currencySymbol = '₹',
+  currencySymbol = '',
   formatTzDate: formatTzDateProp,
   onClose,
   STATUS_CFG = {},
@@ -31,6 +33,7 @@ export default function PurchaseDocumentViewerPopup({
   onReceiveOrder,
   onCancelOrder,
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const auth = useAuth() || {};
   const activeTz = auth.timezone || timezone;
   const formatDateFn = formatTzDateProp || formatTzDateUtil;
@@ -126,7 +129,7 @@ export default function PurchaseDocumentViewerPopup({
   const roundOff = parseFloat(currentOrder?.roundOffAmount || 0);
   const isPaid = (currentOrder?.paymentStatus || currentOrder?.payment_status) === 'PAID' || activeDocType === 'payment';
 
-  const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
 
   const invoiceNumStr = linkedInvoice?.invoiceNo || currentOrder?.invoiceNo || (currentOrder?.orderNo ? 'BILL-' + currentOrder.orderNo.replace(/^PO-/, '') : '—');
 
@@ -205,8 +208,8 @@ export default function PurchaseDocumentViewerPopup({
             })));
           } else {
             const total = parseFloat(currentOrder?.grandTotal || currentOrder?.totalAmount || 0);
-            const half = Number((total / 2).toFixed(2));
-            const remaining = Number((total - half).toFixed(2));
+            const half = Number((total / 2).toFixed(currencyDecimals));
+            const remaining = Number((total - half).toFixed(currencyDecimals));
             setSplits([
               { paymentMethod: 'CASH', amount: half },
               { paymentMethod: 'ONLINE', amount: remaining }
@@ -221,8 +224,8 @@ export default function PurchaseDocumentViewerPopup({
             })));
           } else {
             const total = parseFloat(currentOrder?.grandTotal || currentOrder?.totalAmount || 0);
-            const half = Number((total / 2).toFixed(2));
-            const remaining = Number((total - half).toFixed(2));
+            const half = Number((total / 2).toFixed(currencyDecimals));
+            const remaining = Number((total - half).toFixed(currencyDecimals));
             setSplits([
               { paymentMethod: 'CASH', amount: half },
               { paymentMethod: 'ONLINE', amount: remaining }
@@ -551,7 +554,7 @@ export default function PurchaseDocumentViewerPopup({
                               {l.variantName ? ` (${l.variantName})` : ''}
                             </span>
                           </td>
-                          <td className="col-qty">{qty}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ''}</td>
+                          <td className="col-qty">{formatQty(qty, uomPrecisionOf(l))}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ''}</td>
                           <td className="col-price">{currencySymbol}{fmt(uPrice)}</td>
                           <td className="col-gst">
                             <div>{taxRate}%</div>
@@ -670,7 +673,7 @@ export default function PurchaseDocumentViewerPopup({
                               {rev.lines.map((l, i) => (
                                 <tr key={i}>
                                   <td>{l.productName || l.name || 'Item'}</td>
-                                  <td>{l.quantity}</td>
+                                  <td>{formatQty(l.quantity, uomPrecisionOf(l))}</td>
                                   <td>{currencySymbol}{fmt(l.unitPrice || l.price)}</td>
                                   <td>{currencySymbol}{fmt(l.lineTotal || (l.quantity * (l.unitPrice || l.price)))}</td>
                                 </tr>

@@ -1203,6 +1203,21 @@ namespace CafeQR.PrintService
             return n.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
+        // Quantity decimals come from the product's UOM precision (0-4) when the payload has it;
+        // otherwise keep the legacy fallback (whole numbers -> 0 decimals, else 2).
+        private static int QtyPrecision(int? uomPrecision, decimal qty)
+        {
+            if (uomPrecision.HasValue && uomPrecision.Value >= 0 && uomPrecision.Value <= 4) return uomPrecision.Value;
+            return qty % 1 == 0 ? 0 : 2;
+        }
+
+        private static int? PickUomPrecision(JObject raw)
+        {
+            var token = raw["uom_precision"] ?? raw["uomPrecision"];
+            if (token == null || token.Type == JTokenType.Null) return null;
+            return int.TryParse(token.ToString(), out int prec) ? prec : (int?)null;
+        }
+
         private struct BillCols
         {
             public int Name;
@@ -1404,7 +1419,7 @@ namespace CafeQR.PrintService
                     var nameLines = WrapText(displayName, itemNameW);
                     if (nameLines.Count == 0) continue;
 
-                    int precision = it.UomPrecision.HasValue ? it.UomPrecision.Value : (it.Quantity % 1 == 0 ? 0 : 2);
+                    int precision = QtyPrecision(it.UomPrecision, it.Quantity);
                     string qtyStr = RightAlign(it.Quantity.ToString("F" + precision, CultureInfo.InvariantCulture), itemQtyW);
 
                     Add(LeftAlign(nameLines[0], itemNameW) + " " + qtyStr, ThermalLineAlignment.Left, bodySize, true);
@@ -1431,7 +1446,7 @@ namespace CafeQR.PrintService
                     if (nameLines.Count == 0) continue;
 
                     decimal qtyNum = PickDecimal(ri, new[] { "quantity", "qty" }, 1);
-                    int precision = qtyNum % 1 == 0 ? 0 : 2;
+                    int precision = QtyPrecision(PickUomPrecision(ri), qtyNum);
                     string qtyStr = RightAlign(qtyNum.ToString("F" + precision, CultureInfo.InvariantCulture), qtyW);
 
                     Add(LeftAlign("- " + nameLines[0], nameW) + " " + qtyStr, ThermalLineAlignment.Left, normalSize, true);
@@ -1730,7 +1745,7 @@ namespace CafeQR.PrintService
                     var nameLines = WrapText(displayName, itemNameW);
                     if (nameLines.Count == 0) continue;
                     
-                    int p = it.UomPrecision.HasValue ? it.UomPrecision.Value : (it.Quantity % 1 == 0 ? 0 : 2);
+                    int p = QtyPrecision(it.UomPrecision, it.Quantity);
                     string qtyStr = RightAlign(it.Quantity.ToString("F" + p, CultureInfo.InvariantCulture), itemQtyW);
                     
                     lines.Add(WithMargins(LeftAlign(nameLines[0], itemNameW) + " " + qtyStr, layout));
@@ -1757,7 +1772,7 @@ namespace CafeQR.PrintService
                     if (nameLines.Count == 0) continue;
 
                     decimal qtyNum = PickDecimal(ri, new[] { "quantity", "qty" }, 1);
-                    int p = qtyNum % 1 == 0 ? 0 : 2;
+                    int p = QtyPrecision(PickUomPrecision(ri), qtyNum);
                     string qtyStr = RightAlign(qtyNum.ToString("F" + p, CultureInfo.InvariantCulture), qtyW);
 
                     lines.Add(WithMargins(LeftAlign("- " + nameLines[0], nameW) + " " + qtyStr, layout));
@@ -1966,7 +1981,7 @@ namespace CafeQR.PrintService
                 var nameLines = WrapText(displayName, nameW);
                 if (nameLines.Count == 0) continue;
 
-                string qtyStr = it.Quantity % 1 == 0 ? ((int)it.Quantity).ToString() : it.Quantity.ToString("0.00", CultureInfo.InvariantCulture);
+                string qtyStr = it.Quantity.ToString("F" + QtyPrecision(it.UomPrecision, it.Quantity), CultureInfo.InvariantCulture);
                 string totalStr = lineTotalNum.ToString("0.00", CultureInfo.InvariantCulture);
                 
                 string row = LeftAlign(nameLines[0], nameW) + " " + RightAlignEnd(qtyStr, qtyW) + " " + RightAlignEnd(FmtRate(rateNum), rateW);
@@ -2303,10 +2318,16 @@ namespace CafeQR.PrintService
                 var lines = order["lines"] as JArray ?? order["orderLines"] as JArray ?? new JArray();
                 foreach (var line in lines.OfType<JObject>())
                 {
+                    var lineUomPrecision = PickUomPrecision(line);
+                    var lineQty = Value(line, "quantity", "qty");
+                    if (lineUomPrecision.HasValue && decimal.TryParse(lineQty, NumberStyles.Float, CultureInfo.InvariantCulture, out var lineQtyNum))
+                    {
+                        lineQty = lineQtyNum.ToString("F" + QtyPrecision(lineUomPrecision, lineQtyNum), CultureInfo.InvariantCulture);
+                    }
                     Lines.Add(new InvoiceLine
                     {
                         Name = Value(line, "productName", "product_name", "name"),
-                        Quantity = Value(line, "quantity", "qty"),
+                        Quantity = lineQty,
                         Rate = Value(line, "unitPrice", "unit_price", "price"),
                         Tax = Value(line, "taxAmount", "tax_amount"),
                         Amount = Value(line, "lineTotal", "line_total", "amount"),

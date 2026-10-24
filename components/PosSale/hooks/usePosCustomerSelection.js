@@ -16,7 +16,7 @@ export default function usePosCustomerSelection({
   creditCustomers = [],
   customersEnabled = true,
   config,
-  sym = '₹'
+  sym = ''
 }) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');

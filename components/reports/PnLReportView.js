@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import api from '../../utils/api';
 import { useNotification } from '../../context/NotificationContext';
 import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
@@ -17,8 +18,9 @@ export default function PnLReportView({
   config,
   isSuperAdmin,
   timezone,
-  SYM = '₹'
+  SYM = ''
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const [pnl, setPnl] = useState(null);
   const [reconciliation, setReconciliation] = useState(null);
@@ -26,7 +28,7 @@ export default function PnLReportView({
   const [loadError, setLoadError] = useState(null);
   const [activeTooltip, setActiveTooltip] = useState(null);
 
-  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
   const toInstant = (dtLocal, isEnd = false) => {

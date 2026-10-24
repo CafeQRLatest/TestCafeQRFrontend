@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { FaChevronRight, FaCheckCircle, FaBan, FaCheck } from 'react-icons/fa';
 
 export default function PurchaseCards({
@@ -19,6 +20,7 @@ export default function PurchaseCards({
   selectedOrderIds = new Set(),
   onToggleSelect
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   return (
     <div className={styles['hist-mobile-list']}>
       {history.map(o => {
@@ -96,7 +98,7 @@ export default function PurchaseCards({
             <div className={styles['hc-bottom']}>
               <strong className={styles['hc-total']}>
                 {currencySymbol}
-                {parseFloat(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {parseFloat(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
               </strong>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                 {/* DRAFT: Edit + Void only */}

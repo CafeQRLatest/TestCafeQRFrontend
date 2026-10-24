@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
 import { useAuth } from '../context/AuthContext';
+import { formatQty, uomPrecisionOf } from './CounterSale/domain/quantity';
 import { FaBook, FaPlus, FaTimes, FaWallet, FaMoneyBillWave, FaQrcode, FaCreditCard, FaLayerGroup, FaStore, FaCrown, FaStar, FaCoins, FaSyncAlt, FaTag, FaUser, FaPhoneAlt, FaSearch } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
@@ -61,6 +63,7 @@ export default function PaymentDialog({
   allowCustomerSelection = false,
   orgId = null
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const { orgId: authOrgId } = useAuth();
   const effectiveOrgId = useMemo(() => {
     return (
@@ -76,7 +79,7 @@ export default function PaymentDialog({
   }, [orgId, order, config, authOrgId]);
 
   const dp = Number(config?.currencyDecimalPlaces ?? 2);
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
   const money = useCallback((value) => `${sym}${Number(value || 0).toFixed(dp)}`, [dp, sym]);
 
   const createInitialSplits = () => {
@@ -1674,7 +1677,9 @@ export default function PaymentDialog({
                           payeeName: effectiveUpiPayeeName,
                           amount: payable,
                           billRef: order?.order_no || order?.orderNo || (order?.id ? String(order.id).slice(0, 8).toUpperCase() : ''),
-                          note: `POS Order ${order?.order_no || order?.orderNo || ''}`.trim()
+                          note: `POS Order ${order?.order_no || order?.orderNo || ''}`.trim(),
+                          currencyCode: config?.currencyCode,
+                          currencyDecimals
                         })}
                         size={140}
                         margin={2}
@@ -1989,7 +1994,7 @@ export default function PaymentDialog({
                           <DiscountRow key={key}>
                             <DiscountRowInfo>
                               <span>{item.displayName || item.name}</span>
-                              <small>{sym}{Number(item.price || 0).toFixed(dp)} x {item.qty}</small>
+                              <small>{sym}{Number(item.price || 0).toFixed(dp)} x {formatQty(item.qty, uomPrecisionOf(item))}</small>
                             </DiscountRowInfo>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <DiscountInputWrapper $themeColor={theme.primaryDark}>

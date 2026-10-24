@@ -907,7 +907,7 @@
   font-size: 8px;
 }
 .qty-ctrl.sm .qty-inp {
-  width: 30px;
+  width: 72px;
   font-size: 12px;
 }
 .qty-btn {
@@ -934,7 +934,7 @@
   cursor: not-allowed;
 }
 .qty-inp {
-  width: 36px;
+  width: 72px;
   text-align: center;
   background: transparent;
   border: none;

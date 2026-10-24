@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
@@ -23,8 +24,9 @@ export default function ExpenseReportView({
   selectedOrgId,
   isSuperAdmin,
   timezone,
-  SYM = '₹'
+  SYM = ''
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { notify } = useNotification();
   const [subTab, setSubTab] = useState('exp_summary');
@@ -36,7 +38,7 @@ export default function ExpenseReportView({
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
 

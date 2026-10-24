@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import CafeQRPopup from '../CafeQRPopup';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
@@ -64,6 +65,7 @@ export default function ExpenseForm({
   onClose,
   onOpenCatMgr
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const { timezone, orgId, orgName } = useAuth();
   const currencySymbol = useCurrencySymbol();
   const { notify } = useNotification();
@@ -191,14 +193,14 @@ export default function ExpenseForm({
     setCashAmount(val);
     const cash = parseFloat(val) || 0;
     const online = parseFloat(onlineAmount) || 0;
-    setFAmount(String(Number((cash + online).toFixed(2))));
+    setFAmount(String(Number((cash + online).toFixed(currencyDecimals))));
   }, [onlineAmount]);
 
   const handleOnlineChange = useCallback((val) => {
     setOnlineAmount(val);
     const cash = parseFloat(cashAmount) || 0;
     const online = parseFloat(val) || 0;
-    setFAmount(String(Number((cash + online).toFixed(2))));
+    setFAmount(String(Number((cash + online).toFixed(currencyDecimals))));
   }, [cashAmount]);
 
   const selectedBranchName = useMemo(() => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
@@ -26,11 +27,12 @@ export default function PurchaseReportView({
   config,
   isSuperAdmin,
   timezone,
-  SYM = '₹',
+  SYM = '',
   setViewingDoc: propSetViewingDoc,
   onViewDoc,
   viewDocument
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { notify } = useNotification();
   const setViewingDoc = (doc) => {
@@ -58,7 +60,7 @@ export default function PurchaseReportView({
   const [purchSearchTerm, setPurchSearchTerm] = useState('');
   const [purchPage, setPurchPage] = useState(0);
 
-  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
 

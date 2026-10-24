@@ -259,9 +259,9 @@ export const LineInfo = styled.div`
 export const QtyGroup = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 1px;
-  border-radius: 6px;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
 
@@ -275,9 +275,9 @@ export const QtyInput = styled.input`
   border: 0;
   background: transparent;
   color: #0f172a;
-  font-size: 11px;
-  font-weight: 500;
-  width: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  width: 44px;
   text-align: center;
   padding: 0;
   margin: 0;
@@ -292,10 +292,10 @@ export const QtyInput = styled.input`
 `;
 
 export const IconButton = styled.button`
-  width: 20px;
-  height: 20px;
+  width: 34px;
+  height: 34px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 7px;
   background: ${props => props.$danger ? '#fee2e2' : 'white'};
   color: ${props => props.$danger ? '#dc2626' : '#475569'};
   border: ${props => props.$danger ? '0' : '1px solid #e2e8f0'};
@@ -303,7 +303,7 @@ export const IconButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 9px;
+  font-size: 13px;
   transition: all 0.2s;
 
   &:hover:not(:disabled) {

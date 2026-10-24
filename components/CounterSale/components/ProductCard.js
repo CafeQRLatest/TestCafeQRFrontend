@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FaPlus, FaMinus, FaImage, FaFire, FaLeaf, FaChevronRight } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
 import { isNonVegProduct } from '../domain/cart';
+import { formatQty, parseQty, uomPrecisionOf } from '../domain/quantity';
 
 const ProductCard = React.memo(function ProductCard({ 
   product, 
   quantity, 
+  cartLineCount = 0,
   hasOptions, 
   sym, 
   currencyDecimalPlaces, 
@@ -18,13 +20,16 @@ const ProductCard = React.memo(function ProductCard({
   menuImagesEnabled = true
 }) {
   const nonVeg = isNonVegProduct(product);
+  const precision = uomPrecisionOf(product);
+  const unitLabel = product.uomShortName || product.uomName || null;
   const [showDesc, setShowDesc] = useState(false);
-  const [localQty, setLocalQty] = useState(quantity);
+  const [localQty, setLocalQty] = useState(formatQty(quantity, precision));
+  const editingQtyRef = useRef(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    setLocalQty(quantity);
-  }, [quantity]);
+    if (!editingQtyRef.current) setLocalQty(formatQty(quantity, precision));
+  }, [quantity, precision]);
 
   useEffect(() => {
     return () => {
@@ -107,10 +112,11 @@ const ProductCard = React.memo(function ProductCard({
           <S.CsProdPrice $themeColor={theme.main}>
             {product.isVariablePrice && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px', verticalAlign: 'middle' }}>OPEN</span>}
             {sym}{Number(product.price || 0).toFixed(currencyDecimalPlaces)}{hasOptions ? '+' : ''}
+            {unitLabel && <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', marginLeft: '3px' }}>/ {unitLabel}</span>}
           </S.CsProdPrice>
           {hasOptions ? (
             <S.CsAddBtn $themeColor={theme.main} $outline>
-              {quantity > 0 && <S.CsVariantCount $themeColor={theme.main}>{quantity}</S.CsVariantCount>}
+              {cartLineCount > 0 && <S.CsVariantCount $themeColor={theme.main} title={`${cartLineCount} ${cartLineCount === 1 ? 'line' : 'lines'} in cart`} style={{ width: 10, height: 10, minWidth: 10, padding: 0, background: '#16a34a', border: 'none' }} />}
               Options <FaChevronRight style={{ fontSize: '9px' }} />
             </S.CsAddBtn>
           ) : quantity > 0 ? (
@@ -126,20 +132,30 @@ const ProductCard = React.memo(function ProductCard({
               >
                 <FaMinus />
               </S.CsProductQtyBtn>
-              <S.CsProductQtyValue 
-                type="number"
+              <S.CsProductQtyValue
+                type="text"
+                inputMode={precision > 0 ? 'decimal' : 'numeric'}
+                style={{ width: `${Math.max(3, String(localQty).length + 1)}ch`, flex: '0 0 auto' }}
                 value={localQty === 0 && quantity > 0 ? '' : localQty}
+                onFocus={(e) => { editingQtyRef.current = true; e.target.select(); }}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setLocalQty(val === '' ? '' : parseInt(val, 10));
-                  if (val !== '' && !isNaN(parseInt(val, 10))) {
-                    onSetQty(product, parseInt(val, 10));
+                  if (!/^\d*[.,]?\d*$/.test(val)) return;
+                  if ((val.split(/[.,]/)[1] || '').length > precision) return;
+                  setLocalQty(val);
+                  const next = parseQty(val, precision);
+                  if (next > 0) {
+                    onSetQty(product, next);
                   }
                 }}
                 onBlur={() => {
-                  if (localQty === '' || isNaN(parseInt(localQty, 10)) || parseInt(localQty, 10) <= 0) {
+                  editingQtyRef.current = false;
+                  const next = parseQty(localQty, precision);
+                  if (next <= 0) {
                     onSetQty(product, 0);
                     setLocalQty(0);
+                  } else {
+                    setLocalQty(formatQty(next, precision));
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { FaPlus, FaMinus, FaChevronRight } from 'react-icons/fa';
 import { isNonVegProduct } from '../../CounterSale/domain/cart';
+import { formatQty, parseQty, uomPrecisionOf } from '../../CounterSale/domain/quantity';
 
 function formatPrice(val, decimals = 2) {
   const num = Number(val || 0);
@@ -168,11 +169,12 @@ const CartCountCircle = styled.div`
   position: absolute;
   top: -8px;
   left: -8px;
-  width: 22px;
-  height: 22px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
   border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid ${props => props.$themeColor || '#f97316'};
+  background: #16a34a;
+  border: 2px solid #ffffff;
   color: ${props => props.$themeDark || '#ea580c'};
   font-size: 11px;
   font-weight: 800;
@@ -187,8 +189,8 @@ const CartCountCircle = styled.div`
   @media (max-width: 640px) {
     top: -5px;
     left: -5px;
-    width: 18px;
-    height: 18px;
+    width: 10px;
+    height: 10px;
     font-size: 9.5px;
     border-width: 1.5px;
   }
@@ -434,7 +436,8 @@ const StepperBtn = styled.button`
 `;
 
 const StepperInput = styled.input`
-  flex: 1;
+  flex: 0 0 auto;
+  width: ${props => props.$len || 3}ch;
   min-width: 0;
   border: none;
   background: transparent;
@@ -459,8 +462,9 @@ const StepperInput = styled.input`
 const PosProductCard = React.memo(function PosProductCard({
   product,
   quantity,
+  cartLineCount = 0,
   hasOptions,
-  sym = '₹',
+  sym = '',
   currencyDecimalPlaces = 2,
   theme,
   onAdd,
@@ -470,7 +474,10 @@ const PosProductCard = React.memo(function PosProductCard({
   menuImagesEnabled = true
 }) {
   const nonVeg = isNonVegProduct(product);
-  const [localQty, setLocalQty] = useState(quantity);
+  const precision = uomPrecisionOf(product);
+  const unitLabel = product.uomShortName || product.uomName || null;
+  const [localQty, setLocalQty] = useState(formatQty(quantity, precision));
+  const editingQtyRef = useRef(false);
   const hasImage = Boolean(menuImagesEnabled && product.imageUrl);
 
   const themeColor = theme?.main || '#f97316';
@@ -484,8 +491,11 @@ const PosProductCard = React.memo(function PosProductCard({
   }, [product.imageUrl]);
 
   useEffect(() => {
-    setLocalQty(quantity);
-  }, [quantity]);
+    // Keep the user's text while they are typing; reformat only when not editing.
+    if (!editingQtyRef.current) {
+      setLocalQty(formatQty(quantity, precision));
+    }
+  }, [quantity, precision]);
 
   const handleCardClick = (e) => {
     if (e.target.closest('input') || e.target.closest('button')) return;
@@ -511,13 +521,12 @@ const PosProductCard = React.memo(function PosProductCard({
       <VegIndicator $nonVeg={nonVeg} title={nonVeg ? 'Non-Veg' : 'Veg'} />
 
       {/* Cart quantity circle badge (number only) */}
-      {quantity > 0 && (
+      {cartLineCount > 0 && (
         <CartCountCircle
           $themeColor={themeColor}
           $themeDark={themeDark}
-          title={`${quantity} in cart`}
+          title={`${cartLineCount} ${cartLineCount === 1 ? 'line' : 'lines'} in cart`}
         >
-          {quantity}
         </CartCountCircle>
       )}
 
@@ -555,6 +564,7 @@ const PosProductCard = React.memo(function PosProductCard({
             {product.isVariablePrice && <span className="open-badge">OPEN</span>}
             <span className="price-val">
               {sym}{formatPrice(product.price, currencyDecimalPlaces)}{hasOptions ? '+' : ''}
+              {unitLabel && <span className="unit-val"> / {unitLabel}</span>}
             </span>
           </PriceTag>
         </PriceRow>
@@ -591,20 +601,33 @@ const PosProductCard = React.memo(function PosProductCard({
                 <FaMinus />
               </StepperBtn>
               <StepperInput
-                type="number"
+                type="text"
+                inputMode={precision > 0 ? 'decimal' : 'numeric'}
                 $themeDark={themeDark}
+                $len={Math.max(3, String(localQty).length + 1)}
                 value={localQty === 0 && quantity > 0 ? '' : localQty}
+                onFocus={(e) => { editingQtyRef.current = true; e.target.select(); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setLocalQty(val === '' ? '' : parseInt(val, 10));
-                  if (val !== '' && !isNaN(parseInt(val, 10))) {
-                    onSetQty(product, parseInt(val, 10));
+                  // Digits with at most one decimal separator and no more decimals than the UOM allows.
+                  if (!/^\d*[.,]?\d*$/.test(val)) return;
+                  const decimals = (val.split(/[.,]/)[1] || '').length;
+                  if (decimals > precision) return;
+                  setLocalQty(val);
+                  const next = parseQty(val, precision);
+                  if (next > 0) {
+                    onSetQty(product, next);
                   }
                 }}
                 onBlur={() => {
-                  if (localQty === '' || isNaN(parseInt(localQty, 10)) || parseInt(localQty, 10) <= 0) {
+                  editingQtyRef.current = false;
+                  const next = parseQty(localQty, precision);
+                  if (next <= 0) {
                     onSetQty(product, 0);
                     setLocalQty(0);
+                  } else {
+                    setLocalQty(formatQty(next, precision));
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}

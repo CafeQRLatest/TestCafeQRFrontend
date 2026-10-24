@@ -361,7 +361,7 @@ export default function Reports() {
             order={viewingDoc.order}
             docType={viewingDoc.type || 'order'}
             timezone={timezone || config?.timezone || 'Asia/Kolkata'}
-            currencySymbol={config?.currencySymbol || '₹'}
+            currencySymbol={config?.currencySymbol || ''}
             formatTzDate={formatTzDate}
             onClose={() => setViewingDoc(null)}
             onViewLinked={(order, type) => setViewingDoc({ order, type })}

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate, getLocalISOString, getBusinessNow } from '../../utils/timezoneUtils';
 import { FaTrash, FaPlus, FaEdit, FaTimes, FaRecycle, FaChartPie, FaList, FaCog, FaCheck, FaLeaf, FaChevronDown } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 
 const REASONS = ['Spillage','Burnt / Overcooked','Expired / Spoiled','Customer Return','Over-preparation','Theft / Loss','Other'];
 const REASON_META = {
@@ -17,7 +19,6 @@ const REASON_META = {
   'Other':             { emoji: '📋', color: '#64748b' },
 };
 const UOM = ['units','kg','g','litre','ml','plate','piece','dozen','batch'];
-const fmt = n => Number(n||0).toFixed(2);
 
 /* ── Custom Dropdown ─────────────────────────────────────────── */
 function Dropdown({ value, onChange, options, placeholder = 'Select…', renderOption, renderValue }) {
@@ -58,6 +59,8 @@ function Dropdown({ value, onChange, options, placeholder = 'Select…', renderO
 }
 /* ── Main Page ───────────────────────────────────────────────── */
 export default function WasteManagement() {
+  const currencyDecimals = useCurrencyDecimals();
+  const fmt = (n) => Number(n || 0).toFixed(currencyDecimals);
   const { timezone, orgId } = useAuth();
   const sym = useCurrencySymbol();
   const [tab, setTab] = useState('log');
@@ -313,7 +316,7 @@ export default function WasteManagement() {
                       <tr key={l.id}>
                         <td style={{fontWeight:700}}>{l.productName||'—'}</td>
                         <td><span className="wm-pill" style={{background:m.color+'14',color:m.color}}>{m.emoji} {l.wasteReason}</span></td>
-                        <td>{l.quantity} {l.unitOfMeasure}</td>
+                        <td>{formatQty(l.quantity, uomPrecisionOf(l))} {l.unitOfMeasure}</td>
                         <td style={{color:'#6b7280'}}>{sym}{fmt(l.unitCost)}</td>
                         <td><span className="wm-cost">{sym}{fmt(l.totalCost)}</span></td>
                         <td style={{color:'#9ca3af',fontSize:'12px'}}>{formatTzDate(l.wasteDate, timezone, { format: 'date' })}</td>

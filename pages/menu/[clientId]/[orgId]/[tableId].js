@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { FaShoppingCart, FaSearch, FaMinus, FaPlus, FaCheckCircle, FaExclamationCircle, FaTimes, FaMobileAlt, FaArrowRight, FaSignInAlt, FaUser } from 'react-icons/fa';
@@ -6,8 +8,11 @@ import api from '../../../../utils/api';
 import qrOrderService from '../../../../services/qrOrderService';
 import ActiveTabBanner from '../../../../components/qr/ActiveTabBanner';
 import ActiveTabDrawer from '../../../../components/qr/ActiveTabDrawer';
+import { formatQty, uomPrecisionOf } from '../../../../components/CounterSale/domain/quantity';
 
 export default function QRMenuPage() {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const router = useRouter();
   const { clientId, orgId, tableId } = router.query;
 
@@ -308,12 +313,16 @@ export default function QRMenuPage() {
 
   const handleOnlinePayment = async () => {
     if (cartCount === 0) return;
+    if (!tableInfo?.currencyCode) {
+      setToast({ msg: 'Online payment is unavailable: default currency is not set in Currency Master', type: 'error' });
+      return;
+    }
     setAuthLoading(true);
     try {
       await loadRazorpayCheckout();
       const orderResponse = await api.post('/api/v1/public/payments/create-order', {
         amount: cartTotal,
-        currency: 'INR',
+        currency: tableInfo.currencyCode,
         receipt: `qr_${Date.now()}`,
         customerName: customer?.name,
         customerEmail: customer?.email,
@@ -336,7 +345,7 @@ export default function QRMenuPage() {
         const checkout = new window.Razorpay({
           key: payment.keyId,
           amount: payment.amount,
-          currency: payment.currency || 'INR',
+          currency: payment.currency || tableInfo.currencyCode,
           name: tableInfo?.restaurantName || 'Restaurant',
           description: `Table ${tableInfo?.tableNumber || 'QR'} Order`,
           order_id: payment.orderId,
@@ -753,7 +762,7 @@ export default function QRMenuPage() {
                     </div>
 
                     <div className="pc-bottom-bar">
-                      <span className="pc-price-text">₹{Number(item.price).toFixed(Number(item.price) % 1 === 0 ? 0 : 2)}</span>
+                      <span className="pc-price-text">{currencySymbol}{Number(item.price).toFixed(Number(item.price) % 1 === 0 ? 0 : currencyDecimals)}</span>
                       <div className="pc-actions">
                         {item.outOfStock ? (
                           <span style={{ fontSize: '11px', fontWeight: '700', color: '#ef4444', background: '#fee2e2', padding: '4px 8px', borderRadius: '6px' }}>
@@ -762,7 +771,7 @@ export default function QRMenuPage() {
                         ) : qtyInCart > 0 ? (
                           <div className="qty-stepper active">
                             <button onClick={() => removeFromCart(item.id)}><FaMinus /></button>
-                            <span>{qtyInCart}</span>
+                            <span>{formatQty(qtyInCart, uomPrecisionOf(item))}</span>
                             <button onClick={() => addToCart(item)}><FaPlus /></button>
                           </div>
                         ) : (
@@ -791,7 +800,7 @@ export default function QRMenuPage() {
               </div>
               <div className="fcb-text">
                 <span className="fcb-label">View Order</span>
-                <span className="fcb-total">₹{cartTotal.toFixed(2)}</span>
+                <span className="fcb-total">{currencySymbol}{cartTotal.toFixed(currencyDecimals)}</span>
               </div>
             </div>
             <div className="fcb-right">
@@ -815,11 +824,11 @@ export default function QRMenuPage() {
               <div key={item.id} className="cd-item">
                 <div className="cdi-info">
                   <span className="cdi-name">{item.name}</span>
-                  <span className="cdi-price">₹{(item.price * item.quantity).toFixed(2)}</span>
+                  <span className="cdi-price">{currencySymbol}{(item.price * item.quantity).toFixed(currencyDecimals)}</span>
                 </div>
                 <div className="qty-stepper active small">
                   <button onClick={() => removeFromCart(item.id)}><FaMinus /></button>
-                  <span>{item.quantity}</span>
+                  <span>{formatQty(item.quantity, uomPrecisionOf(item))}</span>
                   <button onClick={() => addToCart(item)}><FaPlus /></button>
                 </div>
               </div>
@@ -829,11 +838,11 @@ export default function QRMenuPage() {
           <div className="cd-footer">
             <div className="cd-bill-row">
               <span>Item Total</span>
-              <span>₹{cartTotal.toFixed(2)}</span>
+              <span>{currencySymbol}{cartTotal.toFixed(currencyDecimals)}</span>
             </div>
             <div className="cd-bill-row total">
               <span>Grand Total</span>
-              <span>₹{cartTotal.toFixed(2)}</span>
+              <span>{currencySymbol}{cartTotal.toFixed(currencyDecimals)}</span>
             </div>
 
             {onlinePaymentEnabled && (
@@ -858,7 +867,7 @@ export default function QRMenuPage() {
             )}
              
             <button className="cd-checkout-btn" onClick={placeOrder} disabled={authLoading}>
-              {authLoading ? 'Confirming...' : selectedPayment === 'online' ? `Pay ₹${cartTotal.toFixed(2)}` : 'Confirm Order to Kitchen'}
+              {authLoading ? 'Confirming...' : selectedPayment === 'online' ? `Pay ${currencySymbol}${cartTotal.toFixed(currencyDecimals)}` : 'Confirm Order to Kitchen'}
             </button>
           </div>
         </div>
@@ -875,7 +884,7 @@ export default function QRMenuPage() {
               <div className="scr-row"><span>Order No:</span> <strong>{orderSuccess.orderNo}</strong></div>
               <div className="scr-row"><span>Status:</span> <strong style={{color: '#f59e0b'}}>{orderSuccess.status}</strong></div>
               <div className="scr-divider"></div>
-              <div className="scr-row total"><span>Total:</span> <strong>₹{orderSuccess.grandTotal?.toFixed(2)}</strong></div>
+              <div className="scr-row total"><span>Total:</span> <strong>{currencySymbol}{orderSuccess.grandTotal?.toFixed(currencyDecimals)}</strong></div>
             </div>
             <button className="sc-close-btn" onClick={() => setOrderSuccess(null)}>Order More Items</button>
           </div>

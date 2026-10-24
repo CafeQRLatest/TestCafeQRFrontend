@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import styled from 'styled-components';
 import { FaTimes } from 'react-icons/fa';
 
@@ -394,6 +396,8 @@ export default function VariantSelector({
   stockMap = null,
   isPurchaseMode = false
 }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const [selectedId, setSelectedId] = useState('');
   const [quantities, setQuantities] = useState({});
   const [upsellQuantities, setUpsellQuantities] = useState({});
@@ -542,7 +546,7 @@ export default function VariantSelector({
                     >
                       <OptionMeta>
                         <strong>{stripSymbols(option.label)}</strong>
-                        <span>₹{Number(option.price || 0).toFixed(2)}</span>
+                        <span>{currencySymbol}{Number(option.price || 0).toFixed(currencyDecimals)}</span>
                         {stockMap && (
                           <div style={{ fontSize: '11px', color: '#059669', fontWeight: 'bold', marginTop: '2px' }}>
                             Stock: {getOptionStock(stockMap, product, option)}
@@ -588,7 +592,7 @@ export default function VariantSelector({
                     >
                       <OptionMeta>
                         <strong>{stripSymbols(u.upsellProduct?.name)}</strong>
-                        <span>₹{Number(u.upsellProduct?.price || 0).toFixed(2)}</span>
+                        <span>{currencySymbol}{Number(u.upsellProduct?.price || 0).toFixed(currencyDecimals)}</span>
                       </OptionMeta>
                       {active ? (
                         <QuantityControls
@@ -623,7 +627,7 @@ export default function VariantSelector({
           {quantityMode && (
             <SummaryBox $themeColor={themeColor}>
               <span>{totalQty} item{totalQty === 1 ? '' : 's'} selected</span>
-              <strong>₹{totalAmount.toFixed(2)}</strong>
+              <strong>{currencySymbol}{totalAmount.toFixed(currencyDecimals)}</strong>
             </SummaryBox>
           )}
           <AddButton

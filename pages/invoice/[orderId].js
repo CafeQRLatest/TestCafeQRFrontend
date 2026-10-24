@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import axios from 'axios';
@@ -16,8 +17,10 @@ import {
 } from 'react-icons/fa';
 import { getApiUrl } from '../../utils/api';
 import { downloadPublicInvoicePdf } from '../../utils/invoicePdf';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 
 export default function PublicInvoicePage() {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { orderId } = router.query;
 
@@ -82,7 +85,7 @@ export default function PublicInvoicePage() {
       try {
         await navigator.share({
           title: `Tax Invoice - ${invoice?.storeName || 'Cafe QR POS'}`,
-          text: `Invoice #${invoice?.invoiceNo || ''} from ${invoice?.storeName || 'Cafe QR POS'}. Total: ${invoice?.currencySymbol || '₹'} ${Number(invoice?.grandTotal || 0).toFixed(2)}`,
+          text: `Invoice #${invoice?.invoiceNo || ''} from ${invoice?.storeName || 'Cafe QR POS'}. Total: ${invoice?.currencySymbol || ''} ${Number(invoice?.grandTotal || 0).toFixed(currencyDecimals)}`,
           url: window.location.href,
         });
         return;
@@ -99,8 +102,8 @@ export default function PublicInvoicePage() {
   };
 
   const formatMoney = (val) => {
-    const sym = invoice?.currencySymbol || '₹';
-    return `${sym} ${Number(val || 0).toFixed(2)}`;
+    const sym = invoice?.currencySymbol || '';
+    return `${sym} ${Number(val || 0).toFixed(currencyDecimals)}`;
   };
 
   const formatDate = (dateStr) => {
@@ -245,7 +248,7 @@ export default function PublicInvoicePage() {
                         <span className="item-name">{line.productName}</span>
                         {line.description && <span className="item-note">{line.description}</span>}
                       </div>
-                      <div className="col-qty">{Number(line.quantity || 1)}</div>
+                      <div className="col-qty">{formatQty(line.quantity || 1, uomPrecisionOf(line))}</div>
                       <div className="col-rate">{formatMoney(line.unitPrice)}</div>
                       <div className="col-total">{formatMoney(line.lineTotal)}</div>
                     </div>
@@ -412,7 +415,7 @@ export default function PublicInvoicePage() {
 
         .ebill-wrapper {
           width: 100%;
-          max-width: 480px;
+          max-width: 600px;
           margin: 0 auto;
         }
 
@@ -628,7 +631,7 @@ export default function PublicInvoicePage() {
 
         .ebill-table-header {
           display: grid;
-          grid-template-columns: 1fr 40px 65px 75px;
+          grid-template-columns: 1fr 72px 80px 90px;
           font-size: 0.7rem;
           font-weight: 700;
           color: #94a3b8;
@@ -640,7 +643,7 @@ export default function PublicInvoicePage() {
 
         .ebill-table-row {
           display: grid;
-          grid-template-columns: 1fr 40px 65px 75px;
+          grid-template-columns: 1fr 72px 80px 90px;
           font-size: 0.85rem;
           padding: 6px 0;
           border-bottom: 1px solid #f8fafc;
@@ -668,6 +671,7 @@ export default function PublicInvoicePage() {
         .col-qty {
           text-align: center;
           color: #475569;
+          white-space: nowrap;
         }
 
         .col-rate {

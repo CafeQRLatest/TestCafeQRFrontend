@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { FaImage, FaMagic, FaCheckCircle, FaExclamationCircle, FaTrash, FaLayerGroup } from 'react-icons/fa';
 import api from '../../utils/api';
 import CafeQRPopup from '../CafeQRPopup';
@@ -88,6 +89,7 @@ const normalizeImportedItem = (item) => {
 };
 
 export default function MenuImageImport({ onClose, onImported, existingItems = [] }) {
+  const currencySymbol = useCurrencySymbol();
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [items, setItems] = useState([]);
@@ -446,7 +448,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
                       />
                       {it.isDupe && <span className="duplicate-badge">Duplicate</span>}
                       <div className="price-input-wrap">
-                        <span>₹</span>
+                        <span>{currencySymbol}</span>
                         <input 
                           type="number" 
                           value={it.price} 
@@ -511,7 +513,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
                                     style={baseInputStyle}
                                   />
                                   <div className="variant-price-wrap">
-                                    <span>₹</span>
+                                    <span>{currencySymbol}</span>
                                     <input
                                       type="number"
                                       value={option.price}

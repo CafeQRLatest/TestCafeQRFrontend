@@ -5,6 +5,7 @@ import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import StockDocumentViewerPopup from '../../components/purchasing/StockDocumentViewerPopup';
 import CafeQRPopup from '../../components/CafeQRPopup';
 import { generateStockTransferPdf } from '../../utils/stockTransferPdf';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -258,7 +259,7 @@ function AdjustmentReportContent() {
         const val = getTotalQtyChange(row);
         return (
           <span className={`qty-change ${val > 0 ? 'pos' : val < 0 ? 'neg' : 'neu'}`}>
-            {val > 0 ? '+' : ''}{val}
+            {val > 0 ? '+' : ''}{formatQty(val, Math.max(0, ...(row.lines || []).map(l => uomPrecisionOf(l))))}
           </span>
         );
       }
@@ -404,7 +405,7 @@ function AdjustmentReportContent() {
                           <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{line.categoryName || '—'}</td>
                           <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
                             <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '6px', display: 'inline-block', minWidth: '32px', textAlign: 'center' }}>
-                              {line.quantityChange > 0 ? `+${line.quantityChange}` : line.quantityChange}
+                              {line.quantityChange > 0 ? `+${formatQty(line.quantityChange, uomPrecisionOf(line))}` : formatQty(line.quantityChange, uomPrecisionOf(line))}
                             </span>
                           </td>
                         </tr>

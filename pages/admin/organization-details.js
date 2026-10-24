@@ -61,15 +61,16 @@ function compressImageToWebP(file, maxWidth = 1200, maxHeight = 450, quality = 0
 }
 
 const POS_CATEGORY_OPTIONS = [
-  { value: 'Restaurant', label: '🍽️ Restaurant' },
-  { value: 'Cafe', label: '☕ Cafe & Bistro' },
-  { value: 'QSR', label: '⚡ QSR & Fast Food' },
-  { value: 'Bakery', label: '🥐 Bakery & Pastry' },
-  { value: 'Bar', label: '🍸 Bar & Lounge' },
-  { value: 'Boutique', label: '👗 Boutique & Fashion' },
-  { value: 'Grocery', label: '🛒 Grocery & Supermarket' },
-  { value: 'Salon', label: '💇 Salon & Spa' },
-  { value: 'Others', label: '🏬 Retail & General Store' },
+  { value: 'Restaurant', label: 'Restaurant' },
+  { value: 'Cafe', label: 'Cafe & Bistro' },
+  { value: 'QSR', label: 'QSR & Fast Food' },
+  { value: 'Bakery', label: 'Bakery & Pastry' },
+  { value: 'Bar', label: 'Bar & Lounge' },
+  { value: 'Boutique', label: 'Boutique & Fashion' },
+  { value: 'Grocery', label: 'Grocery & Supermarket' },
+  { value: 'Salon', label: 'Salon & Spa' },
+  { value: 'CarWash', label: 'Car Wash' },
+  { value: 'Others', label: 'Retail & General Store' },
 ];
 
 /**

@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
+import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
 import { FaSlidersH, FaSave, FaClock, FaCalculator, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 
 export default function HrSettingsDashboard({ embedded = false }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const router = useRouter();
   const [formData, setFormData] = useState({
     standardHoursPerDay: '8.00',
@@ -238,25 +242,25 @@ export default function HrSettingsDashboard({ embedded = false }) {
                 </div>
                 <div className="sim-row">
                   <span className="sim-label">Base Hourly Rate:</span>
-                  <span className="sim-val">${sampleRate.toFixed(2)} / hr</span>
+                  <span className="sim-val">{currencySymbol}{sampleRate.toFixed(currencyDecimals)} / hr</span>
                 </div>
 
                 <div className="sim-divider" />
 
                 <div className="sim-row">
-                  <span className="sim-label">Regular Hours ({stdHrs.toFixed(2)} hrs @ ${sampleRate}):</span>
-                  <span className="sim-val">${sampleNormalPay.toFixed(2)}</span>
+                  <span className="sim-label">Regular Hours ({stdHrs.toFixed(2)} hrs @ {currencySymbol}{sampleRate}):</span>
+                  <span className="sim-val">${sampleNormalPay.toFixed(currencyDecimals)}</span>
                 </div>
                 <div className="sim-row highlight-ot">
-                  <span className="sim-label">Overtime (2.00 hrs @ ${sampleRate} × {otMult.toFixed(2)}x):</span>
-                  <span className="sim-val">${sampleOtPay.toFixed(2)}</span>
+                  <span className="sim-label">Overtime (2.00 hrs @ {currencySymbol}{sampleRate} × {otMult.toFixed(2)}x):</span>
+                  <span className="sim-val">${sampleOtPay.toFixed(currencyDecimals)}</span>
                 </div>
 
                 <div className="sim-divider" />
 
                 <div className="sim-row total-row">
                   <span className="sim-label">Total Shift Gross Pay:</span>
-                  <span className="sim-val">${sampleTotalPay.toFixed(2)}</span>
+                  <span className="sim-val">${sampleTotalPay.toFixed(currencyDecimals)}</span>
                 </div>
               </div>
 

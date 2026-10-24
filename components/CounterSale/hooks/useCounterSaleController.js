@@ -56,7 +56,7 @@ export default function useCounterSaleController({
   const customersEnabled = isCustomersModuleEnabled(config);
   const discountsEnabled = isDiscountModuleEnabled(config);
   const kitchenEnabled = isKitchenModuleEnabled(config);
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
 
   // 2. Cart Operations
   const cartHook = useCart({ notify });

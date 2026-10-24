@@ -1,5 +1,6 @@
 // utils/thermalReportFormatter.js
 import { formatTzDate } from './timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 // Helper to pad strings
 function center(str, width) {
@@ -75,10 +76,10 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
   const W = parseInt(config?.print_cols || '32', 10);
   const dashes = '-'.repeat(W);
   const lines = [];
-  const sym = config?.currencySymbol || 'Rs';
+  const sym = config?.currencySymbol || '';
 
   const formatAmount = (amt) => {
-    return Number(amt || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(amt || 0).toLocaleString('en-IN', { minimumFractionDigits: config?.currencyDecimalPlaces ?? 2, maximumFractionDigits: config?.currencyDecimalPlaces ?? 2 });
   };
 
   // Header
@@ -155,9 +156,7 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
         calcQty += qVal;
         calcRev += rVal;
 
-        const qFormatted = item.uomPrecision != null
-          ? qVal.toFixed(item.uomPrecision)
-          : String(qVal);
+        const qFormatted = formatQty(qVal, uomPrecisionOf(item));
         const q = right(qFormatted, qtyW);
         const r = right(formatAmount(rVal), revW);
 
@@ -172,13 +171,14 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
 
       lines.push(dashes);
       const totalQty = options?.totalQty != null ? options.totalQty : calcQty;
+      const totalQtyPrecision = options?.totalQtyPrecision ?? data.reduce((m, i) => Math.max(m, uomPrecisionOf(i)), 0);
       const totalRev = options?.totalAmount != null ? options.totalAmount : calcRev;
       const totalLabel = (options?.category && options.category !== 'ALL')
         ? `${String(options.category).toUpperCase()} TOTAL:`
         : 'TOTAL AMOUNT:';
 
       lines.push(rowTwoCols('ITEMS COUNT:', String(data.length), W));
-      lines.push(rowTwoCols('TOTAL QTY:', String(totalQty), W));
+      lines.push(rowTwoCols('TOTAL QTY:', formatQty(totalQty, totalQtyPrecision), W));
       lines.push(rowTwoCols(totalLabel, `${sym} ${formatAmount(totalRev)}`, W));
     }
   }

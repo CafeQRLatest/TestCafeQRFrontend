@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import { FaPercent, FaFileCsv, FaArrowLeft, FaSync, FaInfoCircle, FaCalendarAlt, FaBuilding, FaDesktop, FaPrint, FaSearch, FaFilter, FaChartPie } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -9,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
 import { getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
-import { getCurrencySymbol } from '../../constants/expenseScopes';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 
 
 /**********************************************************
@@ -37,15 +38,6 @@ function toInstant(dtLocal, tz) {
   }
 }
 
-function money(value) {
-  const parsed = Number(value);
-  const valid = Number.isFinite(parsed) ? parsed : 0;
-  return valid.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
 const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 export default function TaxReportsPage() {
@@ -57,8 +49,17 @@ export default function TaxReportsPage() {
 }
 
 function TaxReportsContent() {
+  const currencyDecimals = useCurrencyDecimals();
+  function money(value) {
+    const parsed = Number(value);
+    const valid = Number.isFinite(parsed) ? parsed : 0;
+    return valid.toLocaleString('en-US', {
+      minimumFractionDigits: currencyDecimals,
+      maximumFractionDigits: currencyDecimals
+    });
+  }
   const router = useRouter();
-  const { timezone, userRole, currency, orgId } = useAuth();
+  const { timezone, userRole, orgId } = useAuth();
   const { notify } = useNotification();
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
 
@@ -147,7 +148,7 @@ function TaxReportsContent() {
   }, [fetchTaxData]);
 
   // Memoized calculations and formatting
-  const SYM = config?.currencySymbol || getCurrencySymbol(currency);
+  const SYM = config?.currencySymbol || '';
   const fmt = money;
 
   const taxCodeRows = useMemo(() => {
@@ -544,15 +545,15 @@ function TaxReportsContent() {
     ['Tax Code', 'Description', 'UQC', 'Total Qty', 'Taxable Value', 'Central Tax', 'State/Local Tax', 'Cess'],
     taxCodeRows.map(r => [
       r.taxCode, r.description, r.uqc, r.totalQuantity,
-      r.taxableValue.toFixed(2),
-      r.centralTax.toFixed(2), r.stateTax.toFixed(2), r.cessAmount.toFixed(2)
+      r.taxableValue.toFixed(currencyDecimals),
+      r.centralTax.toFixed(currencyDecimals), r.stateTax.toFixed(currencyDecimals), r.cessAmount.toFixed(currencyDecimals)
     ].map(csvCell).join(',')),
     'Tax_Code_Summary'
   );
 
   const exportTaxReturnCSV = () => exportCSV(
     ['Nature of Supply', 'Taxable Value', 'Central Tax', 'State/Local Tax', 'Total Tax'],
-    [['Outward Taxable Supplies', totalTaxable.toFixed(2), totalCGST.toFixed(2), totalSGST.toFixed(2), totalTax.toFixed(2)]].map(row => row.map(csvCell).join(',')),
+    [['Outward Taxable Supplies', totalTaxable.toFixed(currencyDecimals), totalCGST.toFixed(currencyDecimals), totalSGST.toFixed(currencyDecimals), totalTax.toFixed(currencyDecimals)]].map(row => row.map(csvCell).join(',')),
     'Tax_Return_Summary'
   );
 
@@ -560,9 +561,9 @@ function TaxReportsContent() {
     ['Tax ID of Recipient', 'Receiver Name', 'Invoice No', 'Invoice Date', 'Invoice Value', 'Place of Supply', 'Reverse Charge', 'Invoice Type', 'Rate (%)', 'Taxable Value', 'Central Tax', 'State Tax'],
     b2bInvoices.map(r => [
       r.taxId || '', r.receiverName || '', r.invoiceNo || '', r.invoiceDate || '',
-      Number(r.invoiceValue || 0).toFixed(2), r.placeOfSupply || '', r.reverseCharge || 'N',
-      r.invoiceType || 'Regular', Number(r.taxRate || 0), Number(r.taxableValue || 0).toFixed(2),
-      Number(r.cgst || 0).toFixed(2), Number(r.sgst || 0).toFixed(2)
+      Number(r.invoiceValue || 0).toFixed(currencyDecimals), r.placeOfSupply || '', r.reverseCharge || 'N',
+      r.invoiceType || 'Regular', Number(r.taxRate || 0), Number(r.taxableValue || 0).toFixed(currencyDecimals),
+      Number(r.cgst || 0).toFixed(currencyDecimals), Number(r.sgst || 0).toFixed(currencyDecimals)
     ].map(csvCell).join(',')),
     'Tax_B2B'
   );
@@ -873,7 +874,7 @@ function TaxReportsContent() {
                                 <td><span className="mono">{r.taxCode}</span></td>
                                 <td>{r.description}</td>
                                 <td><span className="type-pill">{r.uqc}</span></td>
-                                <td className="amount">{r.totalQuantity.toFixed(2)}</td>
+                                <td className="amount">{formatQty(r.totalQuantity, uomPrecisionOf(r))}</td>
                                 <td className="amount"><span className="type-pill tax">{r.taxRate}%</span></td>
                                 <td className="amount">{SYM}{fmt(r.taxableValue)}</td>
                                 <td className="amount">{SYM}{fmt(r.centralTax)}</td>

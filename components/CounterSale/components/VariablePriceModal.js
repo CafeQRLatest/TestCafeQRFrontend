@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
+import { withinPrecision } from '../domain/quantity';
+import { parseQty, qtyInputStep, uomPrecisionOf } from '../domain/quantity';
 
 const Overlay = styled.div`
   position: fixed;
@@ -181,7 +183,7 @@ export default function VariablePriceModal({
   product,
   onConfirm,
   onClose,
-  sym = '₹',
+  sym = '',
   themeColor = '#16a34a',
   currencyDecimalPlaces = 2,
 }) {
@@ -189,6 +191,7 @@ export default function VariablePriceModal({
   const [price, setPrice] = useState(basePrice > 0 ? String(basePrice) : '');
   const [qty, setQty] = useState('1');
   const inputRef = useRef(null);
+  const precision = uomPrecisionOf(product);
 
   useEffect(() => {
     // Auto-focus and select the price input
@@ -202,8 +205,8 @@ export default function VariablePriceModal({
   }, []);
 
   const parsedPrice = parseFloat(price);
-  const parsedQty = parseInt(qty, 10);
-  const isValid = !isNaN(parsedPrice) && parsedPrice >= 0 && !isNaN(parsedQty) && parsedQty > 0;
+  const parsedQty = parseQty(qty, precision);
+  const isValid = !isNaN(parsedPrice) && parsedPrice >= 0 && parsedQty > 0;
 
   const handleConfirm = () => {
     if (!isValid) return;
@@ -252,10 +255,11 @@ export default function VariablePriceModal({
             <Label style={{ margin: 0 }}>Qty</Label>
             <QtyInput
               type="number"
-              inputMode="numeric"
-              min="1"
+              inputMode={precision > 0 ? 'decimal' : 'numeric'}
+              step={qtyInputStep(precision)}
+              min={qtyInputStep(precision)}
               value={qty}
-              onChange={e => setQty(e.target.value)}
+              onChange={e => { if (withinPrecision(e.target.value, precision)) setQty(e.target.value); }}
               onKeyDown={handleKeyDown}
               $themeColor={themeColor}
             />

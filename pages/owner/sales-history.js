@@ -1,3 +1,5 @@
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import styled from 'styled-components';
@@ -67,7 +69,7 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
+const money = (value, symbol = '', dp = 2) => `${symbol}${Number(value || 0).toFixed(dp)}`;
 
 function calculateKotDeltaJs(oldOrder, newOrder) {
   const oldLines = oldOrder?.lines || oldOrder?.orderLines || oldOrder?.order_items || [];
@@ -275,6 +277,7 @@ const HistBoardCard = styled.div`
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SalesHistoryPage() {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { notify, showConfirm } = useNotification();
   const { timezone, orgId, canCancelOrder, canPrintOrder } = useAuth();
@@ -370,7 +373,7 @@ export default function SalesHistoryPage() {
   const [printOrder, setPrintOrder] = useState(null);
   const [printKind, setPrintKind] = useState('bill');
 
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -1225,7 +1228,7 @@ export default function SalesHistoryPage() {
                               {item.name || item.productName || item.product_name || 'Item'}
                             </span>
                             <span style={{ fontWeight: 700, fontSize: 10, color: '#64748b' }}>
-                              x{item.quantity || item.qty || 1}
+                              x{formatQty(item.quantity || item.qty || 1, uomPrecisionOf(item))}
                             </span>
                           </div>
                         ))}
@@ -1245,7 +1248,7 @@ export default function SalesHistoryPage() {
                         Total Amount
                       </span>
                       <span style={{ fontSize: 13.5, fontWeight: 800, color: '#0f172a' }}>
-                        {money(histOrderTotal(order), sym)}
+                        {money(histOrderTotal(order), sym, currencyDecimals)}
                       </span>
                     </div>
 
@@ -1437,7 +1440,7 @@ export default function SalesHistoryPage() {
                         )}
                         <td><span style={{ fontWeight: 600, color: '#475569' }}>{histFulfillmentLabel(order)}</span></td>
                         <td><HistItemsPill>{(items || []).length}</HistItemsPill></td>
-                        <td><strong>{money(histOrderTotal(order), sym)}</strong></td>
+                        <td><strong>{money(histOrderTotal(order), sym, currencyDecimals)}</strong></td>
                         <td>
                           <HistStatusBadge style={{ background: colors.bg, color: colors.color, borderColor: colors.border }}>
                             {histStatusText(order)}

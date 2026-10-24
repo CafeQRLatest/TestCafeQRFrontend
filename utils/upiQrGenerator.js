@@ -295,9 +295,9 @@ export function generateQrMatrix(text) {
 
 /**
  * Builds standard NPCI UPI URI
- * e.g. upi://pay?pa=merchant@upi&pn=Cafe+Delight&am=728.00&cu=INR&tn=Bill+1042
+ * e.g. upi://pay?pa=merchant@upi&pn=Cafe+Delight&am=728.00&cu=INR&tn=Bill+1042 (cu from Currency Master)
  */
-export function buildUpiUri({ upiId, payeeName, amount, billRef, note }) {
+export function buildUpiUri({ upiId, payeeName, amount, billRef, note, currencyCode, currencyDecimals = 2 }) {
   if (!upiId || typeof upiId !== 'string' || !upiId.includes('@')) {
     return '';
   }
@@ -308,9 +308,9 @@ export function buildUpiUri({ upiId, payeeName, amount, billRef, note }) {
   let uri = `upi://pay?pa=${encodeURIComponent(pa)}`;
   if (pn) uri += `&pn=${encodeURIComponent(pn)}`;
   if (amount !== undefined && amount !== null && !isNaN(Number(amount)) && Number(amount) > 0) {
-    uri += `&am=${Number(amount).toFixed(2)}`;
+    uri += `&am=${Number(amount).toFixed(currencyDecimals)}`;
   }
-  uri += `&cu=INR`;
+  if (currencyCode) uri += `&cu=${encodeURIComponent(currencyCode)}`;
   if (tn) uri += `&tn=${encodeURIComponent(tn)}`;
   return uri;
 }

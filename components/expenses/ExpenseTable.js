@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { prettyMethod } from '../../constants/payMethods';
@@ -12,8 +13,9 @@ export default function ExpenseTable({
   openEdit,
   handleDelete,
   filterStatus,
-  currencySymbol = '₹'
+  currencySymbol = ''
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const sym = currencySymbol;
   const isVoid = filterStatus === 'VOID';
 
@@ -83,10 +85,10 @@ export default function ExpenseTable({
                     {r.paymentMethod === 'MIXED' ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <span className={`${styles['method-tag']} ${styles.cash}`} style={{ fontSize: '10px', padding: '1px 4px' }}>
-                          Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(2)}
+                          Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(currencyDecimals)}
                         </span>
                         <span className={`${styles['method-tag']} ${styles.online}`} style={{ fontSize: '10px', padding: '1px 4px' }}>
-                          Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(2)}
+                          Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(currencyDecimals)}
                         </span>
                       </div>
                     ) : (
@@ -102,7 +104,7 @@ export default function ExpenseTable({
                   </span>
                 </td>
                 <td className={styles['text-right']}>
-                  <span className={styles['row-amt']}>{sym}{parseFloat(r.amount).toFixed(2)}</span>
+                  <span className={styles['row-amt']}>{sym}{parseFloat(r.amount).toFixed(currencyDecimals)}</span>
                 </td>
                 <td>
                   <span className={`${styles['status-tag']} ${isVoid ? styles.void : styles.active}`}>

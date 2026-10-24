@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import DashboardLayout from '../../components/DashboardLayout';
 import ErrorBoundary from '../../components/expenses/ErrorBoundary';
@@ -41,6 +42,7 @@ const getMethodConfig = (method) => {
 };
 
 export default function ExpensesPage() {
+  const currencyDecimals = useCurrencyDecimals();
   const {
     // Filter
     filters, dispatch,
@@ -125,7 +127,7 @@ export default function ExpensesPage() {
                 <div className={styles['summary-card']} style={{ borderLeft: '4px solid #dc2626' }}>
                   <span className={styles['summary-card-label']}>Total Expenses</span>
                   <span className={styles['summary-card-val']}>
-                    {currencySymbol}{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {currencySymbol}{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}
                   </span>
                   <div className={styles['summary-card-icon']} style={{ background: '#fef2f2', color: '#dc2626' }}>
                     <FaWallet />
@@ -145,7 +147,7 @@ export default function ExpensesPage() {
                         {prettyMethod(method)}
                       </span>
                       <span className={styles['summary-card-val']}>
-                        {currencySymbol}{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {currencySymbol}{amount.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}
                       </span>
                       <div 
                         className={styles['summary-card-icon']} 

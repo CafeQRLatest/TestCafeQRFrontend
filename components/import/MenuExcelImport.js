@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { FaFileExcel, FaExclamationCircle, FaTrash, FaCheckCircle, FaUpload } from 'react-icons/fa';
 import * as XLSX from 'xlsx';
 import api from '../../utils/api';
 import CafeQRPopup from '../CafeQRPopup';
 
 export default function MenuExcelImport({ onClose, onImported }) {
+  const currencySymbol = useCurrencySymbol();
   const [file, setFile] = useState(null);
   const [items, setItems] = useState([]);
   const [step, setStep] = useState('upload'); // upload, review, importing
@@ -152,7 +154,7 @@ export default function MenuExcelImport({ onClose, onImported }) {
                         placeholder="Item Name" 
                       />
                       <div className="price-input-wrap">
-                        <span>₹</span>
+                        <span>{currencySymbol}</span>
                         <input 
                           type="number" 
                           value={it.price} 

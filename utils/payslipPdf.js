@@ -7,7 +7,7 @@ function fmt(n, dp = 2) {
 }
 
 function money(val, sym) {
-  return `${sym || '$'}${fmt(val)}`;
+  return `${sym || ''}${fmt(val)}`;
 }
 
 const ORANGE     = [234, 99,  16];
@@ -36,7 +36,7 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
     console.warn("Failed to load configs:", err);
   }
 
-  const sym = (cfg.currencySymbol || '$') + ' ';
+  const sym = cfg.currencySymbol ? cfg.currencySymbol + ' ' : '';
   const clientName = clientData?.name || cfg.restaurantName || 'CAFE QR RESTAURANT';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
@@ -7,8 +8,11 @@ import api from '../../../../utils/api';
 import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint, FaCheck } from 'react-icons/fa';
 import { formatTzDate } from '../../../../utils/timezoneUtils';
+import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
 
 export default function PayrollDashboard({ embedded = false }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const router = useRouter();
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -284,7 +288,7 @@ export default function PayrollDashboard({ embedded = false }) {
                       <tr key={run.id}>
                         <td className="font-bold">{run.name}</td>
                         <td>{formatPeriodDate(run.startDate)} – {formatPeriodDate(run.endDate)}</td>
-                        <td className="text-emerald font-bold">${run.totalAmount?.toFixed(2) || '0.00'}</td>
+                        <td className="text-emerald font-bold">{currencySymbol}{run.totalAmount?.toFixed(currencyDecimals) || '0.00'}</td>
                         <td>
                           <span className={`status-badge ${(run.status || 'COMPLETED').toLowerCase()}`}>
                             {run.status || 'COMPLETED'}
@@ -391,9 +395,9 @@ export default function PayrollDashboard({ embedded = false }) {
                             )}
                           </td>
                           <td>{slip.totalUnpaidLeaveDays !== null ? `${slip.totalUnpaidLeaveDays} days` : '0 days'}</td>
-                          <td className="font-bold">${slip.grossPay?.toFixed(2)}</td>
-                          <td className="font-bold text-red">-${slip.totalDeductions?.toFixed(2)}</td>
-                          <td className="font-bold text-green">${slip.netPay?.toFixed(2)}</td>
+                          <td className="font-bold">{currencySymbol}{slip.grossPay?.toFixed(currencyDecimals)}</td>
+                          <td className="font-bold text-red">-{currencySymbol}{slip.totalDeductions?.toFixed(currencyDecimals)}</td>
+                          <td className="font-bold text-green">{currencySymbol}{slip.netPay?.toFixed(currencyDecimals)}</td>
                           <td>
                             <span className="status-badge processed">{slip.status}</span>
                           </td>
@@ -481,20 +485,20 @@ export default function PayrollDashboard({ embedded = false }) {
                       <tr>
                         <td>Base / Regular Pay</td>
                         <td className="amount font-bold">
-                          ${((selectedSlipForPrint.grossPay || 0) - (selectedSlipForPrint.overtimePay || 0)).toFixed(2)}
+                          {currencySymbol}{((selectedSlipForPrint.grossPay || 0) - (selectedSlipForPrint.overtimePay || 0)).toFixed(currencyDecimals)}
                         </td>
                       </tr>
                       {selectedSlipForPrint.overtimeHours > 0 && (
                         <tr>
                           <td>Overtime Pay ({selectedSlipForPrint.overtimeHours} hrs OT)</td>
                           <td className="amount font-bold" style={{ color: '#d97706' }}>
-                            +${(selectedSlipForPrint.overtimePay || 0).toFixed(2)}
+                            +{currencySymbol}{(selectedSlipForPrint.overtimePay || 0).toFixed(currencyDecimals)}
                           </td>
                         </tr>
                       )}
                       <tr style={{ borderTop: '1px solid #e2e8f0', fontWeight: 'bold' }}>
                         <td>Total Gross Pay</td>
-                        <td className="amount font-bold">${selectedSlipForPrint.grossPay?.toFixed(2)}</td>
+                        <td className="amount font-bold">{currencySymbol}{selectedSlipForPrint.grossPay?.toFixed(currencyDecimals)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -506,7 +510,7 @@ export default function PayrollDashboard({ embedded = false }) {
                     <tbody>
                       <tr>
                         <td>Total Deductions & Advances</td>
-                        <td className="amount font-bold text-red">-${selectedSlipForPrint.totalDeductions?.toFixed(2)}</td>
+                        <td className="amount font-bold text-red">-{currencySymbol}{selectedSlipForPrint.totalDeductions?.toFixed(currencyDecimals)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -516,7 +520,7 @@ export default function PayrollDashboard({ embedded = false }) {
               <div className="net-pay-banner">
                 <div>
                   <span className="net-label">NET TAKE-HOME PAY</span>
-                  <div className="net-amount">${selectedSlipForPrint.netPay?.toFixed(2)}</div>
+                  <div className="net-amount">{currencySymbol}{selectedSlipForPrint.netPay?.toFixed(currencyDecimals)}</div>
                 </div>
                 <div className="pay-status">
                   STATUS: <strong>{selectedSlipForPrint.status || 'PAID'}</strong>

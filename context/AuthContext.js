@@ -52,7 +52,6 @@ export const AuthProvider = ({ children }) => {
   const [terminalId, setTerminalId] = useState(null);
   const [terminalName, setTerminalName] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [currency, setCurrency] = useState(null);
   const [country, setCountry] = useState(null);
   const [timezone, setTimezone] = useState(null);
   const [posType, setPosType] = useState(null);
@@ -109,7 +108,6 @@ export const AuthProvider = ({ children }) => {
       const storedTerminalId = getStorageItem('terminalId');
       const storedTerminalName = getStorageItem('terminalName');
       const storedUserId = getStorageItem('userId');
-      const storedCurrency = getStorageItem('currency');
       const storedCountry = getStorageItem('country');
       const storedTimezone = getStorageItem('timezone');
       const storedPosType = getStorageItem('posType');
@@ -138,7 +136,6 @@ export const AuthProvider = ({ children }) => {
       if (storedTerminalId) setTerminalId(storedTerminalId);
       if (storedTerminalName) setTerminalName(storedTerminalName);
       if (storedUserId) setUserId(storedUserId);
-      if (storedCurrency) setCurrency(storedCurrency);
       if (storedCountry) setCountry(storedCountry);
       if (storedTimezone) setTimezone(storedTimezone);
       if (storedPosType) setPosType(storedPosType);
@@ -170,7 +167,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      // Auto-fetch and sync latest client profile (timezone, currency, country) in the background if authenticated
+      // Auto-fetch and sync latest client profile (timezone, country) in the background if authenticated
       if (storedEmail) {
         const cookieOptions = getFrontendCookieOptions();
         Promise.all([
@@ -186,10 +183,6 @@ export const AuthProvider = ({ children }) => {
           if (resolvedTimezone) {
             setTimezone(resolvedTimezone);
             setStorageItem('timezone', resolvedTimezone, cookieOptions);
-          }
-          if (clientData.currency) {
-            setCurrency(clientData.currency);
-            setStorageItem('currency', clientData.currency, cookieOptions);
           }
           if (clientData.country) {
             setCountry(clientData.country);
@@ -293,7 +286,6 @@ export const AuthProvider = ({ children }) => {
     setTerminalId(data.terminalId || null);
     setTerminalName(data.terminalName || null);
     setUserId(data.userId || null);
-    setCurrency(data.currency || null);
     setCountry(data.country || null);
     setTimezone(tz);
     
@@ -330,7 +322,6 @@ export const AuthProvider = ({ children }) => {
     if (data.terminalId) setStorageItem('terminalId', data.terminalId, cookieOptions);
     if (data.terminalName) setStorageItem('terminalName', data.terminalName, cookieOptions);
     if (data.userId) setStorageItem('userId', data.userId, cookieOptions);
-    if (data.currency) setStorageItem('currency', data.currency, cookieOptions);
     if (data.country) setStorageItem('country', data.country, cookieOptions);
     setStorageItem('timezone', tz, cookieOptions);
     
@@ -425,7 +416,6 @@ export const AuthProvider = ({ children }) => {
     setTerminalId(null);
     setTerminalName(null);
     setUserId(null);
-    setCurrency(null);
     setCountry(null);
     setTimezone(null);
     setPosType(null);
@@ -586,7 +576,6 @@ export const AuthProvider = ({ children }) => {
       firstName,
       lastName,
       fullName: firstName ? `${firstName} ${lastName || ''}`.trim() : null,
-      currency,
       country,
       timezone,
       posType,

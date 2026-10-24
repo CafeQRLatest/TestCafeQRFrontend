@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
@@ -9,6 +10,7 @@ import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'reac
 import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function SalaryAdvances({ embedded = false }) {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const currencySymbol = useCurrencySymbol();
   const [advances, setAdvances] = useState([]);
@@ -208,9 +210,9 @@ export default function SalaryAdvances({ embedded = false }) {
                   <tr key={adv.id}>
                     <td className="font-bold">{adv.employeeName}</td>
                     <td>{formatTzDate(adv.advanceDate, null, { format: 'date' })}</td>
-                    <td className="font-bold">{currencySymbol}{adv.totalAmount?.toFixed(2)}</td>
-                    <td className="text-red-500">-{currencySymbol}{adv.monthlyInstallmentAmount?.toFixed(2)}/mo</td>
-                    <td className="font-bold text-orange-600">{currencySymbol}{adv.remainingBalance?.toFixed(2)}</td>
+                    <td className="font-bold">{currencySymbol}{adv.totalAmount?.toFixed(currencyDecimals)}</td>
+                    <td className="text-red-500">-{currencySymbol}{adv.monthlyInstallmentAmount?.toFixed(currencyDecimals)}/mo</td>
+                    <td className="font-bold text-orange-600">{currencySymbol}{adv.remainingBalance?.toFixed(currencyDecimals)}</td>
                     <td><span className={`status-badge ${adv.status.toLowerCase()}`}>{adv.status}</span></td>
                     <td>
                       <div className="action-buttons">

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { FaPlus, FaMinus, FaSearch, FaCamera, FaBarcode, FaTimes, FaLayerGroup, FaChevronRight } from 'react-icons/fa';
 import PosProductCard from './PosProductCard';
@@ -540,6 +540,16 @@ export default function PosProductCatalog({
     hasMore, loadingProducts, loadingMore, onNextPage, onPrevPage
   } = catalog;
   const { productCartQuantity, decrementProduct, incrementProduct, addToCart, setProductQty } = cart;
+
+  const cartLineCounts = useMemo(() => {
+    const counts = new Map();
+    for (const item of cart.items || []) {
+      if (!(Number(item.qty) > 0)) continue;
+      const id = String(item.productId || item.id);
+      counts.set(id, (counts.get(id) || 0) + 1);
+    }
+    return counts;
+  }, [cart.items]);
   const { THEME: theme, sym } = ui;
   const currencyDecimalPlaces = config?.currencyDecimalPlaces ?? 2;
 
@@ -736,12 +746,14 @@ export default function PosProductCatalog({
               <ProductGrid $loading={loadingProducts || loadingMore}>
                 {paginatedProducts.map((product) => {
                   const quantity = productCartQuantity(product);
+                  const cartLineCount = cartLineCounts.get(String(product.id)) || 0;
                   const hasOptions = hasExtendedOptions(product);
                   return (
                     <PosProductCard
                       key={product.id}
                       product={product}
                       quantity={quantity}
+                      cartLineCount={cartLineCount}
                       hasOptions={hasOptions}
                       sym={sym}
                       currencyDecimalPlaces={currencyDecimalPlaces}

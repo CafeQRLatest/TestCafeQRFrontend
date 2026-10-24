@@ -7,6 +7,8 @@ import {
 } from 'react-icons/fa';
 import PosCartItem from './PosCartItem';
 import { isLoyaltyModuleEnabled } from '../../../utils/moduleVisibility';
+import { useAuth } from '../../../context/AuthContext';
+import { getKitchenTerms } from '../../../utils/businessTerms';
 
 // ── Styled Components ──
 
@@ -493,6 +495,8 @@ export default function PosCartSidebar({
   setMobileCartOpen,
   isCounterMode = false
 }) {
+  const { posType } = useAuth();
+  const kitchenTerms = getKitchenTerms(posType);
   const { config } = bootstrap;
   const { 
     items: cartItems, cartKeyFor, updateQty, removeCartItem, setItemQty, handleEditProductFromCart, 
@@ -652,7 +656,7 @@ export default function PosCartSidebar({
                     <FaStickyNote size={10.5} style={{ color: '#475569', flexShrink: 0 }} />
                     <input
                       type="text"
-                      placeholder="Kitchen note (e.g. less spicy)..."
+                      placeholder="Note..."
                       value={orderNote || ''}
                       onChange={(e) => setOrderNote && setOrderNote(e.target.value)}
                       maxLength={180}
@@ -719,7 +723,7 @@ export default function PosCartSidebar({
                       activeOrderMode === 'kitchen' ? (
                         <>
                           <FaFire size={12} />
-                          <span>Send to Kitchen</span>
+                          <span>{kitchenTerms.sendLabel}</span>
                         </>
                       ) : (
                         <>
@@ -791,7 +795,7 @@ export default function PosCartSidebar({
               <FaStickyNote size={11} style={{ color: '#475569', flexShrink: 0 }} />
               <input
                 type="text"
-                placeholder="Kitchen note (e.g. less spicy)..."
+                placeholder="Note..."
                 value={orderNote || ''}
                 onChange={(e) => setOrderNote && setOrderNote(e.target.value)}
                 maxLength={180}
@@ -834,7 +838,7 @@ export default function PosCartSidebar({
                 activeOrderMode === 'kitchen' ? (
                   <>
                     <FaFire size={13} />
-                    <span>Send to Kitchen</span>
+                    <span>{kitchenTerms.sendLabel}</span>
                   </>
                 ) : (
                   <>

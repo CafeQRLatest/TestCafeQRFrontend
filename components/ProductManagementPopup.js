@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import NiceSelect from './NiceSelect';
@@ -25,6 +26,7 @@ export default function ProductManagementPopup({
   products: propProducts = null,
   config = null,
 }) {
+  const currencySymbol = useCurrencySymbol();
   const { notify } = useNotification();
   const { userRole } = useAuth();
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
@@ -58,7 +60,7 @@ export default function ProductManagementPopup({
         barcode: selectedProduct.barcode,
         price: selectedProduct.price,
         mrp: selectedProduct.mrp,
-        sym: config?.currencySymbol || '₹',
+        sym: config?.currencySymbol || '',
         quantity: labelCopies
       });
       notify('success', `Sent ${labelCopies} barcode label(s) to printer!`);
@@ -1478,7 +1480,7 @@ export default function ProductManagementPopup({
                             <div key={pl.id} className="pl-input-card" style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>{pl.name} {pl.isDefault ? '★' : ''}</label>
                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8' }}>₹</span>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8' }}>{currencySymbol}</span>
                                   <input 
                                      type="number" 
                                      style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
@@ -1613,7 +1615,7 @@ export default function ProductManagementPopup({
                                             </label>
                                             <div>
                                               <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>{opt.name}</div>
-                                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Base: ₹{opt.additionalPrice || 0}</div>
+                                              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>Base: {currencySymbol}{opt.additionalPrice || 0}</div>
                                             </div>
                                          </div>
 
@@ -1624,7 +1626,7 @@ export default function ProductManagementPopup({
                                                <span style={{ fontSize: '10px', fontWeight: 800, color: '#166534', background: '#dcfce7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                   Sale
                                                </span>
-                                               <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>₹</span>
+                                               <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{currencySymbol}</span>
                                                <input 
                                                   type="number" 
                                                   placeholder="0.00"
@@ -1655,7 +1657,7 @@ export default function ProductManagementPopup({
                                                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#991b1b', background: '#ffe4e6', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                     Purchase
                                                  </span>
-                                                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>₹</span>
+                                                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{currencySymbol}</span>
                                                  <input 
                                                     type="number" 
                                                     placeholder="0.00"
@@ -1722,7 +1724,7 @@ export default function ProductManagementPopup({
                    {(selectedProduct.upsells || []).map((u, idx) => (
                      <div key={idx} className="mapping-item-card horizontal">
                         <div className="card-img-sm" style={{ backgroundImage: `url(${u.upsellProduct?.imageUrl || ''})` }}></div>
-                        <div className="item-info"><strong>{u.upsellProduct?.name}</strong><span>₹{u.upsellProduct?.price}</span></div>
+                        <div className="item-info"><strong>{u.upsellProduct?.name}</strong><span>{currencySymbol}{u.upsellProduct?.price}</span></div>
                         <button className="text-red" onClick={() => {
                            setSelectedProduct({
                               ...selectedProduct,

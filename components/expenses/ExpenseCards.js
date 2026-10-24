@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { FaEdit, FaTrash, FaWallet } from 'react-icons/fa';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { prettyMethod } from '../../constants/payMethods';
@@ -12,8 +13,9 @@ export default function ExpenseCards({
   openEdit,
   handleDelete,
   filterStatus,
-  currencySymbol = '₹'
+  currencySymbol = ''
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const sym = currencySymbol;
   const isVoid = filterStatus === 'VOID';
 
@@ -62,7 +64,7 @@ export default function ExpenseCards({
                 </div>
               </div>
               <div className={styles['mc-amt-badge']}>
-                <span className={styles['row-amt']}>{sym}{parseFloat(r.amount).toFixed(2)}</span>
+                <span className={styles['row-amt']}>{sym}{parseFloat(r.amount).toFixed(currencyDecimals)}</span>
               </div>
             </div>
 
@@ -82,10 +84,10 @@ export default function ExpenseCards({
                 {r.paymentMethod === 'MIXED' ? (
                   <div style={{ display: 'flex', gap: '4px' }}>
                     <div className={`${styles['mc-pay-pill']} ${styles.cash}`}>
-                      <span>Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(2)}</span>
+                      <span>Cash: {sym}{parseFloat(r.cashAmount || 0).toFixed(currencyDecimals)}</span>
                     </div>
                     <div className={`${styles['mc-pay-pill']} ${styles.online}`}>
-                      <span>Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(2)}</span>
+                      <span>Online: {sym}{parseFloat(r.onlineAmount || 0).toFixed(currencyDecimals)}</span>
                     </div>
                   </div>
                 ) : (

@@ -1,3 +1,5 @@
+import { loadCurrencyDecimals } from './currencyDecimals';
+
 /**
  * Utility for generating and printing thermal barcode sticker labels.
  * Uses JsBarcode (loaded via CDN dynamically if missing) and offscreen canvas
@@ -109,7 +111,8 @@ export async function generateLabelCanvas({
   barcode = '',
   price = null,
   mrp = null,
-  sym = '₹',
+  sym = '',
+  currencyDecimals = 2,
   config = null
 }) {
   await loadJsBarcode();
@@ -221,9 +224,9 @@ export async function generateLabelCanvas({
     const numMrp = Number(mrp);
 
     if (cfg.showMrp && numMrp > 0 && numMrp > numPrice) {
-      priceText = `MRP: ${sym}${numMrp.toFixed(2)}  PRICE: ${sym}${numPrice.toFixed(2)}`;
+      priceText = `MRP: ${sym}${numMrp.toFixed(currencyDecimals)}  PRICE: ${sym}${numPrice.toFixed(currencyDecimals)}`;
     } else if (cfg.showPrice && !isNaN(numPrice)) {
-      priceText = `PRICE: ${sym}${numPrice.toFixed(2)}`;
+      priceText = `PRICE: ${sym}${numPrice.toFixed(currencyDecimals)}`;
     }
 
     if (priceText) {
@@ -243,7 +246,7 @@ export async function printBarcodeLabel({
   barcode = '',
   price = null,
   mrp = null,
-  sym = '₹',
+  sym = '',
   quantity = 1,
   targetPrinterName = null,
   config = null
@@ -251,9 +254,10 @@ export async function printBarcodeLabel({
   if (!barcode) {
     throw new Error('Barcode value is required for label printing.');
   }
+  const currencyDecimals = await loadCurrencyDecimals();
 
   const cfg = { ...getStoredLabelConfig(), ...(config || {}) };
-  const canvas = await generateLabelCanvas({ name, barcode, price, mrp, sym, config: cfg });
+  const canvas = await generateLabelCanvas({ name, barcode, price, mrp, sym, currencyDecimals, config: cfg });
   const qty = Math.max(1, parseInt(quantity) || 1);
 
   // Strategy 0: Android Native Bluetooth / LAN Printing (Capacitor APK/AAB)

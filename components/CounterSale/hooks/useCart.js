@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { cartKeyFor, hasExtendedOptions } from '../domain/cart';
+import { parseQty, roundQty, uomPrecisionOf } from '../domain/quantity';
 import { fetchProductDetails } from '../services/counterSaleApi';
 
 export default function useCart({ notify }) {
@@ -61,7 +62,7 @@ export default function useCart({ notify }) {
 
   const addPreparedToCart = useCallback((product) => {
     setCart(prev => {
-      const quantity = Math.max(1, Number(product.qty || 1));
+      const quantity = roundQty(Math.max(1, Number(product.qty || 1)), uomPrecisionOf(product));
       const prepared = {
         ...product,
         productId: product.productId || product.id,
@@ -228,7 +229,8 @@ export default function useCart({ notify }) {
   const updateQty = useCallback((key, delta) => {
     setCart(prev => prev.map(item => {
       if (cartKeyFor(item) === String(key)) {
-        return { ...item, qty: Math.max(0, Number(item.qty || 0) + delta) };
+        const precision = uomPrecisionOf(item);
+        return { ...item, qty: roundQty(Math.max(0, Number(item.qty || 0) + delta), precision) };
       }
       return item;
     }).filter(item => item.qty > 0));
@@ -258,7 +260,7 @@ export default function useCart({ notify }) {
   }, [addPreparedToCart]);
 
   const setProductQty = useCallback((product, newQty) => {
-    const qty = Math.max(0, Number(newQty || 0));
+    const qty = roundQty(Math.max(0, Number(newQty || 0)), uomPrecisionOf(product));
     const key = `${product.id}:base`;
     setCart(prev => {
       if (qty === 0) {
@@ -294,8 +296,9 @@ export default function useCart({ notify }) {
   }, []);
 
   const setItemQty = useCallback((key, newQty) => {
-    const qty = Math.max(0, parseInt(newQty, 10) || 0);
     setCart(prev => {
+      const target = prev.find(item => cartKeyFor(item) === String(key));
+      const qty = parseQty(newQty, uomPrecisionOf(target));
       if (qty === 0) {
         return prev.filter(item => cartKeyFor(item) !== String(key));
       }

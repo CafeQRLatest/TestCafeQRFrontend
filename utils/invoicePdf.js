@@ -10,6 +10,7 @@ import api from './api';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import { isLoyaltyModuleEnabled } from './moduleVisibility';
 import { formatTzDate } from './timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -17,8 +18,8 @@ function fmt(n, dp = 2) {
   return Number(n || 0).toFixed(dp);
 }
 
-function money(val, sym) {
-  return `${sym || ''}${fmt(val)}`;
+function money(val, sym, dp = 2) {
+  return `${sym || ''}${fmt(val, dp)}`;
 }
 
 function getSafePdfSymbol(sym) {
@@ -279,6 +280,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
 
   // 6. Labels
   const rawSym      = cfg.currencySymbol || '\u20b9';
+  const dp          = Number.isInteger(cfg.currencyDecimalPlaces) ? cfg.currencyDecimalPlaces : 2;
   const sym         = rawSym + ' ';
   const clientName  = clientData?.name || cfg.restaurantName || 'Business';
   const branchName  = branchData?.name || '';
@@ -571,11 +573,11 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     return {
       idx:       String(i + 1),
       name:      displayName,
-      qty:       String(qty),
-      unitPrice: money(unitPrice, sym),
+      qty:       formatQty(qty, uomPrecisionOf(line)),
+      unitPrice: money(unitPrice, sym, dp),
       gst:       taxRate > 0 ? `${taxRate}%` : '—',
-      discount:  discAmt > 0 ? money(discAmt, sym) : '—',
-      total:     money(lineTotal, sym),
+      discount:  discAmt > 0 ? money(discAmt, sym, dp) : '—',
+      total:     money(lineTotal, sym, dp),
     };
   });
 
@@ -599,7 +601,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     },
     columnStyles: {
       idx:       { halign: 'center', cellWidth: 10 },
-      qty:       { halign: 'center', cellWidth: 14 },
+      qty:       { halign: 'center', cellWidth: 20 },
       unitPrice: { halign: 'right',  cellWidth: 28 },
       gst:       { halign: 'center', cellWidth: 20 },
       discount:  { halign: 'right',  cellWidth: 24 },
@@ -651,27 +653,27 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     : (gross > 0 ? (grandTotal - taxTotal - roundOff) : subtotal);
 
   const totalRows = [];
-  if (gross > 0 && Math.abs(gross - displaySubtotal) > 0.01) totalRows.push(['Gross Total', money(gross, sym)]);
+  if (gross > 0 && Math.abs(gross - displaySubtotal) > 0.01) totalRows.push(['Gross Total', money(gross, sym, dp)]);
   
   // Total discount breakdown (manual discount + loyalty discount)
   const isLoyaltyActive = isLoyaltyModuleEnabled(cfg) || cfg?.loyaltyEnabled === true;
   const generalDiscount = isLoyaltyActive ? Math.max(0, discount - loyaltyAmount) : discount;
 
   if (generalDiscount > 0.01) {
-    totalRows.push(['Discount', `-${money(generalDiscount, sym)}`]);
+    totalRows.push(['Discount', `-${money(generalDiscount, sym, dp)}`]);
   }
   if (isLoyaltyActive && loyaltyAmount > 0.01) {
     const ptsLabel = redeemPoints > 0 ? ` (${redeemPoints} pts)` : '';
-    totalRows.push([`Loyalty Discount${ptsLabel}`, `-${money(loyaltyAmount, sym)}`]);
+    totalRows.push([`Loyalty Discount${ptsLabel}`, `-${money(loyaltyAmount, sym, dp)}`]);
   } else if (discount > 0.01 && generalDiscount <= 0.01) {
-    totalRows.push(['Discount', `-${money(discount, sym)}`]);
+    totalRows.push(['Discount', `-${money(discount, sym, dp)}`]);
   }
 
-  totalRows.push(['Subtotal', money(displaySubtotal, sym)]);
-  totalRows.push(['Tax Amount', money(taxTotal, sym)]);
+  totalRows.push(['Subtotal', money(displaySubtotal, sym, dp)]);
+  totalRows.push(['Tax Amount', money(taxTotal, sym, dp)]);
   if (Math.abs(roundOff) > 0.001) {
     const sign = roundOff > 0 ? '+' : '';
-    totalRows.push(['Round Off', `${sign}${money(roundOff, sym)}`]);
+    totalRows.push(['Round Off', `${sign}${money(roundOff, sym, dp)}`]);
   }
 
   // Position Totals Block at the bottom right corner of the page (minimal style)
@@ -708,18 +710,18 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   rowY += 4;
   doc.setFont('Roboto', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...ORANGE);
   doc.text('GRAND TOTAL', bX + 2, rowY);
-  doc.text(money(grandTotal, sym), bX + bW - 2, rowY, { align: 'right' });
+  doc.text(money(grandTotal, sym, dp), bX + bW - 2, rowY, { align: 'right' });
 
   if (paidAmtVal > 0) {
     rowY += 6;
     doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...MID);
     doc.text('Paid Amount', bX + 2, rowY);
-    doc.text(money(paidAmtVal, sym), bX + bW - 2, rowY, { align: 'right' });
+    doc.text(money(paidAmtVal, sym, dp), bX + bW - 2, rowY, { align: 'right' });
 
     rowY += 6;
     doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...DARK);
     doc.text('Balance Due', bX + 2, rowY);
-    doc.text(money(amtDueVal, sym), bX + bW - 2, rowY, { align: 'right' });
+    doc.text(money(amtDueVal, sym, dp), bX + bW - 2, rowY, { align: 'right' });
   }
 
   // ── Payment info ──────────────────────────────────────────────────────────────
@@ -730,7 +732,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     for (const sp of splits) {
       doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
       doc.text(sp.paymentMethod || '—', margin, y);
-      doc.text(money(sp.amount, sym), 75, y, { align: 'right' });
+      doc.text(money(sp.amount, sym, dp), 75, y, { align: 'right' });
       y += 5;
     }
     y += 3;
@@ -858,7 +860,8 @@ export async function downloadPublicInvoicePdf(dto) {
   };
 
   const virtualConfig = {
-    currencySymbol: dto.currencySymbol || '₹',
+    currencySymbol: dto.currencySymbol || '',
+    currencyDecimalPlaces: dto.currencyDecimals,
     taxLabelGlobal: dto.taxLabel || 'GST',
     logoUrl: dto.logoUrl,
     billFooter: dto.billFooter,

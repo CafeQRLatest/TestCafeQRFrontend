@@ -401,7 +401,7 @@ function ClientRow({ client, index, onToggleActive, onOpenExtendModal, onOpenPay
                         ['Active Menu Products', `${client.menuItemsCount || 0} items`],
                         ['Table QR Codes', `${client.tablesCount || 0} tables`],
                         ['Onboarding Stage', `${ONBOARDING_MAP[client.onboardingStep]?.label || 'Profile Pending'} (${client.onboardingScore || 20}%)`],
-                        ['Country', client.country], ['Currency', client.currency], ['Timezone', client.timezone],
+                        ['Country', client.country], ['Timezone', client.timezone],
                         ['POS Type', client.posType], ['Address', client.address], ['Website', client.website],
                         ['Primary Language', client.primaryLanguage], ['Pin Code', client.pinCode],
                         ['PAN', client.panNumber], ['GST', client.gstNumber], ['FSSAI', client.fssaiNumber],

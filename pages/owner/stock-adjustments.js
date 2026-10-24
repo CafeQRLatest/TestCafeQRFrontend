@@ -16,6 +16,48 @@ import {
   FaCheckCircle, FaExclamationCircle, FaSave, FaChartLine, FaEye, FaHistory, FaTimes, FaTimesCircle, FaExclamationTriangle
 } from 'react-icons/fa';
 import VariantSelector from '../../components/VariantSelector';
+import {formatQty, parseQty, uomPrecisionOf, withinPrecision } from '../../components/CounterSale/domain/quantity';
+
+// Signed quantity parse for adjustments (+/-). Magnitude is rounded to the UOM precision.
+const signedQty = (raw, precision) => {
+  const text = String(raw);
+  const magnitude = parseQty(text.replace('-', ''), precision);
+  return text.startsWith('-') && magnitude > 0 ? -magnitude : magnitude;
+};
+
+const qtyDisplay = (value, precision) =>
+  (value === '' || value === null || value === undefined ? '' : formatQty(value, precision));
+
+// Text input for product quantities. Keeps typed text while focused, reformats on blur.
+function PrecisionQtyInput({ value, precision, allowNegative = false, onCommit, onBlur, ...rest }) {
+  const [text, setText] = useState(() => qtyDisplay(value, precision));
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!focusedRef.current) setText(qtyDisplay(value, precision));
+  }, [value, precision]);
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
+      onChange={(e) => {
+        const raw = e.target.value.replace(',', '.');
+        const pattern = allowNegative ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/;
+        if (!pattern.test(raw)) return;
+        if (!withinPrecision(raw, precision)) return;
+        setText(raw);
+        onCommit(raw);
+      }}
+      onBlur={(e) => {
+        focusedRef.current = false;
+        setText(qtyDisplay(value, precision));
+        if (onBlur) onBlur(e);
+      }}
+    />
+  );
+}
 
 export default function StockAdjustmentsPage() {
   return (
@@ -380,6 +422,7 @@ function AdjustmentContent() {
 
   const totalItems = adjustment.lines.length;
   const totalQtyChange = adjustment.lines.reduce((acc, l) => acc + (l.quantityChange || 0), 0);
+  const maxQtyPrecision = Math.max(0, ...adjustment.lines.map(l => uomPrecisionOf(products.find(prod => prod.id === l.productId) || l)));
 
   const filteredWarehouses = useMemo(() => {
     return warehouses.filter(w => {
@@ -496,7 +539,7 @@ function AdjustmentContent() {
                             </div>
                             {hasWarehouse && (
                               <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
-                                <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock} Available
+                                <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {formatQty(currentStock, uomPrecisionOf(p))} Available
                               </div>
                             )}
                           </div>
@@ -544,18 +587,19 @@ function AdjustmentContent() {
                               </td>
                               <td className="col-stock">
                                 <div className={`classic-pill ${currentStockVal > 0 ? 'success' : 'danger'}`} style={{ background: currentStockVal > 0 ? '#ecfdf5' : '#fef2f2', color: currentStockVal > 0 ? '#059669' : '#dc2626', display: 'inline-flex', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
-                                  {currentStockVal} {line.unitName || p.unitName || 'units'}
+                                  {formatQty(currentStockVal, uomPrecisionOf(p))} {line.unitName || p.unitName || 'units'}
                                 </div>
                               </td>
                               <td className="col-qty">
                                 <div className="classic-qty-group">
                                    <button className="qty-btn" onClick={() => updateLineQty(idx, (line.quantityChange || 0) - 1)}><FaMinus /></button>
                                    <div className="qty-num">
-                                      <input 
-                                        type="number" 
+                                      <PrecisionQtyInput
                                         className="qty-raw-input"
                                         value={line.quantityChange}
-                                        onChange={(e) => updateLineQty(idx, parseFloat(e.target.value) || 0)}
+                                        precision={uomPrecisionOf(p)}
+                                        allowNegative
+                                        onCommit={(raw) => updateLineQty(idx, signedQty(raw, uomPrecisionOf(p)))}
                                       />
                                    </div>
                                    <button className="qty-btn" onClick={() => updateLineQty(idx, (line.quantityChange || 0) + 1)}><FaPlus /></button>
@@ -585,16 +629,17 @@ function AdjustmentContent() {
                               <button className="m-item-remove" onClick={() => removeLine(idx)}><FaTrash /></button>
                             </div>
                             <div className="m-item-controls">
-                               <span className="stock-pill">Current: {currentStockVal}</span>
+                               <span className="stock-pill">Current: {formatQty(currentStockVal, uomPrecisionOf(p))}</span>
                                <div className="classic-qty-group small">
                                  <button className="qty-btn" onClick={() => updateLineQty(idx, (line.quantityChange || 0) - 1)}><FaMinus /></button>
                                  <div className="qty-num">
-                                    <input 
-                                      type="number" 
-                                      className="qty-raw-input"
-                                      value={line.quantityChange}
-                                      onChange={(e) => updateLineQty(idx, parseFloat(e.target.value) || 0)}
-                                    />
+                                    <PrecisionQtyInput
+                                        className="qty-raw-input"
+                                        value={line.quantityChange}
+                                        precision={uomPrecisionOf(p)}
+                                        allowNegative
+                                        onCommit={(raw) => updateLineQty(idx, signedQty(raw, uomPrecisionOf(p)))}
+                                      />
                                  </div>
                                  <button className="qty-btn" onClick={() => updateLineQty(idx, (line.quantityChange || 0) + 1)}><FaPlus /></button>
                                </div>
@@ -664,7 +709,7 @@ function AdjustmentContent() {
                   <div className="cs-row accent">
                     <span>Net Quantity Change</span>
                     <span className={`cs-val ${totalQtyChange < 0 ? 'neg' : ''}`}>
-                      {totalQtyChange > 0 ? '+' : ''}{totalQtyChange}
+                      {totalQtyChange > 0 ? '+' : ''}{formatQty(totalQtyChange, maxQtyPrecision)}
                     </span>
                   </div>
                 </div>
@@ -724,7 +769,7 @@ function AdjustmentContent() {
           <div className="mobile-action-bar">
             <div className="ma-info">
               <span className={`ma-qty ${totalQtyChange < 0 ? 'neg' : ''}`}>
-                {totalQtyChange > 0 ? '+' : ''}{totalQtyChange} Net
+                {totalQtyChange > 0 ? '+' : ''}{formatQty(totalQtyChange, maxQtyPrecision)} Net
               </span>
               <span className="ma-count">{totalItems} Products</span>
             </div>
@@ -868,7 +913,7 @@ function AdjustmentContent() {
         
         .col-idx { width: 40px; }
         .col-product { width: auto; }
-        .col-qty { width: 180px; }
+        .col-qty { width: 260px; min-width: 240px; padding: 12px 16px; white-space: nowrap; }
         .col-action { width: 60px; text-align: right; }
 
         .p-name { font-size: 14px; font-weight: 800; color: #0f172a; }
@@ -881,7 +926,9 @@ function AdjustmentContent() {
         .qty-btn { width: 28px; height: 28px; border-radius: 7px; border: none; background: white; cursor: pointer; color: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .qty-btn:hover { background: #0f172a; color: white; }
         .qty-num { min-width: 40px; }
-        .qty-raw-input { background: transparent; border: none; outline: none; width: 100%; text-align: center; font-size: 14px; font-weight: 800; color: #0f172a; }
+        :global(.qty-raw-input) { width: 76px; min-width: 76px; height: 28px; padding: 0 4px; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; outline: none; text-align: center; font-size: 14px; font-weight: 800; color: #000000; -moz-appearance: textfield; }
+        :global(.qty-raw-input):focus { border-color: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
+        :global(.qty-raw-input)::-webkit-outer-spin-button, :global(.qty-raw-input)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
         .classic-trash { background: none; border: none; color: #ef4444; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; opacity: 0.7; }
         .classic-trash:hover { opacity: 1; transform: scale(1.1); }
@@ -983,7 +1030,7 @@ function AdjustmentContent() {
             .classic-qty-group.small { padding: 2px; }
             .classic-qty-group.small .qty-btn { width: 24px; height: 24px; font-size: 9px; }
             .classic-qty-group.small .qty-num { min-width: 28px; }
-            .classic-qty-group.small .qty-raw-input { font-size: 12px; }
+            .classic-qty-group.small :global(.qty-raw-input) { width: 64px; min-width: 64px; font-size: 12px; }
 
             .search-bar.product { height: 48px; padding: 0 12px; }
             .search-bar.product input { font-size: 14px; padding-left: 10px; }

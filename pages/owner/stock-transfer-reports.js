@@ -11,6 +11,7 @@ import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
 import { generateStockTransferPdf } from '../../utils/stockTransferPdf';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 import { 
   FaSearch, FaExchangeAlt, FaEye, FaPrint, FaBan, FaCheckCircle
 } from 'react-icons/fa';
@@ -385,7 +386,7 @@ function TransferReportContent() {
                           <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{line.sku || '—'}</td>
                           <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{line.categoryName || '—'}</td>
                           <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
-                            <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '6px', display: 'inline-block', minWidth: '32px', textAlign: 'center' }}>{line.transferQuantity}</span>
+                            <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '6px', display: 'inline-block', minWidth: '32px', textAlign: 'center' }}>{line.transferQuantity != null ? formatQty(line.transferQuantity, uomPrecisionOf(line)) : ''}</span>
                           </td>
                         </tr>
                       ))

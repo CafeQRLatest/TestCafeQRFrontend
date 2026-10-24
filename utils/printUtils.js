@@ -4,6 +4,7 @@ const GS = "\x1d";
 
 import { formatTzDate } from './timezoneUtils';
 import { buildUpiUri, buildEscposQrCommands } from './upiQrGenerator';
+import { formatQty } from '../components/CounterSale/domain/quantity';
 
 function b(n) {
   return String.fromCharCode(n & 0xff);
@@ -201,7 +202,7 @@ function normalizeDisplayItem(raw) {
       pickValue(raw, ["isPackagedGood", "is_packaged_good", "is_packaged"], pickValue(menu, ["isPackagedGood", "is_packaged_good"], false))
     ),
     category: getCategoryName(raw, menu),
-    uom_precision: raw?.uom_precision ?? raw?.uomPrecision ?? menu?.uom?.precision,
+    uom_precision: raw?.uom_precision ?? raw?.uomPrecision ?? menu?.uomPrecision ?? menu?.uom?.uomPrecision,
     description: pickValue(raw, ["description", "notes", "line_notes", "itemNotes", "kitchenNote", "kitchen_note"], null) || null,
   };
 }
@@ -445,14 +446,15 @@ function buildLogoEscPos(restaurantProfile) {
 function getBillCols(innerW, hasDiscount) {
   const showDiscCol = false;
   const gaps = showDiscCol ? 4 : 3;
-  let qty = innerW >= 44 ? 6 : innerW >= 38 ? 6 : 4;
+  // Qty fits the 4-decimal maximum (e.g. 12.3456 = 7 chars) plus a space.
+  let qty = innerW >= 38 ? 8 : 7;
   let rate = innerW >= 44 ? 7 : innerW >= 38 ? 7 : 5;
   let disc = showDiscCol ? (innerW >= 44 ? 7 : 6) : 0;
   let total = innerW >= 44 ? 8 : innerW >= 38 ? 7 : 7;
   const fixed = qty + rate + total + disc + gaps;
   let name = innerW - fixed;
   if (name < 8) {
-    qty = 3; rate = 5; disc = 0; total = 7;
+    qty = 7; rate = 5; disc = 0; total = 7;
     const fixed2 = qty + rate + total + disc + gaps;
     name = Math.max(6, innerW - fixed2);
   }
@@ -505,7 +507,8 @@ export function buildKotText(order, restaurantProfile) {
       hour12: true,
     });
 
-    const qtyW = 6;
+    // Qty fits the 4-decimal maximum (e.g. 12.3456 = 7 chars) plus a space.
+    const qtyW = 8;
     const nameW = Math.max(10, W - (qtyW + 1));
     const lines = [];
 
@@ -600,7 +603,7 @@ export function buildKotText(order, restaurantProfile) {
     if (items.length) {
       const itemScale = (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
       const itemCols = Math.max(16, Math.floor(W / itemScale));
-      const itemQtyW = itemScale === 2 ? 4 : qtyW;
+      const itemQtyW = itemScale === 2 ? 7 : qtyW;
       const itemNameW = Math.max(8, itemCols - itemQtyW - 1);
 
       lines.push(withMargins(leftAlign("ITEM", nameW) + " " + rightAlign("QTY", qtyW), layout));
@@ -619,7 +622,7 @@ export function buildKotText(order, restaurantProfile) {
         const qtyNum = Number(it?.quantity || 1);
         const p = Number.isInteger(it?.uom_precision) ? it.uom_precision : qtyNum % 1 === 0 ? 0 : 2;
         if (!nameLines.length) return;
-        const qty = rightAlign(qtyNum.toFixed(p), itemQtyW);
+        const qty = rightAlign(formatQty(qtyNum, p), itemQtyW);
         lines.push(withMargins(leftAlign(nameLines[0], itemNameW) + " " + qty, layout));
         for (let i = 1; i < nameLines.length; i++) lines.push(withMargins(nameLines[i], layout));
         // Item-level kitchen note
@@ -648,7 +651,7 @@ export function buildKotText(order, restaurantProfile) {
         const qtyNum = Number(ri?.quantity ?? ri?.qty ?? 1);
         const p = Number.isInteger(ri?.uom_precision) ? ri.uom_precision : qtyNum % 1 === 0 ? 0 : 2;
         if (!nameLines.length) return;
-        const qty = rightAlign(qtyNum.toFixed(p), qtyW);
+        const qty = rightAlign(formatQty(qtyNum, p), qtyW);
         lines.push(withMargins(leftAlign("- " + nameLines[0], nameW) + " " + qty, layout));
         for (let i = 1; i < nameLines.length; i++) lines.push(withMargins("  " + nameLines[i], layout));
       });
@@ -861,8 +864,9 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       const rateNum = Number(it.price || 0);
       const lineTotalNum = rateNum * qtyNum;
       const nameLines = wrapText(it.variant_name ? `${it.name} (${it.variant_name})` : it.name, name);
-      const qtyStr = Number.isInteger(qtyNum) ? qtyNum.toString() : qtyNum.toFixed(2);
-      const totalStr = lineTotalNum.toFixed(2);
+      const qtyP = Number.isInteger(it?.uom_precision) ? it.uom_precision : Number.isInteger(qtyNum) ? 0 : 2;
+      const qtyStr = formatQty(qtyNum, qtyP);
+      const totalStr = lineTotalNum.toFixed(restaurantProfile?.currency_decimals ?? 2);
       let row = leftAlign(nameLines[0], name) + " " + rightAlignEnd(qtyStr, qty) + " " + rightAlignEnd(fmtRate(rateNum), rate);
       if (showDiscCol) row += " " + rightAlignEnd("", disc);
       row += " " + rightAlignEnd(totalStr, total);
@@ -937,6 +941,8 @@ export function buildReceiptText(order, bill, restaurantProfile) {
         amount: oGrandTotal,
         billRef,
         note: `Bill ${billRef}`.trim(),
+        currencyCode: restaurantProfile?.currency_code,
+        currencyDecimals: restaurantProfile?.currency_decimals,
       });
 
       if (upiUri) {

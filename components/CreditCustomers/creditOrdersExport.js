@@ -1,3 +1,4 @@
+import { loadCurrencyDecimals } from '../../utils/currencyDecimals';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from '../../utils/customFonts';
 
@@ -11,6 +12,7 @@ export async function exportCreditOrdersToExcel({
   timezone = 'Asia/Kolkata',
   notify,
 }) {
+  const currencyDecimals = await loadCurrencyDecimals();
   if (!orders || orders.length === 0) {
     if (notify) notify('warning', 'No credit orders to export');
     return;
@@ -98,9 +100,10 @@ export async function exportCreditOrdersToPdf({
   customer,
   orders = [],
   timezone = 'Asia/Kolkata',
-  currencySymbol = '₹',
+  currencySymbol = '',
   notify,
 }) {
+  const currencyDecimals = await loadCurrencyDecimals();
   if (!orders || orders.length === 0) {
     if (notify) notify('warning', 'No credit orders to export');
     return;
@@ -246,7 +249,7 @@ export async function exportCreditOrdersToPdf({
     doc.setFont(fontName, 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(...ORANGE);
-    doc.text(`Outstanding Due: ${safeSym}${totalDueSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, W - margin - 6, y + 12, { align: 'right' });
+    doc.text(`Outstanding Due: ${safeSym}${totalDueSum.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`, W - margin - 6, y + 12, { align: 'right' });
 
     y += metaCardH + 8;
 
@@ -269,8 +272,8 @@ export async function exportCreditOrdersToPdf({
       return {
         docNo,
         date: dateStr,
-        total: `${safeSym}${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-        due: `${safeSym}${dueVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        total: `${safeSym}${totalVal.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`,
+        due: `${safeSym}${dueVal.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`,
         status,
       };
     });
@@ -365,7 +368,7 @@ export async function exportCreditOrdersToPdf({
     doc.setTextColor(...MID);
     doc.text('Total Invoiced', bX + 2, rowY);
     doc.setTextColor(...DARK);
-    doc.text(`${safeSym}${totalAmountSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bX + bW - 2, rowY, { align: 'right' });
+    doc.text(`${safeSym}${totalAmountSum.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`, bX + bW - 2, rowY, { align: 'right' });
 
     if (totalPaidSum > 0) {
       rowY += 5.5;
@@ -374,7 +377,7 @@ export async function exportCreditOrdersToPdf({
       doc.setTextColor(...MID);
       doc.text('Paid Amount', bX + 2, rowY);
       doc.setTextColor(...GREEN);
-      doc.text(`-${safeSym}${totalPaidSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bX + bW - 2, rowY, { align: 'right' });
+      doc.text(`-${safeSym}${totalPaidSum.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`, bX + bW - 2, rowY, { align: 'right' });
     }
 
     // Orange accent line above Balance Due
@@ -389,7 +392,7 @@ export async function exportCreditOrdersToPdf({
     doc.setTextColor(...ORANGE);
     doc.text('BALANCE DUE', bX + 2, rowY);
     doc.setTextColor(...RED);
-    doc.text(`${safeSym}${totalDueSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bX + bW - 2, rowY, { align: 'right' });
+    doc.text(`${safeSym}${totalDueSum.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`, bX + bW - 2, rowY, { align: 'right' });
 
     // ── 5. PAGE FOOTER ───────────────────────────────────────────────────────
     const pageCount = doc.internal.getNumberOfPages();

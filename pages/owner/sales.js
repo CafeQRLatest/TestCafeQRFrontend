@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
 import axios from 'axios';
@@ -203,7 +204,7 @@ import {
   ActionBtn
 } from '../../components/SalesStyles';
 
-const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
+const money = (value, symbol = '', dp = 2) => `${symbol}${Number(value || 0).toFixed(dp)}`;
 
 function orderTotal(order) {
   return Number(order?.grandTotal ?? order?.grand_total ?? order?.totalAmount ?? order?.total_amount ?? 0);
@@ -411,6 +412,7 @@ export default function Sales() {
 }
 
 function SalesContent() {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder } = useAuth();
   const isSalesBranchMissing = !orgId;
@@ -468,7 +470,7 @@ function SalesContent() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [config, setConfig] = useState(null);
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
   const [selectedTable, setSelectedTable] = useState(null);
   const [popoverTable, setPopoverTable] = useState(null);
   const [paymentOrder, setPaymentOrder] = useState(null);
@@ -2334,7 +2336,7 @@ function OrderHistory({
   loading,
   timezone,
   historySummary = null,
-  sym = '₹',
+  sym = '',
   onRefresh,
   onPageChange,
   onFilterChange,
@@ -2357,6 +2359,7 @@ function OrderHistory({
   isCustomerConfigOn = false,
   onViewDocument,
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const pageNumber = page?.number || 0;
   const totalPages = page?.totalPages || 0;
   const totalElements = page?.totalElements ?? orders.length;
@@ -2430,7 +2433,7 @@ function OrderHistory({
               <strong>{pendingOffline.length} Pending Offline {pendingOffline.length === 1 ? 'Order' : 'Orders'}</strong> detected. Will sync automatically when online.
             </div>
             <div style={{ fontWeight: '700' }}>
-              Provisional Total: {money(total, sym)}
+              Provisional Total: {money(total, sym, currencyDecimals)}
             </div>
           </div>
         );
@@ -2550,7 +2553,7 @@ function OrderHistory({
                       </ItemsPill>
                     </td>
                     <td>
-                      <strong>{money(orderTotal(order), sym)}</strong>
+                      <strong>{money(orderTotal(order), sym, currencyDecimals)}</strong>
                     </td>
                     <td>
                       <StatusBadge style={{

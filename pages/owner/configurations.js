@@ -2,6 +2,8 @@
 // SUPER_ADMIN only | Responsive | Modern Segmented Tabs | Centered Layout
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -14,7 +16,7 @@ import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb';
 import { setCachedConfig } from '../../utils/moduleVisibility';
 import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard';
-import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom, FaSearch } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
 // ═════════════════════════════════════════════════════════════════════════════
@@ -58,7 +60,6 @@ const MODULES = [
   },
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
   { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
-  { key: 'pm_barcode_scanner',  title: 'Barcode Scanner Module', desc: 'Enable barcode scanning & label printing in POS', color: '#f97316' },
   { key: 'pm_payroll',          title: 'Payroll & HR',      desc: 'Staff, time tracking, leave approvals, salary rules & payroll', color: '#f97316' },
 ];
 
@@ -382,13 +383,22 @@ export default function ConfigurationsPage() {
 // ═════════════════════════════════════════════════════════════════════════════
 
 function ConfigurationsContent() {
-  const { orgId, orgName, hasModule, updateSubscription } = useAuth();
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
+  const { orgId, orgName, hasModule, updateSubscription, posType } = useAuth();
+  const isCarWash = String(posType || '').trim().toLowerCase() === 'carwash';
   const hasBranchContext = Boolean(orgId && orgId !== '0');
   const configEndpoint = useMemo(
     () => (hasBranchContext ? `/api/v1/configurations/branch/${orgId}` : '/api/v1/configurations'),
     [hasBranchContext, orgId]
   );
   const [activeTab, setActiveTab] = useState('modules');
+  const [configSearch, setConfigSearch] = useState('');
+  const configQuery = configSearch.trim().toLowerCase();
+  const matchesConfigQuery = (...parts) => !configQuery || parts.join(' ').toLowerCase().includes(configQuery);
+  const moduleMatches = (m) => matchesConfigQuery(m.title, m.desc, ...(m.children || []).flatMap(c => [c.title, c.desc]));
+  const salesMatches = matchesConfigQuery('sales pos terminal screen classic counter standard cache catalog v2 history');
+  const visibleModules = MODULES.filter(moduleMatches);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [message, setMessage]     = useState(null);
@@ -425,7 +435,7 @@ function ConfigurationsContent() {
     tax_prices_include: false,
     tax_split_enabled: false,
 
-    currency_symbol: '₹',
+    currency_symbol: '',
     currency_position: 'before',
     
     ro_enabled: false, ro_mode: 'automatic', ro_auto_factor: 1.0, ro_manual_limit: 10.0,
@@ -576,7 +586,7 @@ function ConfigurationsContent() {
             tax_prices_include: !!d.pricesIncludeTax, 
             tax_split_enabled: false,
 
-            currency_symbol: d.currencySymbol || '₹',
+            currency_symbol: d.currencySymbol || '',
             currency_position: d.currencyPosition || 'before',
 
             ro_enabled: !!d.roundOffEnabled, ro_mode: d.roundOffMode || 'automatic',
@@ -726,7 +736,6 @@ function ConfigurationsContent() {
         pricesIncludeTax: config.tax_prices_include,
         taxSplitEnabled: config.tax_split_enabled,
 
-        currencySymbol: config.currency_symbol,
         currencyPosition: config.currency_position,
 
         roundOffEnabled: config.ro_enabled, roundOffMode: config.ro_mode,
@@ -1038,211 +1047,19 @@ function ConfigurationsContent() {
                 <p>Activate specific business features required for your workflow.</p>
               </div>
 
-              {/* ═══ UNIFIED SALES & POS CONFIGURATION SECTION ═══ */}
-              <div className="sales-config-unified-section">
-                <div className="sales-config-header">
-                  <div className="sales-config-header-title">
-                    <div style={{
-                      width: '38px',
-                      height: '38px',
-                      borderRadius: '10px',
-                      background: '#fff7ed',
-                      border: '1.5px solid #fed7aa',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ea580c',
-                      flexShrink: 0
-                    }}>
-                      <FaCashRegister size={18} />
-                    </div>
-                    <div>
-                      <h3>Sales &amp; POS Configuration</h3>
-                      <p>Manage default terminal version, cashier landing screen, and billing interface workflows.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="sales-config-body">
-                  {/* Group 1: Sales Terminal Engine Version */}
-                  <div className="sales-config-group">
-                    <div className="sales-group-title">
-                      <strong>1. Sales Terminal Engine Version</strong>
-                      <span className="sales-group-sub">Select Classic Sales (Default) or New Sales (POS V2) &amp; Sales History.</span>
-                    </div>
-
-                    <div className="pos-mode-grid">
-                      <div
-                        className={`pos-mode-card ${config.sales_version !== 'v2' ? 'active' : ''}`}
-                        onClick={() => {
-                          set('sales_version', 'v1');
-                          set('pos_v2_enabled', false);
-                        }}
-                      >
-                        <div className="pos-mode-icon" style={{
-                          background: config.sales_version !== 'v2' ? '#fff7ed' : '#f8fafc',
-                          color: config.sales_version !== 'v2' ? '#ea580c' : '#94a3b8',
-                          border: config.sales_version !== 'v2' ? '1px solid #fed7aa' : '1px solid #e2e8f0'
-                        }}>
-                          <FaHistory size={16} />
-                        </div>
-                        <div className="pos-mode-details">
-                          <div className="pos-mode-title-row">
-                            <strong>Classic Sales (Default)</strong>
-                            {config.sales_version !== 'v2' && <span className="pos-mode-badge">ACTIVE</span>}
-                          </div>
-                          <p>Standard reliable POS sales terminal. Hides POS V2 and dedicated Sales History screen from navigation.</p>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`pos-mode-card ${config.sales_version === 'v2' ? 'active' : ''}`}
-                        onClick={() => {
-                          set('sales_version', 'v2');
-                          set('pos_v2_enabled', true);
-                        }}
-                      >
-                        <div className="pos-mode-icon" style={{
-                          background: config.sales_version === 'v2' ? '#fff7ed' : '#f8fafc',
-                          color: config.sales_version === 'v2' ? '#ea580c' : '#94a3b8',
-                          border: config.sales_version === 'v2' ? '1px solid #fed7aa' : '1px solid #e2e8f0'
-                        }}>
-                          <FaBolt size={16} />
-                        </div>
-                        <div className="pos-mode-details">
-                          <div className="pos-mode-title-row">
-                            <strong>New Sales (POS V2) &amp; Sales History</strong>
-                            {config.sales_version === 'v2' && <span className="pos-mode-badge">ACTIVE</span>}
-                          </div>
-                          <p>High-performance POS V2 terminal with live sales history, cached product catalog, and offline outbox sync.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* POS SUB-CONFIGURATIONS (SHOWN ONLY WHEN NEW SALES V2 IS SELECTED) */}
-                  {config.sales_version === 'v2' && (
-                    <div className="sales-config-group" style={{ marginTop: '22px' }}>
-                      <div className="sales-group-title">
-                        <strong>2. POS Sales Screen Interface Mode</strong>
-                        <span className="sales-group-sub">Choose between visual catalog browsing or compact counter fast-billing.</span>
-                      </div>
-
-                      <div className="pos-mode-grid">
-                        {/* Standard Mode */}
-                        <div
-                          className={`pos-mode-card ${config.pm_pos_product_listing !== false ? 'active' : ''}`}
-                          onClick={() => {
-                            set('pm_pos_product_listing', true);
-                          }}
-                        >
-                          <div className="pos-mode-icon" style={{
-                            background: config.pm_pos_product_listing !== false ? '#fff7ed' : '#f8fafc',
-                            color: config.pm_pos_product_listing !== false ? '#ea580c' : '#94a3b8',
-                            border: config.pm_pos_product_listing !== false ? '1px solid #fed7aa' : '1px solid #e2e8f0'
-                          }}>
-                            <FaTh size={16} />
-                          </div>
-                          <div className="pos-mode-details">
-                            <div className="pos-mode-title-row">
-                              <strong>Standard Mode</strong>
-                              {config.pm_pos_product_listing !== false && <span className="pos-mode-badge">ACTIVE</span>}
-                            </div>
-                            <p>Full visual product catalog with item cards, category filter tabs, and keyset browsing for cafes &amp; restaurants.</p>
-                          </div>
-                        </div>
-
-                        {/* Counter Mode */}
-                        <div
-                          className={`pos-mode-card ${config.pm_pos_product_listing === false ? 'active' : ''}`}
-                          onClick={() => {
-                            set('pm_pos_product_listing', false);
-                          }}
-                        >
-                          <div className="pos-mode-icon" style={{
-                            background: config.pm_pos_product_listing === false ? '#fff7ed' : '#f8fafc',
-                            color: config.pm_pos_product_listing === false ? '#ea580c' : '#94a3b8',
-                            border: config.pm_pos_product_listing === false ? '1px solid #fed7aa' : '1px solid #e2e8f0'
-                          }}>
-                            <FaList size={16} />
-                          </div>
-                          <div className="pos-mode-details">
-                            <div className="pos-mode-title-row">
-                              <strong>Counter Mode</strong>
-                              {config.pm_pos_product_listing === false && <span className="pos-mode-badge">ACTIVE</span>}
-                            </div>
-                            <p>Ultra-fast keyboard-first quick billing with instant barcode/item search and compact order list. Ideal for retail counters.</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* CLEAR LOCAL POS CACHE (INDEXEDDB) */}
-                      <div style={{
-                        marginTop: '16px',
-                        padding: '14px 16px',
-                        background: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '16px',
-                        flexWrap: 'wrap'
-                      }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <FaBroom style={{ color: '#ea580c' }} />
-                            <span>Local Device Catalog Cache (IndexedDB)</span>
-                          </div>
-                          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                            Wipe all saved products, categories, and settings from this browser&apos;s local database. Forces a fresh download from the server on next POS open.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={cacheClearing}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            setCacheClearing(true);
-                            try {
-                              await clearAllPosCache();
-                              setMsgType('success');
-                              setMessage('Local POS cache wiped successfully. A fresh catalog will load on next POS visit.');
-                            } catch (err) {
-                              setMsgType('error');
-                              setMessage('Failed to clear local cache: ' + (err.message || String(err)));
-                            } finally {
-                              setCacheClearing(false);
-                            }
-                          }}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '8px 14px',
-                            background: cacheClearing ? '#cbd5e1' : '#ffffff',
-                            color: cacheClearing ? '#64748b' : '#dc2626',
-                            border: '1px solid #fca5a5',
-                            borderRadius: '8px',
-                            fontWeight: 600,
-                            fontSize: '12px',
-                            cursor: cacheClearing ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <FaTrashAlt size={12} />
-                          {cacheClearing ? 'Clearing...' : 'Clear Local Cache'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              <div className="config-search">
+                <FaSearch size={13} />
+                <input
+                  type="search"
+                  placeholder="Search settings..."
+                  value={configSearch}
+                  onChange={e => setConfigSearch(e.target.value)}
+                />
               </div>
 
               
               <div className="dense-grid">
-                {MODULES.map(m => {
+                {visibleModules.map(m => {
                   const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
                   const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
                   const isToggleOn = isSubscribed && config[m.key];
@@ -1259,8 +1076,8 @@ function ConfigurationsContent() {
                       }}>
                         <div className="box-content">
                           <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
-                            {m.title}
-                            <InfoTooltip 
+                            {m.key === 'pm_send_to_kitchen' && isCarWash ? 'Pay Later' : m.title}
+                            <InfoTooltip
                               id={`tip-${m.key}`} 
                               text={m.desc} 
                               activeTooltip={activeTooltip} 
@@ -1284,8 +1101,93 @@ function ConfigurationsContent() {
                 })}
               </div>
 
+              {!visibleModules.length && !salesMatches && (
+                <div className="config-search-empty">No settings match &ldquo;{configSearch}&rdquo;.</div>
+              )}
+
+              {/* ═══ SALES & POS SETTINGS ═══ */}
+              {salesMatches && <div className="pos-simple">
+                <div className="pos-simple-title">Sales &amp; POS</div>
+                <div className="pos-simple-sub">Terminal version and billing screen.</div>
+
+                <div className="pos-simple-row">
+                  <div className="pos-simple-text">
+                    <span className="pos-simple-label">Terminal</span>
+                    <span className="pos-simple-desc">Classic is the standard terminal. POS V2 adds live sales history.</span>
+                  </div>
+                  <div className="pos-seg">
+                    <button
+                      type="button"
+                      className={config.sales_version !== 'v2' ? 'on' : ''}
+                      onClick={() => { set('sales_version', 'v1'); set('pos_v2_enabled', false); }}
+                    >
+                      Classic
+                    </button>
+                    <button
+                      type="button"
+                      className={config.sales_version === 'v2' ? 'on' : ''}
+                      onClick={() => { set('sales_version', 'v2'); set('pos_v2_enabled', true); }}
+                    >
+                      POS V2 + History
+                    </button>
+                  </div>
+                </div>
+
+                {config.sales_version === 'v2' && (
+                  <>
+                    <div className="pos-simple-row">
+                      <div className="pos-simple-text">
+                        <span className="pos-simple-label">Screen</span>
+                        <span className="pos-simple-desc">Standard shows the product catalog. Counter is for fast keyboard billing.</span>
+                      </div>
+                      <div className="pos-seg">
+                        <button
+                          type="button"
+                          className={config.pm_pos_product_listing !== false ? 'on' : ''}
+                          onClick={() => set('pm_pos_product_listing', true)}
+                        >
+                          Standard
+                        </button>
+                        <button
+                          type="button"
+                          className={config.pm_pos_product_listing === false ? 'on' : ''}
+                          onClick={() => set('pm_pos_product_listing', false)}
+                        >
+                          Counter
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pos-simple-foot">
+                      <span>Local catalog cache</span>
+                      <button
+                        type="button"
+                        className="pos-link-danger"
+                        disabled={cacheClearing}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          setCacheClearing(true);
+                          try {
+                            await clearAllPosCache();
+                            setMsgType('success');
+                            setMessage('Local POS cache wiped successfully. A fresh catalog will load on next POS visit.');
+                          } catch (err) {
+                            setMsgType('error');
+                            setMessage('Failed to clear local cache: ' + (err.message || String(err)));
+                          } finally {
+                            setCacheClearing(false);
+                          }
+                        }}
+                      >
+                        {cacheClearing ? 'Clearing...' : 'Clear cache'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>}
+
               {/* Sub-config panels rendered BELOW the grid — cards stay uniform height */}
-              {MODULES.map(m => {
+              {visibleModules.map(m => {
                 const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
                 const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
                 if (!isSubscribed || !config[m.key]) return null;
@@ -1315,7 +1217,7 @@ function ConfigurationsContent() {
                       ))}
                       {isOnlinePayment && (
                         <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch', gap: 14, padding: '18px 20px', width: '100%' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                          <div className="razorpay-head">
                             <div className="subconfig-row-text">
                               <strong style={{ fontSize: 14, color: '#0f172a', fontWeight: 800 }}>Razorpay API Credentials (BYO Gateway)</strong>
                               <span style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Enter your Razorpay Key ID and Secret to receive online customer payments directly into your bank account.</span>
@@ -1329,7 +1231,7 @@ function ConfigurationsContent() {
                               Get Keys from Razorpay Dashboard →
                             </a>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, width: '100%' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 14, width: '100%' }}>
                             <div>
                               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                                 Razorpay Key ID <span style={{ color: '#ef4444' }}>*</span>
@@ -1408,7 +1310,7 @@ function ConfigurationsContent() {
                             <strong>Credit Allocation Mode</strong>
                             <span>Determine order priority when settlement occurs</span>
                           </div>
-                          <div style={{ width: 180 }} className="small-select">
+                          <div className="small-select subconfig-select">
                             <NiceSelect
                               value={config.credit_allocation_mode}
                               onChange={(v) => set('credit_allocation_mode', v)}
@@ -1427,7 +1329,7 @@ function ConfigurationsContent() {
                               <strong>Allow Non-Stock Products in Sales</strong>
                               <span>Policy when selling items with zero or negative inventory in warehouse</span>
                             </div>
-                            <div style={{ width: 220 }} className="small-select">
+                            <div className="small-select subconfig-select">
                               <NiceSelect
                                 value={config.non_stock_sales_policy || 'NONE'}
                                 onChange={(v) => set('non_stock_sales_policy', v)}
@@ -1444,7 +1346,7 @@ function ConfigurationsContent() {
                               <strong>Allow Non-Stock Products in Stock Transfer</strong>
                               <span>Policy when transferring items with zero or insufficient inventory in source warehouse</span>
                             </div>
-                            <div style={{ width: 220 }} className="small-select">
+                            <div className="small-select subconfig-select">
                               <NiceSelect
                                 value={config.non_stock_transfer_policy || 'NONE'}
                                 onChange={(v) => set('non_stock_transfer_policy', v)}
@@ -1568,7 +1470,7 @@ function ConfigurationsContent() {
                   <div className="tax-side-col">
                       <div className="simulator-card orange-theme">
                           <div className="sim-title" style={{ color: '#ea580c' }}>Real-time Simulation</div>
-                          <p className="sim-desc" style={{ color: '#c2410c' }}>See how ₹100 is computed with your current settings.</p>
+                          <p className="sim-desc" style={{ color: '#c2410c' }}>See how {currencySymbol}100 is computed with your current settings.</p>
                           
                           {(() => {
                              const defaultRule = config.tax_rates.find(r => r.id === config.tax_default_id) || { value: 0 };
@@ -1587,7 +1489,7 @@ function ConfigurationsContent() {
                                  total = base + taxAmt;
                              }
 
-                             const fmt = (v) => v.toFixed(2);
+                             const fmt = (v) => v.toFixed(currencyDecimals);
                              const sym = config.currency_symbol;
                              const pos = config.currency_position;
                              const show = (v) => pos === 'before' ? `${sym}${v}` : `${v}${sym}`;
@@ -1669,11 +1571,11 @@ function ConfigurationsContent() {
                         <div className="input-group">
                           <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center' }}>
                             Auto Rounding Factor
-                            <InfoTooltip id="tip_ro_auto_factor" text="The precision factor to round the bill total to. E.g. 1.00 rounds ₹15.40 to ₹15.00." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
+                            <InfoTooltip id="tip_ro_auto_factor" text={`The precision factor to round the bill total to. E.g. 1.00 rounds ${currencySymbol}15.40 to ${currencySymbol}15.00.`}activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
                           </label>
-                          <span className="group-desc">The multiple to round towards (e.g. 1.00 rounds ₹150.40 to ₹150.00)</span>
+                          <span className="group-desc">The multiple to round towards (e.g. 1.00 rounds {currencySymbol}150.40 to {currencySymbol}150.00)</span>
                           <div className="add-input-wrap" style={{ maxWidth: '200px' }}>
-                            <span className="input-prefix">₹</span>
+                            <span className="input-prefix">{currencySymbol}</span>
                             <input 
                               type="number" step="0.01" 
                               value={config.ro_auto_factor} 
@@ -1691,7 +1593,7 @@ function ConfigurationsContent() {
                           </label>
                           <span className="group-desc">The maximum allowed absolute Round-off value a cashier can apply</span>
                           <div className="add-input-wrap" style={{ maxWidth: '200px' }}>
-                            <span className="input-prefix">₹</span>
+                            <span className="input-prefix">{currencySymbol}</span>
                             <input 
                               type="number" step="0.01" 
                               value={config.ro_manual_limit} 
@@ -2134,12 +2036,64 @@ function ConfigurationsContent() {
         .section-header p { margin: 6px 0 0; font-size: 15px; color: #64748b; font-weight: 500; }
 
         /* ─── CARDS & GRID ─── */
-        .dense-grid { 
-           display: grid; 
-           grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); 
-           gap: 12px; 
+        .dense-grid {
+           display: grid;
+           grid-template-columns: repeat(auto-fill, minmax(min(232px, 100%), 1fr));
+           gap: 8px;
+           margin-bottom: 20px;
         }
 
+        .config-search {
+          display: flex; align-items: center; gap: 8px;
+          background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
+          padding: 0 12px; margin-bottom: 16px; color: #94a3b8;
+        }
+        .config-search:focus-within { border-color: #fdba74; box-shadow: 0 0 0 3px rgba(249,115,22,0.10); }
+        .config-search input {
+          flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+          padding: 10px 0; font-size: 13px; color: #0f172a;
+        }
+        .config-search-empty { font-size: 13px; color: #94a3b8; padding: 24px 0; text-align: center; }
+        .pos-simple {
+          background: #ffffff;
+          border: 1px solid #e8edf3;
+          border-left: 3px solid #f97316;
+          border-radius: 14px;
+          padding: 14px 16px;
+          margin-bottom: 20px;
+        }
+        .pos-simple-title {
+          font-size: 14px; font-weight: 800; color: #ea580c; letter-spacing: 0.01em;
+        }
+        .pos-simple-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
+        .pos-simple-row {
+          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+          margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9;
+        }
+        .pos-simple-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 260px; }
+        .pos-simple-label { font-size: 12.5px; font-weight: 600; color: #334155; }
+        .pos-simple-desc { font-size: 11.5px; color: #94a3b8; line-height: 1.4; }
+        .pos-seg {
+          display: inline-flex; gap: 2px; padding: 3px; background: #f1f5f9; border-radius: 8px;
+        }
+        .pos-seg button {
+          border: 0; background: transparent; padding: 9px 18px; border-radius: 7px;
+          font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; transition: all 0.15s ease;
+        }
+        .pos-seg button.on {
+          background: #f97316; color: #ffffff; box-shadow: 0 2px 6px rgba(249,115,22,0.30);
+        }
+        .pos-simple-foot {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          margin-top: 12px; padding: 10px 12px;
+          background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+          font-size: 12.5px; font-weight: 600; color: #334155;
+        }
+        .pos-link-danger {
+          border: 0; background: #ffffff; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+          font-size: 12.5px; font-weight: 700; color: #dc2626; border: 1px solid #fecaca;
+        }
+        .pos-link-danger:disabled { color: #94a3b8; cursor: not-allowed; }
         .sales-config-unified-section {
           background: #ffffff;
           border: 1.5px solid #e2e8f0;
@@ -2298,26 +2252,25 @@ function ConfigurationsContent() {
            display: flex;
            flex-direction: column;
            justify-content: center;
-           background: white;
-           border: 1.5px solid #e2e8f0;
-           border-radius: 16px;
-           transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-           box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+           background: #ffffff;
+           border: 1px solid #e8edf3;
+           border-radius: 12px;
+           transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
            position: relative;
-           min-height: 68px;
-           height: 68px;
+           min-height: 58px;
+           height: 58px;
         }
         .module-wrapper:hover,
         .module-wrapper:focus-within {
            border-color: #cbd5e1;
-           box-shadow: 0 12px 28px rgba(0,0,0,0.05);
-           transform: translateY(-2px);
+           box-shadow: 0 6px 16px rgba(15,23,42,0.06);
+           transform: translateY(-1px);
            z-index: 50;
         }
         .module-wrapper.is-active {
-           border-color: #fed7aa; 
-           box-shadow: 0 8px 32px rgba(249,115,22,0.08); /* Glow effect */
-           background: linear-gradient(180deg, #ffffff 0%, #fffbf5 100%);
+           border-color: #fdba74;
+           box-shadow: inset 3px 0 0 #f97316, 0 4px 14px rgba(249,115,22,0.10);
+           background: linear-gradient(120deg, #ffffff 0%, #fff7ed 100%);
         }
          .module-wrapper.no-hover:hover {
             transform: none !important;
@@ -2335,8 +2288,8 @@ function ConfigurationsContent() {
          }
         
         .menu-box {
-          padding: 12px;
-          display: flex; align-items: center; gap: 12px;
+          padding: 10px 14px;
+          display: flex; align-items: center; gap: 10px;
           cursor: pointer; position: relative; z-index: 2;
         }
         
@@ -2351,8 +2304,10 @@ function ConfigurationsContent() {
         }
         
         .box-content { flex: 1; }
-        .box-content h3 { margin: 0; font-size: 13.5px; font-weight: 800; color: #0f172a; transition: color 0.2s;}
-        .box-content p { margin: 2px 0 0; font-size: 11.5px; color: #64748b; line-height: 1.3; font-weight: 500; }
+        .box-content { min-width: 0; }
+        .box-content h3 { margin: 0; font-size: 13.5px; font-weight: 700; letter-spacing: 0.01em; color: #0f172a; transition: color 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .box-content p { margin: 2px 0 0; font-size: 11.5px; color: #94a3b8; line-height: 1.3; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .module-wrapper.is-active .box-content h3 { color: #c2410c; }
 
         .sub-box {
            position: relative; z-index: 1;
@@ -2403,7 +2358,7 @@ function ConfigurationsContent() {
            flex-wrap: wrap;
         }
         .subconfig-row {
-           flex: 1 1 260px;
+           flex: 1 1 min(260px, 100%);
            display: flex;
            align-items: center;
            justify-content: space-between;
@@ -2416,6 +2371,20 @@ function ConfigurationsContent() {
         }
         .subconfig-row:hover { background: #fafbfc; }
         .subconfig-row-text { flex: 1; min-width: 0; }
+        .subconfig-select { width: 220px; max-width: 100%; flex: 0 1 220px; }
+        .razorpay-head {
+           display: flex;
+           flex-wrap: wrap;
+           align-items: flex-start;
+           justify-content: space-between;
+           gap: 8px 16px;
+        }
+        .razorpay-head > .subconfig-row-text { flex: 1 1 260px; min-width: 0; }
+        .razorpay-head > a { white-space: nowrap; }
+        @media (max-width: 480px) {
+           .subconfig-row { flex-wrap: wrap; padding: 12px; }
+           .subconfig-select { width: 100%; flex: 1 1 100%; }
+        }
         .subconfig-row-text strong { display: block; font-size: 12px; font-weight: 700; color: #1e293b; }
         .subconfig-row-text span { display: block; font-size: 10.5px; color: #64748b; margin-top: 1px; font-weight: 500; }
 
@@ -2588,22 +2557,25 @@ function ConfigurationsContent() {
 
         /* ─── RESPONSIVE (CAPACITOR & MOBILE) ─── */
         @media (max-width: 768px) {
-           .dense-grid { grid-template-columns: 1fr; }
+           .dense-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
            .action-footer-inner { justify-content: space-between; }
            .config-header-main h1 { font-size: 26px; }
            .segmented-tab { padding: 12px 16px; font-size: 14px; }
         }
 
         @media (max-width: 480px) {
+           .dense-grid { grid-template-columns: minmax(0, 1fr); }
+           .pos-simple { padding: 12px; }
+           .pos-simple-row, .pos-simple-foot { align-items: flex-start; }
            .config-header-main { margin-bottom: 24px; }
            .config-container { padding: 16px 12px 100px; padding-top: env(safe-area-inset-top, 16px); }
            .config-header-main h1 { font-size: 24px; }
            .config-header-main p { font-size: 14px; }
            
-           .menu-box { padding: 16px; gap: 14px; border-radius: 14px; }
-           .box-icon { width: 44px; height: 44px; font-size: 18px; }
-           .box-content h3 { font-size: 15px; }
-           .box-content p { font-size: 13px; }
+           .menu-box { padding: 8px 12px; gap: 10px; border-radius: 12px; }
+           .box-icon { width: 36px; height: 36px; font-size: 16px; }
+           .box-content h3 { font-size: 13px; }
+           .box-content p { font-size: 11px; }
            .sub-box { padding-left: 34px; padding-right: 16px; }
            .sub-connecting-line { left: 24px; bottom: 10px; }
            .sub-icon { width: 30px; height: 30px; font-size: 14px; }
@@ -3631,6 +3603,7 @@ function ConfigurationsContent() {
             border-color: #e2e8f0 !important;
         }
         .lock-badge {
+            flex-shrink: 0;
             background: #f1f5f9;
             padding: 4px 10px;
             border-radius: 8px;

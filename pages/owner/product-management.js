@@ -546,6 +546,11 @@ function ProductManagementContent() {
 
   const handleSaveUom = async (e) => {
     if (e) e.preventDefault();
+    const precision = Number(selectedUom.uomPrecision || 0);
+    if (!Number.isInteger(precision) || precision < 0 || precision > 4) {
+      notify('error', 'Precision must be a whole number between 0 and 4 decimal places');
+      return;
+    }
     setSaving(true);
     try {
       const isNew = !selectedUom.id;
@@ -1017,7 +1022,8 @@ function ProductManagementContent() {
             <div className="drawer-form">
                <div className="input-group"><label>Unit Name</label><input value={selectedUom.name} onChange={e => setSelectedUom({...selectedUom, name: e.target.value})} /></div>
                <div className="input-group"><label>Short Name (Symbol)</label><input value={selectedUom.shortName} onChange={e => setSelectedUom({...selectedUom, shortName: e.target.value})} /></div>
-               <div className="input-group"><label>Precision (Decimal Places)</label><input type="number" value={selectedUom.uomPrecision || 0} onChange={e => setSelectedUom({...selectedUom, uomPrecision: e.target.value})} /></div>
+               <div className="input-group"><label>Precision (Decimal Places)</label><input type="number" min="0" max="4" step="1" value={selectedUom.uomPrecision || 0} onChange={e => setSelectedUom({...selectedUom, uomPrecision: e.target.value})} />
+                 <small style={{ color: '#64748b' }}>Allowed: 0 to 4 decimal places</small></div>
                
                 <div className="control-row">
                    <label>Is Default Unit</label>

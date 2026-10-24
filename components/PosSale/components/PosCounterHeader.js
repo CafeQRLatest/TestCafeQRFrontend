@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import { FaArrowLeft, FaHistory, FaMinus, FaPlus } from 'react-icons/fa';
 import PosSalesHistoryModal from './PosSalesHistoryModal';
 import PosDateTimePicker from './PosDateTimePicker';
+import { useAuth } from '../../../context/AuthContext';
+import { getKitchenTerms } from '../../../utils/businessTerms';
 
 const HeaderContainer = styled.header`
   padding: 8px 20px;
@@ -331,6 +333,8 @@ export default function PosCounterHeader({
     orderDateTime, setOrderDateTime, isDateTimeManuallyEdited, setIsDateTimeManuallyEdited
   } = order;
   const { zoomLevel, handleZoom, THEME: theme } = ui;
+  const { posType } = useAuth();
+  const kitchenTerms = getKitchenTerms(posType);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const isTakeaway = initialTable && (initialTable.tableNumber === 'COUNTER' && initialTable.orderType === 'TAKEAWAY');
@@ -368,9 +372,9 @@ export default function PosCounterHeader({
               $active={activeOrderMode === 'kitchen'}
               $variant="kitchen"
               onClick={() => setOrderMode('kitchen')}
-              title="Send KOT to Kitchen"
+              title={kitchenTerms.sendTitle}
             >
-              Kitchen
+              {kitchenTerms.modeLabel}
             </ModeBtn>
             <ModeBtn
               $active={activeOrderMode === 'settle'}

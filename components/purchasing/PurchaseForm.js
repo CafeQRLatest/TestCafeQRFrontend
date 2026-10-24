@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
 import {
@@ -11,6 +12,12 @@ import {
 import api from '../../utils/api';
 import VariantSelector from '../VariantSelector';
 import PurchasePaymentPopup from './PurchasePaymentPopup';
+import { parseQty, qtyInputStep } from '../CounterSale/domain/quantity';
+
+// Lines without a precision (older data) keep 3 decimals.
+const linePrecision = (line) => (Number.isInteger(line.uomPrecision) ? line.uomPrecision : 3);
+// Stop typing once the decimals exceed the product's UOM precision.
+const withinPrecision = (raw, precision) => (String(raw).split('.')[1] || '').length <= precision;
 
 const STEPS = [
   { id: 1, label: 'Supplier',  icon: <FaUserTie /> },
@@ -41,6 +48,7 @@ export default function PurchaseForm({
   toast,
   onOpenScanModal
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const searchRef = useRef(null);
   const searchInp = useRef(null);
   const linesEndRef = useRef(null);
@@ -450,7 +458,7 @@ export default function PurchaseForm({
                               )}
                               {p.costPrice !== undefined && p.costPrice !== null && Number(p.costPrice) > 0 && (
                                 <div className={styles['ps-item-price']}>
-                                  {currencySymbol}{parseFloat(p.costPrice).toFixed(2)}
+                                  {currencySymbol}{parseFloat(p.costPrice).toFixed(currencyDecimals)}
                                 </div>
                               )}
                               <div className={styles['ps-item-unit']}>{p.uomName || 'units'}</div>
@@ -553,9 +561,9 @@ export default function PurchaseForm({
                               type="number" 
                               className={styles['qty-inp']} 
                               min="0.001" 
-                              step="0.001"
+                              step={qtyInputStep(linePrecision(line))}
                               value={line.quantity}
-                              onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
+                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => updateLine(idx, 'quantity', parseQty(line.quantity, linePrecision(line)))}
                               disabled={isLocked} 
                             />
                             <button 
@@ -599,11 +607,11 @@ export default function PurchaseForm({
                         <td className={styles['tc-total']}>
                           <div className={styles['total-amount']}>
                             {currencySymbol}
-                            {parseFloat(line.lineTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {parseFloat(line.lineTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                           </div>
                           {parseFloat(line.taxAmount) > 0 && (
                             <div className={styles['total-tax']}>
-                              incl. {currencySymbol}{parseFloat(line.taxAmount).toFixed(2)} tax
+                              incl. {currencySymbol}{parseFloat(line.taxAmount).toFixed(currencyDecimals)} tax
                             </div>
                           )}
                         </td>
@@ -638,7 +646,7 @@ export default function PurchaseForm({
                         <div className={styles['mlc-head-right']}>
                           <div className={styles['mlc-total']}>
                             {currencySymbol}
-                            {parseFloat(line.lineTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {parseFloat(line.lineTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                           </div>
                           {!isLocked && (
                             <button 
@@ -665,7 +673,7 @@ export default function PurchaseForm({
                               type="number" 
                               className={styles['qty-inp']} 
                               value={line.quantity}
-                              onChange={(e) => updateLine(idx, 'quantity', e.target.value)} 
+                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => updateLine(idx, 'quantity', parseQty(line.quantity, linePrecision(line)))} 
                               disabled={isLocked} 
                             />
                             <button 
@@ -706,7 +714,7 @@ export default function PurchaseForm({
                       </div>
                       {parseFloat(line.taxAmount) > 0 && (
                         <div className={styles['mlc-tax-note']}>
-                          Includes {currencySymbol}{parseFloat(line.taxAmount).toFixed(2)} tax
+                          Includes {currencySymbol}{parseFloat(line.taxAmount).toFixed(currencyDecimals)} tax
                         </div>
                       )}
                     </div>
@@ -810,7 +818,7 @@ export default function PurchaseForm({
                 <span>Subtotal</span>
                 <span>
                   {currencySymbol}
-                  {parseFloat(po.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {parseFloat(po.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                 </span>
               </div>
               {parseFloat(po.totalTaxAmount) > 0 && (
@@ -818,7 +826,7 @@ export default function PurchaseForm({
                   <span>Tax</span>
                   <span>
                     +{currencySymbol}
-                    {parseFloat(po.totalTaxAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {parseFloat(po.totalTaxAmount).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                   </span>
                 </div>
               )}
@@ -827,7 +835,7 @@ export default function PurchaseForm({
                 <span>Grand Total</span>
                 <span>
                   {currencySymbol}
-                  {parseFloat(po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  {parseFloat(po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                 </span>
               </div>
             </div>
@@ -925,7 +933,7 @@ export default function PurchaseForm({
         <div className={styles['mobile-bar']}>
           <div className={styles['mb-left']}>
             <div className={styles['mb-total']}>
-              {currencySymbol}{parseFloat(po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              {currencySymbol}{parseFloat(po.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
             </div>
             <div className={styles['mb-count']}>{po.lines.length} item{po.lines.length > 1 ? 's' : ''} added</div>
           </div>
@@ -974,7 +982,7 @@ export default function PurchaseForm({
                     </div>
                     <div className={styles['dt-foot']}>
                       <span>{(d.lines || []).length} item{(d.lines || []).length !== 1 ? 's' : ''}</span>
-                      <strong>{currencySymbol}{parseFloat(d.grandTotal || 0).toFixed(2)}</strong>
+                      <strong>{currencySymbol}{parseFloat(d.grandTotal || 0).toFixed(currencyDecimals)}</strong>
                     </div>
                   </button>
                 );

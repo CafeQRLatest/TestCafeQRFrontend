@@ -1,6 +1,7 @@
 // utils/printSalesReport.js
 // Adapted from production - removed Capacitor dependency for web-only use
 import { formatTzDate } from './timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 function center(str, width) {
   if (str.length > width) str = str.substring(0, width)
@@ -18,7 +19,7 @@ function rightAlign(str, width) {
   return str.padStart(width)
 }
 
-export async function printSalesReport(data, timezone) {
+export async function printSalesReport(data, timezone, currencySymbol = "", currencyDecimals = 2) {
   const {
     range,
     summaryStats,
@@ -49,10 +50,10 @@ export async function printSalesReport(data, timezone) {
   lines.push('SUMMARY')
   lines.push(dashes())
   lines.push(`Total Orders: ${summaryStats.totalOrders}`)
-  lines.push(`Total Revenue: ₹${summaryStats.totalRevenue.toFixed(2)}`)
-  lines.push(`Avg Order: ₹${summaryStats.avgOrderValue.toFixed(2)}`)
+  lines.push(`Total Revenue: ${currencySymbol}${summaryStats.totalRevenue.toFixed(currencyDecimals)}`)
+  lines.push(`Avg Order: ${currencySymbol}${summaryStats.avgOrderValue.toFixed(currencyDecimals)}`)
   lines.push(`Items Sold: ${summaryStats.totalItems}`)
-  lines.push(`Total Tax: ₹${summaryStats.totalTax.toFixed(2)}`)
+  lines.push(`Total Tax: ${currencySymbol}${summaryStats.totalTax.toFixed(currencyDecimals)}`)
   lines.push('')
 
   lines.push(dashes())
@@ -60,7 +61,7 @@ export async function printSalesReport(data, timezone) {
   lines.push(dashes())
   if (taxBreakdown) {
     taxBreakdown.forEach(t => {
-      lines.push(`${leftAlign(t.tax_type, 20)} ₹${t.amount.toFixed(2)}`)
+      lines.push(`${leftAlign(t.tax_type, 20)} ${currencySymbol}${t.amount.toFixed(currencyDecimals)}`)
     })
   }
   lines.push('')
@@ -71,7 +72,7 @@ export async function printSalesReport(data, timezone) {
   if (paymentBreakdown) {
     paymentBreakdown.forEach(p => {
       lines.push(`${leftAlign(p.payment_method, 20)} ${p.order_count} orders`)
-      lines.push(`${' '.repeat(20)} ₹${p.total_amount.toFixed(2)} (${p.percentage}%)`)
+      lines.push(`${' '.repeat(20)} ${currencySymbol}${p.total_amount.toFixed(currencyDecimals)} (${p.percentage}%)`)
     })
   }
   lines.push('')
@@ -82,7 +83,7 @@ export async function printSalesReport(data, timezone) {
   if (orderTypeBreakdown) {
     orderTypeBreakdown.forEach(o => {
       lines.push(`${leftAlign(o.order_type, 20)} ${o.order_count} orders`)
-      lines.push(`${' '.repeat(20)} ₹${o.total_amount.toFixed(2)} (${o.percentage}%)`)
+      lines.push(`${' '.repeat(20)} ${currencySymbol}${o.total_amount.toFixed(currencyDecimals)} (${o.percentage}%)`)
     })
   }
   lines.push('')
@@ -93,7 +94,7 @@ export async function printSalesReport(data, timezone) {
   if (salesData) {
     salesData.slice(0, 20).forEach((item, idx) => {
       lines.push(`${idx + 1}. ${leftAlign(item.item_name, 30)}`)
-      lines.push(`   Qty: ${item.quantity_sold}  Rev: ₹${item.revenue.toFixed(2)}`)
+      lines.push(`   Qty: ${formatQty(item.quantity_sold, uomPrecisionOf(item))}  Rev: ${currencySymbol}${item.revenue.toFixed(currencyDecimals)}`)
     })
   }
   lines.push('')
@@ -104,7 +105,7 @@ export async function printSalesReport(data, timezone) {
   if (categoryBreakdown) {
     categoryBreakdown.forEach(c => {
       lines.push(`${leftAlign(c.category, 25)} ${c.percentage}%`)
-      lines.push(`${' '.repeat(25)} ₹${c.total_amount.toFixed(2)}`)
+      lines.push(`${' '.repeat(25)} ${currencySymbol}${c.total_amount.toFixed(currencyDecimals)}`)
     })
   }
   lines.push('')
@@ -114,7 +115,7 @@ export async function printSalesReport(data, timezone) {
     lines.push('HOURLY BREAKDOWN')
     lines.push(dashes())
     hourlyBreakdown.forEach(h => {
-      lines.push(`${h.hour}  ${h.order_count} orders  ₹${h.total_amount.toFixed(2)}`)
+      lines.push(`${h.hour}  ${h.order_count} orders  ${currencySymbol}${h.total_amount.toFixed(currencyDecimals)}`)
     })
     lines.push('')
   }

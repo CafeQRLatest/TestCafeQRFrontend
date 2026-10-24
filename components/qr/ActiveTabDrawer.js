@@ -1,5 +1,8 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { FaTimes } from 'react-icons/fa';
+import { formatQty, uomPrecisionOf } from '../CounterSale/domain/quantity';
 
 /**
  * ActiveTabDrawer — slide-over on the CUSTOMER'S phone showing items already ordered.
@@ -7,6 +10,8 @@ import { FaTimes } from 'react-icons/fa';
  * Only the POS operator can modify active orders.
  */
 export default function ActiveTabDrawer({ isOpen, onClose, activeOrder, brandColor }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   // Consolidate order lines with the same productName/productId and variantId so duplicate entries are summed
   const lines = React.useMemo(() => {
     if (!activeOrder) return [];
@@ -62,8 +67,8 @@ export default function ActiveTabDrawer({ isOpen, onClose, activeOrder, brandCol
                     )}
                   </div>
                   <div className="atd-item-right">
-                    <span className="atd-item-qty">×{Number(line.quantity || 1)}</span>
-                    <span className="atd-item-total">₹{Number(line.lineTotal || 0).toFixed(2)}</span>
+                    <span className="atd-item-qty">×{formatQty(line.quantity || 1, uomPrecisionOf(line))}</span>
+                    <span className="atd-item-total">{currencySymbol}{Number(line.lineTotal || 0).toFixed(currencyDecimals)}</span>
                   </div>
                 </div>
               ))
@@ -74,7 +79,7 @@ export default function ActiveTabDrawer({ isOpen, onClose, activeOrder, brandCol
           <div className="atd-footer">
             <div className="atd-total-row">
               <span>Tab Total</span>
-              <span className="atd-total-amount">₹{Number(total).toFixed(2)}</span>
+              <span className="atd-total-amount">{currencySymbol}{Number(total).toFixed(currencyDecimals)}</span>
             </div>
 
             <div className="atd-notice">

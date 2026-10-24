@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -26,6 +27,7 @@ const emptyVendorForm = {
 };
 
 export default function useCreditSettlements() {
+  const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const { timezone, userRole, orgId, hasModule } = useAuth();
 
@@ -102,9 +104,9 @@ export default function useCreditSettlements() {
   const [activeTab, setActiveTab] = useState('orders');
   const [viewingDoc, setViewingDoc] = useState(null);
 
-  const SYM = config?.currencySymbol || '₹';
+  const SYM = config?.currencySymbol || '';
   const money = useCallback((value) => {
-    return `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`;
   }, [SYM]);
 
   const [sequences, setSequences] = useState([]);
@@ -608,7 +610,7 @@ export default function useCreditSettlements() {
     if (vendorPaymentOrder) {
       const due = Math.max(0, Number(vendorPaymentOrder.amountDue ?? 0));
       if (due > 0 && amount > due + 0.01) {
-        return notify('error', `Amount ₹${amount} exceeds remaining due of ₹${due.toFixed(2)}`);
+        return notify('error', `Amount ${SYM}${amount} exceeds remaining due of ${SYM}${due.toFixed(currencyDecimals)}`);
       }
     }
 

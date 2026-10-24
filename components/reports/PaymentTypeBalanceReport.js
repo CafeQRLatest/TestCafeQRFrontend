@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import api from '../../utils/api';
 import { useNotification } from '../../context/NotificationContext';
 import { printUniversal } from '../../utils/printGateway';
@@ -19,6 +20,7 @@ export default function PaymentTypeBalanceReport({
   isSuperAdmin,
   timezone
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -28,11 +30,11 @@ export default function PaymentTypeBalanceReport({
   const [viewMode, setViewMode] = useState('both'); // 'both' | 'cards' | 'table'
   const [searchQuery, setSearchQuery] = useState('');
 
-  const SYM = config?.currencySymbol || '₹';
+  const SYM = config?.currencySymbol || '';
 
   const fmt = (v) => Number(v || 0).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: currencyDecimals,
+    maximumFractionDigits: currencyDecimals
   });
 
   const toInstant = (dtLocal, isEnd = false) => {

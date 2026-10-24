@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import Head from 'next/head';
 import Link from 'next/link';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -10,6 +12,8 @@ import { getQueuedOperations, discardSyncQueueEntry, markOperationPending, getLa
 import { reconnectAndSync, bootstrapOfflineData } from '../../utils/offlineSync';
 import { toDisplayItems } from '../../utils/printUtils';
 export default function OfflineSyncPage() {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const [offline, setOffline] = useState(false);
   const [syncQueue, setSyncQueue] = useState([]);
   const [lastSyncTime, setLastSyncTime] = useState(null);
@@ -178,7 +182,7 @@ export default function OfflineSyncPage() {
                       {item.variant_name && <span style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>{item.variant_name}</span>}
                     </div>
                     <span style={{ color: '#64748b', fontWeight: '700', fontSize: '10px', padding: '2px 6px', background: '#f1f5f9', borderRadius: '4px' }}>x{item.quantity}</span>
-                    <span style={{ fontWeight: '700', color: '#334155', minWidth: '65px', textAlign: 'right' }}>₹{Number(item.line_total).toFixed(2)}</span>
+                    <span style={{ fontWeight: '700', color: '#334155', minWidth: '65px', textAlign: 'right' }}>{currencySymbol}{Number(item.line_total).toFixed(currencyDecimals)}</span>
                   </div>
                 );
               })}
@@ -191,25 +195,25 @@ export default function OfflineSyncPage() {
           {payload.subTotal !== undefined && (
             <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b' }}>
               <span>Subtotal</span>
-              <span style={{ fontWeight: '600' }}>₹{Number(payload.subTotal).toFixed(2)}</span>
+              <span style={{ fontWeight: '600' }}>{currencySymbol}{Number(payload.subTotal).toFixed(currencyDecimals)}</span>
             </div>
           )}
           {payload.taxAmount !== undefined && (
             <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b' }}>
               <span>Tax</span>
-              <span style={{ fontWeight: '600' }}>₹{Number(payload.taxAmount).toFixed(2)}</span>
+              <span style={{ fontWeight: '600' }}>{currencySymbol}{Number(payload.taxAmount).toFixed(currencyDecimals)}</span>
             </div>
           )}
           {payload.discountAmount !== undefined && payload.discountAmount > 0 && (
             <div style={{ display: 'flex', justifycontent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#dc2626' }}>
               <span>Discount</span>
-              <span style={{ fontWeight: '600' }}>-₹{Number(payload.discountAmount).toFixed(2)}</span>
+              <span style={{ fontWeight: '600' }}>-{currencySymbol}{Number(payload.discountAmount).toFixed(currencyDecimals)}</span>
             </div>
           )}
           {(payload.grandTotal !== undefined || payload.total !== undefined) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#0f172a', fontWeight: '700', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '4px' }}>
               <span>Grand Total</span>
-              <span style={{ fontSize: '14px', color: '#FF7A00' }}>₹{Number(payload.grandTotal || payload.total || 0).toFixed(2)}</span>
+              <span style={{ fontSize: '14px', color: '#FF7A00' }}>{currencySymbol}{Number(payload.grandTotal || payload.total || 0).toFixed(currencyDecimals)}</span>
             </div>
           )}
         </div>

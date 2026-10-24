@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
 import { FaChevronRight, FaMinus, FaPlus, FaSave, FaSearch, FaSpinner, FaTimes, FaTrash, FaUtensils } from 'react-icons/fa';
 import api from '../utils/api';
 import { calculateOrderTotals } from '../utils/orderCalculations';
 import VariantSelector from './VariantSelector';
 import VariablePriceModal from './CounterSale/components/VariablePriceModal';
+import { formatQty, parseQty, uomPrecisionOf, withinPrecision } from './CounterSale/domain/quantity';
 import { useNotification } from '../context/NotificationContext';
 import { isDiscountModuleEnabled } from '../utils/moduleVisibility';
 import { useAuth } from '../context/AuthContext';
@@ -137,6 +139,7 @@ function normalizeLine(line, index) {
     unitPrice: toNumber(line.unitPrice ?? line.unit_price ?? line.price),
     taxRate: toNullableNumber(line.taxRate ?? line.tax_rate),
     unitOfMeasure: line.unitOfMeasure || line.unit_of_measure || 'units',
+    uomPrecision: uomPrecisionOf(line),
     discount_percent: initialType === 'percent' ? initialVal : 0,
     discount_amount: initialType === 'amount' ? initialVal : 0,
     discount: { type: initialType, value: initialVal },
@@ -234,6 +237,7 @@ function deterministicUUID(str) {
 }
 
 export default function EditOrderPanel({ order, onClose, onSave, saving = false }) {
+  const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const { canDeleteOrderItem, canDecrementOrderItem } = useAuth();
   const [internalSaving, setInternalSaving] = useState(false);
@@ -241,9 +245,12 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
   const [fullOrder, setFullOrder] = useState(order);
   const [products, setProducts] = useState([]);
   const [config, setConfig] = useState(null);
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
   const [orderNote, setOrderNote] = useState(() => order?.remarks || order?.description || order?.comments || order?.note || '');
   const [lines, setLines] = useState(() => consolidateLoadedLines(order?.lines));
+  const [qtyDrafts, setQtyDrafts] = useState({});
+  // Same precision source as the sales cart: the line's UOM, falling back to the product's.
+  const linePrecisionOf = (line) => uomPrecisionOf(line) || uomPrecisionOf(products.find(p => String(p.id) === String(line.productId)) || {});
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [variantProduct, setVariantProduct] = useState(null);
@@ -347,7 +354,14 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
         const loadedOrder = orderRes.data.data || order;
         setFullOrder(loadedOrder);
         setOrderNote(loadedOrder?.remarks || loadedOrder?.description || loadedOrder?.comments || loadedOrder?.note || '');
-        setLines(consolidateLoadedLines(loadedOrder?.lines));
+        const productPrecisionById = new Map(
+          (productsRes.data.data || []).map(p => [String(p.id), uomPrecisionOf(p)])
+        );
+        const linesWithPrecision = (loadedOrder?.lines || []).map(l => ({
+          ...l,
+          uomPrecision: uomPrecisionOf(l) || productPrecisionById.get(String(l.productId ?? l.product_id)) || 0,
+        }));
+        setLines(consolidateLoadedLines(linesWithPrecision));
         setProducts(productsRes.data.data || []);
         setConfig(configRes.data.data || null);
 
@@ -616,6 +630,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           unitPrice: toNumber(item.price),
           taxRate: toNullableNumber(item.taxRate ?? item.tax_rate),
           unitOfMeasure: item.uomName || item.uom?.name || 'units',
+          uomPrecision: uomPrecisionOf(item),
           discount_percent: 0,
           discount_amount: 0,
           discount: { type: 'amount', value: 0 },
@@ -720,6 +735,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
           unitPrice: toNumber(item.price),
           taxRate: toNullableNumber(item.taxRate ?? item.tax_rate),
           unitOfMeasure: item.uomName || item.uom?.name || 'units',
+          uomPrecision: uomPrecisionOf(item),
           discount_percent: 0,
           discount_amount: 0,
           discount: { type: 'amount', value: 0 },
@@ -776,7 +792,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
     const dp = config?.currencyDecimalPlaces ?? 2;
 
     const processedLines = (totals.processedLines || []).map((line) => {
-      const taxRatePct = line.taxRate != null ? Number(Number(line.taxRate).toFixed(2)) : null;
+      const taxRatePct = line.taxRate != null ? Number(Number(line.taxRate).toFixed(currencyDecimals)) : null;
 
       let clientLineId = line.clientLineId || line.client_line_id || null;
       if (!isValidUUID(clientLineId)) {
@@ -940,11 +956,16 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                   <QtyGroup>
                     <IconButton type="button" onClick={() => updateQty(line.cartKey, -1)}><FaMinus /></IconButton>
                     <QtyInput
-                      type="number"
-                      value={line.quantity}
+                      type="text"
+                      inputMode="decimal"
+                      value={qtyDrafts[line.cartKey] ?? line.quantity}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val)) {
+                        const raw = e.target.value;
+                        if (!/^\d*[.,]?\d*$/.test(raw)) return;
+                        if (!withinPrecision(raw, linePrecisionOf(line))) return;
+                        setQtyDrafts((current) => ({ ...current, [line.cartKey]: raw }));
+                        const val = parseQty(raw, linePrecisionOf(line));
+                        if (raw !== '') {
                           setLines((current) =>
                             current.map((lineItem) => {
                               if (lineItem.cartKey === line.cartKey) {
@@ -973,6 +994,11 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                         }
                       }}
                       onBlur={() => {
+                        setQtyDrafts((current) => {
+                          const next = { ...current };
+                          delete next[line.cartKey];
+                          return next;
+                        });
                         setLines((current) =>
                           current
                             .map((lineItem) => {
@@ -1177,7 +1203,7 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                         <DiscountRow key={key}>
                           <DiscountRowInfo>
                             <span>{item.displayName || item.productName}</span>
-                            <small>{sym}{Number(item.unitPrice || 0).toFixed(dp)} x {item.quantity}</small>
+                            <small>{sym}{Number(item.unitPrice || 0).toFixed(dp)} x {formatQty(item.quantity, uomPrecisionOf(item))}</small>
                           </DiscountRowInfo>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <DiscountInputWrapper $themeColor="#ea580c">

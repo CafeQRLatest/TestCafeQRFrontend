@@ -1,4 +1,5 @@
 import { cartKeyFor } from './cart';
+import { roundQty, uomPrecisionOf } from './quantity';
 
 export function buildCustomerSelections({ 
   customersEnabled, 
@@ -98,7 +99,8 @@ export function buildProcessedLines({ cart, totals, config }) {
     const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
     const taxCode     = gstEnabled && taxRatePct > 0 ? (matchedRate?.code  || `GST_${taxRatePct}`) : null;
     const taxName     = gstEnabled && taxRatePct > 0 ? (matchedRate?.name  || `GST ${taxRatePct}%`) : null;
-    const qty         = Number(pi.quantity || 1);
+    const uomPrecision = uomPrecisionOf(cartItem || pi);
+    const qty         = roundQty(Number(pi.quantity || 1), uomPrecision);
 
     let clientLineId = cartItem?.clientLineId || cartItem?.client_line_id || pi.clientLineId || pi.client_line_id || null;
     if (!isValidUUID(clientLineId)) {
@@ -127,6 +129,7 @@ export function buildProcessedLines({ cart, totals, config }) {
       quantity: qty,
       unitPrice: Number(unitPrice.toFixed(dp)),
       unitOfMeasure: cartItem?.uomName || cartItem?.unitOfMeasure || pi.unitOfMeasure || pi.unit_of_measure || 'units',
+      uomPrecision,
       taxRate: taxRatePct,
       taxAmount: Number(Number(pi.tax_amount || 0).toFixed(dp)),
       discountAmount: Number(Number(pi.discount_amount || 0).toFixed(dp)),

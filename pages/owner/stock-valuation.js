@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 
 import DashboardLayout from '../../components/DashboardLayout';
 import RoleGate from '../../components/RoleGate';
@@ -13,6 +14,7 @@ import {
 } from 'react-icons/fa';
 import ReportTable from '../../components/ReportTable';
 import NiceSelect from '../../components/NiceSelect';
+import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/quantity';
 
 export default function StockValuationPage() {
   return (
@@ -25,6 +27,7 @@ export default function StockValuationPage() {
 }
 
 function ValuationContent() {
+  const currencyDecimals = useCurrencyDecimals();
   const sym = useCurrencySymbol();
   const { orgId, userRole } = useAuth();
 
@@ -174,6 +177,7 @@ function ValuationContent() {
           currentQuantity: qty,
           unitCost: unitCost,
           totalValue: qty * unitCost,
+          uomPrecision: uomPrecisionOf(p),
           unitOfMeasure: p?.uomName || p?.unitOfMeasure || p?.uom || 'units'
         });
       }
@@ -213,6 +217,7 @@ function ValuationContent() {
       currentQuantity: 0,
       unitCost: Number(p.costPrice ?? p.purchasePrice ?? p.price ?? 0),
       totalValue: 0,
+      uomPrecision: uomPrecisionOf(p),
       unitOfMeasure: p.uomName || p.unitOfMeasure || p.uom || 'units'
     });
   });
@@ -346,7 +351,7 @@ function ValuationContent() {
               align: 'right',
               render: (item) => (
                 <span className="qty-badge-box">
-                  <strong>{item.currentQuantity}</strong> <small>{item.unitOfMeasure}</small>
+                  <strong>{formatQty(item.currentQuantity, item.uomPrecision)}</strong> <small>{item.unitOfMeasure}</small>
                 </span>
               )
             },
@@ -354,13 +359,13 @@ function ValuationContent() {
               key: 'unitCost', 
               label: 'UNIT COST', 
               align: 'right',
-              render: (item) => <span className="cost-cell">{sym}{item.unitCost.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              render: (item) => <span className="cost-cell">{sym}{item.unitCost.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}</span>
             },
             { 
               key: 'totalValue', 
               label: 'TOTAL VALUE', 
               align: 'right',
-              render: (item) => <span className="value-cell">{sym}{item.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              render: (item) => <span className="value-cell">{sym}{item.totalValue.toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}</span>
             },
             { 
               key: 'pct', 

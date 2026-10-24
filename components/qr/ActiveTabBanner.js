@@ -1,10 +1,14 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
 /**
  * ActiveTabBanner — shown on the CUSTOMER'S mobile phone when an active order/tab
  * already exists on the scanned table. Strictly informational.
  */
 export default function ActiveTabBanner({ orderNo, itemCount, grandTotal, brandColor, onViewTab }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   if (!orderNo) return null;
 
   return (
@@ -19,7 +23,7 @@ export default function ActiveTabBanner({ orderNo, itemCount, grandTotal, brandC
         </div>
         <div className="atb-right">
           <span className="atb-summary">
-            {itemCount} item{itemCount !== 1 ? 's' : ''} • ₹{Number(grandTotal || 0).toFixed(2)}
+            {itemCount} item{itemCount !== 1 ? 's' : ''} • {currencySymbol}{Number(grandTotal || 0).toFixed(currencyDecimals)}
           </span>
           <button className="atb-view-btn" onClick={onViewTab} type="button">
             View Tab

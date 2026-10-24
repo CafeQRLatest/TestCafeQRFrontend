@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import { FaPrint, FaUtensils, FaReceipt, FaBarcode } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
 import { UpiQrCodeSvg, buildUpiUri } from '../utils/upiQrGenerator';
 
 export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
+  const currencySymbol = useCurrencySymbol();
   const [internalPreview, setInternalPreview] = useState('receipt'); // 'receipt', 'kot', 'regular', 'label'
   const activePreview = activeDoc || internalPreview;
 
@@ -259,7 +261,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
 
                   <div className="grand-total-row">
                     <span>TOTAL:</span>
-                    <span>₹728.00</span>
+                    <span>{currencySymbol}728.00</span>
                   </div>
                 </div>
 
@@ -277,6 +279,8 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                           payeeName: receiptTemplate.upiPayeeName || config?.upiPayeeName || 'Cafe QR',
                           amount: 728.00,
                           billRef: '1042',
+                          currencyCode: config?.currencyCode,
+                          currencyDecimals: config?.currencyDecimalPlaces,
                         })}
                         size={84}
                         margin={1}
@@ -538,7 +542,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     })()}
                     <div className="regular-total-row grand">
                       <span>Grand Total:</span>
-                      <span>₹576.46</span>
+                      <span>{currencySymbol}576.46</span>
                     </div>
                     {regularTemplate.showAmountInWords && (
                       <div className="amount-words">Rupees Five Hundred Seventy-Six and Forty-Six Paise Only</div>
@@ -630,7 +634,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
 
                   {(showPrice || showMrp) && (
                     <div style={{ fontWeight: 700, fontSize: '11px', textAlign: 'center', color: '#0f172a' }}>
-                      {showMrp && showPrice ? 'MRP: ₹30.00  PRICE: ₹25.00' : showPrice ? 'PRICE: ₹25.00' : 'MRP: ₹30.00'}
+                      {showMrp && showPrice ? `MRP: ${currencySymbol}30.00  PRICE: ${currencySymbol}25.00` : showPrice ? `PRICE: ${currencySymbol}25.00` : `MRP: ${currencySymbol}30.00`}
                     </div>
                   )}
                 </div>

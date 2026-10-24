@@ -4,6 +4,7 @@
  * Strictly displays LIVE ORDERS only for Kitchen/Dine-in, Takeaway, and Delivery.
  */
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import {
   FaChair,
@@ -59,6 +60,7 @@ import KotPrint from './KotPrint';
 import EditOrderPanel from './EditOrderPanel';
 import { isKitchenModuleEnabled, getCachedConfig } from '../utils/moduleVisibility';
 import { getFCMToken } from '../lib/firebase/messaging';
+import { formatQty, uomPrecisionOf } from './CounterSale/domain/quantity';
 import {
   getStoredPushToken,
   arePushAlertsDisabled
@@ -66,7 +68,17 @@ import {
 
 /* ─── Helpers ──────────────────────────────────────────────────────── */
 
-const money = (value, symbol = '₹') => `${symbol}${Number(value || 0).toFixed(2)}`;
+const money = (value, symbol = '', dp = 2) => `${symbol}${Number(value || 0).toFixed(dp)}`;
+
+// Quantity shown with the line's UOM precision (e.g. kg with 5 decimals -> 8.67900).
+const lineQtyText = (line) => formatQty(line.quantity || line.qty || 1, uomPrecisionOf(line));
+
+// Total quantity of several lines, using the largest precision among them.
+const sumQtyText = (lines = []) => {
+  const precision = Math.max(0, ...lines.map(uomPrecisionOf));
+  const total = lines.reduce((acc, l) => acc + Number(l.quantity || l.qty || 1), 0);
+  return formatQty(total, precision);
+};
 
 const getItemLineTotal = (item) => {
   if (!item) return 0;
@@ -282,7 +294,7 @@ function orderStatusBadgeStyle(status) {
 /* ─── Live Order Board Subcomponent (Vertical List & Responsive Cards) ─── */
 function LiveOrderBoardView({
   ordersList = [],
-  sym = '₹',
+  sym = '',
   actionBusy,
   clickedActions = {},
   canCancelOrder,
@@ -300,6 +312,7 @@ function LiveOrderBoardView({
   onNewOrder,
   newOrderLabel = '+ New Order',
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   return (
     <div style={S.boardWrap}>
       {/* Board Header */}
@@ -571,7 +584,7 @@ function LiveOrderBoardView({
                             borderRadius: 4,
                             flexShrink: 0,
                           }}>
-                            {item.quantity || item.qty || 1}x
+                            {lineQtyText(item)}x
                           </span>
                           <span className="board-card-item-name" style={{
                             color: '#1e293b',
@@ -591,7 +604,7 @@ function LiveOrderBoardView({
                           flexShrink: 0,
                           marginLeft: 4,
                         }}>
-                          {money(getItemLineTotal(item), sym)}
+                          {money(getItemLineTotal(item), sym, currencyDecimals)}
                         </span>
                       </div>
                     ))}
@@ -628,7 +641,7 @@ function LiveOrderBoardView({
                     borderRadius: 12,
                     border: '1px solid #e2e8f0'
                   }}>
-                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                    {sumQtyText(order.lines || [])} {itemCount === 1 ? 'item' : 'items'}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                     <span className="board-card-total-label" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>Total</span>
@@ -638,7 +651,7 @@ function LiveOrderBoardView({
                       color: isBilled ? '#047857' : '#0f172a',
                       letterSpacing: '-0.02em',
                     }}>
-                      {money(order.grandTotal, sym)}
+                      {money(order.grandTotal, sym, currencyDecimals)}
                     </span>
                   </div>
                 </div>
@@ -913,6 +926,7 @@ export default function PosOrderTypeModal({
   onRefreshTables,
   onPrintOrder
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
   const { notify, showConfirm } = useNotification();
@@ -1132,7 +1146,7 @@ export default function PosOrderTypeModal({
   // Available tables filtering state
   const [tableSearch, setTableSearch] = useState('');
 
-  const sym = config?.currencySymbol || '₹';
+  const sym = config?.currencySymbol || '';
   const isMountedRef = useRef(true);
 
   // Fetch Live Orders
@@ -1950,7 +1964,7 @@ export default function PosOrderTypeModal({
               onClick={() => setSelectedLiveOrder(order)}
               onMouseEnter={() => setHoveredTable(order.id)}
               onMouseLeave={() => setHoveredTable(null)}
-              title={`Order #${orderNum} — ${statusStyle.label}${order.customerName ? ` (${order.customerName})` : ''} · ${money(order.grandTotal, sym)} (Click to view)`}
+              title={`Order #${orderNum} — ${statusStyle.label}${order.customerName ? ` (${order.customerName})` : ''} · ${money(order.grandTotal, sym, currencyDecimals)} (Click to view)`}
             >
               <span className="pos-table-num" style={{
                 ...S.cubeNum,
@@ -2679,10 +2693,10 @@ export default function PosOrderTypeModal({
                         {item.notes && <span style={S.itemNotesText}>{item.notes}</span>}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <span style={S.itemQtyBadge}>{item.quantity || item.qty || 1}</span>
+                        <span style={S.itemQtyBadge}>{lineQtyText(item)}</span>
                       </div>
-                      <span style={S.itemUnitPriceText}>{money(getItemUnitPrice(item), sym)}</span>
-                      <span style={S.itemTotalText}>{money(getItemLineTotal(item), sym)}</span>
+                      <span style={S.itemUnitPriceText}>{money(getItemUnitPrice(item), sym, currencyDecimals)}</span>
+                      <span style={S.itemTotalText}>{money(getItemLineTotal(item), sym, currencyDecimals)}</span>
                     </div>
                   ))}
                 </div>
@@ -2691,10 +2705,10 @@ export default function PosOrderTypeModal({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={S.orderTotalLabel}>Grand Total</span>
                     <span style={S.orderTotalSubtext}>
-                      {(selectedLiveOrder.lines || []).reduce((sum, l) => sum + Number(l.quantity || 1), 0)} items
+                      {sumQtyText(selectedLiveOrder.lines || [])} items
                     </span>
                   </div>
-                  <span style={S.orderGrandTotalVal}>{money(selectedLiveOrder.grandTotal, sym)}</span>
+                  <span style={S.orderGrandTotalVal}>{money(selectedLiveOrder.grandTotal, sym, currencyDecimals)}</span>
                 </div>
               </div>
             </div>

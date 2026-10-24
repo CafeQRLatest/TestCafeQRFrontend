@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import {
   FaCamera, FaUpload, FaCheck, FaTimes, FaWarehouse, FaUserTie,
   FaCalendarAlt, FaHashtag, FaRobot, FaMagic, FaExchangeAlt,
@@ -64,12 +65,13 @@ export default function PurchaseBillScanModal({
   warehouses = [],
   products = [],
   warehouseStock = {},
-  currencySymbol = '₹',
+  currencySymbol = '',
   onApplyToPo,
   onDirectCompleted,
   onProductsCreated,
   toast = () => { },
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const [step, setStep] = useState('upload'); // 'upload' | 'scanning' | 'review' | 'saving'
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -306,6 +308,7 @@ export default function PurchaseBillScanModal({
           confidence: confidence,
           quantity: it.quantity || 1,
           unitOfMeasure: matchedProduct?.uomName || it.unitOfMeasure || 'units',
+          uomPrecision: matchedProduct?.uomPrecision ?? null,
           unitPrice: it.unitPrice || 0,
           taxRate: it.taxRate || 0,
           lineTotal: it.lineTotal || (it.quantity * it.unitPrice),
@@ -357,7 +360,7 @@ export default function PurchaseBillScanModal({
         const p = parseFloat(field === 'unitPrice' ? val : updated.unitPrice) || 0;
         const t = parseFloat(field === 'taxRate' ? val : updated.taxRate) || 0;
         const sub = q * p;
-        updated.lineTotal = +(sub + (sub * t / 100)).toFixed(2);
+        updated.lineTotal = +(sub + (sub * t / 100)).toFixed(currencyDecimals);
       }
       return updated;
     }));
@@ -386,6 +389,7 @@ export default function PurchaseBillScanModal({
         productName: prod.name,
         isIngredient: isIng,
         unitOfMeasure: prod.uomName || l.unitOfMeasure,
+        uomPrecision: prod.uomPrecision ?? null,
         confidence: 'MANUAL',
         oldCostPrice: prod.costPrice || 0,
         currentStock: warehouseStock[prod.id] ?? '—'
@@ -429,9 +433,9 @@ export default function PurchaseBillScanModal({
     const grandTotal = active.reduce((s, l) => s + (parseFloat(l.lineTotal) || 0), 0);
     const taxTotal = grandTotal - subtotal;
     return {
-      subtotal: +subtotal.toFixed(2),
-      taxTotal: +Math.max(0, taxTotal).toFixed(2),
-      grandTotal: +grandTotal.toFixed(2),
+      subtotal: +subtotal.toFixed(currencyDecimals),
+      taxTotal: +Math.max(0, taxTotal).toFixed(currencyDecimals),
+      grandTotal: +grandTotal.toFixed(currencyDecimals),
       count: active.length
     };
   }, [billItems]);
@@ -522,7 +526,7 @@ export default function PurchaseBillScanModal({
         const p = parseFloat(l.unitPrice) || 0;
         const t = parseFloat(l.taxRate) || 0;
         const sub = q * p;
-        const taxAmt = +(sub * t / 100).toFixed(2);
+        const taxAmt = +(sub * t / 100).toFixed(currencyDecimals);
 
         return {
           productId: l.productId,
@@ -534,7 +538,7 @@ export default function PurchaseBillScanModal({
           taxRate: t,
           taxAmount: taxAmt,
           discountAmount: 0,
-          lineTotal: +(sub + taxAmt).toFixed(2),
+          lineTotal: +(sub + taxAmt).toFixed(currencyDecimals),
         };
       });
 
@@ -588,7 +592,7 @@ export default function PurchaseBillScanModal({
         const p = parseFloat(l.unitPrice) || 0;
         const t = parseFloat(l.taxRate) || 0;
         const sub = q * p;
-        const taxAmt = +(sub * t / 100).toFixed(2);
+        const taxAmt = +(sub * t / 100).toFixed(currencyDecimals);
 
         return {
           productId: l.productId,
@@ -599,7 +603,7 @@ export default function PurchaseBillScanModal({
           taxRate: t,
           taxAmount: taxAmt,
           discountAmount: 0,
-          lineTotal: +(sub + taxAmt).toFixed(2),
+          lineTotal: +(sub + taxAmt).toFixed(currencyDecimals),
         };
       });
 
@@ -909,7 +913,7 @@ export default function PurchaseBillScanModal({
                             />
                           </td>
                           <td>
-                            <span className="cell-total">{currencySymbol}{Number(item.lineTotal || 0).toFixed(2)}</span>
+                            <span className="cell-total">{currencySymbol}{Number(item.lineTotal || 0).toFixed(currencyDecimals)}</span>
                           </td>
                           <td>
                             <button className="delete-row-btn" onClick={() => handleDeleteLine(idx)}>
@@ -1017,7 +1021,7 @@ export default function PurchaseBillScanModal({
                         </div>
                         <div className="card-field">
                           <label>Total</label>
-                          <span className="mobile-total-display">{currencySymbol}{Number(item.lineTotal || 0).toFixed(2)}</span>
+                          <span className="mobile-total-display">{currencySymbol}{Number(item.lineTotal || 0).toFixed(currencyDecimals)}</span>
                         </div>
                       </div>
                     </div>
@@ -1029,19 +1033,19 @@ export default function PurchaseBillScanModal({
               <div className="totals-reconciliation-bar">
                 <div className="totals-col">
                   <span className="sub-label">Bill Subtotal:</span>
-                  <span className="sub-val">{currencySymbol}{calculatedTotals.subtotal.toFixed(2)}</span>
+                  <span className="sub-val">{currencySymbol}{calculatedTotals.subtotal.toFixed(currencyDecimals)}</span>
                 </div>
                 <div className="totals-col">
                   <span className="sub-label">Tax Total:</span>
-                  <span className="sub-val">{currencySymbol}{calculatedTotals.taxTotal.toFixed(2)}</span>
+                  <span className="sub-val">{currencySymbol}{calculatedTotals.taxTotal.toFixed(currencyDecimals)}</span>
                 </div>
                 <div className="totals-col grand">
                   <span className="sub-label">Order Grand Total:</span>
-                  <span className="sub-val-grand">{currencySymbol}{calculatedTotals.grandTotal.toFixed(2)}</span>
+                  <span className="sub-val-grand">{currencySymbol}{calculatedTotals.grandTotal.toFixed(currencyDecimals)}</span>
                 </div>
                 {rawBillTotals.grandTotal > 0 && (
                   <div className="bill-detected-compare">
-                    <span>Detected on Bill: <strong>{currencySymbol}{rawBillTotals.grandTotal.toFixed(2)}</strong></span>
+                    <span>Detected on Bill: <strong>{currencySymbol}{rawBillTotals.grandTotal.toFixed(currencyDecimals)}</strong></span>
                   </div>
                 )}
               </div>

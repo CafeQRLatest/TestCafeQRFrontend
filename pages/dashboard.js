@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../utils/api';
@@ -6,6 +7,7 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import PremiumDateTimePicker from '../components/PremiumDateTimePicker';
 import NiceSelect from '../components/NiceSelect';
 import DocumentViewerPopup from '../components/purchasing/DocumentViewerPopup';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 import { formatTzDate, getBusinessNow, businessTimeToUtc, getBranchParts } from '../utils/timezoneUtils';
 import {
   FaChartPie, FaChartBar, FaThList,
@@ -19,7 +21,9 @@ import {
 /* ── helpers ── */
 const fmt  = n => Number(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN = n => Number(n||0).toLocaleString('en-IN');
-const fmtC = n => `₹${fmt(n)}`;
+// Quantity shown with the product UOM precision; thousands separator kept on the whole part.
+const fmtQty = (n, p) => { const [whole, dec] = formatQty(n, p).split('.'); return Number(whole).toLocaleString('en-IN') + (dec ? '.' + dec : ''); };
+const fmtC = (n, sym = "") => `${sym}${fmt(n)}`;
 
 const STATUS_META = {
   ORDERED:     { label: 'Ordered',   color: '#3b82f6', bg: '#eff6ff' },
@@ -457,7 +461,8 @@ function Dashboard() {
 /* ═══════════════════════════════════════════════════════════════════════════
    CHART VIEW — KPI summary + donut + order type breakdown
    ═══════════════════════════════════════════════════════════════════════════ */
-function ChartView({ orders, themeColor, orderType, vendors, warehouses, currencySymbol = '₹' }) {
+function ChartView({ orders, themeColor, orderType, vendors, warehouses, currencySymbol = '' }) {
+  const currencyDecimals = useCurrencyDecimals();
   const fmtC = n => `${currencySymbol}${fmt(n)}`;
   const isSale = orderType === 'SALE';
   const stats = useMemo(() => {
@@ -517,8 +522,8 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
         }
         if (cash === 0 && online === 0) {
           const total = parseFloat(o.totalAmount || o.grandTotal || 0);
-          const half = Number((total / 2).toFixed(2));
-          const remaining = Number((total - half).toFixed(2));
+          const half = Number((total / 2).toFixed(currencyDecimals));
+          const remaining = Number((total - half).toFixed(currencyDecimals));
           if (!byPayment['CASH']) byPayment['CASH'] = { count: 0, total: 0 };
           byPayment['CASH'].count++;
           byPayment['CASH'].total += half;
@@ -687,8 +692,9 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
         const total = Number(l.lineTotal || 0);
         const orderCount = 1;
         if (!items[name]) {
-          items[name] = { name, quantity: 0, total: 0, orderCount: 0 };
+          items[name] = { name, quantity: 0, total: 0, orderCount: 0, uomPrecision: 0 };
         }
+        items[name].uomPrecision = Math.max(items[name].uomPrecision, uomPrecisionOf(l));
         items[name].quantity += qty;
         items[name].total += total;
         items[name].orderCount += orderCount;
@@ -792,7 +798,7 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
                           </div>
                           <div className="cv-bi-right">
                             <span className="cv-bi-count">{f.count} {f.count === 1 ? 'order' : 'orders'}</span>
-                            <span className="cv-bi-amount">{fmtC(f.total)}</span>
+                            <span className="cv-bi-amount">{fmtC(f.total, currencySymbol)}</span>
                           </div>
                         </div>
                         <div className="cv-progress-track">
@@ -829,7 +835,7 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
                           </div>
                           <div className="cv-bi-right">
                             <span className="cv-bi-count">{p.count} txn</span>
-                            <span className="cv-bi-amount">{fmtC(p.total)}</span>
+                            <span className="cv-bi-amount">{fmtC(p.total, currencySymbol)}</span>
                           </div>
                         </div>
                         <div className="cv-progress-track">
@@ -866,7 +872,7 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
                           </div>
                           <div className="cv-bi-right">
                             <span className="cv-bi-count">{w.count} POs</span>
-                            <span className="cv-bi-amount">{fmtC(w.total)}</span>
+                            <span className="cv-bi-amount">{fmtC(w.total, currencySymbol)}</span>
                           </div>
                         </div>
                         <div className="cv-progress-track">
@@ -903,7 +909,7 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
                           </div>
                           <div className="cv-bi-right">
                             <span className="cv-bi-count">{v.count} POs</span>
-                            <span className="cv-bi-amount">{fmtC(v.total)}</span>
+                            <span className="cv-bi-amount">{fmtC(v.total, currencySymbol)}</span>
                           </div>
                         </div>
                         <div className="cv-progress-track">
@@ -948,8 +954,8 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
                         <span className="bsp-row-name">{item.name}</span>
                       </div>
                       <div className="bsp-row-right">
-                        <span className="bsp-row-qty">{fmtN(item.quantity)} qty</span>
-                        <span className="bsp-row-rev">{fmtC(item.total)}</span>
+                        <span className="bsp-row-qty">{fmtQty(item.quantity, item.uomPrecision)} qty</span>
+                        <span className="bsp-row-rev">{fmtC(item.total, currencySymbol)}</span>
                       </div>
                     </div>
                     <div className="bsp-row-track">
@@ -1042,7 +1048,8 @@ function ChartView({ orders, themeColor, orderType, vendors, warehouses, currenc
 /* ═══════════════════════════════════════════════════════════════════════════
    GRAPH VIEW — Animated bar chart of revenue + order count per type
    ═══════════════════════════════════════════════════════════════════════════ */
-function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dateTo, vendors = [], warehouses = [], currencySymbol = '₹', timezone }) {
+function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dateTo, vendors = [], warehouses = [], currencySymbol = '', timezone }) {
+  const currencyDecimals = useCurrencyDecimals();
   const fmtC = n => `${currencySymbol}${fmt(n)}`;
   const [metric, setMetric] = useState('revenue'); // 'revenue' | 'count'
   const isSale = orderType === 'SALE';
@@ -1090,8 +1097,8 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
         }
         if (cash === 0 && online === 0) {
           const total = parseFloat(o.totalAmount || o.grandTotal || 0);
-          const half = Number((total / 2).toFixed(2));
-          const remaining = Number((total - half).toFixed(2));
+          const half = Number((total / 2).toFixed(currencyDecimals));
+          const remaining = Number((total - half).toFixed(currencyDecimals));
           if (!byPayment['CASH']) byPayment['CASH'] = { count: 0, total: 0 };
           byPayment['CASH'].count++;
           byPayment['CASH'].total += half;
@@ -1107,7 +1114,8 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
       // items
       (o.lines || []).forEach(l => {
         const n = l.productName || 'Unknown';
-        if (!byItem[n]) byItem[n] = { name: n, quantity: 0, total: 0 };
+        if (!byItem[n]) byItem[n] = { name: n, quantity: 0, total: 0, uomPrecision: 0 };
+        byItem[n].uomPrecision = Math.max(byItem[n].uomPrecision, uomPrecisionOf(l));
         byItem[n].quantity += Number(l.quantity || 0);
         byItem[n].total += Number(l.lineTotal || 0);
       });
@@ -1229,7 +1237,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
 
   const formatYLabel = (val) => {
     if (metric === 'revenue') {
-      return fmtC(val);
+      return fmtC(val, currencySymbol);
     } else {
       return Math.round(val).toString();
     }
@@ -1280,7 +1288,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
                         }}
                       >
                         <span className="gv-hour-tip">
-                          <span className="tip-amt">{fmtC(d.revenue)}</span>
+                          <span className="tip-amt">{fmtC(d.revenue, currencySymbol)}</span>
                           <span className="tip-orders">{d.count} orders</span>
                         </span>
                       </div>
@@ -1323,13 +1331,13 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
                           >
                             <span className="gv-bd-tip">
                               <span className="tip-name">{name}</span>
-                              <span className="tip-amt">{fmtC(item.total)}</span>
+                              <span className="tip-amt">{fmtC(item.total, currencySymbol)}</span>
                               <span className="tip-orders">{item.count} {isSale ? 'orders' : 'POs'}</span>
                             </span>
                           </div>
                         </div>
                         <div className="gv-bd-label" title={name}>{name}</div>
-                        <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val) : `${val} ${isSale ? 'ord' : 'pos'}`}</div>
+                        <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val, currencySymbol) : `${val} ${isSale ? 'ord' : 'pos'}`}</div>
                       </div>
                     );
                   })}
@@ -1364,13 +1372,13 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
                           >
                             <span className="gv-bd-tip">
                               <span className="tip-name">{name}</span>
-                              <span className="tip-amt">{fmtC(item.total)}</span>
+                              <span className="tip-amt">{fmtC(item.total, currencySymbol)}</span>
                               <span className="tip-orders">{item.count} {isSale ? 'txn' : 'POs'}</span>
                             </span>
                           </div>
                         </div>
                         <div className="gv-bd-label" title={name}>{name}</div>
-                        <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val) : `${val} ${isSale ? 'txn' : 'pos'}`}</div>
+                        <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val, currencySymbol) : `${val} ${isSale ? 'txn' : 'pos'}`}</div>
                       </div>
                     );
                   })}
@@ -1406,14 +1414,14 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
                         >
                           <span className="gv-bd-tip">
                             <span className="tip-name">{item.name}</span>
-                            <span className="tip-amt">{fmtC(item.total)}</span>
-                            <span className="tip-orders">{fmtN(item.quantity)} qty</span>
+                            <span className="tip-amt">{fmtC(item.total, currencySymbol)}</span>
+                            <span className="tip-orders">{fmtQty(item.quantity, item.uomPrecision)} qty</span>
                           </span>
                         </div>
                       </div>
                       <div className="gv-bd-rank">#{idx + 1}</div>
                       <div className="gv-bd-label gv-bsp-label" title={item.name}>{item.name}</div>
-                      <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val) : `${fmtN(val)} qty`}</div>
+                      <div className="gv-bd-value">{metric === 'revenue' ? fmtC(val, currencySymbol) : `${fmtQty(val, item.uomPrecision)} qty`}</div>
                     </div>
                   );
                 })}
@@ -1632,7 +1640,7 @@ function GraphView({ orders, themeColor, themeColorRgb, orderType, dateFrom, dat
 /* ═══════════════════════════════════════════════════════════════════════════
    TABLE VIEW — filter tabs + sortable table
    ═══════════════════════════════════════════════════════════════════════════ */
-function TableView({ orders, themeColor, orderType, onViewOrder, currencySymbol = '₹' }) {
+function TableView({ orders, themeColor, orderType, onViewOrder, currencySymbol = '' }) {
   const fmtC = n => `${currencySymbol}${fmt(n)}`;
   const [filter,  setFilter]  = useState('ALL');
   const [sortKey, setSortKey] = useState('amount');
@@ -1737,7 +1745,7 @@ function TableView({ orders, themeColor, orderType, onViewOrder, currencySymbol 
                   </td>
                   <td><span className="tv-user">{o.createdBy || o.created_by || '—'}</span></td>
                   <td><span className="tv-user">{o.updatedBy || o.updated_by || '—'}</span></td>
-                  <td className="tv-r tv-amount">{fmtC(o.totalAmount)}</td>
+                  <td className="tv-r tv-amount">{fmtC(o.totalAmount, currencySymbol)}</td>
                 </tr>
               );
             })}

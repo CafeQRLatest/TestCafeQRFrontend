@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { FaMinus, FaPlus, FaEdit, FaStickyNote, FaTimes, FaTrashAlt } from 'react-icons/fa';
+import { formatQty, parseQty, uomPrecisionOf } from '../../CounterSale/domain/quantity';
 
 // ── Styled Components ──
 
@@ -131,8 +132,8 @@ const StepperPlusBtn = styled.button`
 `;
 
 const StepperQtyInput = styled.input`
-  width: 28px;
-  min-width: 22px;
+  width: ${props => props.$len || 3}ch;
+  min-width: 28px;
   height: 20px;
   border: none;
   background: transparent;
@@ -321,7 +322,7 @@ const CompactRightGroup = styled.div`
 export default function PosCartItem({
   item,
   cartKeyFor,
-  sym = '₹',
+  sym = '',
   currencyDecimalPlaces = 2,
   theme,
   updateQty,
@@ -333,9 +334,11 @@ export default function PosCartItem({
   isWide = false
 }) {
   const key = cartKeyFor(item);
+  const precision = uomPrecisionOf(item);
   const [noteOpen, setNoteOpen] = useState(false);
   const [localNote, setLocalNote] = useState(item.description || '');
-  const [localQty, setLocalQty] = useState(String(item.qty || 1));
+  const [localQty, setLocalQty] = useState(formatQty(item.qty || 1, precision));
+  const editingQtyRef = useRef(false);
   const inputRef = useRef(null);
 
   const hasNote = Boolean(item.description && item.description.trim());
@@ -345,14 +348,21 @@ export default function PosCartItem({
   }, [item.description]);
 
   useEffect(() => {
-    setLocalQty(String(item.qty || 1));
-  }, [item.qty]);
+    // While the user is typing, keep their text; reformat only when not editing.
+    if (!editingQtyRef.current) {
+      setLocalQty(formatQty(item.qty || 1, precision));
+    }
+  }, [item.qty, precision]);
 
   const handleQtyChange = (e) => {
     const val = e.target.value;
+    // Digits with at most one decimal separator and no more decimals than the UOM allows.
+    if (!/^\d*[.,]?\d*$/.test(val)) return;
+    const decimals = (val.split(/[.,]/)[1] || '').length;
+    if (decimals > precision) return;
     setLocalQty(val);
-    const parsed = parseInt(val, 10);
-    if (!isNaN(parsed) && parsed > 0) {
+    const parsed = parseQty(val, precision);
+    if (parsed > 0) {
       if (typeof setItemQty === 'function') {
         setItemQty(key, parsed);
       } else if (typeof updateQty === 'function') {
@@ -362,13 +372,15 @@ export default function PosCartItem({
   };
 
   const handleQtyBlur = () => {
-    const parsed = parseInt(localQty, 10);
-    if (isNaN(parsed) || parsed <= 0) {
-      setLocalQty(String(item.qty || 1));
+    editingQtyRef.current = false;
+    const parsed = parseQty(localQty, precision);
+    if (parsed <= 0) {
+      setLocalQty(formatQty(item.qty || 1, precision));
       if (typeof setItemQty === 'function') {
         setItemQty(key, item.qty || 1);
       }
     } else {
+      setLocalQty(formatQty(parsed, precision));
       if (typeof setItemQty === 'function') {
         setItemQty(key, parsed);
       }
@@ -481,13 +493,14 @@ export default function PosCartItem({
               {item.qty === 1 ? <FaTrashAlt size={7.5} /> : <FaMinus size={7.5} />}
             </StepperMinusBtn>
             <StepperQtyInput
-              type="number"
-              min="1"
-              max="9999"
+              type="text"
+              inputMode={precision > 0 ? 'decimal' : 'numeric'}
+              $len={Math.max(3, String(localQty).length + 1)}
               value={localQty}
               onChange={handleQtyChange}
               onBlur={handleQtyBlur}
-              onFocus={(e) => e.target.select()}
+              onFocus={(e) => { editingQtyRef.current = true; e.target.select(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
               $themeColor={theme?.main}
               title="Click or type to edit quantity"
             />
@@ -587,13 +600,14 @@ export default function PosCartItem({
               {item.qty === 1 ? <FaTrashAlt size={7.5} /> : <FaMinus size={7.5} />}
             </StepperMinusBtn>
             <StepperQtyInput
-              type="number"
-              min="1"
-              max="9999"
+              type="text"
+              inputMode={precision > 0 ? 'decimal' : 'numeric'}
+              $len={Math.max(3, String(localQty).length + 1)}
               value={localQty}
               onChange={handleQtyChange}
               onBlur={handleQtyBlur}
-              onFocus={(e) => e.target.select()}
+              onFocus={(e) => { editingQtyRef.current = true; e.target.select(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
               $themeColor={theme?.main}
               title="Click or type to edit quantity"
             />

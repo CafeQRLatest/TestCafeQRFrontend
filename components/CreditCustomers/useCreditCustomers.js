@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -14,6 +15,7 @@ const emptyForm = {
 };
 
 export default function useCreditCustomers() {
+  const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const { timezone } = useAuth();
   
@@ -42,9 +44,9 @@ export default function useCreditCustomers() {
   const [activeTab, setActiveTab] = useState('orders');
   const [viewingDoc, setViewingDoc] = useState(null);
 
-  const SYM = config?.currencySymbol || '₹';
+  const SYM = config?.currencySymbol || '';
   const money = useCallback((value) => {
-    return `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${SYM}${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`;
   }, [SYM]);
 
   const load = useCallback(async () => {

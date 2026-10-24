@@ -8,6 +8,45 @@ import ModuleGate from '../../components/ModuleGate';
 import BranchRequiredGate from '../../components/BranchRequiredGate';
 import NiceSelect from '../../components/NiceSelect';
 import VariantSelector from '../../components/VariantSelector';
+import {formatQty, parseQty, uomPrecisionOf, withinPrecision } from '../../components/CounterSale/domain/quantity';
+
+// Smallest allowed transfer quantity for a UOM precision (whole units when precision is 0).
+const minQtyFor = (precision) => (precision > 0 ? 10 ** -precision : 1);
+
+const qtyDisplay = (value, precision) =>
+  (value === '' || value === null || value === undefined ? '' : formatQty(value, precision));
+
+// Text input for product quantities. Keeps typed text while focused, reformats on blur.
+function PrecisionQtyInput({ value, precision, onCommit, onBlur, ...rest }) {
+  const [text, setText] = useState(() => qtyDisplay(value, precision));
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!focusedRef.current) setText(qtyDisplay(value, precision));
+  }, [value, precision]);
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
+      onChange={(e) => {
+        const raw = e.target.value.replace(',', '.');
+        const pattern = /^\d*\.?\d*$/;
+        if (!pattern.test(raw)) return;
+        if (!withinPrecision(raw, precision)) return;
+        setText(raw);
+        onCommit(raw);
+      }}
+      onBlur={(e) => {
+        focusedRef.current = false;
+        setText(qtyDisplay(value, precision));
+        if (onBlur) onBlur(e);
+      }}
+    />
+  );
+}
+
 import api from '../../utils/api';
 import { formatTzDate } from '../../utils/timezoneUtils';
 import { 
@@ -696,17 +735,19 @@ function TransferContent() {
       return;
     }
 
-    const rawNum = parseInt(value, 10);
-    if (isNaN(rawNum) || rawNum < 1) {
+    const linePrecision = uomPrecisionOf(products.find(prod => prod.id === transfer.lines[index]?.productId) || transfer.lines[index]);
+    const minQty = minQtyFor(linePrecision);
+    const rawNum = parseQty(value, linePrecision);
+    if (isNaN(rawNum) || rawNum < minQty) {
       const newLines = [...transfer.lines];
-      newLines[index].transferQuantity = 1;
+      newLines[index].transferQuantity = minQty;
       setTransfer({ ...transfer, lines: newLines });
       return;
     }
 
     let qty = rawNum;
     if (nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
-      qty = Math.max(1, maxStock);
+      qty = Math.max(minQty, maxStock);
       showToast(`Quantity capped at available stock (${maxStock} units)`, "error");
     } else if (nonStockTransferPolicy === 'WARNING' && transfer.sourceWarehouseId && maxStock < Infinity && qty > maxStock) {
       showToast(`Warning: Transfer quantity (${qty}) exceeds available stock (${maxStock} units).`, "warning");
@@ -726,6 +767,7 @@ function TransferContent() {
 
   const totalItems = transfer.lines.length;
   const totalUnits = transfer.lines.reduce((sum, line) => sum + (Number(line.transferQuantity) || 0), 0);
+  const maxQtyPrecision = Math.max(0, ...transfer.lines.map(l => uomPrecisionOf(products.find(prod => prod.id === l.productId) || l)));
 
   const swapRouting = () => {
     const nextSourceBranch = destBranchId;
@@ -890,7 +932,7 @@ function TransferContent() {
                              </div>
                              {hasSource && (
                                <div className={`sug-stock ${currentStock > 0 ? 'instock' : 'outofstock'}`}>
-                                 <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {currentStock} Available
+                                 <span style={{ fontSize: '9px', lineHeight: 1 }}>●</span> {formatQty(currentStock, uomPrecisionOf(p))} Available
                                </div>
                              )}
                           </div>
@@ -951,16 +993,14 @@ function TransferContent() {
                                    >
                                      <FaMinus />
                                    </button>
-                                   <input 
-                                     type="number"
+                                   <PrecisionQtyInput
                                      className="qty-input"
                                      value={line.transferQuantity}
-                                     min="1"
-                                     max={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId ? currentStock : undefined}
-                                     onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
+                                     precision={uomPrecisionOf(p)}
+                                     onCommit={(raw) => updateLineQty(idx, raw, currentStock)}
                                      onBlur={() => {
-                                       if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
-                                         updateLineQty(idx, 1, currentStock);
+                                       if (!line.transferQuantity || Number(line.transferQuantity) < minQtyFor(uomPrecisionOf(p))) {
+                                         updateLineQty(idx, minQtyFor(uomPrecisionOf(p)), currentStock);
                                        }
                                      }}
                                    />
@@ -977,7 +1017,7 @@ function TransferContent() {
                                <td className="col-status">
                                  {transfer.sourceWarehouseId ? (
                                    <div className={`classic-pill ${overdraft ? 'danger' : 'success'}`}>
-                                      {currentStock} Available
+                                      {formatQty(currentStock, uomPrecisionOf(p))} Available
                                    </div>
                                  ) : (
                                    <div className="classic-pill neutral">--</div>
@@ -1014,7 +1054,7 @@ function TransferContent() {
                                <div className="stock-info">
                                  {transfer.sourceWarehouseId ? (
                                    <span className={`stock-pill ${overdraft ? 'danger' : 'success'}`}>
-                                     Stock: {currentStock}
+                                     Stock: {formatQty(currentStock, uomPrecisionOf(p))}
                                    </span>
                                  ) : <span className="stock-pill">No Source</span>}
                                </div>
@@ -1027,19 +1067,17 @@ function TransferContent() {
                                  >
                                    <FaMinus />
                                  </button>
-                                 <input 
-                                   type="number"
-                                   className="qty-input"
-                                   value={line.transferQuantity}
-                                   min="1"
-                                   max={nonStockTransferPolicy === 'BLOCK' && transfer.sourceWarehouseId ? currentStock : undefined}
-                                   onChange={(e) => updateLineQty(idx, e.target.value, currentStock)}
-                                   onBlur={() => {
-                                     if (!line.transferQuantity || Number(line.transferQuantity) < 1) {
-                                       updateLineQty(idx, 1, currentStock);
-                                     }
-                                   }}
-                                 />
+                                 <PrecisionQtyInput
+                                     className="qty-input"
+                                     value={line.transferQuantity}
+                                     precision={uomPrecisionOf(p)}
+                                     onCommit={(raw) => updateLineQty(idx, raw, currentStock)}
+                                     onBlur={() => {
+                                       if (!line.transferQuantity || Number(line.transferQuantity) < minQtyFor(uomPrecisionOf(p))) {
+                                         updateLineQty(idx, minQtyFor(uomPrecisionOf(p)), currentStock);
+                                       }
+                                     }}
+                                   />
                                  <button 
                                    type="button"
                                    className="qty-btn" 
@@ -1105,7 +1143,7 @@ function TransferContent() {
                   </div>
                   <div className="cs-row accent">
                     <span>Total Transfer Units</span>
-                    <span className="cs-val">{totalUnits}</span>
+                    <span className="cs-val">{formatQty(totalUnits, maxQtyPrecision)}</span>
                   </div>
                 </div>
 
@@ -1184,7 +1222,7 @@ function TransferContent() {
         {transfer.lines.length > 0 && (
           <div className="mobile-action-bar">
             <div className="ma-info">
-              <span className="ma-qty">{totalUnits} Units</span>
+              <span className="ma-qty">{formatQty(totalUnits, maxQtyPrecision)} Units</span>
               <span className="ma-count">{totalItems} Products</span>
             </div>
             <button className={`ma-btn ${autoTransfer ? 'ma-btn-green' : ''}`} onClick={() => handleSave('SUBMIT')}>
@@ -1377,8 +1415,15 @@ function TransferContent() {
         
         .col-idx { width: 40px; }
         .col-product { width: auto; }
-        .col-qty { width: 160px; }
-        .col-status { width: 180px; }
+        .col-qty { width: 260px; min-width: 240px; padding: 12px 16px; white-space: nowrap; }
+        .col-status { width: 180px; min-width: 150px; padding: 12px 16px; white-space: nowrap; text-align: left; }
+        @media (max-width: 768px) {
+          .col-qty { width: auto; min-width: 200px; padding: 10px 8px; }
+          .col-status { min-width: 120px; padding: 10px 8px; }
+          .classic-qty-group { gap: 4px; }
+          :global(.qty-input) { width: 64px; min-width: 64px; }
+        }
+        .col-status .classic-pill { display: inline-block; }
         .col-action { width: 60px; text-align: right; }
 
         .p-name { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 1px; }
@@ -1387,13 +1432,13 @@ function TransferContent() {
         .p-category { color: #f97316; text-transform: uppercase; }
 
         /* Tactical Qty Control */
-        .classic-qty-group { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px; width: fit-content; gap: 2px; }
+        .classic-qty-group { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 3px; width: fit-content; gap: 2px; position: relative; z-index: 2; flex-shrink: 0; }
         .qty-btn { width: 28px; height: 28px; border-radius: 7px; border: none; background: white; cursor: pointer; color: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; }
         .qty-btn:hover:not(:disabled) { background: #f97316; color: white; transform: translateY(-1px); }
         .qty-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-        .qty-input { width: 50px; height: 28px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; font-size: 14px; font-weight: 800; color: #0f172a; outline: none; background: white; transition: 0.2s; -moz-appearance: textfield; }
-        .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .qty-input:focus { border-color: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
+        :global(.qty-input) { width: 76px; min-width: 76px; height: 28px; padding: 0 4px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; font-size: 14px; font-weight: 800; color: #000000; outline: none; background: #ffffff; opacity: 1; transition: 0.2s; -moz-appearance: textfield; }
+        :global(.qty-input)::-webkit-outer-spin-button, :global(.qty-input)::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        :global(.qty-input):focus { border-color: #f97316; box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2); }
 
         .classic-pill { font-size: 10px; font-weight: 800; }
         .classic-pill.success { color: #166534; }

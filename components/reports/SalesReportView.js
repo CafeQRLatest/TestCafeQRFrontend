@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
 import { formatTzDate, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { printUniversal } from '../../utils/printGateway';
 import { buildThermalReportText } from '../../utils/thermalReportFormatter';
+import { formatQty, uomPrecisionOf } from '../CounterSale/domain/quantity';
 import {
   FaChartBar, FaReceipt, FaBoxes, FaCreditCard, FaFileInvoice,
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
@@ -31,12 +33,13 @@ export default function SalesReportView({
   config,
   isSuperAdmin,
   timezone,
-  SYM = '₹',
+  SYM = '',
   viewDocument: propViewDoc,
   onViewDoc,
   handleVoid: propHandleVoid,
   onVoidInvoice
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const viewDocument = propViewDoc || onViewDoc;
   const handleVoid = propHandleVoid || onVoidInvoice;
   const { notify } = useNotification();
@@ -126,10 +129,13 @@ export default function SalesReportView({
     const totalQuantity = filteredAndSortedItems.reduce((acc, i) => acc + Number(i.quantitySold || 0), 0);
     const totalRevenue = filteredAndSortedItems.reduce((acc, i) => acc + Number(i.revenue || 0), 0);
     const overallRevenue = items.reduce((acc, i) => acc + Number(i.revenue || 0), 0);
+    // Mixed-UOM totals are shown at the finest precision among the filtered products.
+    const totalQtyPrecision = filteredAndSortedItems.reduce((m, i) => Math.max(m, uomPrecisionOf(i)), 0);
     return {
       totalQuantity,
       totalRevenue,
-      overallRevenue
+      overallRevenue,
+      totalQtyPrecision
     };
   }, [filteredAndSortedItems, items]);
 
@@ -151,7 +157,7 @@ export default function SalesReportView({
       : <FaSortDown className="rpt-sort-icon active" />;
   };
 
-  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
   const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const branchLabel = (tx) => tx?.branchName || tx?.branchCode || (tx?.branchId ? String(tx.branchId).slice(0, 8) : '—');
   const formatReportDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'short' });
@@ -245,6 +251,7 @@ export default function SalesReportView({
       extraMeta = {
         category: customData?.category || itemCategoryFilter,
         totalQty: customData?.totalQty != null ? customData.totalQty : categoryTotals.totalQuantity,
+        totalQtyPrecision: categoryTotals.totalQtyPrecision,
         totalAmount: customData?.totalAmount != null ? customData.totalAmount : categoryTotals.totalRevenue,
         sortLabel: `${itemSortField} (${itemSortDir})`,
       };
@@ -444,16 +451,16 @@ export default function SalesReportView({
                 tx.lines.forEach((line, index) => {
                   const taxRate = Number(line.taxRate || 0);
                   const taxAmount = Number(line.taxAmount || 0);
-                  const cgst = (taxAmount / 2).toFixed(2);
-                  const sgst = (taxAmount / 2).toFixed(2);
-                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+                  const cgst = (taxAmount / 2).toFixed(currencyDecimals);
+                  const sgst = (taxAmount / 2).toFixed(currencyDecimals);
+                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(currencyDecimals);
 
                   rows.push([...baseRow,
                     index + 1,
                     line.productName,
                     line.categoryName,
                     taxRate,
-                    line.quantity,
+                    formatQty(line.quantity, uomPrecisionOf(line)),
                     line.unitPrice,
                     lineTaxable,
                     cgst,
@@ -500,9 +507,9 @@ export default function SalesReportView({
                 tx.lines.forEach((line, index) => {
                   const taxRate = Number(line.taxRate || 0);
                   const taxAmount = Number(line.taxAmount || 0);
-                  const cgst = (taxAmount / 2).toFixed(2);
-                  const sgst = (taxAmount / 2).toFixed(2);
-                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(2);
+                  const cgst = (taxAmount / 2).toFixed(currencyDecimals);
+                  const sgst = (taxAmount / 2).toFixed(currencyDecimals);
+                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(currencyDecimals);
 
                   data.push({
                     ...baseObj,
@@ -632,7 +639,7 @@ export default function SalesReportView({
                               <div className="rpt-sales-subrows">
                                 {tx.lines.map((line, lIdx) => (
                                   <div key={lIdx} className="rpt-sales-subrow">
-                                    <span>{line.productName} ({line.quantity} × {SYM}{fmt(line.unitPrice)})</span>
+                                    <span>{line.productName} ({formatQty(line.quantity, uomPrecisionOf(line))} × {SYM}{fmt(line.unitPrice)})</span>
                                     <span style={{ fontWeight: 700 }}>{SYM}{fmt(line.lineTotal)}</span>
                                   </div>
                                 ))}
@@ -723,9 +730,9 @@ export default function SalesReportView({
                 ['#', 'Product Name', 'Category', 'Qty Sold', 'Revenue'],
                 [
                   ...filteredAndSortedItems.map((i, idx) => [
-                    idx + 1, i.productName, i.categoryName, i.quantitySold, i.revenue
+                    idx + 1, i.productName, i.categoryName, formatQty(i.quantitySold, uomPrecisionOf(i)), i.revenue
                   ].map(csvCell).join(',')),
-                  ['', 'Total', itemCategoryFilter === 'ALL' ? 'All Categories' : itemCategoryFilter, categoryTotals.totalQuantity, categoryTotals.totalRevenue].map(csvCell).join(',')
+                  ['', 'Total', itemCategoryFilter === 'ALL' ? 'All Categories' : itemCategoryFilter, formatQty(categoryTotals.totalQuantity, categoryTotals.totalQtyPrecision), categoryTotals.totalRevenue].map(csvCell).join(',')
                 ],
                 `item_sales${catSuffix}`
               );
@@ -798,7 +805,7 @@ export default function SalesReportView({
                       <td style={{ color: '#94a3b8', fontWeight: 600, textAlign: 'center' }}>{idx + 1}</td>
                       <td className="col-product" style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName}</td>
                       <td><span className="rpt-sales-pill">{item.categoryName || 'General'}</span></td>
-                      <td className="r" style={{ fontWeight: 600 }}>{item.uomPrecision != null ? Number(item.quantitySold || 0).toFixed(item.uomPrecision) : Number(item.quantitySold || 0)}</td>
+                      <td className="r" style={{ fontWeight: 600 }}>{formatQty(item.quantitySold, uomPrecisionOf(item))}</td>
                       <td className="r rpt-sales-amt">{SYM}{fmt(item.revenue)}</td>
                       <td className="col-share">
                         <div className="rpt-sales-bar-wrap">
@@ -816,7 +823,7 @@ export default function SalesReportView({
                         : `${itemCategoryFilter} Total (${filteredAndSortedItems.length} items)`}
                     </td>
                     <td className="r" style={{ fontWeight: 800, color: '#1e293b' }}>
-                      {categoryTotals.totalQuantity}
+                      {formatQty(categoryTotals.totalQuantity, categoryTotals.totalQtyPrecision)}
                     </td>
                     <td className="r rpt-sales-amt" style={{ color: '#10b981', fontSize: '14.5px', fontWeight: 850 }}>
                       {SYM}{fmt(categoryTotals.totalRevenue)}
@@ -842,7 +849,7 @@ export default function SalesReportView({
                 <div className="rpt-sales-cat-summary-metrics">
                   <div className="rpt-sales-cat-stat">
                     <span className="rpt-sales-cat-stat-label">Total Qty Sold</span>
-                    <span className="rpt-sales-cat-stat-val">{categoryTotals.totalQuantity}</span>
+                    <span className="rpt-sales-cat-stat-val">{formatQty(categoryTotals.totalQuantity, categoryTotals.totalQtyPrecision)}</span>
                   </div>
                   <div className="rpt-sales-cat-stat primary">
                     <span className="rpt-sales-cat-stat-label">Total Category Amount</span>

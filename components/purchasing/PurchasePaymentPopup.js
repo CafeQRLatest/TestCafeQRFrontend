@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { FaTimes, FaWallet, FaBook, FaExclamationTriangle, FaPlus, FaInfoCircle } from 'react-icons/fa';
 
 // â”€â”€â”€ Inline styles (mirrors PaymentDialog.styles.js) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -129,19 +130,20 @@ const css = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────────
 
 const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const fmt = (sym, val) =>
-  `${sym}${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PurchasePaymentPopup({
   po,
   payMethodOptions = [],  // Only the payment types configured in Payment Type Master
-  currencySymbol = '₹',
+  currencySymbol = '',
   saving = false,
   onClose,
   onConfirm,              // ({ paymentMethod, paymentStatus, paymentSplits? }) => void
 }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const fmt = (sym, val) =>
+    `${sym}${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}`;
   const grandTotal = parseFloat(po?.grandTotal || 0);
   const subtotal   = parseFloat(po?.totalAmount || 0);
   const tax        = parseFloat(po?.totalTaxAmount || 0);
@@ -209,7 +211,7 @@ export default function PurchasePaymentPopup({
   const updateSplit = (index, field, value) => {
     if (field === 'amount') {
       const typed = toNum(value);
-      const remaining = Number(Math.max(0, grandTotal - typed).toFixed(2));
+      const remaining = Number(Math.max(0, grandTotal - typed).toFixed(currencyDecimals));
       setSplits(prev => prev.map((sp, i) => {
         if (i === index) return { ...sp, amount: value };
         if (prev.length === 2) return { ...sp, amount: String(remaining) };
@@ -230,7 +232,7 @@ export default function PurchasePaymentPopup({
     if (isMixed) {
       const normalised = splits.map(sp => ({
         paymentMethod: sp.paymentMethod,
-        amount: Number(toNum(sp.amount).toFixed(2)),
+        amount: Number(toNum(sp.amount).toFixed(currencyDecimals)),
       }));
       onConfirm?.({ paymentMethod: selectedMethod, paymentStatus: 'PAID', paymentSplits: normalised });
     } else {

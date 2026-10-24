@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaMinus, FaPlus, FaEdit, FaStickyNote, FaTimes } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
+import { formatQty, uomPrecisionOf } from '../domain/quantity';
 
 export default function CartItem({
   item,
@@ -94,7 +95,7 @@ export default function CartItem({
         </div>
         <S.CsQtyGroup>
           <S.CsQtyBtn onClick={() => updateQty(key, -1)}><FaMinus/></S.CsQtyBtn>
-          <div style={{ fontWeight: 800, minWidth: '14px', textAlign: 'center', fontSize: '10.5px', color: '#0f172a' }}>{item.qty}</div>
+          <div style={{ fontWeight: 800, minWidth: '14px', textAlign: 'center', fontSize: '10.5px', color: '#0f172a' }}>{formatQty(item.qty, uomPrecisionOf(item))}</div>
           <S.CsQtyBtn onClick={() => updateQty(key, 1)}><FaPlus/></S.CsQtyBtn>
         </S.CsQtyGroup>
       </div>

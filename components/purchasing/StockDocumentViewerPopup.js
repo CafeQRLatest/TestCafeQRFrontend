@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { FaPrint } from 'react-icons/fa';
 import { generateStockTransferPdf } from '../../utils/stockTransferPdf';
 import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../CounterSale/domain/quantity';
 
 export default function StockDocumentViewerPopup({
   doc,
@@ -16,6 +19,8 @@ export default function StockDocumentViewerPopup({
   onClose,
   onConfirmTransfer = null
 }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const auth = useAuth() || {};
   const { firstName, lastName, email: authEmail, userId: authUserId, userRole } = auth;
   const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
@@ -196,11 +201,13 @@ export default function StockDocumentViewerPopup({
 
   // Calculate totals
   let totalQty = 0;
+  let maxQtyPrecision = 0;
   let totalValue = 0;
   lines.forEach(l => {
     const q = Math.abs(Number(l.transferQuantity ?? l.quantityChange ?? l.quantity ?? 0));
     const cost = Number(l.unitCost ?? l.unit_cost ?? 0);
     totalQty += q;
+    maxQtyPrecision = Math.max(maxQtyPrecision, uomPrecisionOf(getProduct(l.productId || l.product_id) || l));
     totalValue += (q * cost);
   });
 
@@ -317,6 +324,7 @@ export default function StockDocumentViewerPopup({
                     : Number(line.quantityChange ?? line.quantity_change ?? line.quantity ?? 0);
 
                   const lineTotal = Math.abs(qty * unitCost);
+                  const linePrec = uomPrecisionOf(p || line);
 
                   return (
                     <tr key={line.id || idx}>
@@ -329,15 +337,15 @@ export default function StockDocumentViewerPopup({
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <span className="qty-val">
-                          {!isTransfer && qty > 0 ? `+${qty}` : qty} {Math.abs(qty) === 1 ? 'unit' : 'units'}
+                          {!isTransfer && qty > 0 ? `+${formatQty(qty, linePrec)}` : formatQty(qty, linePrec)} {Math.abs(qty) === 1 ? 'unit' : 'units'}
                         </span>
                       </td>
 
                       <td style={{ textAlign: 'right' }}>
-                        {unitCost > 0 ? `₹${unitCost.toFixed(2)}` : '—'}
+                        {unitCost > 0 ? `${currencySymbol}${unitCost.toFixed(currencyDecimals)}` : '—'}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                        {lineTotal > 0 ? `₹${lineTotal.toFixed(2)}` : '—'}
+                        {lineTotal > 0 ? `${currencySymbol}${lineTotal.toFixed(currencyDecimals)}` : '—'}
                       </td>
                     </tr>
                   );
@@ -355,12 +363,12 @@ export default function StockDocumentViewerPopup({
           </div>
           <div className="totals-row">
             <span className="t-label">Total Quantity</span>
-            <span className="t-val">{totalQty} units</span>
+            <span className="t-val">{formatQty(totalQty, maxQtyPrecision)} units</span>
           </div>
           {totalValue > 0 && (
             <div className="totals-row grand orange-top">
               <span className="t-label bold">Grand Total</span>
-              <span className="t-val bold">₹{totalValue.toFixed(2)}</span>
+              <span className="t-val bold">{currencySymbol}{totalValue.toFixed(currencyDecimals)}</span>
             </div>
           )}
         </div>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import { FaWallet, FaBook, FaChartPie, FaExchangeAlt, FaPlus, FaRedo, FaSearch, FaSync, FaExclamationTriangle, FaFileCsv, FaInfoCircle, FaChartBar, FaTag, FaChartLine, FaReceipt, FaCreditCard, FaFileInvoice, FaArrowDown, FaCheckCircle, FaEdit, FaBan, FaToggleOn, FaToggleOff, FaFilter, FaTrashAlt, FaPercent, FaCoins } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -10,7 +11,6 @@ import { useNotification } from '../../context/NotificationContext';
 import api from '../../utils/api';
 import { getBusinessNow, getLocalISOString, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { subscribeAccountingDataChanged } from '../../utils/accountingRealtime';
-import { getCurrencySymbol } from '../../constants/expenseScopes';
 
 
 const ACCOUNT_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
@@ -65,13 +65,6 @@ function blankJournalLine() {
 function numberValue(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function money(value) {
-  return numberValue(value).toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
 }
 
 function periodDate(value) {
@@ -135,8 +128,15 @@ export default function AccountingPage() {
 }
 
 function AccountingContent() {
+  const currencyDecimals = useCurrencyDecimals();
+  function money(value) {
+    return numberValue(value).toLocaleString('en-IN', {
+      minimumFractionDigits: currencyDecimals,
+      maximumFractionDigits: currencyDecimals
+    });
+  }
   const router = useRouter();
-  const { timezone, userRole, currency, orgId } = useAuth();
+  const { timezone, userRole, orgId } = useAuth();
 
   const { notify, showConfirm } = useNotification();
   const canManagePostingErrors = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN';
@@ -148,7 +148,7 @@ function AccountingContent() {
   const [selectedOrgId, setSelectedOrgId] = useState(() => orgId || '');
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
-  const SYM = config?.currencySymbol || getCurrencySymbol(currency);
+  const SYM = config?.currencySymbol || '';
 
   useEffect(() => {
     if (orgId && !selectedOrgId) {

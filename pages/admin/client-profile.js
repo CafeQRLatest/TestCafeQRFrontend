@@ -11,84 +11,84 @@ import { FaSave, FaCheckCircle, FaExclamationCircle, FaUserCircle, FaGlobe, FaId
 // ─── Comprehensive Country → Currency / Timezone mapping ───────────────
 const COUNTRY_DATA = {
   // Asia - South
-  'India': { currency: 'INR', timezone: 'Asia/Kolkata', tzLabel: 'India (GMT+5:30)' },
-  'Sri Lanka': { currency: 'LKR', timezone: 'Asia/Colombo', tzLabel: 'Sri Lanka (GMT+5:30)' },
-  'Nepal': { currency: 'NPR', timezone: 'Asia/Kathmandu', tzLabel: 'Nepal (GMT+5:45)' },
-  'Pakistan': { currency: 'PKR', timezone: 'Asia/Karachi', tzLabel: 'Pakistan (GMT+5:00)' },
-  'Bangladesh': { currency: 'BDT', timezone: 'Asia/Dhaka', tzLabel: 'Bangladesh (GMT+6:00)' },
-  'Maldives': { currency: 'MVR', timezone: 'Indian/Maldives', tzLabel: 'Maldives (GMT+5:00)' },
+  'India': { timezone: 'Asia/Kolkata', tzLabel: 'India (GMT+5:30)' },
+  'Sri Lanka': { timezone: 'Asia/Colombo', tzLabel: 'Sri Lanka (GMT+5:30)' },
+  'Nepal': { timezone: 'Asia/Kathmandu', tzLabel: 'Nepal (GMT+5:45)' },
+  'Pakistan': { timezone: 'Asia/Karachi', tzLabel: 'Pakistan (GMT+5:00)' },
+  'Bangladesh': { timezone: 'Asia/Dhaka', tzLabel: 'Bangladesh (GMT+6:00)' },
+  'Maldives': { timezone: 'Indian/Maldives', tzLabel: 'Maldives (GMT+5:00)' },
   // Asia - Middle East
-  'UAE': { currency: 'AED', timezone: 'Asia/Dubai', tzLabel: 'UAE (GMT+4:00)' },
-  'Saudi Arabia': { currency: 'SAR', timezone: 'Asia/Riyadh', tzLabel: 'Saudi Arabia (GMT+3:00)' },
-  'Qatar': { currency: 'QAR', timezone: 'Asia/Qatar', tzLabel: 'Qatar (GMT+3:00)' },
-  'Oman': { currency: 'OMR', timezone: 'Asia/Muscat', tzLabel: 'Oman (GMT+4:00)' },
-  'Kuwait': { currency: 'KWD', timezone: 'Asia/Kuwait', tzLabel: 'Kuwait (GMT+3:00)' },
-  'Bahrain': { currency: 'BHD', timezone: 'Asia/Bahrain', tzLabel: 'Bahrain (GMT+3:00)' },
-  'Jordan': { currency: 'JOD', timezone: 'Asia/Amman', tzLabel: 'Jordan (GMT+3:00)' },
-  'Lebanon': { currency: 'LBP', timezone: 'Asia/Beirut', tzLabel: 'Lebanon (GMT+2:00)' },
-  'Iraq': { currency: 'IQD', timezone: 'Asia/Baghdad', tzLabel: 'Iraq (GMT+3:00)' },
-  'Iran': { currency: 'IRR', timezone: 'Asia/Tehran', tzLabel: 'Iran (GMT+3:30)' },
-  'Turkey': { currency: 'TRY', timezone: 'Europe/Istanbul', tzLabel: 'Turkey (GMT+3:00)' },
-  'Israel': { currency: 'ILS', timezone: 'Asia/Jerusalem', tzLabel: 'Israel (GMT+2:00)' },
+  'UAE': { timezone: 'Asia/Dubai', tzLabel: 'UAE (GMT+4:00)' },
+  'Saudi Arabia': { timezone: 'Asia/Riyadh', tzLabel: 'Saudi Arabia (GMT+3:00)' },
+  'Qatar': { timezone: 'Asia/Qatar', tzLabel: 'Qatar (GMT+3:00)' },
+  'Oman': { timezone: 'Asia/Muscat', tzLabel: 'Oman (GMT+4:00)' },
+  'Kuwait': { timezone: 'Asia/Kuwait', tzLabel: 'Kuwait (GMT+3:00)' },
+  'Bahrain': { timezone: 'Asia/Bahrain', tzLabel: 'Bahrain (GMT+3:00)' },
+  'Jordan': { timezone: 'Asia/Amman', tzLabel: 'Jordan (GMT+3:00)' },
+  'Lebanon': { timezone: 'Asia/Beirut', tzLabel: 'Lebanon (GMT+2:00)' },
+  'Iraq': { timezone: 'Asia/Baghdad', tzLabel: 'Iraq (GMT+3:00)' },
+  'Iran': { timezone: 'Asia/Tehran', tzLabel: 'Iran (GMT+3:30)' },
+  'Turkey': { timezone: 'Europe/Istanbul', tzLabel: 'Turkey (GMT+3:00)' },
+  'Israel': { timezone: 'Asia/Jerusalem', tzLabel: 'Israel (GMT+2:00)' },
   // Asia - Southeast
-  'Singapore': { currency: 'SGD', timezone: 'Asia/Singapore', tzLabel: 'Singapore (GMT+8:00)' },
-  'Malaysia': { currency: 'MYR', timezone: 'Asia/Kuala_Lumpur', tzLabel: 'Malaysia (GMT+8:00)' },
-  'Thailand': { currency: 'THB', timezone: 'Asia/Bangkok', tzLabel: 'Thailand (GMT+7:00)' },
-  'Indonesia': { currency: 'IDR', timezone: 'Asia/Jakarta', tzLabel: 'Indonesia (GMT+7:00)' },
-  'Philippines': { currency: 'PHP', timezone: 'Asia/Manila', tzLabel: 'Philippines (GMT+8:00)' },
-  'Vietnam': { currency: 'VND', timezone: 'Asia/Ho_Chi_Minh', tzLabel: 'Vietnam (GMT+7:00)' },
-  'Cambodia': { currency: 'KHR', timezone: 'Asia/Phnom_Penh', tzLabel: 'Cambodia (GMT+7:00)' },
-  'Myanmar': { currency: 'MMK', timezone: 'Asia/Yangon', tzLabel: 'Myanmar (GMT+6:30)' },
+  'Singapore': { timezone: 'Asia/Singapore', tzLabel: 'Singapore (GMT+8:00)' },
+  'Malaysia': { timezone: 'Asia/Kuala_Lumpur', tzLabel: 'Malaysia (GMT+8:00)' },
+  'Thailand': { timezone: 'Asia/Bangkok', tzLabel: 'Thailand (GMT+7:00)' },
+  'Indonesia': { timezone: 'Asia/Jakarta', tzLabel: 'Indonesia (GMT+7:00)' },
+  'Philippines': { timezone: 'Asia/Manila', tzLabel: 'Philippines (GMT+8:00)' },
+  'Vietnam': { timezone: 'Asia/Ho_Chi_Minh', tzLabel: 'Vietnam (GMT+7:00)' },
+  'Cambodia': { timezone: 'Asia/Phnom_Penh', tzLabel: 'Cambodia (GMT+7:00)' },
+  'Myanmar': { timezone: 'Asia/Yangon', tzLabel: 'Myanmar (GMT+6:30)' },
   // Asia - East
-  'Japan': { currency: 'JPY', timezone: 'Asia/Tokyo', tzLabel: 'Japan (GMT+9:00)' },
-  'South Korea': { currency: 'KRW', timezone: 'Asia/Seoul', tzLabel: 'South Korea (GMT+9:00)' },
-  'China': { currency: 'CNY', timezone: 'Asia/Shanghai', tzLabel: 'China (GMT+8:00)' },
-  'Hong Kong': { currency: 'HKD', timezone: 'Asia/Hong_Kong', tzLabel: 'Hong Kong (GMT+8:00)' },
-  'Taiwan': { currency: 'TWD', timezone: 'Asia/Taipei', tzLabel: 'Taiwan (GMT+8:00)' },
+  'Japan': { timezone: 'Asia/Tokyo', tzLabel: 'Japan (GMT+9:00)' },
+  'South Korea': { timezone: 'Asia/Seoul', tzLabel: 'South Korea (GMT+9:00)' },
+  'China': { timezone: 'Asia/Shanghai', tzLabel: 'China (GMT+8:00)' },
+  'Hong Kong': { timezone: 'Asia/Hong_Kong', tzLabel: 'Hong Kong (GMT+8:00)' },
+  'Taiwan': { timezone: 'Asia/Taipei', tzLabel: 'Taiwan (GMT+8:00)' },
   // Europe
-  'United Kingdom': { currency: 'GBP', timezone: 'Europe/London', tzLabel: 'UK (GMT+0:00)' },
-  'Germany': { currency: 'EUR', timezone: 'Europe/Berlin', tzLabel: 'Germany (GMT+1:00)' },
-  'France': { currency: 'EUR', timezone: 'Europe/Paris', tzLabel: 'France (GMT+1:00)' },
-  'Italy': { currency: 'EUR', timezone: 'Europe/Rome', tzLabel: 'Italy (GMT+1:00)' },
-  'Spain': { currency: 'EUR', timezone: 'Europe/Madrid', tzLabel: 'Spain (GMT+1:00)' },
-  'Portugal': { currency: 'EUR', timezone: 'Europe/Lisbon', tzLabel: 'Portugal (GMT+0:00)' },
-  'Netherlands': { currency: 'EUR', timezone: 'Europe/Amsterdam', tzLabel: 'Netherlands (GMT+1:00)' },
-  'Belgium': { currency: 'EUR', timezone: 'Europe/Brussels', tzLabel: 'Belgium (GMT+1:00)' },
-  'Switzerland': { currency: 'CHF', timezone: 'Europe/Zurich', tzLabel: 'Switzerland (GMT+1:00)' },
-  'Austria': { currency: 'EUR', timezone: 'Europe/Vienna', tzLabel: 'Austria (GMT+1:00)' },
-  'Sweden': { currency: 'SEK', timezone: 'Europe/Stockholm', tzLabel: 'Sweden (GMT+1:00)' },
-  'Norway': { currency: 'NOK', timezone: 'Europe/Oslo', tzLabel: 'Norway (GMT+1:00)' },
-  'Denmark': { currency: 'DKK', timezone: 'Europe/Copenhagen', tzLabel: 'Denmark (GMT+1:00)' },
-  'Finland': { currency: 'EUR', timezone: 'Europe/Helsinki', tzLabel: 'Finland (GMT+2:00)' },
-  'Ireland': { currency: 'EUR', timezone: 'Europe/Dublin', tzLabel: 'Ireland (GMT+0:00)' },
-  'Greece': { currency: 'EUR', timezone: 'Europe/Athens', tzLabel: 'Greece (GMT+2:00)' },
-  'Poland': { currency: 'PLN', timezone: 'Europe/Warsaw', tzLabel: 'Poland (GMT+1:00)' },
-  'Czech Republic': { currency: 'CZK', timezone: 'Europe/Prague', tzLabel: 'Czech Republic (GMT+1:00)' },
-  'Romania': { currency: 'RON', timezone: 'Europe/Bucharest', tzLabel: 'Romania (GMT+2:00)' },
-  'Hungary': { currency: 'HUF', timezone: 'Europe/Budapest', tzLabel: 'Hungary (GMT+1:00)' },
-  'Russia': { currency: 'RUB', timezone: 'Europe/Moscow', tzLabel: 'Russia (GMT+3:00)' },
+  'United Kingdom': { timezone: 'Europe/London', tzLabel: 'UK (GMT+0:00)' },
+  'Germany': { timezone: 'Europe/Berlin', tzLabel: 'Germany (GMT+1:00)' },
+  'France': { timezone: 'Europe/Paris', tzLabel: 'France (GMT+1:00)' },
+  'Italy': { timezone: 'Europe/Rome', tzLabel: 'Italy (GMT+1:00)' },
+  'Spain': { timezone: 'Europe/Madrid', tzLabel: 'Spain (GMT+1:00)' },
+  'Portugal': { timezone: 'Europe/Lisbon', tzLabel: 'Portugal (GMT+0:00)' },
+  'Netherlands': { timezone: 'Europe/Amsterdam', tzLabel: 'Netherlands (GMT+1:00)' },
+  'Belgium': { timezone: 'Europe/Brussels', tzLabel: 'Belgium (GMT+1:00)' },
+  'Switzerland': { timezone: 'Europe/Zurich', tzLabel: 'Switzerland (GMT+1:00)' },
+  'Austria': { timezone: 'Europe/Vienna', tzLabel: 'Austria (GMT+1:00)' },
+  'Sweden': { timezone: 'Europe/Stockholm', tzLabel: 'Sweden (GMT+1:00)' },
+  'Norway': { timezone: 'Europe/Oslo', tzLabel: 'Norway (GMT+1:00)' },
+  'Denmark': { timezone: 'Europe/Copenhagen', tzLabel: 'Denmark (GMT+1:00)' },
+  'Finland': { timezone: 'Europe/Helsinki', tzLabel: 'Finland (GMT+2:00)' },
+  'Ireland': { timezone: 'Europe/Dublin', tzLabel: 'Ireland (GMT+0:00)' },
+  'Greece': { timezone: 'Europe/Athens', tzLabel: 'Greece (GMT+2:00)' },
+  'Poland': { timezone: 'Europe/Warsaw', tzLabel: 'Poland (GMT+1:00)' },
+  'Czech Republic': { timezone: 'Europe/Prague', tzLabel: 'Czech Republic (GMT+1:00)' },
+  'Romania': { timezone: 'Europe/Bucharest', tzLabel: 'Romania (GMT+2:00)' },
+  'Hungary': { timezone: 'Europe/Budapest', tzLabel: 'Hungary (GMT+1:00)' },
+  'Russia': { timezone: 'Europe/Moscow', tzLabel: 'Russia (GMT+3:00)' },
   // Americas
-  'United States': { currency: 'USD', timezone: 'America/New_York', tzLabel: 'US Eastern (GMT-5:00)' },
-  'Canada': { currency: 'CAD', timezone: 'America/Toronto', tzLabel: 'Canada Eastern (GMT-5:00)' },
-  'Mexico': { currency: 'MXN', timezone: 'America/Mexico_City', tzLabel: 'Mexico (GMT-6:00)' },
-  'Brazil': { currency: 'BRL', timezone: 'America/Sao_Paulo', tzLabel: 'Brazil (GMT-3:00)' },
-  'Argentina': { currency: 'ARS', timezone: 'America/Argentina/Buenos_Aires', tzLabel: 'Argentina (GMT-3:00)' },
-  'Colombia': { currency: 'COP', timezone: 'America/Bogota', tzLabel: 'Colombia (GMT-5:00)' },
-  'Chile': { currency: 'CLP', timezone: 'America/Santiago', tzLabel: 'Chile (GMT-4:00)' },
-  'Peru': { currency: 'PEN', timezone: 'America/Lima', tzLabel: 'Peru (GMT-5:00)' },
+  'United States': { timezone: 'America/New_York', tzLabel: 'US Eastern (GMT-5:00)' },
+  'Canada': { timezone: 'America/Toronto', tzLabel: 'Canada Eastern (GMT-5:00)' },
+  'Mexico': { timezone: 'America/Mexico_City', tzLabel: 'Mexico (GMT-6:00)' },
+  'Brazil': { timezone: 'America/Sao_Paulo', tzLabel: 'Brazil (GMT-3:00)' },
+  'Argentina': { timezone: 'America/Argentina/Buenos_Aires', tzLabel: 'Argentina (GMT-3:00)' },
+  'Colombia': { timezone: 'America/Bogota', tzLabel: 'Colombia (GMT-5:00)' },
+  'Chile': { timezone: 'America/Santiago', tzLabel: 'Chile (GMT-4:00)' },
+  'Peru': { timezone: 'America/Lima', tzLabel: 'Peru (GMT-5:00)' },
   // Africa
-  'South Africa': { currency: 'ZAR', timezone: 'Africa/Johannesburg', tzLabel: 'South Africa (GMT+2:00)' },
-  'Nigeria': { currency: 'NGN', timezone: 'Africa/Lagos', tzLabel: 'Nigeria (GMT+1:00)' },
-  'Kenya': { currency: 'KES', timezone: 'Africa/Nairobi', tzLabel: 'Kenya (GMT+3:00)' },
-  'Egypt': { currency: 'EGP', timezone: 'Africa/Cairo', tzLabel: 'Egypt (GMT+2:00)' },
-  'Ghana': { currency: 'GHS', timezone: 'Africa/Accra', tzLabel: 'Ghana (GMT+0:00)' },
-  'Tanzania': { currency: 'TZS', timezone: 'Africa/Dar_es_Salaam', tzLabel: 'Tanzania (GMT+3:00)' },
-  'Ethiopia': { currency: 'ETB', timezone: 'Africa/Addis_Ababa', tzLabel: 'Ethiopia (GMT+3:00)' },
-  'Morocco': { currency: 'MAD', timezone: 'Africa/Casablanca', tzLabel: 'Morocco (GMT+1:00)' },
+  'South Africa': { timezone: 'Africa/Johannesburg', tzLabel: 'South Africa (GMT+2:00)' },
+  'Nigeria': { timezone: 'Africa/Lagos', tzLabel: 'Nigeria (GMT+1:00)' },
+  'Kenya': { timezone: 'Africa/Nairobi', tzLabel: 'Kenya (GMT+3:00)' },
+  'Egypt': { timezone: 'Africa/Cairo', tzLabel: 'Egypt (GMT+2:00)' },
+  'Ghana': { timezone: 'Africa/Accra', tzLabel: 'Ghana (GMT+0:00)' },
+  'Tanzania': { timezone: 'Africa/Dar_es_Salaam', tzLabel: 'Tanzania (GMT+3:00)' },
+  'Ethiopia': { timezone: 'Africa/Addis_Ababa', tzLabel: 'Ethiopia (GMT+3:00)' },
+  'Morocco': { timezone: 'Africa/Casablanca', tzLabel: 'Morocco (GMT+1:00)' },
   // Oceania
-  'Australia': { currency: 'AUD', timezone: 'Australia/Sydney', tzLabel: 'Australia Eastern (GMT+10:00)' },
-  'New Zealand': { currency: 'NZD', timezone: 'Pacific/Auckland', tzLabel: 'New Zealand (GMT+12:00)' },
-  'Fiji': { currency: 'FJD', timezone: 'Pacific/Fiji', tzLabel: 'Fiji (GMT+12:00)' },
+  'Australia': { timezone: 'Australia/Sydney', tzLabel: 'Australia Eastern (GMT+10:00)' },
+  'New Zealand': { timezone: 'Pacific/Auckland', tzLabel: 'New Zealand (GMT+12:00)' },
+  'Fiji': { timezone: 'Pacific/Fiji', tzLabel: 'Fiji (GMT+12:00)' },
 };
 
 const COUNTRY_OPTIONS = Object.keys(COUNTRY_DATA).map(c => ({ value: c, label: c }));
@@ -149,17 +149,6 @@ const LANGUAGE_OPTIONS = [
   { value: 'Swahili', label: 'Swahili' },
 ];
 
-const POS_CATEGORY_OPTIONS = [
-  { value: 'Restaurant', label: '🍽️ Restaurant' },
-  { value: 'Cafe', label: '☕ Cafe & Bistro' },
-  { value: 'QSR', label: '⚡ QSR & Fast Food' },
-  { value: 'Bakery', label: '🥐 Bakery & Pastry' },
-  { value: 'Bar', label: '🍸 Bar & Lounge' },
-  { value: 'Boutique', label: '👗 Boutique & Fashion' },
-  { value: 'Grocery', label: '🛒 Grocery & Supermarket' },
-  { value: 'Salon', label: '💇 Salon & Spa' },
-  { value: 'Others', label: '🏬 Retail & General Store' },
-];
 
 
 export default function ClientProfilePage() {
@@ -195,7 +184,6 @@ function ClientProfileContent() {
     gstNumber: '',
     fssaiNumber: '',
     website: '',
-    currency: 'INR',
     slug: '',
     logoUrl: '',
     bannerUrl: '',
@@ -262,8 +250,6 @@ function ClientProfileContent() {
         // Normalize legacy timezone formats (e.g. "UTC+5:30 (India)") to IANA IDs
         const rawTz = data.timezone || '';
         const normalizedTz = resolveTimezone(rawTz);
-        // Resolve currency from country data if not set
-        const cd = COUNTRY_DATA[data.country];
         setFormData({
           id: data.id,
           name: data.name || '',
@@ -275,7 +261,6 @@ function ClientProfileContent() {
           gstNumber: data.gstNumber || '',
           fssaiNumber: data.fssaiNumber || '',
           website: data.website || '',
-          currency: data.currency || (cd ? cd.currency : 'USD'),
           logoUrl: data.logoUrl || '',
           bannerUrl: data.bannerUrl || '',
           brandColor: data.brandColor || '#f97316',
@@ -378,10 +363,9 @@ function ClientProfileContent() {
   const handleChange = (field, value) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
-      // Auto-set currency & timezone when country changes
+      // Auto-set timezone when country changes
       if (field === 'country' && COUNTRY_DATA[value]) {
         const cd = COUNTRY_DATA[value];
-        updated.currency = cd.currency;
         updated.timezone = cd.timezone;
       }
       return updated;
@@ -402,7 +386,7 @@ function ClientProfileContent() {
             </div>
             <div className="biz-meta">
               <h2>{formData.name || 'Set Business Name'}</h2>
-              <span>{formData.posType} • {formData.country}</span>
+              <span>{formData.country}</span>
             </div>
           </div>
           <div className="top-actions">
@@ -429,14 +413,6 @@ function ClientProfileContent() {
                   <div className="field-group">
                     <label>Legal Business Name <span style={{ color: 'red' }}>*</span></label>
                     <input value={formData.name} onChange={e => handleChange('name', e.target.value)} />
-                  </div>
-                  <div className="field-group">
-                    <label>Primary Business Type</label>
-                    <NiceSelect
-                      options={POS_CATEGORY_OPTIONS}
-                      value={formData.posType}
-                      onChange={val => handleChange('posType', val)}
-                    />
                   </div>
                 </div>
 
@@ -618,9 +594,7 @@ function ClientProfileContent() {
             <div className="info-card">
               <div className="card-lbl">Legal Identity</div>
               <div className="info-rows">
-                <div className="info-row"><b>Category:</b> <span>{formData.posType}</span></div>
                 <div className="info-row"><b>Region:</b> <span>{formData.country}</span></div>
-                <div className="info-row"><b>Currency:</b> <span>{formData.currency}</span></div>
               </div>
             </div>
 

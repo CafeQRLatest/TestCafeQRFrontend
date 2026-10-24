@@ -8,6 +8,7 @@ import BranchRequiredGate from "../../components/BranchRequiredGate";
 import ReportTable from "../../components/ReportTable";
 import PremiumDateTimePicker from "../../components/PremiumDateTimePicker";
 import NiceSelect from "../../components/NiceSelect";
+import { formatQty, parseQty, uomPrecisionOf, withinPrecision } from "../../components/CounterSale/domain/quantity";
 import CafeQRPopup from "../../components/CafeQRPopup";
 import StockDocumentViewerPopup from "../../components/purchasing/StockDocumentViewerPopup";
 import api from "../../utils/api";
@@ -17,6 +18,43 @@ import {
   FaSearch, FaCalendarAlt, FaCheckCircle, FaTruck,
   FaWarehouse, FaExchangeAlt, FaEye, FaFileAlt, FaPrint, FaEdit, FaBan, FaTimes
 } from "react-icons/fa";
+
+// Smallest allowed transfer quantity for a UOM precision (whole units when precision is 0).
+const minQtyFor = (precision) => (precision > 0 ? 10 ** -precision : 1);
+
+const qtyDisplay = (value, precision) =>
+  (value === '' || value === null || value === undefined ? '' : formatQty(value, precision));
+
+// Text input for product quantities. Keeps typed text while focused, reformats on blur.
+function PrecisionQtyInput({ value, precision, onCommit, onBlur, ...rest }) {
+  const [text, setText] = useState(() => qtyDisplay(value, precision));
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    if (!focusedRef.current) setText(qtyDisplay(value, precision));
+  }, [value, precision]);
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="decimal"
+      value={text}
+      onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
+      onChange={(e) => {
+        const raw = e.target.value.replace(',', '.');
+        const pattern = /^\d*\.?\d*$/;
+        if (!pattern.test(raw)) return;
+        if (!withinPrecision(raw, precision)) return;
+        setText(raw);
+        onCommit(raw);
+      }}
+      onBlur={(e) => {
+        focusedRef.current = false;
+        setText(qtyDisplay(value, precision));
+        if (onBlur) onBlur(e);
+      }}
+    />
+  );
+}
 
 export default function StockTransferConfirmPage() {
   return (
@@ -572,7 +610,7 @@ function ConfirmContent() {
                             <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{line.sku || p?.productCode || '—'}</td>
                             <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{line.categoryName || p?.categoryName || '—'}</td>
                             <td style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', textAlign: 'right' }}>
-                              <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '6px', display: 'inline-block', minWidth: '32px', textAlign: 'center' }}>{line.transferQuantity}</span>
+                              <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5', fontSize: '12px', fontWeight: 800, padding: '3px 10px', borderRadius: '6px', display: 'inline-block', minWidth: '32px', textAlign: 'center' }}>{line.transferQuantity != null ? formatQty(line.transferQuantity, uomPrecisionOf(p || line)) : ''}</span>
                             </td>
                           </tr>
                         );
@@ -762,12 +800,12 @@ function ConfirmContent() {
                               {p?.name || line.productName || `Product #${idx + 1}`}
                             </td>
                             <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                              <input
-                                type="number"
-                                min="1"
+                              <PrecisionQtyInput
                                 value={line.transferQuantity || 1}
-                                onChange={(e) => {
-                                  const val = Math.max(1, Number(e.target.value));
+                                precision={uomPrecisionOf(p || line)}
+                                onCommit={(raw) => {
+                                  const prec = uomPrecisionOf(p || line);
+                                  const val = Math.max(minQtyFor(prec), parseQty(raw, prec));
                                   setEditingDoc(prev => {
                                     const updatedLines = [...(prev.lines || [])];
                                     updatedLines[idx] = { ...updatedLines[idx], transferQuantity: val };

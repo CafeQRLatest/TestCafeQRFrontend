@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import NiceSelect from './NiceSelect';
 import styled from 'styled-components';
 import {
@@ -247,6 +249,8 @@ export default function TablePopover({
   canCancelOrder = true,
   canPrintOrder = true,
 }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const [showMove, setShowMove] = useState(false);
   const status = useMemo(() => {
     const orderStatusStr = String(order?.orderStatus || order?.order_status || '').toUpperCase();
@@ -305,7 +309,7 @@ export default function TablePopover({
               </InfoLine>
               <InfoLine>
                 <span>Total</span>
-                <strong>₹{Number(order.grandTotal ?? order.grand_total ?? 0).toFixed(2)}</strong>
+                <strong>{currencySymbol}{Number(order.grandTotal ?? order.grand_total ?? 0).toFixed(currencyDecimals)}</strong>
               </InfoLine>
               {!['BILLED', 'COMPLETED', 'CANCELLED', 'VOID', 'PAID'].includes(orderStatus) && (
                 <InfoLine>

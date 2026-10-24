@@ -139,7 +139,6 @@ const AUTH_COOKIE_NAMES = [
   'terminalName',
   'subscriptionStatus',
   'subscriptionExpiryDate',
-  'currency',
   'country',
   'timezone',
 ];
@@ -319,7 +318,6 @@ api.interceptors.request.use(
     config.headers['X-Client-Name'] = getHeaderVal('clientName') || '';
     config.headers['X-Org-Name'] = getHeaderVal('orgName') || '';
     config.headers['X-Terminal-Name'] = getHeaderVal('terminalName') || '';
-    config.headers['X-Currency'] = getHeaderVal('currency') || 'INR';
     config.headers['X-Country'] = getHeaderVal('country') || '';
 
     console.log('[API Request]', config.method?.toUpperCase(), config.url, { hasToken: !!accessToken, email: config.headers['X-User-Email'] });

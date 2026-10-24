@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { useCurrencySymbol } from './useCurrencySymbol';
+import { useCurrencyDecimals } from './useCurrencyConfig';
 import { getBusinessNow, getLocalISOString, businessTimeToUtc } from '../utils/timezoneUtils';
+import { uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 const STATUS_CFG = {
   DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
@@ -32,6 +34,7 @@ const blankPO = () => ({
 export function usePurchaseOrders() {
   const { timezone, userRole, orgId } = useAuth();
   const currencySymbol = useCurrencySymbol();
+  const currencyDecimals = useCurrencyDecimals();
 
   /* ── master data ── */
   const [vendors,    setVendors]    = useState([]);
@@ -171,11 +174,11 @@ export function usePurchaseOrders() {
     const totalTaxAmount = lines.reduce((s, l) => s + (parseFloat(l.taxAmount) || 0), 0);
     const grandTotal     = lines.reduce((s, l) => s + (parseFloat(l.lineTotal) || 0), 0);
     return {
-      totalAmount:    +totalAmount.toFixed(2),
-      totalTaxAmount: +totalTaxAmount.toFixed(2),
-      grandTotal:     +grandTotal.toFixed(2),
+      totalAmount:    +totalAmount.toFixed(currencyDecimals),
+      totalTaxAmount: +totalTaxAmount.toFixed(currencyDecimals),
+      grandTotal:     +grandTotal.toFixed(currencyDecimals),
     };
-  }, []);
+  }, [currencyDecimals]);
 
   const recalcLine = useCallback((line) => {
     const qty   = parseFloat(line.quantity)       || 0;
@@ -185,10 +188,10 @@ export function usePurchaseOrders() {
     const sub   = qty * price - disc;
     return {
       ...line,
-      taxAmount: +(sub * tax / 100).toFixed(2),
-      lineTotal: +(sub + sub * tax / 100).toFixed(2),
+      taxAmount: +(sub * tax / 100).toFixed(currencyDecimals),
+      lineTotal: +(sub + sub * tax / 100).toFixed(currencyDecimals),
     };
-  }, []);
+  }, [currencyDecimals]);
 
   /* ── draft fetching ── */
   const fetchDrafts = useCallback(async () => {
@@ -333,6 +336,7 @@ export function usePurchaseOrders() {
       productCode:    product.productCode || '',
       categoryName:   product.categoryName || '',
       unitOfMeasure:  product.uomName || 'units',
+      uomPrecision:   uomPrecisionOf(product),
       quantity:       1,
       unitPrice:      initialUnitPrice,
       taxRate:        product.taxRate || 0,

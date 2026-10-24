@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrencyDecimals, useCurrencySymbol } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
@@ -7,6 +8,8 @@ import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaPlus, FaCogs, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryComponents({ embedded = false }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const router = useRouter();
   const [components, setComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -215,7 +218,7 @@ export default function SalaryComponents({ embedded = false }) {
                         </span>
                       </td>
                       <td className="font-bold">
-                        {comp.amountType === 'FIXED' || !comp.amountType ? `$${comp.defaultAmount?.toFixed(2) || '0.00'}` : `${comp.percentage}% of Gross`}
+                        {comp.amountType === 'FIXED' || !comp.amountType ? `${currencySymbol}${comp.defaultAmount?.toFixed(currencyDecimals) || '0.00'}` : `${comp.percentage}% of Gross`}
                       </td>
                       <td>
                         <span className={`tax-badge ${(comp.isTaxApplicable || comp.taxApplicable || comp.taxable) ? 'yes' : 'no'}`}>

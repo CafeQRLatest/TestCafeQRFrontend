@@ -13,7 +13,7 @@ export default function CustomerLedgerPanel({
   payments = [],
   timezone,
   money,
-  currencySymbol = '₹',
+  currencySymbol = '',
   handleViewOrder,
   handleViewPayment,
   openPayment,

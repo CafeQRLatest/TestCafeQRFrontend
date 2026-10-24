@@ -1,5 +1,7 @@
 // components/KotPrint.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useCurrencyDecimals } from '../hooks/useCurrencyConfig';
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import { buildReceiptText, buildKotText, downloadTextAndShare, toDisplayItems } from '../utils/printUtils';
 import { bitmapToPngBase64, logoUrlToBitmapGrid } from '../utils/logoBitmap';
 import api from '../utils/api';
@@ -279,6 +281,8 @@ async function ensurePrinterConfigured() {
 let cachedLogoGrid = null;
 
 export default function KotPrint({ order, onClose, onPrint, autoPrint = true, kind = 'bill' }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const [status, setStatus] = useState('');
   const [outputOverride, setOutputOverride] = useState('DEFAULT');
   const [fullOrder, setFullOrder] = useState(() => mergeOrderForPrint(order, null));
@@ -388,6 +392,8 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
             bill_footer_text: cfg.billFooter || cfg.billFooterText,
             bill_footer_enabled: cfg.billFooterEnabled !== false,
             receipt_cols: cfg.printCols,
+            currency_code: cfg.currencyCode,
+            currency_decimals: cfg.currencyDecimalPlaces,
             print_logo_bitmap: logoBitmap,
             print_logo_cols: logoCols,
             print_logo_rows: logoRows,
@@ -1032,7 +1038,7 @@ export default function KotPrint({ order, onClose, onPrint, autoPrint = true, ki
           <div className="pwa-preview">
             <pre>{`Order: #${(fullOrder?.orderNo || '').slice(-6).toUpperCase()}
 Type: ${getOrderTypeLabelLocal(fullOrder)}
-Amount: ₹${amount.toFixed(2)}`}</pre>
+Amount: ${currencySymbol}${amount.toFixed(currencyDecimals)}`}</pre>
           </div>
           {status ? (
             <div className={`note ${status.includes('✗') ? 'err' : 'ok'}`}>{status}</div>

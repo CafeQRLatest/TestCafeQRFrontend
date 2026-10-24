@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { FaChevronRight, FaCheckCircle, FaBan, FaCheck } from 'react-icons/fa';
 
 export default function PurchaseTable({
@@ -21,6 +22,7 @@ export default function PurchaseTable({
   onSelectAll,
   isAllSelected = false
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   return (
     <div className={styles['hist-table-wrap']}>
       <table className={styles['hist-table']}>
@@ -130,7 +132,7 @@ export default function PurchaseTable({
                 <td>
                   <strong>
                     {currencySymbol}
-                    {parseFloat(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {parseFloat(o.grandTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals })}
                   </strong>
                 </td>
                 <td>

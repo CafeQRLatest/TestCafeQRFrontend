@@ -11,7 +11,7 @@ export default function CreditCustomerTable({
   paymentsByCustomer,
   timezone,
   money,
-  currencySymbol = '₹',
+  currencySymbol = '',
   openPayment,
   toggleOrders,
   toggleStatus,

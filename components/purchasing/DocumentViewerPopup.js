@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { calculateOrderTotals } from '../../utils/orderCalculations';
@@ -6,6 +7,7 @@ import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, 
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate as formatTzDateUtil } from '../../utils/timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../CounterSale/domain/quantity';
 
 function parseCancelReason(order) {
   if (!order) return '';
@@ -142,6 +144,7 @@ export default function DocumentViewerPopup({
   config = null,
   onOrderUpdated = null,
 }) {
+  const currencyDecimals = useCurrencyDecimals();
   const auth = useAuth() || {};
   const { posType, timezone: authTimezone, userId: authUserId, firstName, lastName, email: authEmail, userRole } = auth;
   const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
@@ -452,7 +455,7 @@ export default function DocumentViewerPopup({
     // Derive roundOff before settlement if not explicitly present
     if (Math.abs(dbRoundOff) < 0.001) {
       if (dbGrandTotal > 0 && docTotalBeforeRound > 0 && Math.abs(dbGrandTotal - docTotalBeforeRound) > 0.001) {
-        dbRoundOff = parseFloat((dbGrandTotal - docTotalBeforeRound).toFixed(2));
+        dbRoundOff = parseFloat((dbGrandTotal - docTotalBeforeRound).toFixed(currencyDecimals));
       }
     }
 
@@ -512,7 +515,7 @@ export default function DocumentViewerPopup({
       const effTax = dbTotalTax > 0 ? dbTotalTax : taxTotal;
       const diff = dbGrandTotal - (subtotal + effTax);
       if (Math.abs(diff) > 0.001 && Math.abs(diff) < 1.0) {
-        dbRoundOff = parseFloat(diff.toFixed(2));
+        dbRoundOff = parseFloat(diff.toFixed(currencyDecimals));
       }
     }
 
@@ -610,7 +613,7 @@ export default function DocumentViewerPopup({
     return statusMap[st] || statusMap.DRAFT || { label: st, bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' };
   })();
   const isPaid = (currentOrder.paymentStatus || currentOrder.payment_status) === 'PAID' || docType === 'payment';
-  const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = n => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals });
 
   const isOrderDoc = docType === 'order' || docType === 'SO' || docType === 'PO' || docType === 'sale' || docType === 'purchase';
 
@@ -804,7 +807,7 @@ export default function DocumentViewerPopup({
                                 {fmtPm}
                               </span>
                               <span style={{ fontWeight: '700', color: '#0f172a' }}>
-                                {amt != null && !isNaN(Number(amt)) ? `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                {amt != null && !isNaN(Number(amt)) ? `${currencySymbol}${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}` : '—'}
                               </span>
                             </div>
                           );
@@ -1078,7 +1081,7 @@ export default function DocumentViewerPopup({
                                 {fmtPm}
                               </span>
                               <span style={{ fontWeight: '700', color: '#0f172a' }}>
-                                {amt != null && !isNaN(Number(amt)) ? `₹${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                                {amt != null && !isNaN(Number(amt)) ? `${currencySymbol}${Number(amt).toLocaleString('en-IN', { minimumFractionDigits: currencyDecimals, maximumFractionDigits: currencyDecimals })}` : '—'}
                               </span>
                             </div>
                           );
@@ -1430,9 +1433,9 @@ export default function DocumentViewerPopup({
                                 return (
                                 <tr key={l.id || li}>
                                   <td>{displayName}</td>
-                                  <td>{parseFloat(l.quantity || 0)}</td>
-                                  <td>₹{parseFloat(l.unitPrice || 0).toFixed(2)}</td>
-                                  <td>₹{parseFloat(l.lineTotal || 0).toFixed(2)}</td>
+                                  <td>{formatQty(parseFloat(l.quantity || 0), uomPrecisionOf(l))}</td>
+                                  <td>{currencySymbol}{parseFloat(l.unitPrice || 0).toFixed(currencyDecimals)}</td>
+                                  <td>{currencySymbol}{parseFloat(l.lineTotal || 0).toFixed(currencyDecimals)}</td>
                                 </tr>
                                 );
                               })}
@@ -1440,7 +1443,7 @@ export default function DocumentViewerPopup({
                           </table>
                         )}
                         <div className="dv-history-total">
-                          Grand Total: <strong>₹{parseFloat(rev.grandTotal ?? rev.grand_total ?? 0).toFixed(2)}</strong>
+                          Grand Total: <strong>{currencySymbol}{parseFloat(rev.grandTotal ?? rev.grand_total ?? 0).toFixed(currencyDecimals)}</strong>
                         </div>
                       </div>
                     );
@@ -1556,7 +1559,7 @@ export default function DocumentViewerPopup({
                               </div>
                             )}
                           </td>
-                          <td className="col-qty">{qty}{l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}</td>
+                          <td className="col-qty">{formatQty(qty, uomPrecisionOf(l))}{l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}</td>
                           <td className="col-price">
                             {currencySymbol}{fmt(uPrice)}
                             {taxEnabled && isInclusive && (l.unitPriceExTax || l.unit_price_ex_tax) && taxRate > 0 && (

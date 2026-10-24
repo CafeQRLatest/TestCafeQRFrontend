@@ -11,7 +11,7 @@ const CreditCustomerRow = React.memo(function CreditCustomerRow({
   payments = [],
   timezone,
   money,
-  currencySymbol = '₹',
+  currencySymbol = '',
   openPayment,
   toggleOrders,
   toggleStatus,

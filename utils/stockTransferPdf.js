@@ -7,7 +7,20 @@
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import Cookies from 'js-cookie';
 import api from './api';
+import { loadCurrencyDecimals } from './currencyDecimals';
 import { formatTzDate } from './timezoneUtils';
+
+// Symbol from Currency Master (default currency). ₹ prints as "Rs." because the bundled PDF font lacks the glyph.
+async function loadPdfCurrencySymbol() {
+  try {
+    const res = await api.get('/api/v1/configurations');
+    const symbol = res.data?.data?.currencySymbol || res.data?.currencySymbol || '';
+    return symbol === '₹' ? 'Rs.' : symbol;
+  } catch {
+    return '';
+  }
+}
+
 
 const ORANGE     = [234, 88, 12];   // #ea580c
 const DARK       = [15, 23, 42];    // #0f172a
@@ -46,6 +59,9 @@ async function imgToBase64(url) {
 
 export async function generateStockTransferPdf(docData, warehouses = [], products = []) {
   if (!docData) return;
+
+  const sym = await loadPdfCurrencySymbol();
+  const currencyDecimals = await loadCurrencyDecimals();
 
   const { jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
@@ -288,8 +304,8 @@ export async function generateStockTransferPdf(docData, warehouses = [], product
       prodName,
       `${sku}${category !== '—' ? ' · ' + category : ''}`,
       `${qty} units`,
-      unitCost > 0 ? `Rs.${fmt(unitCost)}` : '—',
-      lineTotal > 0 ? `Rs.${fmt(lineTotal)}` : '—'
+      unitCost > 0 ? `${sym}${fmt(unitCost, currencyDecimals)}` : '—',
+      lineTotal > 0 ? `${sym}${fmt(lineTotal, currencyDecimals)}` : '—'
     ];
   });
 
@@ -339,7 +355,7 @@ export async function generateStockTransferPdf(docData, warehouses = [], product
     doc.setFont('Roboto', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...DARK);
-    doc.text(`Grand Total Value: Rs.${fmt(totalVal)}`, W - margin, finalY, { align: 'right' });
+    doc.text(`Grand Total Value: ${sym}${fmt(totalVal, currencyDecimals)}`, W - margin, finalY, { align: 'right' });
   }
 
   // Footer Signature Lines

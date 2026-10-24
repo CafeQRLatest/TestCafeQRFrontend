@@ -1,8 +1,21 @@
 import { Capacitor } from '@capacitor/core';
 import Cookies from 'js-cookie';
 import api from './api';
+import { loadCurrencyDecimals } from './currencyDecimals';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import { formatTzDate } from './timezoneUtils';
+
+// Symbol from Currency Master (default currency). ₹ prints as "Rs." because the bundled PDF font lacks the glyph.
+async function loadPdfCurrencySymbol() {
+  try {
+    const res = await api.get('/api/v1/configurations');
+    const symbol = res.data?.data?.currencySymbol || res.data?.currencySymbol || '';
+    return symbol === '₹' ? 'Rs.' : symbol;
+  } catch {
+    return '';
+  }
+}
+
 
 function fmt(n, dp = 2) {
   return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
@@ -29,6 +42,9 @@ const TEXT_MUTED = [148, 163, 184]; // #94a3b8
  */
 export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse = {}, docType = 'invoice', linkedInvoice = null) {
   const inv = linkedInvoice || order;
+  const sym = await loadPdfCurrencySymbol();
+  const currencyDecimals = await loadCurrencyDecimals();
+  const symPrefix = sym ? sym + ' ' : '';
   const { jsPDF } = await import('jspdf');
   const { default: autoTable } = await import('jspdf-autotable');
 
@@ -138,7 +154,7 @@ export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse =
 
   // Line items Table
   const lines = order.lines || [];
-  const tableHead = [['#', 'Product Item', 'Qty', 'Unit Price (Rs.)', 'GST %', 'Total (Rs.)']];
+  const tableHead = [['#', 'Product Item', 'Qty', `Unit Price${sym ? ` (${sym})` : ''}`, 'GST %', `Total${sym ? ` (${sym})` : ''}`]];
   const tableData = lines.map((l, idx) => {
     const qty = parseFloat(l.quantity || 0);
     const uPrice = parseFloat(l.unitPrice || l.price || 0);
@@ -152,9 +168,9 @@ export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse =
       idx + 1,
       pName,
       `${qty}${l.unitOfMeasure ? ' ' + l.unitOfMeasure : ''}`,
-      fmt(uPrice),
+      fmt(uPrice, currencyDecimals),
       `${taxRate}%`,
-      fmt(lineTotal)
+      fmt(lineTotal, currencyDecimals)
     ];
   });
 
@@ -206,11 +222,11 @@ export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse =
   doc.setFontSize(8.5);
   doc.setTextColor(...MID);
   doc.text('Subtotal:', totalsX + 4, ty);
-  doc.text(`Rs. ${fmt(subTotal)}`, totalsX + totalsW - 4, ty, { align: 'right' });
+  doc.text(`${symPrefix}${fmt(subTotal, currencyDecimals)}`, totalsX + totalsW - 4, ty, { align: 'right' });
 
   ty += 5;
   doc.text('Tax Amount (GST):', totalsX + 4, ty);
-  doc.text(`Rs. ${fmt(taxTotal)}`, totalsX + totalsW - 4, ty, { align: 'right' });
+  doc.text(`${symPrefix}${fmt(taxTotal, currencyDecimals)}`, totalsX + totalsW - 4, ty, { align: 'right' });
 
   ty += 6;
   doc.setDrawColor(...ORANGE);
@@ -221,7 +237,7 @@ export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse =
   doc.setFontSize(10);
   doc.setTextColor(...DARK);
   doc.text('Grand Total:', totalsX + 4, ty + 2);
-  doc.text(`Rs. ${fmt(grandTotal)}`, totalsX + totalsW - 4, ty + 2, { align: 'right' });
+  doc.text(`${symPrefix}${fmt(grandTotal, currencyDecimals)}`, totalsX + totalsW - 4, ty + 2, { align: 'right' });
 
   // Footer
   const footerY = 282;

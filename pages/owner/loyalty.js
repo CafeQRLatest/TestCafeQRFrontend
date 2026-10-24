@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import DashboardLayout from '../../components/DashboardLayout';
 import ModuleGate from '../../components/ModuleGate';
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
@@ -30,6 +31,7 @@ import {
   FaTrashAlt,
 } from 'react-icons/fa';
 import { formatTzDate } from '../../utils/timezoneUtils';
+import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -74,6 +76,7 @@ function formatDate(iso) {
 // ─── Minimal Standard Program Card Component ─────────────────────────────────
 
 function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
+  const currencySymbol = useCurrencySymbol();
   const { userRole } = useAuth();
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
   const isClientWide = Boolean(prog.isClientWide ?? prog.is_client_wide);
@@ -127,14 +130,14 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
         <div className="rule-row">
           <span className="rule-badge earn">EARN</span>
           <span className="rule-text">
-            Spend <strong>₹{earn?.spendAmount?.toLocaleString('en-IN') || 100}</strong> ➔ Earn <strong>{earn?.earnPoints || 1} pt{earn?.earnPoints !== 1 ? 's' : ''}</strong>
+            Spend <strong>{currencySymbol}{earn?.spendAmount?.toLocaleString('en-IN') || 100}</strong> ➔ Earn <strong>{earn?.earnPoints || 1} pt{earn?.earnPoints !== 1 ? 's' : ''}</strong>
           </span>
         </div>
 
         <div className="rule-row">
           <span className="rule-badge redeem">REDEEM</span>
           <span className="rule-text">
-            <strong>{redeem?.pointsRequired || 100} pts</strong> ➔ <strong>₹{redeem?.discountAmount?.toLocaleString('en-IN') || 10}</strong>
+            <strong>{redeem?.pointsRequired || 100} pts</strong> ➔ <strong>{currencySymbol}{redeem?.discountAmount?.toLocaleString('en-IN') || 10}</strong>
           </span>
           {redeem?.minPoints > 0 && <span className="min-tag">Min {redeem.minPoints} pts</span>}
         </div>
@@ -146,6 +149,8 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
 // ─── Program Modal Component ──────────────────────────────────────────────────
 
 function ProgramModal({ prog, onClose, onSaved }) {
+  const currencyDecimals = useCurrencyDecimals();
+  const currencySymbol = useCurrencySymbol();
   const { userRole, orgName } = useAuth();
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
 
@@ -190,7 +195,7 @@ function ProgramModal({ prog, onClose, onSaved }) {
 
     return {
       returnPercent,
-      valuePerPoint: valuePerPoint.toFixed(2),
+      valuePerPoint: valuePerPoint.toFixed(currencyDecimals),
     };
   }, [form]);
 
@@ -363,9 +368,9 @@ function ProgramModal({ prog, onClose, onSaved }) {
             <div className="rule-card-input">
               <div className="form-row">
                 <div className="form-group">
-                  <label>For Every Spend (₹)</label>
+                  <label>For Every Spend ({currencySymbol})</label>
                   <div className="input-prefix">
-                    <span>₹</span>
+                    <span>{currencySymbol}</span>
                     <input
                       type="number"
                       min="1"
@@ -416,9 +421,9 @@ function ProgramModal({ prog, onClose, onSaved }) {
                 </div>
                 <div className="arrow-sep">➔</div>
                 <div className="form-group">
-                  <label>Discount Amount (₹)</label>
+                  <label>Discount Amount ({currencySymbol})</label>
                   <div className="input-prefix">
-                    <span>₹</span>
+                    <span>{currencySymbol}</span>
                     <input
                       type="number"
                       min="1"
@@ -471,7 +476,7 @@ function ProgramModal({ prog, onClose, onSaved }) {
               <div>
                 <strong>Calculated Reward Rate: {livePreview.returnPercent}% Value Return</strong>
                 <p>
-                  Spending ₹{form.spendAmount} earns {form.earnPoints} point(s). 1 point is worth ₹{livePreview.valuePerPoint} in discount.
+                  Spending {currencySymbol}{form.spendAmount} earns {form.earnPoints} point(s). 1 point is worth {currencySymbol}{livePreview.valuePerPoint} in discount.
                 </p>
               </div>
             </div>
@@ -498,6 +503,7 @@ function ProgramModal({ prog, onClose, onSaved }) {
 // ─── Programs Tab View ────────────────────────────────────────────────────────
 
 function ProgramsTab() {
+  const currencySymbol = useCurrencySymbol();
   const { userRole, orgName } = useAuth();
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
 
@@ -718,12 +724,12 @@ function ProgramsTab() {
                     </td>
                     <td>
                       <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' }}>
-                        Spend ₹{earn?.spendAmount?.toLocaleString('en-IN') || 100} ➔ Earn {earn?.earnPoints || 1} pt
+                        Spend {currencySymbol}{earn?.spendAmount?.toLocaleString('en-IN') || 100} ➔ Earn {earn?.earnPoints || 1} pt
                       </span>
                     </td>
                     <td>
                       <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' }}>
-                        {redeem?.pointsRequired || 100} pts ➔ ₹{redeem?.discountAmount?.toLocaleString('en-IN') || 10}
+                        {redeem?.pointsRequired || 100} pts ➔ {currencySymbol}{redeem?.discountAmount?.toLocaleString('en-IN') || 10}
                       </span>
                       {redeem?.minPoints > 0 && (
                         <span style={{ fontSize: '10.5px', color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px' }}>
@@ -851,6 +857,7 @@ function ProgramsTab() {
 // ─── Customer Loyalty History Tab View ────────────────────────────────────────
 
 function CustomerLoyaltyTab() {
+  const currencySymbol = useCurrencySymbol();
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
@@ -1232,7 +1239,7 @@ function CustomerLoyaltyTab() {
           vendors={[]}
           warehouses={[]}
           timezone="Asia/Kolkata"
-          currencySymbol="₹"
+          currencySymbol={currencySymbol}
           formatTzDate={formatDate}
           onClose={() => setViewingDoc(null)}
           onViewLinked={(order, type) => setViewingDoc({ order, type })}
