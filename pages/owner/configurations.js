@@ -15,6 +15,7 @@ import PrintLivePreview from '../../components/PrintLivePreview';
 import { invalidatePrintTemplateCache } from '../../utils/printTemplateSync';
 import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb';
 import { setCachedConfig } from '../../utils/moduleVisibility';
+import { isNonFoodType } from '../../utils/businessTerms';
 import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard';
 import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom, FaSearch } from 'react-icons/fa';
 
@@ -386,7 +387,7 @@ function ConfigurationsContent() {
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
   const { orgId, orgName, hasModule, updateSubscription, posType } = useAuth();
-  const isCarWash = String(posType || '').trim().toLowerCase() === 'carwash';
+  const isNonFood = isNonFoodType(posType);
   const hasBranchContext = Boolean(orgId && orgId !== '0');
   const configEndpoint = useMemo(
     () => (hasBranchContext ? `/api/v1/configurations/branch/${orgId}` : '/api/v1/configurations'),
@@ -1076,7 +1077,7 @@ function ConfigurationsContent() {
                       }}>
                         <div className="box-content">
                           <h3 style={{ display: 'inline-flex', alignItems: 'center' }}>
-                            {m.key === 'pm_send_to_kitchen' && isCarWash ? 'Pay Later' : m.title}
+                            {m.key === 'pm_send_to_kitchen' && isNonFood ? 'Pay Later' : m.title}
                             <InfoTooltip
                               id={`tip-${m.key}`} 
                               text={m.desc} 
