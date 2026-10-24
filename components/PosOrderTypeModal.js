@@ -2656,8 +2656,8 @@ export default function PosOrderTypeModal({
                       <span style={{ color: '#cbd5e1' }}>•</span>
                       <span style={S.modalCustomerText}>
                         <FaUser size={10} style={{ opacity: 0.7, marginRight: 4 }} />
-                        {selectedLiveOrder.customerName || 'Guest'}
-                        {selectedLiveOrder.customerPhone ? ` (${selectedLiveOrder.customerPhone})` : ''}
+                        {selectedLiveOrder.customerName || selectedLiveOrder.customerPhone || ''}
+                        {selectedLiveOrder.customerName && selectedLiveOrder.customerPhone ? ` (${selectedLiveOrder.customerPhone})` : ''}
                       </span>
                     </>
                   )}

@@ -57,7 +57,7 @@ function getSafePdfSymbol(sym) {
 async function imgToBase64(url) {
   if (!url) return null;
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: AbortSignal.timeout?.(5000) });
     const blob = await resp.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -132,7 +132,7 @@ function customerLabel(order) {
   const c = extractCustomerData(order);
   if (c.isGuest) return null;
   if (c.name && c.phone) return `${c.name} (${c.phone})`;
-  return c.name || c.phone || c.email || null;
+  return c.name || c.phone || null;
 }
 
 function fulfillmentLabel(order) {
@@ -178,6 +178,12 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   let clientData = null;
   let fetchedCustomer = null;
   let fetchedLoyalty = null;
+
+  // Start the payments request now so it runs alongside the invoice/config requests
+  let paymentsRequest = null;
+  if (!order?._publicData && (order?.id || order?.orderId)) {
+    paymentsRequest = api.get(`/api/v1/orders/${order.id || order.orderId}/payments`).catch(() => null);
+  }
 
   if (order?._publicData) {
     invoiceData = order._publicData.invoiceData || null;
@@ -245,8 +251,9 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   if (!order?._publicData) {
     try {
       const orderIdToFetch = order?.id || order?.orderId;
-      if (orderIdToFetch) {
-        const { data } = await api.get(`/api/v1/orders/${orderIdToFetch}/payments`);
+      const paymentsRes = paymentsRequest ? await paymentsRequest : null;
+      if (orderIdToFetch && paymentsRes) {
+        const { data } = paymentsRes;
         const rawPayments = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
         const fetched = rawPayments.filter(p => String(p.docStatus || p.doc_status || '').toUpperCase() !== 'VOID' && String(p.isactive || 'Y').toUpperCase() !== 'N');
         if (fetched.length > 0) {
@@ -515,11 +522,14 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
 
   if (hasCustDetails) {
     doc.setFont('Roboto', 'bold'); doc.setFontSize(9); doc.setTextColor(...DARK);
-    doc.text(customerData.name || 'Customer', custX, custY);
-    custY += 4.2;
+    const heading = String(customerData.name || customerData.phone || '');
+    if (heading) {
+      doc.text(heading, custX, custY);
+      custY += 4.2;
+    }
 
     const contactParts = [];
-    if (customerData.phone) contactParts.push(`Ph: ${customerData.phone}`);
+    if (customerData.name && customerData.phone) contactParts.push(`Ph: ${customerData.phone}`);
     if (customerData.email) contactParts.push(`Email: ${customerData.email}`);
     if (contactParts.length > 0) {
       doc.setFont('Roboto', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MID);
@@ -543,9 +553,6 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
       doc.setFont('Roboto', 'bold'); doc.setFontSize(7); doc.setTextColor(...ORANGE);
       doc.text(extraBadges.join('   •   '), custX, custY);
     }
-  } else {
-    doc.setFont('Roboto', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MID);
-    doc.text('Walk-in Guest', custX, custY + 2);
   }
 
   y += metaCardH + 7;

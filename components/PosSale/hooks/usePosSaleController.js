@@ -404,7 +404,7 @@ export default function usePosSaleController({
               resolvedList.push({ id: c.id, name: c.name, phone: c.phone });
             }
           }
-          if (customerName.trim()) {
+          if (customerName.trim() || customerPhone?.trim()) {
             const saved = await saveCustomer({
               name: customerName.trim(),
               phone: customerPhone ? customerPhone.trim() : null,
@@ -428,7 +428,7 @@ export default function usePosSaleController({
           } else if (selectedCustomerId) {
             primaryCustomer = { id: selectedCustomerId, name: customerName, phone: customerPhone };
             customerSelections = [primaryCustomer];
-          } else if (customerName.trim()) {
+          } else if (customerName.trim() || customerPhone?.trim()) {
             const saved = await saveCustomer({
               name: customerName.trim(),
               phone: customerPhone ? customerPhone.trim() : null,
@@ -447,7 +447,7 @@ export default function usePosSaleController({
           if (!paymentPayload.customerId && (paymentPayload.customerName?.trim() || paymentPayload.customerPhone?.trim())) {
             try {
               const saved = await saveCustomer({
-                name: paymentPayload.customerName?.trim() || 'Guest',
+                name: paymentPayload.customerName?.trim() || '',
                 phone: paymentPayload.customerPhone ? paymentPayload.customerPhone.trim() : null,
                 pricelistId: defaultPricelistId,
                 isactive: 'Y'

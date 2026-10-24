@@ -708,10 +708,10 @@ export default function DocumentViewerPopup({
           {(!isSale || config?.customersEnabled || Boolean(primaryCustomer || currentOrder?.isCredit || currentOrder?.is_credit || currentOrder?.creditCustomerId || currentOrder?.credit_customer_id)) && (
             <div className="dv-cell">
               <span className="dv-lbl">{isSale ? 'Customer' : 'Supplier'}</span>
-              <span className="dv-val">{isSale ? (primaryCustomer?.name || '—') : (vendor?.name || '—')}</span>
+              <span className="dv-val">{isSale ? (primaryCustomer?.name || primaryCustomer?.phone || '—') : (vendor?.name || '—')}</span>
               {!isSale && vendor?.phone && <span className="dv-sub">{vendor.phone}</span>}
               {!isSale && vendor?.email && <span className="dv-sub">{vendor.email}</span>}
-              {isSale && primaryCustomer?.phone && <span className="dv-sub">{primaryCustomer.phone}</span>}
+              {isSale && primaryCustomer?.name && primaryCustomer?.phone && <span className="dv-sub">{primaryCustomer.phone}</span>}
             </div>
           )}
           {(!isSale || !posType || String(posType).trim().toUpperCase() !== 'OTHERS') && (

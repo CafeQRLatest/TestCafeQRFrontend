@@ -142,15 +142,18 @@ function customerDisplay(order) {
   if (customers.length) {
     return customers
       .map((customer) => {
-        const name = String(customer?.name || 'Guest').trim() || 'Guest';
+        const name = String(customer?.name || '').trim();
         const phone = String(customer?.phone || '').trim();
-        return phone ? `${name} (${phone})` : name;
+        if (name && phone) return `${name} (${phone})`;
+        return name || phone;
       })
+      .filter(Boolean)
       .join(', ');
   }
   const custName = String(pickValue(order, ["customer_name", "customerName"], "")).trim();
   const custPhone = String(pickValue(order, ["customer_phone", "customerPhone"], "")).trim();
-  return `${custName} ${custPhone ? `(${custPhone})` : ''}`.trim();
+  if (custName && custPhone) return `${custName} (${custPhone})`;
+  return custName || custPhone;
 }
 
 const ORDER_ITEM_KEYS = ["lines", "orderLines", "lineItems", "order_items", "orderItems", "items"];

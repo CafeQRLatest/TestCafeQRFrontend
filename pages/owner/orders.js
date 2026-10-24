@@ -245,7 +245,7 @@ function histFulfillmentLabel(order) {
 
 function histCustomerLabel(order) {
   const customers = Array.isArray(order?.customers) ? order.customers : [];
-  if (customers.length) return customers.map(c => c.name || 'Guest').join(', ');
+  if (customers.length) return customers.map(c => c.name || c.phone || '').filter(Boolean).join(', ');
   return order?.customerName || order?.creditCustomerName || order?.customerPhone || order?.creditCustomerPhone || '\u2014';
 }
 
@@ -2052,7 +2052,7 @@ export default function OrdersPage() {
                       {activeList.map(order => {
                         const cube = tableCubeColor(order.orderStatus);
                         const tokenLabel = order.dailyBillNo ? `#${order.dailyBillNo}` : (order.orderNo ? `#${order.orderNo.slice(-4)}` : `#${order.id.slice(-4)}`);
-                        const nameLabel = order.customerName || order.customerPhone || 'Guest';
+                        const nameLabel = order.customerName || order.customerPhone || '';
                         return (
                           <TokenCube 
                             key={order.id} 

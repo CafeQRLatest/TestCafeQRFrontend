@@ -377,9 +377,11 @@ function customerLabel(order) {
   if (customers.length) {
     return customers
       .map(customer => {
-        const name = customer.name || 'Guest';
-        return customer.phone ? `${name} (${customer.phone})` : name;
+        const name = customer.name || '';
+        if (name && customer.phone) return `${name} (${customer.phone})`;
+        return name || customer.phone || '';
       })
+      .filter(Boolean)
       .join(', ');
   }
   return order?.customerName || order?.customerPhone || '-';

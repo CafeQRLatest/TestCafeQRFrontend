@@ -201,7 +201,7 @@ function histFulfillmentLabel(order) {
 
 function histCustomerLabel(order) {
   const customers = Array.isArray(order?.customers) ? order.customers : [];
-  if (customers.length) return customers.map(c => c.name || 'Guest').join(', ');
+  if (customers.length) return customers.map(c => c.name || c.phone || '').filter(Boolean).join(', ');
   return order?.customerName || order?.creditCustomerName || order?.customerPhone || order?.creditCustomerPhone || '—';
 }
 

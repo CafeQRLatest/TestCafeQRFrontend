@@ -225,10 +225,10 @@ export default function PublicInvoicePage() {
               </div>
 
               {/* Customer Greeting if available */}
-              {invoice.customerName && (
+              {(invoice.customerName || invoice.customerPhone) && (
                 <div className="ebill-customer-greeting">
-                  Billed to: <strong>{invoice.customerName}</strong>
-                  {invoice.customerPhone ? ` (${invoice.customerPhone})` : ''}
+                  Billed to: <strong>{invoice.customerName || invoice.customerPhone}</strong>
+                  {invoice.customerName && invoice.customerPhone ? ` (${invoice.customerPhone})` : ''}
                 </div>
               )}
 

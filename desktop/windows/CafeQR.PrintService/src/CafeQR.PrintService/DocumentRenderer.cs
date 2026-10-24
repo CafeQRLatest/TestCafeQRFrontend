@@ -1184,17 +1184,18 @@ namespace CafeQR.PrintService
                 var list = new List<string>();
                 foreach (var customer in customers.OfType<JObject>())
                 {
-                    var name = PickValue(customer, new[] { "name" }, "Guest").Trim();
-                    if (string.IsNullOrEmpty(name)) name = "Guest";
+                    var name = PickValue(customer, new[] { "name" }).Trim();
                     var phone = PickValue(customer, new[] { "phone" }).Trim();
-                    list.Add(string.IsNullOrEmpty(phone) ? name : name + " (" + phone + ")");
+                    if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(phone)) list.Add(name + " (" + phone + ")");
+                    else if (!string.IsNullOrEmpty(name)) list.Add(name);
+                    else if (!string.IsNullOrEmpty(phone)) list.Add(phone);
                 }
                 return string.Join(", ", list);
             }
             var custName = PickValue(order, new[] { "customer_name", "customerName" }).Trim();
             var custPhone = PickValue(order, new[] { "customer_phone", "customerPhone" }).Trim();
-            if (string.IsNullOrEmpty(custName) && string.IsNullOrEmpty(custPhone)) return "";
-            return (custName + " " + (string.IsNullOrEmpty(custPhone) ? "" : "(" + custPhone + ")")).Trim();
+            if (!string.IsNullOrEmpty(custName) && !string.IsNullOrEmpty(custPhone)) return custName + " (" + custPhone + ")";
+            return !string.IsNullOrEmpty(custName) ? custName : custPhone;
         }
 
         private static string FmtRate(decimal n)
@@ -2302,6 +2303,11 @@ namespace CafeQR.PrintService
                 OrderType = Value(order, "orderType", "order_type", "fulfillmentType");
                 CustomerName = Value(order, "customerName", "customer_name");
                 CustomerPhone = Value(order, "customerPhone", "customer_phone");
+                if (string.IsNullOrWhiteSpace(CustomerName))
+                {
+                    CustomerName = CustomerPhone;
+                    CustomerPhone = "";
+                }
                 PaymentMethod = Value(order, "paymentMethod", "payment_method");
                 Subtotal = Value(order, "subtotal", "totalAmount", "total_amount");
                 Discount = Value(order, "totalDiscountAmount", "total_discount_amount");

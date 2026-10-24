@@ -1338,7 +1338,7 @@ export default function PaymentDialog({
                         onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       >
-                        <span style={{ fontWeight: 600, color: '#334155' }}>{c.name || 'Guest'}</span>
+                        <span style={{ fontWeight: 600, color: '#334155' }}>{c.name || c.phone || ''}</span>
                         <span style={{ color: '#94a3b8', fontSize: '10.5px' }}>{c.phone || '—'}</span>
                       </button>
                     ))}
@@ -1362,7 +1362,7 @@ export default function PaymentDialog({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <FaUser size={10} style={{ color: '#16a34a' }} />
                   <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>{localCustomer.name || 'Guest'}</div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>{localCustomer.name || localCustomer.phone || ''}</div>
                     {localCustomer.phone && <div style={{ fontSize: '10.5px', color: '#4ade80' }}>{localCustomer.phone}</div>}
                   </div>
                 </div>
@@ -1429,7 +1429,7 @@ export default function PaymentDialog({
 
                 {customerInfo.name || customerInfo.phone ? (
                   <div style={{ fontSize: '11.5px', color: '#64748b', marginBottom: '6px' }}>
-                    Customer: <strong style={{ color: '#334155' }}>{customerInfo.name || 'Guest'}</strong> {customerInfo.phone ? `(${customerInfo.phone})` : ''}
+                    Customer: <strong style={{ color: '#334155' }}>{customerInfo.name || customerInfo.phone || ''}</strong> {customerInfo.name && customerInfo.phone ? `(${customerInfo.phone})` : ''}
                   </div>
                 ) : null}
 
