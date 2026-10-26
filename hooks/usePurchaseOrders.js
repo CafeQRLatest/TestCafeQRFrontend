@@ -4,7 +4,7 @@ import api from '../utils/api';
 import { useCurrencySymbol } from './useCurrencySymbol';
 import { useCurrencyDecimals } from './useCurrencyConfig';
 import { getBusinessNow, getLocalISOString, businessTimeToUtc } from '../utils/timezoneUtils';
-import { uomPrecisionOf } from '../components/CounterSale/domain/quantity';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 const STATUS_CFG = {
   DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', border: '#cbd5e1' },
@@ -337,7 +337,7 @@ export function usePurchaseOrders() {
       categoryName:   product.categoryName || '',
       unitOfMeasure:  product.uomName || 'units',
       uomPrecision:   uomPrecisionOf(product),
-      quantity:       1,
+      quantity:       formatQty(1, uomPrecisionOf(product)),
       unitPrice:      initialUnitPrice,
       taxRate:        product.taxRate || 0,
       discountAmount: 0,
@@ -457,6 +457,7 @@ export function usePurchaseOrders() {
           quantity: parseFloat(l.quantity) || 1,
           unitPrice: parseFloat(l.unitPrice) || 0,
           unitOfMeasure: l.unitOfMeasure || 'units',
+          uomPrecision: Number.isInteger(l.uomPrecision) ? l.uomPrecision : 0,
           taxRate: parseFloat(l.taxRate) || 0,
           taxAmount: parseFloat(l.taxAmount) || 0,
           discountAmount: parseFloat(l.discountAmount) || 0,

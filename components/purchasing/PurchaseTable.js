@@ -127,7 +127,7 @@ export default function PurchaseTable({
                   </div>
                 </td>
                 <td>
-                  <span className={styles['pill']}>{(o.lines || []).length}</span>
+                  <span className={styles['pill']}>{o.itemCount ?? (o.lines || []).length}</span>
                 </td>
                 <td>
                   <strong>

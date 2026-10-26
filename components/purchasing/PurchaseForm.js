@@ -12,7 +12,7 @@ import {
 import api from '../../utils/api';
 import VariantSelector from '../VariantSelector';
 import PurchasePaymentPopup from './PurchasePaymentPopup';
-import { parseQty, qtyInputStep } from '../CounterSale/domain/quantity';
+import { formatQty, parseQty, qtyInputStep } from '../CounterSale/domain/quantity';
 
 // Lines without a precision (older data) keep 3 decimals.
 const linePrecision = (line) => (Number.isInteger(line.uomPrecision) ? line.uomPrecision : 3);
@@ -57,6 +57,17 @@ export default function PurchaseForm({
   const [activeVariantProduct, setActiveVariantProduct] = useState(null);
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
   const [pendingTargetStatus, setPendingTargetStatus] = useState(null);
+
+  // Quantities are stored and shown padded to the line's UOM precision (e.g. 1.000 for 3 decimals).
+  const stepQty = (idx, line, delta) => {
+    const precision = linePrecision(line);
+    const next = Math.max(qtyInputStep(precision), (parseFloat(line.quantity) || 0) + delta);
+    updateLine(idx, 'quantity', formatQty(next, precision));
+  };
+  const commitQty = (idx, line) => {
+    const precision = linePrecision(line);
+    updateLine(idx, 'quantity', formatQty(parseQty(line.quantity, precision), precision));
+  };
 
   const handleProductClick = async (product) => {
     const hasVars = Boolean(
@@ -552,7 +563,7 @@ export default function PurchaseForm({
                           <div className={styles['qty-ctrl']}>
                             <button 
                               className={styles['qty-btn']} 
-                              onClick={() => updateLine(idx, 'quantity', Math.max(0.001, (parseFloat(line.quantity) || 0) - 1))} 
+                              onClick={() => stepQty(idx, line, -1)} 
                               disabled={isLocked}
                             >
                               <FaMinus />
@@ -563,12 +574,12 @@ export default function PurchaseForm({
                               min="0.001" 
                               step={qtyInputStep(linePrecision(line))}
                               value={line.quantity}
-                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => updateLine(idx, 'quantity', parseQty(line.quantity, linePrecision(line)))}
+                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)}
                               disabled={isLocked} 
                             />
                             <button 
                               className={styles['qty-btn']} 
-                              onClick={() => updateLine(idx, 'quantity', (parseFloat(line.quantity) || 0) + 1)} 
+                              onClick={() => stepQty(idx, line, 1)} 
                               disabled={isLocked}
                             >
                               <FaPlus />
@@ -664,7 +675,7 @@ export default function PurchaseForm({
                           <div className={`${styles['qty-ctrl']} ${styles.sm}`}>
                             <button 
                               className={styles['qty-btn']} 
-                              onClick={() => updateLine(idx, 'quantity', Math.max(0.001, (parseFloat(line.quantity)||0) - 1))} 
+                              onClick={() => stepQty(idx, line, -1)} 
                               disabled={isLocked}
                             >
                               <FaMinus />
@@ -673,12 +684,12 @@ export default function PurchaseForm({
                               type="number" 
                               className={styles['qty-inp']} 
                               value={line.quantity}
-                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => updateLine(idx, 'quantity', parseQty(line.quantity, linePrecision(line)))} 
+                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)} 
                               disabled={isLocked} 
                             />
                             <button 
                               className={styles['qty-btn']} 
-                              onClick={() => updateLine(idx, 'quantity', (parseFloat(line.quantity)||0) + 1)} 
+                              onClick={() => stepQty(idx, line, 1)} 
                               disabled={isLocked}
                             >
                               <FaPlus />
