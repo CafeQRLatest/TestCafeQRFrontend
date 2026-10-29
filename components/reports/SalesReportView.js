@@ -12,8 +12,9 @@ import {
   FaChartLine, FaClock, FaFileCsv, FaFileExcel, FaChevronDown,
   FaChevronRight, FaBan, FaBook, FaMoneyBillWave, FaMobileAlt, FaWallet,
   FaInfoCircle, FaCoins, FaTag, FaPrint,
-  FaSort, FaSortUp, FaSortDown, FaSearch
+  FaSort, FaSortUp, FaSortDown, FaSearch, FaFilePdf
 } from 'react-icons/fa';
+import { exportCreditSalesReportPdf } from '../../utils/creditSalesReportPdf';
 
 const SALES_TABS = [
   { key: 'summary', label: 'Sales Summary', icon: <FaChartBar /> },
@@ -55,6 +56,8 @@ export default function SalesReportView({
   const [taxData, setTaxData] = useState([]);
   const [hourly, setHourly] = useState([]);
   const [creditReport, setCreditReport] = useState(null);
+  const [creditCustomers, setCreditCustomers] = useState([]);
+  const [creditCustomerFilter, setCreditCustomerFilter] = useState('ALL');
 
   // Item Sales sorting and filtering state
   const [itemCategoryFilter, setItemCategoryFilter] = useState('ALL');
@@ -176,7 +179,19 @@ export default function SalesReportView({
     try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
+  // Date/branch props settle in several renders, so loads overlap; only the newest may update state,
+  // older ones are aborted, and a timeout stops a stalled request from spinning forever.
+  const loadSeqRef = React.useRef(0);
+  const loadAbortRef = React.useRef(null);
+
   const loadSubTab = useCallback(async (t) => {
+    const seq = ++loadSeqRef.current;
+    if (loadAbortRef.current) loadAbortRef.current.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+    // Abort ourselves rather than using axios `timeout`: an ECONNABORTED would flag the app as offline.
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, 30000);
     setLoading(true);
     setLoadError(null);
     const params = { from: toInstant(dateFrom), to: toInstant(dateTo, true) };
@@ -195,8 +210,11 @@ export default function SalesReportView({
       }[t];
       if (!ep) return;
 
-      const p = t === 'salesInvoices' ? { ...params, type: invoiceFilter } : params;
-      const res = await api.get(ep, { params: p });
+      let p = params;
+      if (t === 'salesInvoices') p = { ...params, type: invoiceFilter };
+      else if (t === 'credit' && creditCustomerFilter !== 'ALL') p = { ...params, customerId: creditCustomerFilter };
+      const res = await api.get(ep, { params: p, signal: controller.signal });
+      if (seq !== loadSeqRef.current) return;
       if (res.data?.success) {
         const d = res.data.data;
         if (t === 'summary') setSummary(d);
@@ -208,18 +226,33 @@ export default function SalesReportView({
         else if (t === 'credit') setCreditReport(d || null);
       }
     } catch (e) {
+      if (seq !== loadSeqRef.current || (e?.code === 'ERR_CANCELED' && !timedOut)) return;
       console.error('Sales report load error:', e);
-      const msg = e?.response?.data?.message || 'Failed to load sales report';
+      const msg = timedOut
+        ? 'Report is taking too long to load. Please try again.'
+        : (e?.response?.data?.message || 'Failed to load sales report');
       setLoadError(msg);
       notify('error', msg);
     } finally {
-      setLoading(false);
+      clearTimeout(timeoutId);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [dateFrom, dateTo, invoiceFilter, selectedOrgId, selectedTerminalId, timezone, notify]);
+  }, [dateFrom, dateTo, invoiceFilter, creditCustomerFilter, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadSubTab(subTab);
   }, [subTab, loadSubTab]);
+
+  useEffect(() => () => loadAbortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (subTab !== 'credit' || creditCustomers.length) return;
+    let cancelled = false;
+    api.get('/api/v1/credit/customers', { params: { partnerType: 'CUSTOMER' } })
+      .then((res) => { if (!cancelled && res.data?.success) setCreditCustomers(res.data.data || []); })
+      .catch((e) => console.error('Credit customers load error:', e));
+    return () => { cancelled = true; };
+  }, [subTab, creditCustomers.length]);
 
   const exportCSV = (headers, rows, filename) => {
     if (!rows.length) return notify('error', 'No data to export');
@@ -1038,20 +1071,31 @@ export default function SalesReportView({
     return (
       <>
         <div className="rpt-sales-toolbar">
-          <button className="rpt-sales-btn" onClick={() => exportCSV(
-            ['Order No', 'Invoice No', 'Customer Name', 'Phone', 'Amount', 'Tax', 'Total', 'Amount Due', 'Date', 'Status'],
-            orders.map(o => [
-              o.orderNo, o.invoiceNo, o.customerName, o.customerPhone, o.amount, o.tax, o.total, o.amountDue, formatReportDate(o.date || o.createdAt), o.status
-            ].map(csvCell).join(',')),
-            'credit_orders'
-          )}><FaFileCsv /> Export Credit Orders CSV</button>
-          <button className="rpt-sales-btn" onClick={() => exportCSV(
-            ['Date', 'Customer Name', 'Payment Method', 'Amount', 'Reference No', 'Description'],
-            paymentsRows.map(p => [
-              formatReportDate(p.transactionDate || p.createdAt), p.customerName, p.paymentMethod, p.amount, p.referenceNo, p.description
-            ].map(csvCell).join(',')),
-            'credit_payments'
-          )}><FaFileCsv /> Export Credit Payments CSV</button>
+          <NiceSelect
+            value={creditCustomerFilter}
+            onChange={(v) => setCreditCustomerFilter(v)}
+            options={[
+              { value: 'ALL', label: 'All Credit Customers' },
+              ...creditCustomers.map(c => ({ value: c.id, label: c.phone ? `${c.name} (${c.phone})` : c.name }))
+            ]}
+            style={{ width: 220 }}
+          />
+          <button className="rpt-sales-btn" onClick={() => {
+            const selected = creditCustomers.find(c => c.id === creditCustomerFilter);
+            exportCreditSalesReportPdf({
+              report: creditReport,
+              periodFrom: dateFrom,
+              periodTo: dateTo,
+              customerLabel: selected ? (selected.phone ? `${selected.name} (${selected.phone})` : selected.name) : 'All Credit Customers',
+              branchId: selectedOrgId || null,
+              config,
+              showTax: config?.taxEnabled !== false,
+              timezone: timezone || 'Asia/Kolkata',
+              currencySymbol: SYM,
+              currencyDecimals,
+              notify,
+            });
+          }}><FaFilePdf /> Export PDF</button>
           <button className="rpt-sales-btn" onClick={() => handlePrint('credit')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-sales-kpi-grid">
