@@ -94,8 +94,6 @@ const DEFAULT_KOT_TEMPLATE = {
   titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
-  dailyBillNoFontSize: 'NORMAL',
-  dailyBillNoLabel: 'KOT No',
   header: '*** KOT ***',
   footer: '*** SEND TO KITCHEN ***',
 };
@@ -107,8 +105,6 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
-  dailyBillNoFontSize: 'NORMAL',
-  dailyBillNoLabel: 'Daily Bill No',
   header: '*** TAX INVOICE ***',
   footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -212,8 +208,6 @@ const mergeKotTemplate = (template) => {
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
-    dailyBillNoFontSize: source.dailyBillNoFontSize ?? source.kotDailyBillNoFontSize ?? DEFAULT_KOT_TEMPLATE.dailyBillNoFontSize,
-    dailyBillNoLabel: source.dailyBillNoLabel ?? source.kotDailyBillNoLabel ?? DEFAULT_KOT_TEMPLATE.dailyBillNoLabel,
     header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
     footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
   };
@@ -228,8 +222,6 @@ const mergeReceiptTemplate = (template) => {
     titleFontSize: source.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
-    dailyBillNoFontSize: source.dailyBillNoFontSize ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoFontSize,
-    dailyBillNoLabel: source.dailyBillNoLabel ?? source.receiptDailyBillNoLabel ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoLabel,
     header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
     footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
   };
@@ -261,8 +253,6 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
   localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
-  localStorage.setItem(`${prefix}DAILY_BILL_NO_FONT_SIZE`, template.dailyBillNoFontSize || 'NORMAL');
-  localStorage.setItem(`${prefix}DAILY_BILL_NO_LABEL`, template.dailyBillNoLabel || (documentKey === 'KOT' ? 'KOT No' : 'Daily Bill No'));
 };
 
 const profileDefaults = (format = 'THERMAL') => ({
@@ -461,10 +451,6 @@ export const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kotTemplate.titleFontSize || 'DOUBLE');
   localStorage.setItem('PRINT_TOTAL_FONT_SIZE', receiptTemplate.totalFontSize || 'DOUBLE');
   localStorage.setItem('PRINT_KOT_TOTAL_FONT_SIZE', kotTemplate.totalFontSize || 'DOUBLE');
-  localStorage.setItem('PRINT_DAILY_BILL_NO_FONT_SIZE', receiptTemplate.dailyBillNoFontSize || 'NORMAL');
-  localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_FONT_SIZE', kotTemplate.dailyBillNoFontSize || 'NORMAL');
-  localStorage.setItem('PRINT_DAILY_BILL_NO_LABEL', receiptTemplate.dailyBillNoLabel || 'Daily Bill No');
-  localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_LABEL', kotTemplate.dailyBillNoLabel || 'KOT No');
 
   localStorage.setItem('PRINT_SHOW_RESTAURANT_NAME', receiptTemplate.showRestaurantName !== false ? '1' : '0');
   localStorage.setItem('PRINT_SHOW_DAILY_BILL_NO', receiptTemplate.showDailyBillNo !== false ? '1' : '0');
@@ -1427,7 +1413,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
     const update = (changes) => updateProfileTemplateOverride(profile.id, documentKey, changes);
     const visibilityOptions = [
       ['showRestaurantName', 'Restaurant name'],
-      ['showDailyBillNo', 'Daily bill / token number'],
+      ['showDailyBillNo', 'Daily bill no.'],
       ['showCustomerDetails', 'Customer'],
       ['showTableLabel', 'Table/type'],
       ['showFssai', 'FSSAI'],
@@ -1478,12 +1464,6 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
               </Field>
               <Field label="Total font">
                 <NiceSelect value={template.totalFontSize || 'DOUBLE'} onChange={(value) => update({ totalFontSize: value })} options={FONT_SIZE_OPTIONS} />
-              </Field>
-              <Field label="Sequence font">
-                <NiceSelect value={template.dailyBillNoFontSize || 'NORMAL'} onChange={(value) => update({ dailyBillNoFontSize: value })} options={FONT_SIZE_OPTIONS} />
-              </Field>
-              <Field label="Sequence / Token label">
-                <input value={template.dailyBillNoLabel || ''} onChange={(event) => update({ dailyBillNoLabel: event.target.value })} placeholder={documentKey === 'kot' ? 'KOT No' : 'Daily Bill No'} />
               </Field>
             </div>
             <div className="document-toggles compact-toggles">

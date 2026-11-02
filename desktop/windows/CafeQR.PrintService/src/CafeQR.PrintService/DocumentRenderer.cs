@@ -1352,10 +1352,9 @@ namespace CafeQR.PrintService
             Add("KOT Ref: " + GetKotReference(order));
 
             var dailyBillNo = PickValue(order, new[] { "dailyBillNo", "daily_bill_no" });
-            var dbLabel = PickTemplateValue(tpl, new[] { "dailyBillNoLabel", "kotDailyBillNoLabel" }, "KOT No");
             if (showDailyBillNo && !string.IsNullOrEmpty(dailyBillNo))
             {
-                Add(dbLabel + ": " + dailyBillNo);
+                Add("Daily Bill No: " + dailyBillNo);
             }
 
             var staffName = PickValue(order, new[] { "taken_by_name", "takenByName" }).Trim();
@@ -1679,10 +1678,9 @@ namespace CafeQR.PrintService
             lines.Add(WithMargins("KOT Ref: " + kotReference, layout));
 
             var dailyBillNo = PickValue(order, new[] { "dailyBillNo", "daily_bill_no" });
-            var dbLabel = PickTemplateValue(tpl, new[] { "dailyBillNoLabel", "kotDailyBillNoLabel" }, "KOT No");
             if (showDailyBillNo && !string.IsNullOrEmpty(dailyBillNo))
             {
-                lines.Add(WithMargins(dbLabel + ": " + dailyBillNo, layout));
+                lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
 
             var staffName = PickValue(order, new[] { "taken_by_name", "takenByName" }).Trim();
@@ -1929,10 +1927,9 @@ namespace CafeQR.PrintService
             
             var dailyBillNo = PickValue(bill, new[] { "dailyBillNo", "daily_bill_no" });
             if (string.IsNullOrEmpty(dailyBillNo)) dailyBillNo = PickValue(order, new[] { "dailyBillNo", "daily_bill_no" });
-            var dbLabel = PickTemplateValue(tpl, new[] { "dailyBillNoLabel", "receiptDailyBillNoLabel" }, "Daily Bill No");
             if (showDailyBillNo && !string.IsNullOrEmpty(dailyBillNo))
             {
-                lines.Add(WithMargins(dbLabel + ": " + dailyBillNo, layout));
+                lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
             bool hideOrderType = !string.IsNullOrEmpty(posType) && posType.Equals("Others", StringComparison.OrdinalIgnoreCase);
             if (showTableLabel && !hideOrderType && !string.IsNullOrEmpty(orderType)) lines.Add(WithMargins("Order Type: " + orderType, layout));

@@ -151,7 +151,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                   <>
                     <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                     <div className={`text-left highlight-line ${getFontClass(receiptDbFont)}`}>
-                      {receiptTemplate.dailyBillNoLabel || 'Daily Bill No'}: #042
+                      Daily Bill No: #042
                     </div>
                   </>
                 )}
@@ -360,7 +360,7 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 {kotTemplate.showDailyBillNo !== false && (
                   <>
                     <div className={`text-left highlight-line ${getFontClass(kotDbFont)}`}>
-                      {kotTemplate.dailyBillNoLabel || 'KOT No'}: #042
+                      Daily Bill No: #042
                     </div>
                     <div className="receipt-divider">- - - - - - - - - - - - - - - - - - - -</div>
                   </>

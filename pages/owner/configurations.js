@@ -110,7 +110,6 @@ const DEFAULT_KOT_TEMPLATE = {
   header: '*** KOT ***',
   footer: '*** SEND TO KITCHEN ***',
   dailyBillNoFontSize: 'NORMAL',
-  dailyBillNoLabel: 'KOT No',
 };
 
 const DEFAULT_RECEIPT_TEMPLATE = {
@@ -126,7 +125,6 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   header: '*** TAX INVOICE ***',
   footer: '* THANK YOU! VISIT AGAIN !! *',
   dailyBillNoFontSize: 'NORMAL',
-  dailyBillNoLabel: 'Daily Bill No',
 };
 
 const DEFAULT_THERMAL_TEMPLATE = {
@@ -213,7 +211,6 @@ const mergeKotTemplate = (template) => {
     header: source.header ?? source.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
     footer: source.footer ?? source.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
     dailyBillNoFontSize: source.dailyBillNoFontSize ?? source.kotDailyBillNoFontSize ?? DEFAULT_KOT_TEMPLATE.dailyBillNoFontSize,
-    dailyBillNoLabel: source.dailyBillNoLabel ?? source.kotDailyBillNoLabel ?? DEFAULT_KOT_TEMPLATE.dailyBillNoLabel,
   };
 };
 
@@ -232,7 +229,6 @@ const mergeReceiptTemplate = (template) => {
     header: source.header ?? source.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
     footer: source.footer ?? source.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
     dailyBillNoFontSize: source.dailyBillNoFontSize ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoFontSize,
-    dailyBillNoLabel: source.dailyBillNoLabel ?? source.receiptDailyBillNoLabel ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoLabel,
   };
 };
 
@@ -282,8 +278,6 @@ const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
     receiptFooter: receipt.footer,
     dailyBillNoFontSize: receipt.dailyBillNoFontSize,
     kotDailyBillNoFontSize: kot.dailyBillNoFontSize,
-    dailyBillNoLabel: receipt.dailyBillNoLabel,
-    kotDailyBillNoLabel: kot.dailyBillNoLabel,
   };
 };
 
@@ -317,7 +311,6 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
   localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}DAILY_BILL_NO_FONT_SIZE`, template.dailyBillNoFontSize || 'NORMAL');
-  localStorage.setItem(`${prefix}DAILY_BILL_NO_LABEL`, template.dailyBillNoLabel || (documentKey === 'KOT' ? 'KOT No' : 'Daily Bill No'));
 };
 
 function syncPrintSettingsToLocalStorage(config) {
@@ -349,8 +342,6 @@ function syncPrintSettingsToLocalStorage(config) {
 
     localStorage.setItem('PRINT_DAILY_BILL_NO_FONT_SIZE', receipt.dailyBillNoFontSize || 'NORMAL');
     localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_FONT_SIZE', kot.dailyBillNoFontSize || 'NORMAL');
-    localStorage.setItem('PRINT_DAILY_BILL_NO_LABEL', receipt.dailyBillNoLabel || 'Daily Bill No');
-    localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_LABEL', kot.dailyBillNoLabel || 'KOT No');
 
     localStorage.setItem('PRINT_KOT_HEADER', kot.header ?? '*** KOT ***');
     localStorage.setItem('PRINT_KOT_FOOTER', kot.footer ?? '*** SEND TO KITCHEN ***');
@@ -845,7 +836,7 @@ function ConfigurationsContent() {
   const renderThermalTemplateEditor = (kind, template, title, icon, copy) => {
     const visibilityOptions = [
       ['showRestaurantName', 'Restaurant name'],
-      ['showDailyBillNo', 'Daily bill / token number'],
+      ['showDailyBillNo', 'Daily bill number'],
       ['showCustomerDetails', 'Customer details'],
       ['showTableLabel', 'Table / order type'],
       ['showFssai', 'FSSAI license'],
@@ -983,38 +974,13 @@ function ConfigurationsContent() {
             ['titleFontSize', 'Title font'],
             ['fontSize', 'Body font'],
             ['totalFontSize', 'Total font'],
-            ['dailyBillNoFontSize', 'Daily sequence font'],
+            ['dailyBillNoFontSize', 'Daily bill no. font'],
           ].map(([key, label]) => (
             <div key={key} className="input-group">
               <label className="group-lbl">{label}</label>
               <NiceSelect value={template[key]} onChange={(v) => setTemplate(kind, key, v)} options={FONT_SIZE_OPTIONS} />
             </div>
           ))}
-        </div>
-
-        <div className="input-group" style={{ marginTop: '8px', marginBottom: '8px' }}>
-          <label className="group-lbl">Sequence / Token Label</label>
-          <div className="paper-preset-row" style={{ marginBottom: '8px' }}>
-            {['KOT No', 'Token No', 'Daily Bill No', 'Order No'].map((preset) => {
-              const currentVal = template.dailyBillNoLabel || (kind === 'kotTemplate' ? 'KOT No' : 'Daily Bill No');
-              return (
-                <button
-                  type="button"
-                  key={preset}
-                  className={currentVal === preset ? 'active' : ''}
-                  onClick={() => setTemplate(kind, 'dailyBillNoLabel', preset)}
-                >
-                  {preset}
-                </button>
-              );
-            })}
-          </div>
-          <input
-            className="form-input"
-            value={template.dailyBillNoLabel || ''}
-            onChange={(e) => setTemplate(kind, 'dailyBillNoLabel', e.target.value)}
-            placeholder={kind === 'kotTemplate' ? 'KOT No' : 'Daily Bill No'}
-          />
         </div>
 
         <div className="template-grid-fields">
