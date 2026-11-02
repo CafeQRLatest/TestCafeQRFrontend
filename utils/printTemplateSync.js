@@ -17,6 +17,7 @@ const DEFAULT_KOT_TEMPLATE = {
   showRestaurantName: true, showDailyBillNo: true, showCustomerDetails: true,
   showTableLabel: true, showFssai: true, showGstBreakdown: false,
   showInstructions: true,
+  dailyBillNoFontSize: 'NORMAL', dailyBillNoLabel: 'KOT No',
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** KOT ***', footer: '*** SEND TO KITCHEN ***',
 };
@@ -31,6 +32,7 @@ const DEFAULT_RECEIPT_TEMPLATE = {
   showUpiQr: true,
   upiId: '',
   upiPayeeName: '',
+  dailyBillNoFontSize: 'NORMAL', dailyBillNoLabel: 'Daily Bill No',
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** TAX INVOICE ***', footer: '* THANK YOU! VISIT AGAIN !! *',
 };
@@ -43,6 +45,8 @@ function mergeKotTemplate(template) {
     titleFontSize: src.titleFontSize ?? src.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? src.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? src.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
+    dailyBillNoFontSize: src.dailyBillNoFontSize ?? src.kotDailyBillNoFontSize ?? DEFAULT_KOT_TEMPLATE.dailyBillNoFontSize,
+    dailyBillNoLabel: src.dailyBillNoLabel ?? src.kotDailyBillNoLabel ?? DEFAULT_KOT_TEMPLATE.dailyBillNoLabel,
     header: src.header ?? src.kotHeader ?? DEFAULT_KOT_TEMPLATE.header,
     footer: src.footer ?? src.kotFooter ?? DEFAULT_KOT_TEMPLATE.footer,
   };
@@ -59,6 +63,8 @@ function mergeReceiptTemplate(template) {
     titleFontSize: src.titleFontSize ?? DEFAULT_RECEIPT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? DEFAULT_RECEIPT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? DEFAULT_RECEIPT_TEMPLATE.totalFontSize,
+    dailyBillNoFontSize: src.dailyBillNoFontSize ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoFontSize,
+    dailyBillNoLabel: src.dailyBillNoLabel ?? src.receiptDailyBillNoLabel ?? DEFAULT_RECEIPT_TEMPLATE.dailyBillNoLabel,
     header: src.header ?? src.receiptHeader ?? DEFAULT_RECEIPT_TEMPLATE.header,
     footer: src.footer ?? src.receiptFooter ?? DEFAULT_RECEIPT_TEMPLATE.footer,
   };
@@ -93,6 +99,8 @@ function syncTemplateToLS(documentKey, template) {
   localStorage.setItem(`${prefix}TITLE_FONT_SIZE`, template.titleFontSize || 'DOUBLE');
   localStorage.setItem(`${prefix}FONT_SIZE`, template.fontSize || 'NORMAL');
   localStorage.setItem(`${prefix}TOTAL_FONT_SIZE`, template.totalFontSize || 'DOUBLE');
+  localStorage.setItem(`${prefix}DAILY_BILL_NO_FONT_SIZE`, template.dailyBillNoFontSize || 'NORMAL');
+  localStorage.setItem(`${prefix}DAILY_BILL_NO_LABEL`, template.dailyBillNoLabel || (documentKey === 'KOT' ? 'KOT No' : 'Daily Bill No'));
 }
 
 /**
@@ -165,6 +173,10 @@ export async function ensurePrintTemplatesSynced(force = false) {
     localStorage.setItem('PRINT_KOT_TITLE_FONT_SIZE', kot.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_KOT_FONT_SIZE', kot.fontSize || 'NORMAL');
     localStorage.setItem('PRINT_KOT_TOTAL_FONT_SIZE', kot.totalFontSize || 'DOUBLE');
+    localStorage.setItem('PRINT_DAILY_BILL_NO_FONT_SIZE', receipt.dailyBillNoFontSize || 'NORMAL');
+    localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_FONT_SIZE', kot.dailyBillNoFontSize || 'NORMAL');
+    localStorage.setItem('PRINT_DAILY_BILL_NO_LABEL', receipt.dailyBillNoLabel || 'Daily Bill No');
+    localStorage.setItem('PRINT_KOT_DAILY_BILL_NO_LABEL', kot.dailyBillNoLabel || 'KOT No');
 
     localStorage.setItem('PRINT_KOT_HEADER', kot.header ?? '*** KOT ***');
     localStorage.setItem('PRINT_KOT_FOOTER', kot.footer ?? '*** SEND TO KITCHEN ***');

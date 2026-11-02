@@ -520,6 +520,7 @@ export function buildKotText(order, restaurantProfile) {
     const tFontSize = getDocumentString("KOT", "TITLE_FONT_SIZE", "PRINT_KOT_TITLE_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
     const bFontSize = getDocumentString("KOT", "FONT_SIZE", "PRINT_KOT_FONT_SIZE", is80 ? 'DOUBLE' : 'NORMAL');
     const dbFontSize = getDocumentString("KOT", "DAILY_BILL_NO_FONT_SIZE", "PRINT_KOT_DAILY_BILL_NO_FONT_SIZE", 'NORMAL');
+    const dbLabel = getDocumentString("KOT", "DAILY_BILL_NO_LABEL", "PRINT_KOT_DAILY_BILL_NO_LABEL", "KOT No");
     const showRestaurantName = getDocumentBool("KOT", "SHOW_RESTAURANT_NAME", "PRINT_SHOW_RESTAURANT_NAME", true);
     const showDailyBillNo = getDocumentBool("KOT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
     const showCustomerDetails = getDocumentBool("KOT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
@@ -581,7 +582,7 @@ export function buildKotText(order, restaurantProfile) {
 
     if (showDailyBillNo && dailyBillNo) {
       lines.push(withMargins(dashes(), layout));
-      lines.push(MODE_BOLD + getFontSizeCmd(dbFontSize) + withMargins(`Daily Bill No: ${dailyBillNo}`, layout) + SIZE_1X + MODE_NO_BOLD);
+      lines.push(MODE_BOLD + getFontSizeCmd(dbFontSize) + withMargins(`${dbLabel}: ${dailyBillNo}`, layout) + SIZE_1X + MODE_NO_BOLD);
     }
 
     lines.push(withMargins(dashes(), layout));
@@ -770,6 +771,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
     const bFontSize = getDocumentString("RECEIPT", "FONT_SIZE", "PRINT_FONT_SIZE", 'NORMAL');
     const totalFontSize = getDocumentString("RECEIPT", "TOTAL_FONT_SIZE", "PRINT_TOTAL_FONT_SIZE", 'DOUBLE');
     const dbFontSize = getDocumentString("RECEIPT", "DAILY_BILL_NO_FONT_SIZE", "PRINT_DAILY_BILL_NO_FONT_SIZE", 'NORMAL');
+    const dbLabel = getDocumentString("RECEIPT", "DAILY_BILL_NO_LABEL", "PRINT_DAILY_BILL_NO_LABEL", "Daily Bill No");
     const showRestaurantName = getDocumentBool("RECEIPT", "SHOW_RESTAURANT_NAME", "PRINT_SHOW_RESTAURANT_NAME", true);
     const showDailyBillNo = getDocumentBool("RECEIPT", "SHOW_DAILY_BILL_NO", "PRINT_SHOW_DAILY_BILL_NO", true);
     const showCustomerDetails = getDocumentBool("RECEIPT", "SHOW_CUSTOMER_DETAILS", "PRINT_SHOW_CUSTOMER_DETAILS", true);
@@ -841,7 +843,7 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     if (showDailyBillNo && dailyBillNo) {
       lines.push(withMargins(dashes(), layout));
-      lines.push(MODE_BOLD + getFontSizeCmd(dbFontSize) + withMargins(`Daily Bill No: ${dailyBillNo}`, layout) + SIZE_1X + MODE_NO_BOLD);
+      lines.push(MODE_BOLD + getFontSizeCmd(dbFontSize) + withMargins(`${dbLabel}: ${dailyBillNo}`, layout) + SIZE_1X + MODE_NO_BOLD);
     }
 
     if (receiptHeader) {
