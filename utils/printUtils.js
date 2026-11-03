@@ -555,7 +555,14 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(ALIGN_LEFT);
     }
     lines.push(withMargins(`${dateStr} ${timeStr}`, layout));
-    lines.push(withMargins(`KOT Ref: ${kotReference}`, layout));
+    // 58mm paper holds 32 columns; wrap the number rather than let clip() cut its suffix off.
+    const saleOrderLine = `Sale Order No: ${kotReference}`;
+    if (saleOrderLine.length <= layout.innerCols) {
+      lines.push(withMargins(saleOrderLine, layout));
+    } else {
+      lines.push(withMargins('Sale Order No:', layout));
+      lines.push(withMargins(kotReference, layout));
+    }
     const dailyBillNo = pickValue(order, ["dailyBillNo", "daily_bill_no"], null);
     const staffName = String(pickValue(order, ["taken_by_name", "takenByName"], '')).trim();
     if (staffName) {
