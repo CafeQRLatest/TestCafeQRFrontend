@@ -9,8 +9,11 @@ import DesignationModal from '../../../../components/hr/DesignationModal';
 import EmployeeSalaryRulesModal from '../../../../components/hr/EmployeeSalaryRulesModal';
 import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash, FaCogs } from 'react-icons/fa';
+import { useCurrencyDecimals, useCurrencySymbol } from '../../../../hooks/useCurrencyConfig';
 
 export default function EmployeeMaster({ embedded = false }) {
+  const currencySymbol = useCurrencySymbol();
+  const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -270,8 +273,8 @@ export default function EmployeeMaster({ embedded = false }) {
                       </td>
                       <td>
                         {emp.employmentType === 'HOURLY' 
-                          ? `$${emp.hourlyRate}/hr` 
-                          : `$${emp.baseSalary}/mo`}
+                          ? `${currencySymbol}${Number(emp.hourlyRate || 0).toFixed(currencyDecimals)}/hr`
+                          : `${currencySymbol}${Number(emp.baseSalary || 0).toFixed(currencyDecimals)}/mo`}
                       </td>
                       <td>
                         <button className="btn-secondary" style={{ padding: '6px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }} onClick={() => setRulesEmployee(emp)}>

@@ -6,8 +6,8 @@ function fmt(n, dp = 2) {
   return Number(n || 0).toFixed(dp);
 }
 
-function money(val, sym) {
-  return `${sym || ''}${fmt(val)}`;
+function money(val, sym, dp = 2) {
+  return `${sym || ''}${fmt(val, dp)}`;
 }
 
 const ORANGE     = [234, 99,  16];
@@ -37,6 +37,7 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
   }
 
   const sym = cfg.currencySymbol ? cfg.currencySymbol + ' ' : '';
+  const dp = Number.isInteger(cfg.currencyDecimalPlaces) ? cfg.currencyDecimalPlaces : 2;
   const clientName = clientData?.name || cfg.restaurantName || 'CAFE QR RESTAURANT';
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -137,21 +138,21 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
     doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK);
     doc.text('Base / Regular Pay', earnX + 4, y + 11);
     doc.setFont('Roboto', 'bold');
-    doc.text(money(basePayVal, sym), earnX + boxW - 4, y + 11, { align: 'right' });
+    doc.text(money(basePayVal, sym, dp), earnX + boxW - 4, y + 11, { align: 'right' });
 
     doc.setFont('Roboto', 'normal'); doc.setFontSize(8); doc.setTextColor(...ORANGE);
     doc.text(`Overtime Pay (${slip.overtimeHours} hrs)`, earnX + 4, y + 16);
     doc.setFont('Roboto', 'bold');
-    doc.text(`+${money(slip.overtimePay, sym)}`, earnX + boxW - 4, y + 16, { align: 'right' });
+    doc.text(`+${money(slip.overtimePay, sym, dp)}`, earnX + boxW - 4, y + 16, { align: 'right' });
 
     doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(...DARK);
     doc.text('Total Gross Pay', earnX + 4, y + 21);
-    doc.text(money(slip.grossPay, sym), earnX + boxW - 4, y + 21, { align: 'right' });
+    doc.text(money(slip.grossPay, sym, dp), earnX + boxW - 4, y + 21, { align: 'right' });
   } else {
     doc.setFont('Roboto', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
     doc.text('Gross Pay (Base Salary)', earnX + 4, y + 13);
     doc.setFont('Roboto', 'bold');
-    doc.text(money(slip.grossPay, sym), earnX + boxW - 4, y + 13, { align: 'right' });
+    doc.text(money(slip.grossPay, sym, dp), earnX + boxW - 4, y + 13, { align: 'right' });
   }
 
   // Deductions Box
@@ -165,7 +166,7 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
   doc.setFont('Roboto', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
   doc.text('Total Deductions & Advances', dedX + 4, y + 13);
   doc.setFont('Roboto', 'bold'); doc.setTextColor(...RED);
-  doc.text(`-${money(slip.totalDeductions, sym)}`, dedX + boxW - 4, y + 13, { align: 'right' });
+  doc.text(`-${money(slip.totalDeductions, sym, dp)}`, dedX + boxW - 4, y + 13, { align: 'right' });
   
   if (slip.totalUnpaidLeaveDays && slip.totalUnpaidLeaveDays > 0) {
     doc.setFont('Roboto', 'normal'); doc.setFontSize(7); doc.setTextColor(...TEXT_MUTED);
@@ -182,7 +183,7 @@ export async function downloadPayslipPdf(slip, runData, configOverride = null) {
   doc.text('NET TAKE-HOME PAY', margin + 6, y + 8);
   
   doc.setFont('Roboto', 'bold'); doc.setFontSize(22); doc.setTextColor(255, 255, 255);
-  doc.text(money(slip.netPay, sym), margin + 6, y + 18);
+  doc.text(money(slip.netPay, sym, dp), margin + 6, y + 18);
   
   doc.setFont('Roboto', 'bold'); doc.setFontSize(8); doc.setTextColor(255, 255, 255);
   doc.text(`STATUS: ${slip.status || 'PAID'}`, W - margin - 6, y + 13, { align: 'right' });

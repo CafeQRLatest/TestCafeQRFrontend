@@ -90,6 +90,7 @@ import { downloadInvoicePdf, generateInvoicePdfDoc } from '../../utils/invoicePd
 import PaymentDialog from '../../components/PaymentDialog';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
+import { completedOrderPaymentChanged, fetchLiveOrderState, isCompletedOrder, mergeLiveOrderState } from '../../utils/completedOrderRevision';
 import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
@@ -1489,8 +1490,10 @@ export default function OrdersPage() {
       //   - The /settle endpoint already accepts discountAmount and roundOffAmount and
       //     applies them in-place without voiding the order
       // We only void+recreate when items were added, removed, or qty changed.
+      const liveOrder = isCompletedOrder(paymentOrder) ? await fetchLiveOrderState(api, paymentOrder.id) : null;
       const linesChanged = (() => {
         if (paymentOrder?.isCompletedEdit) return true; // Force PUT for completed order edits
+        if (completedOrderPaymentChanged(mergeLiveOrderState(paymentOrder, liveOrder), settlementPayload)) return true; // Payment type/discount/round-off change on completed order = revision
         const updatedLines = settlementPayload?.updatedOrder?.lines;
         const originalLines = paymentOrder?.lines;
         if (!updatedLines || !originalLines) return false;

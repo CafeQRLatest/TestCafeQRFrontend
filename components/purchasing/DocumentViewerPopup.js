@@ -201,6 +201,8 @@ export default function DocumentViewerPopup({
 
   const [showHistory, setShowHistory] = React.useState(false);
   const [revisions, setRevisions] = React.useState([]);
+  const [expandedRev, setExpandedRev] = React.useState(null);
+  const [splitAnchor, setSplitAnchor] = React.useState(null);
   const [historyLoading, setHistoryLoading] = React.useState(false);
 
   const [currentOrder, setCurrentOrder] = React.useState(order);
@@ -1442,9 +1444,91 @@ export default function DocumentViewerPopup({
                             </tbody>
                           </table>
                         )}
-                        <div className="dv-history-total">
-                          Grand Total: <strong>{currencySymbol}{parseFloat(rev.grandTotal ?? rev.grand_total ?? 0).toFixed(currencyDecimals)}</strong>
-                        </div>
+                        {(() => {
+                          const gross = parseFloat(rev.grossAmount ?? rev.gross_amount ?? 0);
+                          const discount = parseFloat(rev.totalDiscountAmount ?? rev.total_discount_amount ?? 0);
+                          const roundOff = parseFloat(rev.roundOffAmount ?? rev.round_off_amount ?? 0);
+                          const fmt = (n) => `${currencySymbol}${Math.abs(n).toFixed(currencyDecimals)}`;
+                          const pmRaw = String(rev.paymentMethod || rev.payment_method || '');
+                          const splitRows = rev.revisionPaymentSplits || rev.revision_payment_splits || [];
+                          const distinctMethods = new Set(splitRows.map(s => String(s.paymentMethod || '').toUpperCase()).filter(Boolean));
+                          const isMixedRev = pmRaw.toUpperCase() === 'MIXED' || pmRaw.includes(',') || distinctMethods.size > 1;
+                          const splitsOpen = expandedRev === rev.id;
+                          return (
+                            <>
+                              <div className="dv-history-total" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: '4px 14px', whiteSpace: 'nowrap' }}>
+                                <span style={{ position: 'relative' }}>Payment: {isMixedRev ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        if (splitsOpen) { setExpandedRev(null); return; }
+                                        const r = e.currentTarget.getBoundingClientRect();
+                                        setSplitAnchor({ top: r.top, bottom: r.bottom, left: r.left });
+                                        setExpandedRev(rev.id);
+                                      }}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#ea580c', fontWeight: 700, fontSize: 13, textDecoration: 'underline' }}
+                                    >
+                                      MIXED
+                                    </button>
+                                    {splitsOpen && (
+                                      <>
+                                        <div
+                                          onClick={(e) => { e.stopPropagation(); setExpandedRev(null); }}
+                                          style={{ position: 'fixed', inset: 0, zIndex: 1299 }}
+                                        />
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          style={(() => {
+                                            const vw = typeof window !== 'undefined' ? window.innerWidth : 360;
+                                            const width = Math.min(240, vw - 16);
+                                            const left = Math.min(Math.max(8, splitAnchor?.left ?? 8), vw - width - 8);
+                                            const placeAbove = (splitAnchor?.top ?? 200) > 180;
+                                            return {
+                                              position: 'fixed',
+                                              left,
+                                              width,
+                                              ...(placeAbove
+                                                ? { top: (splitAnchor?.top ?? 0) - 8, transform: 'translateY(-100%)' }
+                                                : { top: (splitAnchor?.bottom ?? 0) + 8 }),
+                                              zIndex: 1300, background: '#fff', borderRadius: 10, borderLeft: '3px solid #f97316', boxShadow: '0 14px 32px -8px rgba(15, 23, 42, 0.3)', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', whiteSpace: 'normal', boxSizing: 'border-box',
+                                            };
+                                          })()}
+                                        >
+                                          <div style={{ fontSize: 10, fontWeight: 800, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #ffedd5', paddingBottom: 5 }}>
+                                            Split Payment Details
+                                          </div>
+                                          {splitRows.length > 0 ? splitRows.map((s, si) => {
+                                            const pm = String(s.paymentMethod || '').toUpperCase();
+                                            const isCash = pm === 'CASH';
+                                            const fmtPm = pm === 'CASH' ? 'Cash' : (pm === 'CARD' ? 'Card' : (pm === 'UPI' || pm === 'QR CODE' ? 'UPI/QR' : (pm === 'ONLINE' ? 'ONLINE' : pm)));
+                                            return (
+                                              <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+                                                <span style={{
+                                                  fontWeight: 600,
+                                                  fontSize: 11,
+                                                  background: isCash ? '#fff7ed' : '#eff6ff',
+                                                  color: isCash ? '#c2410c' : '#0369a1',
+                                                  padding: '2px 8px',
+                                                  borderRadius: 5,
+                                                }}>{fmtPm}</span>
+                                                <strong style={{ color: '#0f172a', fontSize: 12 }}>{currencySymbol}{Number(s.amount || 0).toFixed(currencyDecimals)}</strong>
+                                              </div>
+                                            );
+                                          }) : <span style={{ color: '#94a3b8', fontSize: 11 }}>No split details available</span>}
+                                        </div>
+                                      </>
+                                    )}
+                                  </>
+                                ) : <strong>{pmRaw || '—'}</strong>}</span>
+                                {gross > 0 && discount > 0 && <span>Gross: <strong>{fmt(gross)}</strong></span>}
+                                {discount > 0 && <span>Discount: <strong>-{fmt(discount)}</strong></span>}
+                                {roundOff !== 0 && <span>Round off: <strong>{roundOff > 0 ? '+' : '-'}{fmt(roundOff)}</strong></span>}
+                                <span>Grand Total: <strong>{currencySymbol}{parseFloat(rev.grandTotal ?? rev.grand_total ?? 0).toFixed(currencyDecimals)}</strong></span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     );
                   })}

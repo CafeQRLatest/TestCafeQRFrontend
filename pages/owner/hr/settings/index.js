@@ -102,7 +102,7 @@ export default function HrSettingsDashboard({ embedded = false }) {
   // Preview Calculations
   const stdHrs = Number(formData.standardHoursPerDay) || 8.0;
   const otMult = Number(formData.overtimeMultiplier) || 1.5;
-  const sampleRate = 15.0; // $15/hr sample
+  const sampleRate = 15.0; // sample hourly rate
   const sampleWorked = Math.max(stdHrs + 2.0, 10.0); // 2 hrs overtime sample
   const sampleNormalPay = stdHrs * sampleRate;
   const sampleOtPay = 2.0 * (sampleRate * otMult);
@@ -248,19 +248,19 @@ export default function HrSettingsDashboard({ embedded = false }) {
                 <div className="sim-divider" />
 
                 <div className="sim-row">
-                  <span className="sim-label">Regular Hours ({stdHrs.toFixed(2)} hrs @ {currencySymbol}{sampleRate}):</span>
-                  <span className="sim-val">${sampleNormalPay.toFixed(currencyDecimals)}</span>
+                  <span className="sim-label">Regular Hours ({stdHrs.toFixed(2)} hrs @ {currencySymbol}{sampleRate.toFixed(currencyDecimals)}):</span>
+                  <span className="sim-val">{currencySymbol}{sampleNormalPay.toFixed(currencyDecimals)}</span>
                 </div>
                 <div className="sim-row highlight-ot">
-                  <span className="sim-label">Overtime (2.00 hrs @ {currencySymbol}{sampleRate} × {otMult.toFixed(2)}x):</span>
-                  <span className="sim-val">${sampleOtPay.toFixed(currencyDecimals)}</span>
+                  <span className="sim-label">Overtime (2.00 hrs @ {currencySymbol}{sampleRate.toFixed(currencyDecimals)} × {otMult.toFixed(2)}x):</span>
+                  <span className="sim-val">{currencySymbol}{sampleOtPay.toFixed(currencyDecimals)}</span>
                 </div>
 
                 <div className="sim-divider" />
 
                 <div className="sim-row total-row">
                   <span className="sim-label">Total Shift Gross Pay:</span>
-                  <span className="sim-val">${sampleTotalPay.toFixed(currencyDecimals)}</span>
+                  <span className="sim-val">{currencySymbol}{sampleTotalPay.toFixed(currencyDecimals)}</span>
                 </div>
               </div>
 

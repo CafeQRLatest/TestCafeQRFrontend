@@ -49,6 +49,7 @@ import {
 import DocumentViewerPopup from '../../components/purchasing/DocumentViewerPopup';
 import KotPrint from '../../components/KotPrint';
 import EditOrderPanel from '../../components/EditOrderPanel';
+import { completedOrderPaymentChanged, fetchLiveOrderState, isCompletedOrder, mergeLiveOrderState } from '../../utils/completedOrderRevision';
 import PaymentDialog from '../../components/PaymentDialog';
 import {
   FaSearch,
@@ -756,7 +757,8 @@ export default function SalesHistoryPage() {
       const localBillPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('bill') : true;
 
       let settleId = paymentOrder.id;
-      const linesChanged = Boolean(paymentOrder?.isCompletedEdit);
+      const liveOrder = isCompletedOrder(paymentOrder) ? await fetchLiveOrderState(api, paymentOrder.id) : null;
+      const linesChanged = Boolean(paymentOrder?.isCompletedEdit) || completedOrderPaymentChanged(mergeLiveOrderState(paymentOrder, liveOrder), payload);
 
       if (payload?.updatedOrder && linesChanged) {
         const putRes = await api.patch(`/api/v1/orders/${paymentOrder.id}`, {

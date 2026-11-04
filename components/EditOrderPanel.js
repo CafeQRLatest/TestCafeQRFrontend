@@ -1158,24 +1158,6 @@ export default function EditOrderPanel({ order, onClose, onSave, saving = false 
                   {totals.discount > 0 ? `Edit Discounts (${sym}${Number(totals.discount).toFixed(dp)})` : 'Apply Discount'}
                 </DiscountBtn>
               )}
-              {roundOffEnabled && roundOffMode === 'manual' && (
-                <RoundOffField style={{ maxWidth: 'none' }}>
-                  Desired Final Amount
-                  <input
-                    type="number"
-                    step="any"
-                    value={manualFinalAmount}
-                    onChange={(event) => setManualFinalAmount(event.target.value)}
-                    placeholder="Enter final amount..."
-                  />
-                </RoundOffField>
-              )}
-              {roundOffEnabled && roundOffMode === 'automatic' && roundOff !== 0 && (
-                <RoundOffField style={{ maxWidth: 'none' }}>
-                  Round Off (Auto)
-                  <input type="number" step="any" value={roundOff.toFixed(dp)} readOnly style={{ background: '#f8fafc', color: '#64748b' }} />
-                </RoundOffField>
-              )}
             </FooterControls>
           )}
           <SaveButton

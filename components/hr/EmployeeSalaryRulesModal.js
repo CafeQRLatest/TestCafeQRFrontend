@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { hrService } from '../../services/hrService';
-import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
+import { useCurrencyDecimals, useCurrencySymbol } from '../../hooks/useCurrencyConfig';
 import { FaTimes, FaSave, FaTrash, FaCheck, FaPlus } from 'react-icons/fa';
 
 export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) {
   const currencySymbol = useCurrencySymbol();
+  const currencyDecimals = useCurrencyDecimals();
+  const money = (value) => `${currencySymbol}${Number(value || 0).toFixed(currencyDecimals)}`;
   const [allComponents, setAllComponents] = useState([]);
   const [employeeComponents, setEmployeeComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,13 +117,13 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
                       <option value="">-- Choose Component --</option>
                       {availableComponents.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.name} ({c.type}) - Default: {c.amountType === 'PERCENTAGE' ? `${c.percentage}%` : `$${c.defaultAmount}`}
+                          {c.name} ({c.type}) - Default: {c.amountType === 'PERCENTAGE' ? `${c.percentage}%` : money(c.defaultAmount)}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
-                    <label>Override Amount ($)</label>
+                    <label>Override Amount{currencySymbol ? ` (${currencySymbol})` : ''}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -168,11 +170,11 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
                           <div className="rule-name">{item.componentName}</div>
                           <div className="rule-details">
                             {item.overrideAmount != null ? (
-                              <span className="override">Override: {currencySymbol}{item.overrideAmount}</span>
+                              <span className="override">Override: {money(item.overrideAmount)}</span>
                             ) : item.overridePercentage != null ? (
                               <span className="override">Override: {item.overridePercentage}%</span>
                             ) : (
-                              <span>Standard: {item.amountType === 'PERCENTAGE' ? `${item.percentage}%` : `$${item.defaultAmount}`}</span>
+                              <span>Standard: {item.amountType === 'PERCENTAGE' ? `${item.percentage}%` : money(item.defaultAmount)}</span>
                             )}
                           </div>
                         </div>

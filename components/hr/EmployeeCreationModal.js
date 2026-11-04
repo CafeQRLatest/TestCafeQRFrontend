@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaSave, FaUser, FaEnvelope, FaPhone, FaMoneyBillWave, FaBuilding } from 'react-icons/fa';
+import { useCurrencySymbol } from '../../hooks/useCurrencyConfig';
 
 export default function EmployeeCreationModal({ isOpen, onClose, onSave, employeeToEdit = null, departments = [], designations = [] }) {
+  const currencySymbol = useCurrencySymbol();
+  const symbolSuffix = currencySymbol ? ` (${currencySymbol})` : '';
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -197,12 +200,12 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
 
             {formData.employmentType === 'HOURLY' ? (
               <div className="form-group highlight-field">
-                <label><FaMoneyBillWave className="input-icon" /> Hourly Rate ($)</label>
+                <label><FaMoneyBillWave className="input-icon" /> Hourly Rate{symbolSuffix}</label>
                 <input type="number" step="0.01" min="0" name="hourlyRate" value={formData.hourlyRate} onChange={handleChange} required />
               </div>
             ) : (
               <div className="form-group highlight-field">
-                <label><FaMoneyBillWave className="input-icon" /> Base Salary (Monthly)</label>
+                <label><FaMoneyBillWave className="input-icon" /> Base Salary (Monthly){symbolSuffix}</label>
                 <input type="number" step="0.01" min="0" name="baseSalary" value={formData.baseSalary} onChange={handleChange} required />
               </div>
             )}

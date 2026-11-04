@@ -278,7 +278,7 @@ export default function SalaryComponents({ embedded = false }) {
               
               {amountType === 'FIXED' ? (
                 <div className="form-group mb-4">
-                  <label>Fixed Amount ($)</label>
+                  <label>Fixed Amount{currencySymbol ? ` (${currencySymbol})` : ''}</label>
                   <input type="number" step="0.01" value={defaultAmount} onChange={e => setDefaultAmount(e.target.value)} required />
                 </div>
               ) : (

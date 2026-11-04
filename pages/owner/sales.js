@@ -33,6 +33,7 @@ import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import { normalizeOrder, normalizeOrders } from '../../utils/normalizeOrder';
 import { generateInvoicePdfDoc } from '../../utils/invoicePdf';
+import { completedOrderPaymentChanged, fetchLiveOrderState, isCompletedOrder, mergeLiveOrderState } from '../../utils/completedOrderRevision';
 
 const KotPrint = React.lazy(() => import('../../components/KotPrint'));
 const PaymentDialog = React.lazy(() => import('../../components/PaymentDialog'));
@@ -1654,8 +1655,10 @@ function SalesContent() {
     try {
       const localBillPrint = localPrintWillHandleKind('bill');
       let settleId = paymentOrder.id;
+      const liveOrder = isCompletedOrder(paymentOrder) ? await fetchLiveOrderState(api, paymentOrder.id) : null;
       const linesChanged = (() => {
         if (paymentOrder?.isCompletedEdit) return true;
+        if (completedOrderPaymentChanged(mergeLiveOrderState(paymentOrder, liveOrder), payload)) return true; // Payment type/discount/round-off change on completed order = revision
         const updatedLines = payload?.updatedOrder?.lines;
         const originalLines = paymentOrder?.lines;
         if (!updatedLines || !originalLines) return false;
