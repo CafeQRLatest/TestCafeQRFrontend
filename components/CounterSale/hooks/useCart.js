@@ -152,22 +152,22 @@ export default function useCart({ notify }) {
     const baseKey = isVariant ? `${product.productId || product.id}:${product.variantId}` : `${product.productId || product.id}`;
     const displayName = product.displayName || (product.variantName ? `${product.name} (${product.variantName})` : product.name);
 
-    for (let i = 0; i < qty; i++) {
-      const entryKey = `${baseKey}:vp_${Date.now()}_${i}_${Math.floor(Math.random() * 1000)}`;
-      addPreparedToCart({
-        ...product,
-        productId: product.productId || product.id,
-        variantId: product.variantId || null,
-        variantName: product.variantName || null,
-        cartKey: entryKey,
-        displayName,
-        name: displayName,
-        price: customPrice,
-        is_custom_price: true,
-        qty: 1,
-        description: null
-      });
-    }
+    // One cart line per confirmed open-price entry, carrying the full qty.
+    // (Previously this looped qty times, creating a separate line per unit.)
+    const entryKey = `${baseKey}:vp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    addPreparedToCart({
+      ...product,
+      productId: product.productId || product.id,
+      variantId: product.variantId || null,
+      variantName: product.variantName || null,
+      cartKey: entryKey,
+      displayName,
+      name: displayName,
+      price: customPrice,
+      is_custom_price: true,
+      qty,
+      description: null
+    });
 
     if (variablePriceQueue.length > 0) {
       const nextItem = variablePriceQueue[0];

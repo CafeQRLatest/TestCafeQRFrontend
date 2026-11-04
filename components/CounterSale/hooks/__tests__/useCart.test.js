@@ -192,5 +192,20 @@ describe('useCart Hook - Variant Selection & Caching', () => {
       qty: 1
     }));
   });
+
+  test('open-price item with qty 5 creates ONE cart line with qty 5, not 5 lines', () => {
+    const { result } = renderHook(() => useCart({ notify: mockNotify }));
+
+    act(() => {
+      result.current.addVariablePriceToCart({ id: 'prod-open', name: 'Open Item', isVariablePrice: true }, 25, 5);
+    });
+
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.cart[0]).toEqual(expect.objectContaining({
+      price: 25,
+      is_custom_price: true,
+      qty: 5
+    }));
+  });
 });
 
