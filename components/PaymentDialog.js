@@ -762,6 +762,24 @@ export default function PaymentDialog({
   const isMixedNotSplit = paymentMethod === 'MIXED' && activeSplitsCount < 2;
   const mixedInvalid = paymentMethod === 'MIXED'
     && (paymentSplits.length === 0 || hasDuplicateSplitMethod || hasInvalidSplitRow || Math.abs(mixedTotal - payable) > 0.01 || isMixedNotSplit);
+
+  // ─── Cash Tendered / Refund (UI only — not sent to backend) ───────────────
+  // payment_types.payment_type is only CREDIT / OTHERS, so Cash is identified by its display name.
+  const [cashReceived, setCashReceived] = useState('');
+  const isCashMethod = useMemo(() => {
+    const currentOpt = selectOptions.find(o => o.value === paymentMethod);
+    return Boolean(currentOpt) && currentOpt.value === 'CASH' && currentOpt.paymentType !== 'CREDIT';
+  }, [paymentMethod, selectOptions]);
+  const cashDue = isCashMethod ? payable : 0;
+  const showCashTender = isCashMethod && cashDue > 0;
+  const cashReceivedNum = Number(toNumber(cashReceived).toFixed(dp));
+  const cashDiff = Number((cashReceivedNum - cashDue).toFixed(dp));
+  const refundAmount = cashReceived !== '' && cashDiff > 0 ? cashDiff : 0;
+  const cashShortBy = cashReceived !== '' && cashDiff < 0 ? Math.abs(cashDiff) : 0;
+
+  useEffect(() => {
+    setCashReceived('');
+  }, [paymentMethod]);
   useEffect(() => {
     if (Array.isArray(creditCustomers) && creditCustomers.length > 0) {
       setLocalCreditCustomers(creditCustomers);
@@ -1909,6 +1927,78 @@ export default function PaymentDialog({
                   </div>
                 )}
               </SplitPanel>
+            )}
+
+            {showCashTender && (
+              <div style={{
+                marginTop: '6px',
+                padding: '10px 12px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#64748b' }}>
+                    Cash Received
+                  </span>
+                  <span style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 500 }}>
+                    Cash due: {money(cashDue)}
+                  </span>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <span style={{
+                    position: 'absolute',
+                    left: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#64748b',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    pointerEvents: 'none'
+                  }}>
+                    {sym}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={cashReceived}
+                    onChange={(event) => setCashReceived(event.target.value)}
+                    placeholder={cashDue.toFixed(dp)}
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 24px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      outline: 'none',
+                      background: '#ffffff',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '7px 10px',
+                  borderRadius: 8,
+                  background: cashShortBy > 0 ? '#fef2f2' : '#f0fdf4',
+                  border: `1px solid ${cashShortBy > 0 ? '#fecaca' : '#bbf7d0'}`
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: cashShortBy > 0 ? '#b91c1c' : '#15803d' }}>
+                    {cashShortBy > 0 ? 'Short By' : 'Refund to Customer'}
+                  </span>
+                  <strong style={{ fontSize: 15, fontWeight: 800, color: cashShortBy > 0 ? '#b91c1c' : '#15803d' }}>
+                    {money(cashShortBy > 0 ? cashShortBy : refundAmount)}
+                  </strong>
+                </div>
+              </div>
             )}
 
             {creditInvalid && (

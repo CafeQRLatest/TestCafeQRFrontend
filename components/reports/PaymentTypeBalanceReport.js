@@ -6,10 +6,11 @@ import { printUniversal } from '../../utils/printGateway';
 import {
   FaMoneyBillWave, FaCreditCard, FaMobileAlt, FaWallet,
   FaFileCsv, FaFileExcel, FaPrint, FaBalanceScale,
-  FaArrowDown, FaArrowUp, FaCheckCircle, FaExclamationCircle,
-  FaCoins, FaSync, FaInfoCircle, FaSearch, FaThLarge, FaTable, FaTimes
+  FaArrowDown, FaArrowUp, FaExclamationCircle,
+  FaHandHoldingUsd, FaSync, FaThLarge, FaTable
 } from 'react-icons/fa';
-import { businessTimeToUtc } from '../../utils/timezoneUtils';
+import { businessTimeToUtc, getBusinessNow } from '../../utils/timezoneUtils';
+import NiceSelect from '../NiceSelect';
 
 export default function PaymentTypeBalanceReport({
   dateFrom,
@@ -26,16 +27,17 @@ export default function PaymentTypeBalanceReport({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Responsive interactive controls
-  const [viewMode, setViewMode] = useState('both'); // 'both' | 'cards' | 'table'
-  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'table'
+  const [selectedType, setSelectedType] = useState(''); // '' = all payment types
 
   const SYM = config?.currencySymbol || '';
 
-  const fmt = (v) => Number(v || 0).toLocaleString('en-IN', {
+  const num = (v) => Number(v || 0);
+  const fmt = (v) => num(v).toLocaleString('en-IN', {
     minimumFractionDigits: currencyDecimals,
     maximumFractionDigits: currencyDecimals
   });
+  const money = (v) => `${num(v) < 0 ? '-' : ''}${SYM}${fmt(Math.abs(num(v)))}`;
 
   const toInstant = (dtLocal, isEnd = false) => {
     if (!dtLocal) return undefined;
@@ -43,8 +45,9 @@ export default function PaymentTypeBalanceReport({
     try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
+  // Today's date in the org timezone (used in export file names)
   const getLocalDate = () => {
-    const d = new Date();
+    const d = getBusinessNow(timezone);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
@@ -81,56 +84,22 @@ export default function PaymentTypeBalanceReport({
     loadBalances();
   }, [loadBalances]);
 
-  // Method Card Theme Config
-  const getTheme = (methodStr) => {
-    const m = String(methodStr || '').toUpperCase();
-    if (m.includes('CASH')) {
-      return {
-        color: '#10b981',
-        bg: '#ecfdf5',
-        border: '#a7f3d0',
-        grad: 'linear-gradient(135deg, #10b981, #059669)',
-        icon: <FaMoneyBillWave />
-      };
+  const getTheme = (b) => {
+    const m = `${b.paymentMethod || ''} ${b.displayName || ''}`.toUpperCase();
+    if (b.isReceivable) return { color: '#7c3aed', bg: '#f5f3ff', icon: <FaHandHoldingUsd /> };
+    if (m.includes('CASH')) return { color: '#059669', bg: '#ecfdf5', icon: <FaMoneyBillWave /> };
+    if (['ONLINE', 'UPI', 'GPAY', 'PAYTM', 'PHONEPE'].some(k => m.includes(k))) {
+      return { color: '#ea580c', bg: '#fff7ed', icon: <FaMobileAlt /> };
     }
-    if (m.includes('ONLINE') || m.includes('UPI') || m.includes('GPAY') || m.includes('PAYTM') || m.includes('PHONEPE')) {
-      return {
-        color: '#ea580c',
-        bg: '#fff7ed',
-        border: '#fed7aa',
-        grad: 'linear-gradient(135deg, #f97316, #ea580c)',
-        icon: <FaMobileAlt />
-      };
+    if (['CARD', 'DEBIT', 'BANK'].some(k => m.includes(k))) {
+      return { color: '#2563eb', bg: '#eff6ff', icon: <FaCreditCard /> };
     }
-    if (m.includes('CREDIT')) {
-      return {
-        color: '#8b5cf6',
-        bg: '#f5f3ff',
-        border: '#ddd6fe',
-        grad: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-        icon: <FaCoins />
-      };
-    }
-    if (m.includes('CARD') || m.includes('DEBIT') || m.includes('BANK')) {
-      return {
-        color: '#3b82f6',
-        bg: '#eff6ff',
-        border: '#bfdbfe',
-        grad: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-        icon: <FaCreditCard />
-      };
-    }
-    return {
-      color: '#64748b',
-      bg: '#f8fafc',
-      border: '#e2e8f0',
-      grad: 'linear-gradient(135deg, #64748b, #475569)',
-      icon: <FaWallet />
-    };
+    return { color: '#475569', bg: '#f1f5f9', icon: <FaWallet /> };
   };
 
-  // Filter out composite / split tender modes ("Mixed"), because mixed payments
-  // are already split and accounted for within the Cash and Online balances.
+  const hasActivity = (b) => num(b.inflowAmount) > 0 || num(b.outflowAmount) > 0;
+
+  // Mixed / split payments are already distributed into their component tenders by the backend.
   const rawBalances = useMemo(() => {
     return (data?.balances || []).filter(b => {
       const m = String(b.paymentMethod || '').toUpperCase();
@@ -139,44 +108,56 @@ export default function PaymentTypeBalanceReport({
     });
   }, [data]);
 
-  // Filtered balances by live search
   const balances = useMemo(() => {
-    if (!searchQuery.trim()) return rawBalances;
-    const q = searchQuery.toLowerCase().trim();
-    return rawBalances.filter(b =>
-      (b.displayName && b.displayName.toLowerCase().includes(q)) ||
-      (b.paymentMethod && b.paymentMethod.toLowerCase().includes(q)) ||
-      (b.category && b.category.toLowerCase().includes(q))
-    );
-  }, [rawBalances, searchQuery]);
+    // A picked type is shown even with no activity; "All" hides idle types.
+    if (selectedType) return rawBalances.filter(b => b.paymentMethod === selectedType);
+    return rawBalances.filter(hasActivity);
+  }, [rawBalances, selectedType]);
 
-  // CSV Export
+  const tenders = balances.filter(b => !b.isReceivable);
+
+  const tenderTotals = useMemo(() => {
+    const keys = ['salesAmount', 'collectionAmount', 'inflowAmount', 'expenseAmount', 'purchaseAmount', 'refundAmount', 'outflowAmount', 'netBalance'];
+    const totals = Object.fromEntries(keys.map(k => [k, 0]));
+    tenders.forEach(b => keys.forEach(k => { totals[k] += num(b[k]); }));
+    return totals;
+  }, [tenders]);
+
+  // Credit given / paid follow the selected dates; balance = given − paid in that period.
+  const creditGiven = num(data?.creditGiven);
+  const creditCollected = num(data?.creditCollected);
+  const creditBalance = creditGiven - creditCollected;
+  const hasCredit = creditBalance !== 0 || creditGiven > 0 || creditCollected > 0;
+  const creditCards = hasCredit
+    ? rawBalances.filter(b => b.isReceivable && (!selectedType || b.paymentMethod === selectedType))
+    : [];
+  const netTotal = num(data?.netBalance);
+
+  const exportRows = () => balances.map(b => ({
+    'Payment Type': b.displayName || b.paymentMethod,
+    'Kind': b.isReceivable ? 'Receivable (on account)' : 'Tender',
+    'Category': b.category,
+    'Sales': num(b.salesAmount),
+    'Collections / Settlements': num(b.collectionAmount),
+    'Total In': num(b.inflowAmount),
+    'In Txns': num(b.inflowCount),
+    'Expenses': num(b.expenseAmount),
+    'Purchases': num(b.purchaseAmount),
+    'Refunds': num(b.refundAmount),
+    'Total Out': num(b.outflowAmount),
+    'Out Txns': num(b.outflowCount),
+    'Net': num(b.netBalance),
+    'Status': b.status
+  }));
+
   const handleExportCSV = () => {
     if (!balances.length) return notify('error', 'No balance data to export');
-    const headers = [
-      'Payment Method', 'Display Name', 'Category', 'Configured',
-      'Inflows (Sales & Receipts)', 'Inflow Txns', 'Sales Portion', 'Collections Portion',
-      'Outflows (Expenses & Payouts)', 'Outflow Txns', 'Expenses Portion', 'Purchases Portion',
-      'Net Period Balance', 'Status'
-    ];
-    const rows = balances.map(b => [
-      b.paymentMethod,
-      b.displayName,
-      b.category,
-      b.isConfigured ? 'Yes' : 'No',
-      b.inflowAmount,
-      b.inflowCount,
-      b.salesAmount,
-      b.collectionAmount,
-      b.outflowAmount,
-      b.outflowCount,
-      b.expenseAmount,
-      b.purchaseAmount,
-      b.netBalance,
-      b.status
-    ].map(csvCell).join(','));
-
-    const csvContent = [headers.join(','), ...rows].join('\n');
+    const rows = exportRows();
+    const headers = Object.keys(rows[0]);
+    const csvContent = [
+      headers.map(csvCell).join(','),
+      ...rows.map(r => headers.map(h => csvCell(r[h])).join(','))
+    ].join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
     a.download = `payment_balances_${getLocalDate()}.csv`;
@@ -184,29 +165,11 @@ export default function PaymentTypeBalanceReport({
     notify('success', 'Payment balances exported to CSV');
   };
 
-  // Excel Export
   const handleExportExcel = async () => {
     if (!balances.length) return notify('error', 'No balance data to export');
     try {
       const XLSX = await import('xlsx');
-      const rows = balances.map(b => ({
-        'Payment Method': b.paymentMethod,
-        'Display Name': b.displayName,
-        'Category': b.category,
-        'Configured': b.isConfigured ? 'Yes' : 'No',
-        'Total Inflow': Number(b.inflowAmount || 0),
-        'Inflow Txns': Number(b.inflowCount || 0),
-        'Sales Inflow': Number(b.salesAmount || 0),
-        'Collections Inflow': Number(b.collectionAmount || 0),
-        'Total Outflow': Number(b.outflowAmount || 0),
-        'Outflow Txns': Number(b.outflowCount || 0),
-        'Expenses Outflow': Number(b.expenseAmount || 0),
-        'Purchases Outflow': Number(b.purchaseAmount || 0),
-        'Net Period Balance': Number(b.netBalance || 0),
-        'Status': b.status
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(rows);
+      const ws = XLSX.utils.json_to_sheet(exportRows());
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Payment Balances');
       XLSX.writeFile(wb, `payment_balances_${getLocalDate()}.xlsx`);
@@ -217,38 +180,35 @@ export default function PaymentTypeBalanceReport({
     }
   };
 
-  // Thermal / Universal Print
   const handlePrint = async () => {
     if (!balances.length) return notify('error', 'No balance data to print');
     const W = 32;
     const dashes = '-'.repeat(W);
-    const center = (str) => {
-      const pad = Math.max(0, Math.floor((W - str.length) / 2));
-      return ' '.repeat(pad) + str;
-    };
-    const rowTwo = (l, r) => {
-      const sp = Math.max(1, W - l.length - r.length);
-      return l + ' '.repeat(sp) + r;
-    };
+    const center = (str) => ' '.repeat(Math.max(0, Math.floor((W - str.length) / 2))) + str;
+    const rowTwo = (l, r) => l + ' '.repeat(Math.max(1, W - l.length - r.length)) + r;
 
     const lines = [];
     lines.push(center('PAYMENT BALANCES REPORT'));
-    lines.push(center(`Period: ${dateFrom.slice(0, 10)} to ${dateTo.slice(0, 10)}`));
+    lines.push(center(`${(dateFrom || '').slice(0, 10)} to ${(dateTo || '').slice(0, 10)}`));
     lines.push(dashes);
-    lines.push(rowTwo('Total Inflow:', `${SYM} ${fmt(data?.totalInflow)}`));
-    lines.push(rowTwo('Total Outflow:', `${SYM} ${fmt(data?.totalOutflow)}`));
-    lines.push(rowTwo('Net Balance:', `${SYM} ${fmt(data?.netBalance)}`));
+    lines.push(rowTwo('Collected:', `${SYM}${fmt(data?.totalInflow)}`));
+    lines.push(rowTwo('Paid out:', `${SYM}${fmt(data?.totalOutflow)}`));
+    lines.push(rowTwo('Net in hand:', money(data?.netBalance)));
     lines.push(dashes);
-    lines.push('METHOD         INFLOW    OUTFLOW');
+    lines.push('TENDER          IN         OUT');
     lines.push(dashes);
-
-    balances.forEach(b => {
-      const name = (b.displayName || b.paymentMethod).padEnd(12).slice(0, 12);
-      const inAmt = fmt(b.inflowAmount).padStart(9).slice(0, 9);
-      const outAmt = fmt(b.outflowAmount).padStart(9).slice(0, 9);
-      lines.push(`${name} ${inAmt} ${outAmt}`);
-      lines.push(rowTwo('  Net Balance:', `${SYM} ${fmt(b.netBalance)} [${b.status}]`));
+    tenders.forEach(b => {
+      const name = (b.displayName || b.paymentMethod).padEnd(10).slice(0, 10);
+      lines.push(`${name}${fmt(b.inflowAmount).padStart(11).slice(-11)}${fmt(b.outflowAmount).padStart(11).slice(-11)}`);
+      lines.push(rowTwo('  Net:', money(b.netBalance)));
     });
+    if (hasCredit) {
+      lines.push(dashes);
+      lines.push('CREDIT');
+      lines.push(rowTwo('  Credit given:', `${SYM}${fmt(creditGiven)}`));
+      lines.push(rowTwo('  Credit paid:', `${SYM}${fmt(creditCollected)}`));
+      lines.push(rowTwo('  Balance to collect:', money(creditBalance)));
+    }
     lines.push(dashes);
     lines.push(center('*** END OF REPORT ***'));
 
@@ -262,32 +222,14 @@ export default function PaymentTypeBalanceReport({
 
   if (loading && !data) {
     return (
-      <div className="pbr-loading-wrap">
-        <FaSync className="pbr-spin-icon" />
-        <span>Calculating payment type balances...</span>
+      <div className="pbr-state">
+        <FaSync className="pbr-spin pbr-state-icon" />
+        <span>Calculating payment type balances…</span>
         <style jsx>{`
-          .pbr-loading-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: clamp(40px, 8vw, 80px) clamp(16px, 4vw, 32px);
-            color: #64748b;
-            gap: 12px;
-            font-size: clamp(13px, 2vw, 15px);
-            font-weight: 600;
-            width: 100%;
-            box-sizing: border-box;
-          }
-          :global(.pbr-spin-icon) {
-            font-size: clamp(24px, 4vw, 32px);
-            color: #f97316;
-            animation: spin 1s linear infinite;
-          }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
+          .pbr-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 64px 16px; color: #64748b; font-weight: 600; font-size: 14px; }
+          :global(.pbr-state-icon) { font-size: 28px; color: #f97316; }
+          :global(.pbr-spin) { animation: pbr-spin 1s linear infinite; }
+          @keyframes pbr-spin { to { transform: rotate(360deg); } }
         `}</style>
       </div>
     );
@@ -295,48 +237,15 @@ export default function PaymentTypeBalanceReport({
 
   if (error && !data) {
     return (
-      <div className="pbr-error-wrap">
-        <FaExclamationCircle className="pbr-error-icon" />
+      <div className="pbr-state error">
+        <FaExclamationCircle className="pbr-state-icon" />
         <span>{error}</span>
-        <button className="pbr-retry-btn" onClick={loadBalances}>
-          <FaSync /> Retry
-        </button>
+        <button className="pbr-retry" onClick={loadBalances}><FaSync /> Retry</button>
         <style jsx>{`
-          .pbr-error-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: clamp(30px, 6vw, 60px) clamp(16px, 4vw, 32px);
-            gap: 14px;
-            color: #e11d48;
-            font-weight: 600;
-            text-align: center;
-            width: 100%;
-            box-sizing: border-box;
-          }
-          :global(.pbr-error-icon) {
-            font-size: clamp(28px, 4.5vw, 36px);
-          }
-          .pbr-retry-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            min-height: 42px;
-            border-radius: 10px;
-            background: #f97316;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 13px;
-            touch-action: manipulation;
-            transition: all 0.2s;
-          }
-          .pbr-retry-btn:hover {
-            background: #ea580c;
-            transform: translateY(-1px);
-          }
+          .pbr-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 56px 16px; color: #e11d48; font-weight: 600; text-align: center; }
+          :global(.pbr-state-icon) { font-size: 30px; }
+          .pbr-retry { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; background: #f97316; color: #fff; border: none; font-weight: 700; cursor: pointer; }
+          .pbr-retry:hover { background: #ea580c; }
         `}</style>
       </div>
     );
@@ -344,1408 +253,390 @@ export default function PaymentTypeBalanceReport({
 
   return (
     <div className="pbr-container">
-      {/* ── RESPONSIVE TOOLBAR ── */}
+      {/* ── TOOLBAR ── */}
       <div className="pbr-toolbar">
-        {/* Left Info & Title */}
         <div className="pbr-toolbar-info">
-          <div className="pbr-toolbar-title-row">
-            <span className="pbr-toolbar-tag">Tender & Payment Reconciliation</span>
-            {rawBalances.length > 0 && (
-              <span className="pbr-count-pill">{rawBalances.length} Modes</span>
-            )}
-          </div>
-          <span className="pbr-toolbar-sub">
-            Real-time balance across configured payment types (Sales & Collections vs Expenses & Purchases)
-          </span>
+          <h3 className="pbr-title">Payment Balances</h3>
+          <span className="pbr-subtitle">How much came in and went out for each payment type</span>
         </div>
 
-        {/* Search & Filter Bar */}
-        <div className="pbr-search-wrap">
-          <FaSearch className="pbr-search-icon" />
-          <input
-            type="text"
-            className="pbr-search-input"
-            placeholder="Search payment mode..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Filter payment mode"
+        <div className="pbr-toolbar-controls">
+          <div className="pbr-type-filter">
+          <NiceSelect
+            value={selectedType}
+            onChange={setSelectedType}
+            options={[
+              { value: '', label: 'All Payment Types' },
+              ...rawBalances.map(b => ({ value: b.paymentMethod, label: b.displayName || b.paymentMethod }))
+            ]}
+            placeholder="All Payment Types"
           />
-          {searchQuery && (
-            <button
-              className="pbr-search-clear"
-              onClick={() => setSearchQuery('')}
-              title="Clear search"
-              aria-label="Clear search"
-            >
-              <FaTimes />
-            </button>
-          )}
-        </div>
+          </div>
 
-        {/* View Switcher & Action Buttons */}
-        <div className="pbr-actions-group">
-          {/* Responsive View Switcher */}
-          <div className="pbr-view-switcher" role="tablist" aria-label="View layout toggle">
-            <button
-              type="button"
-              className={`pbr-view-btn ${viewMode === 'both' ? 'active' : ''}`}
-              onClick={() => setViewMode('both')}
-              title="Show Both Cards & Table"
-            >
-              All
-            </button>
-            <button
-              type="button"
-              className={`pbr-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
-              onClick={() => setViewMode('cards')}
-              title="Show Cards View"
-            >
+          <div className="pbr-seg" role="tablist" aria-label="View">
+            <button type="button" className={viewMode === 'cards' ? 'active' : ''} onClick={() => setViewMode('cards')}>
               <FaThLarge /> Cards
             </button>
-            <button
-              type="button"
-              className={`pbr-view-btn ${viewMode === 'table' ? 'active' : ''}`}
-              onClick={() => setViewMode('table')}
-              title="Show Ledger Table View"
-            >
-              <FaTable /> Table
+            <button type="button" className={viewMode === 'table' ? 'active' : ''} onClick={() => setViewMode('table')}>
+              <FaTable /> Ledger
             </button>
           </div>
 
-          {/* Export & Action Buttons */}
           <div className="pbr-actions">
-            <button className="pbr-btn" onClick={handleExportCSV} title="Export CSV spreadsheet">
-              <FaFileCsv /> <span>CSV</span>
-            </button>
-            <button className="pbr-btn" onClick={handleExportExcel} title="Export Excel spreadsheet">
-              <FaFileExcel /> <span>Excel</span>
-            </button>
-            <button className="pbr-btn print" onClick={handlePrint} title="Print report / Thermal receipt">
-              <FaPrint /> <span>Print</span>
-            </button>
-            <button
-              className="pbr-btn icon-only"
-              title="Refresh balances"
-              onClick={loadBalances}
-              aria-label="Refresh report"
-            >
+            <button className="pbr-btn" onClick={handleExportCSV}><FaFileCsv /> CSV</button>
+            <button className="pbr-btn" onClick={handleExportExcel}><FaFileExcel /> Excel</button>
+            <button className="pbr-btn" onClick={handlePrint}><FaPrint /> Print</button>
+            <button className="pbr-btn icon" onClick={loadBalances} title="Refresh" aria-label="Refresh">
               <FaSync className={loading ? 'pbr-spin' : ''} />
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── TOP KPI SUMMARY CARDS (FLUID DIMENSION GRID) ── */}
-      <div className="pbr-kpi-grid">
-        {/* TOTAL INFLOW */}
-        <div className="pbr-kpi-card inflow">
-          <div className="pbr-kpi-top">
-            <span className="pbr-kpi-label">TOTAL INFLOW (COLLECTED)</span>
-            <div className="pbr-kpi-icon-box inflow" aria-hidden="true">
-              <FaArrowDown />
-            </div>
+      {/* ── SUMMARY TILES (same look as the Sales report KPIs) ── */}
+      <div className={`pbr-kpi-grid ${loading ? 'loading' : ''}`}>
+        {[
+          { label: 'Money In', val: `${SYM}${fmt(data?.totalInflow)}`, color: '#10b981', bg: '#ecfdf5', icon: <FaArrowDown /> },
+          { label: 'Money Out', val: `${SYM}${fmt(data?.totalOutflow)}`, color: '#ef4444', bg: '#fef2f2', icon: <FaArrowUp /> },
+          { label: 'Balance', val: money(netTotal), color: '#f97316', bg: '#fff7ed', icon: <FaBalanceScale />, neg: netTotal < 0 },
+          hasCredit && { label: 'Credit to Collect', val: money(creditBalance), color: '#8b5cf6', bg: '#f5f3ff', icon: <FaHandHoldingUsd /> }
+        ].filter(Boolean).map((c) => (
+          <div key={c.label} className="pbr-kpi" style={{ borderLeft: `2.5px solid ${c.color}` }}>
+            <span className="pbr-kpi-label">{c.label}</span>
+            <span className={`pbr-kpi-val ${c.neg ? 'neg' : ''}`}>{c.val}</span>
+            <div className="pbr-kpi-icon" style={{ background: c.bg, color: c.color }}>{c.icon}</div>
           </div>
-          <div className="pbr-kpi-amt positive">
-            +{SYM}{fmt(data?.totalInflow)}
-          </div>
-          <div className="pbr-kpi-footer">
-            <span className="pbr-kpi-sub">
-              {data?.totalInflowCount || 0} txn{data?.totalInflowCount === 1 ? '' : 's'} (Sales & Settlements)
-            </span>
-          </div>
-        </div>
-
-        {/* TOTAL OUTFLOW */}
-        <div className="pbr-kpi-card outflow">
-          <div className="pbr-kpi-top">
-            <span className="pbr-kpi-label">TOTAL OUTFLOW (PAID OUT)</span>
-            <div className="pbr-kpi-icon-box outflow" aria-hidden="true">
-              <FaArrowUp />
-            </div>
-          </div>
-          <div className="pbr-kpi-amt negative">
-            -{SYM}{fmt(data?.totalOutflow)}
-          </div>
-          <div className="pbr-kpi-footer">
-            <span className="pbr-kpi-sub">
-              {data?.totalOutflowCount || 0} txn{data?.totalOutflowCount === 1 ? '' : 's'} (Expenses & Vendor Bills)
-            </span>
-          </div>
-        </div>
-
-        {/* NET PERIOD BALANCE */}
-        <div className={`pbr-kpi-card net ${Number(data?.netBalance || 0) >= 0 ? 'surplus' : 'deficit'}`}>
-          <div className="pbr-kpi-top">
-            <span className="pbr-kpi-label">NET CASHFLOW BALANCE</span>
-            <div className={`pbr-kpi-icon-box net ${Number(data?.netBalance || 0) >= 0 ? 'surplus' : 'deficit'}`} aria-hidden="true">
-              <FaBalanceScale />
-            </div>
-          </div>
-          <div className={`pbr-kpi-amt ${Number(data?.netBalance || 0) >= 0 ? 'positive' : 'negative'}`}>
-            {Number(data?.netBalance || 0) < 0 ? '-' : ''}{SYM}{fmt(Math.abs(data?.netBalance || 0))}
-          </div>
-          <div className="pbr-kpi-footer">
-            <span className={`pbr-status-pill ${Number(data?.netBalance || 0) >= 0 ? 'surplus' : 'deficit'}`}>
-              {Number(data?.netBalance || 0) >= 0 ? 'Net Surplus' : 'Net Deficit'}
-            </span>
-            <span className="pbr-kpi-sub">Inflows minus Outflows</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ── PAYMENT TYPE CARDS GRID (RENDERED WHEN viewMode IS 'both' OR 'cards') ── */}
-      {(viewMode === 'both' || viewMode === 'cards') && (
-        <div className="pbr-section-wrapper">
-          <div className="pbr-section-header">
-            <div className="pbr-section-title-wrap">
-              <h3 className="pbr-section-title">Payment Type Balances & Breakdown</h3>
-              <span className="pbr-section-sub">
-                Shows exact balance remaining in each tender mode after netting all receipts against expenses.
-              </span>
-            </div>
-            {searchQuery && (
-              <span className="pbr-filter-result-badge">
-                Showing {balances.length} of {rawBalances.length}
-              </span>
-            )}
-          </div>
+      {tenders.length + creditCards.length === 0 ? (
+        <div className="pbr-empty">
+          No payments in this period.
+        </div>
+      ) : viewMode === 'cards' ? (
+        <div className={`pbr-cards ${loading ? 'loading' : ''}`}>
+          {[...tenders, ...creditCards].map((b) => {
+            const theme = getTheme(b);
+            const inAmt = num(b.inflowAmount);
+            const outAmt = num(b.outflowAmount);
+            const net = num(b.netBalance);
+            const receivable = !!b.isReceivable;
 
-          {balances.length === 0 ? (
-            <div className="pbr-empty">
-              {searchQuery ? `No payment types match "${searchQuery}".` : 'No payment transactions recorded for this duration.'}
-            </div>
-          ) : (
-            <div className="pbr-cards-grid">
-              {balances.map((b, idx) => {
-                const theme = getTheme(b.paymentMethod);
-                const net = Number(b.netBalance || 0);
-                const totalActivity = Number(b.inflowAmount || 0) + Number(b.outflowAmount || 0);
-                const inPercent = totalActivity > 0 ? (Number(b.inflowAmount || 0) / totalActivity) * 100 : 50;
+            const inParts = receivable
+              ? []
+              : [['Sales', b.salesAmount], ['Customer payments', b.collectionAmount]].filter(([, v]) => num(v) > 0);
+            const outParts = receivable
+              ? []
+              : [['Expenses', b.expenseAmount], ['Purchases', b.purchaseAmount], ['Refunds', b.refundAmount]].filter(([, v]) => num(v) > 0);
 
-                return (
-                  <div
-                    key={idx}
-                    className="pbr-card"
-                    style={{ borderTop: `4px solid ${theme.color}` }}
-                  >
-                    {/* Header */}
-                    <div className="pbr-card-header">
-                      <div className="pbr-card-icon" style={{ background: theme.bg, color: theme.color }}>
-                        {theme.icon}
-                      </div>
-                      <div className="pbr-card-title-wrap">
-                        <div className="pbr-card-title-row">
-                          <span className="pbr-card-title" title={b.displayName || b.paymentMethod}>
-                            {b.displayName || b.paymentMethod}
-                          </span>
-                          {b.isConfigured && (
-                            <span className="pbr-config-badge">Configured</span>
-                          )}
-                        </div>
-                        <span className="pbr-card-cat">
-                          Category: <strong>{b.category || 'OTHERS'}</strong>
-                        </span>
-                      </div>
-                      <span className={`pbr-badge ${b.status?.toLowerCase()}`}>
-                        {b.status === 'SURPLUS' ? '+ Surplus' : b.status === 'DEFICIT' ? '- Deficit' : 'Settled'}
-                      </span>
+            if (receivable) {
+              // Credit is not money in hand: given = customers now owe more, collected = they paid back.
+              return (
+                <div key={b.paymentMethod} className="pbr-card" style={{ '--accent': theme.color, '--accent-bg': theme.bg }}>
+                  <div className="pbr-card-head">
+                    <div className="pbr-card-icon">{theme.icon}</div>
+                    <span className="pbr-card-name" title={b.displayName || b.paymentMethod}>{b.displayName || b.paymentMethod}</span>
+                  </div>
+
+                  <div className="pbr-card-net">
+                    <span className="pbr-card-net-label">Balance to Collect</span>
+                    <span className="pbr-card-net-amt">{money(creditBalance)}</span>
+                  </div>
+
+                  <div className="pbr-flows">
+                    <div className="pbr-flow-top">
+                      <span className="pbr-flow-label"><FaArrowUp className="credit" /> Credit given</span>
+                      <span className="pbr-flow-amt">{SYM}{fmt(creditGiven)}</span>
                     </div>
-
-                    {/* Net Balance Display */}
-                    <div className="pbr-balance-box">
-                      <span className="pbr-balance-label">Net Balance in Period</span>
-                      <div className={`pbr-balance-amt ${net >= 0 ? 'positive' : 'negative'}`}>
-                        {net < 0 ? '-' : ''}{SYM}{fmt(Math.abs(net))}
-                      </div>
-                    </div>
-
-                    {/* Activity Ratio Progress Bar */}
-                    <div
-                      className="pbr-flow-bar-wrap"
-                      title={`Inflow: ${inPercent.toFixed(0)}% | Outflow: ${(100 - inPercent).toFixed(0)}%`}
-                    >
-                      <div className="pbr-flow-bar-in" style={{ width: `${inPercent}%` }} />
-                      <div className="pbr-flow-bar-out" style={{ width: `${100 - inPercent}%` }} />
-                    </div>
-
-                    {/* Inflows vs Outflows rows */}
-                    <div className="pbr-stats-rows">
-                      <div className="pbr-stat-row">
-                        <div className="pbr-stat-left">
-                          <FaArrowDown className="pbr-icon-in" />
-                          <span className="pbr-stat-name">Inflows (Received)</span>
-                        </div>
-                        <div className="pbr-stat-right">
-                          <span className="pbr-stat-val positive">+{SYM}{fmt(b.inflowAmount)}</span>
-                          <span className="pbr-stat-count">{b.inflowCount} txns</span>
-                        </div>
-                      </div>
-
-                      {/* Sub-breakdown if present */}
-                      {(Number(b.salesAmount || 0) > 0 || Number(b.collectionAmount || 0) > 0) && (
-                        <div className="pbr-sub-stats">
-                          {Number(b.salesAmount || 0) > 0 && (
-                            <span>Sales: {SYM}{fmt(b.salesAmount)}</span>
-                          )}
-                          {Number(b.collectionAmount || 0) > 0 && (
-                            <span>Settlements: {SYM}{fmt(b.collectionAmount)}</span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="pbr-stat-row">
-                        <div className="pbr-stat-left">
-                          <FaArrowUp className="pbr-icon-out" />
-                          <span className="pbr-stat-name">Outflows (Paid Out)</span>
-                        </div>
-                        <div className="pbr-stat-right">
-                          <span className="pbr-stat-val negative">-{SYM}{fmt(b.outflowAmount)}</span>
-                          <span className="pbr-stat-count">{b.outflowCount} txns</span>
-                        </div>
-                      </div>
-
-                      {/* Sub-breakdown if present */}
-                      {(Number(b.expenseAmount || 0) > 0 || Number(b.purchaseAmount || 0) > 0) && (
-                        <div className="pbr-sub-stats">
-                          {Number(b.expenseAmount || 0) > 0 && (
-                            <span>Expenses: {SYM}{fmt(b.expenseAmount)}</span>
-                          )}
-                          {Number(b.purchaseAmount || 0) > 0 && (
-                            <span>Purchases: {SYM}{fmt(b.purchaseAmount)}</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card Footer info */}
-                    <div className="pbr-card-footer">
-                      <span>Avg Inflow: <strong>{SYM}{fmt(b.averageTransaction)}</strong></span>
-                      <span>Share: <strong>{Number(b.percentage || 0).toFixed(1)}%</strong></span>
+                    <div className="pbr-flow-top">
+                      <span className="pbr-flow-label"><FaArrowDown className="in" /> Credit paid</span>
+                      <span className="pbr-flow-amt">{SYM}{fmt(creditCollected)}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                </div>
+              );
+            }
 
-      {/* ── DETAILED RECONCILIATION TABLE (RENDERED WHEN viewMode IS 'both' OR 'table') ── */}
-      {(viewMode === 'both' || viewMode === 'table') && (
-        <div className="pbr-table-section">
-          <div className="pbr-table-header">
-            <div className="pbr-table-title-row">
-              <h3 className="pbr-section-title">Payment Types Reconciliation Ledger</h3>
-              <div className="pbr-scroll-hint">
-                <FaInfoCircle /> <span>Swipe horizontally for full ledger</span>
+            const labels = { net: 'Balance', in: 'Money in', out: 'Money out' };
+
+            return (
+              <div key={b.paymentMethod} className="pbr-card" style={{ '--accent': theme.color, '--accent-bg': theme.bg }}>
+                <div className="pbr-card-head">
+                  <div className="pbr-card-icon">{theme.icon}</div>
+                  <span className="pbr-card-name" title={b.displayName || b.paymentMethod}>{b.displayName || b.paymentMethod}</span>
+                </div>
+
+                <div className="pbr-card-net">
+                  <span className="pbr-card-net-label">{labels.net}</span>
+                  <span className={`pbr-card-net-amt ${receivable ? 'credit' : net < 0 ? 'neg' : 'pos'}`}>
+                    {money(net)}
+                  </span>
+                </div>
+
+                <div className="pbr-flows">
+                  {inAmt > 0 && (
+                    <div className="pbr-flow">
+                      <div className="pbr-flow-top">
+                        <span className="pbr-flow-label"><FaArrowDown className="in" /> {labels.in}</span>
+                        <span className="pbr-flow-amt in">{SYM}{fmt(inAmt)}</span>
+                      </div>
+                      {inParts.length > 1 && (
+                        <div className="pbr-flow-sub">
+                          {inParts.map(([k, v]) => <span key={k}>{k} {SYM}{fmt(v)}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {outAmt > 0 && (
+                    <div className="pbr-flow">
+                      <div className="pbr-flow-top">
+                        <span className="pbr-flow-label"><FaArrowUp className="out" /> {labels.out}</span>
+                        <span className="pbr-flow-amt out">{SYM}{fmt(outAmt)}</span>
+                      </div>
+                      {outParts.length > 1 && (
+                        <div className="pbr-flow-sub">
+                          {outParts.map(([k, v]) => <span key={k}>{k} {SYM}{fmt(v)}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-            <span className="pbr-section-sub">
-              Itemized ledger reconciling sales, debt settlements, operating expenses, and purchases.
-            </span>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={`pbr-tbl-card ${loading ? 'loading' : ''}`}>
+          <div className="pbr-tbl-wrap">
+            <table className="pbr-tbl">
+              <thead>
+                <tr>
+                  <th className="sticky-col" rowSpan="2">Payment type</th>
+                  <th className="c grp in" colSpan="3">Money In</th>
+                  <th className="c grp out" colSpan="4">Money Out</th>
+                  <th className="r" rowSpan="2">Balance</th>
+                </tr>
+                <tr>
+                  <th className="r">Sales</th>
+                  <th className="r">Customer payments</th>
+                  <th className="r">Total</th>
+                  <th className="r">Expenses</th>
+                  <th className="r">Purchases</th>
+                  <th className="r">Refunds</th>
+                  <th className="r">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenders.map((b) => {
+                  const net = num(b.netBalance);
+                  const active = hasActivity(b);
+                  return (
+                    <tr key={b.paymentMethod} className={active ? '' : 'idle'}>
+                      <td className="sticky-col">
+                        <div className="pbr-tbl-name">
+                          {b.displayName || b.paymentMethod}
+                        </div>
+                      </td>
+                      <td className="r">{fmt(b.salesAmount)}</td>
+                      <td className="r">{fmt(b.collectionAmount)}</td>
+                      <td className="r strong in">{fmt(b.inflowAmount)}</td>
+                      <td className="r">{fmt(b.expenseAmount)}</td>
+                      <td className="r">{fmt(b.purchaseAmount)}</td>
+                      <td className="r">{fmt(b.refundAmount)}</td>
+                      <td className="r strong out">{fmt(b.outflowAmount)}</td>
+                      <td className={`r net ${net < 0 ? 'neg' : net > 0 ? 'pos' : ''}`}>{money(net)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="sticky-col">Total ({SYM})</td>
+                  <td className="r">{fmt(tenderTotals.salesAmount)}</td>
+                  <td className="r">{fmt(tenderTotals.collectionAmount)}</td>
+                  <td className="r strong in">{fmt(tenderTotals.inflowAmount)}</td>
+                  <td className="r">{fmt(tenderTotals.expenseAmount)}</td>
+                  <td className="r">{fmt(tenderTotals.purchaseAmount)}</td>
+                  <td className="r">{fmt(tenderTotals.refundAmount)}</td>
+                  <td className="r strong out">{fmt(tenderTotals.outflowAmount)}</td>
+                  <td className={`r net ${tenderTotals.netBalance < 0 ? 'neg' : 'pos'}`}>{money(tenderTotals.netBalance)}</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
-          {balances.length === 0 ? (
-            <div className="pbr-empty">
-              {searchQuery ? `No payment types match "${searchQuery}".` : 'No payment transactions recorded for this duration.'}
-            </div>
-          ) : (
-            <div className="pbr-tbl-wrap">
-              <table className="pbr-tbl">
-                <thead>
-                  <tr>
-                    <th className="sticky-col">Payment Type</th>
-                    <th>Category</th>
-                    <th className="r">Sales In</th>
-                    <th className="r">Debt Receipts</th>
-                    <th className="r bold">Total Inflow</th>
-                    <th className="r">Expenses Out</th>
-                    <th className="r">Purchases Out</th>
-                    <th className="r bold">Total Outflow</th>
-                    <th className="r highlight">Net Period Balance</th>
-                    <th className="c">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balances.map((b, i) => {
-                    const net = Number(b.netBalance || 0);
-                    return (
-                      <tr key={i}>
-                        <td className="sticky-col">
-                          <div className="pbr-tbl-method-col">
-                            <span className="pbr-tbl-name">{b.displayName || b.paymentMethod}</span>
-                            {b.isConfigured && <span className="pbr-tbl-cfg-tag">Configured</span>}
-                          </div>
-                        </td>
-                        <td>
-                          <span className="pbr-tbl-cat-badge">{b.category || 'OTHERS'}</span>
-                        </td>
-                        <td className="r">{SYM}{fmt(b.salesAmount)}</td>
-                        <td className="r">{SYM}{fmt(b.collectionAmount)}</td>
-                        <td className="r bold positive">+{SYM}{fmt(b.inflowAmount)}</td>
-                        <td className="r">{SYM}{fmt(b.expenseAmount)}</td>
-                        <td className="r">{SYM}{fmt(b.purchaseAmount)}</td>
-                        <td className="r bold negative">-{SYM}{fmt(b.outflowAmount)}</td>
-                        <td className={`r highlight ${net >= 0 ? 'positive' : 'negative'}`}>
-                          {net < 0 ? '-' : ''}{SYM}{fmt(Math.abs(net))}
-                        </td>
-                        <td className="c">
-                          <span className={`pbr-badge-sm ${b.status?.toLowerCase()}`}>
-                            {b.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="pbr-tbl-footer-row">
-                    <td className="sticky-col" colSpan="2">
-                      <strong>Grand Total Across All Modes</strong>
-                    </td>
-                    <td colSpan="2"></td>
-                    <td className="r bold positive">+{SYM}{fmt(data?.totalInflow)}</td>
-                    <td colSpan="2"></td>
-                    <td className="r bold negative">-{SYM}{fmt(data?.totalOutflow)}</td>
-                    <td className={`r highlight bold ${Number(data?.netBalance || 0) >= 0 ? 'positive' : 'negative'}`}>
-                      {Number(data?.netBalance || 0) < 0 ? '-' : ''}{SYM}{fmt(Math.abs(data?.netBalance || 0))}
-                    </td>
-                    <td className="c">
-                      <span className={`pbr-badge-sm ${Number(data?.netBalance || 0) >= 0 ? 'surplus' : 'deficit'}`}>
-                        {Number(data?.netBalance || 0) >= 0 ? 'SURPLUS' : 'DEFICIT'}
-                      </span>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+          {hasCredit && (
+            <div className="pbr-credit-note">
+              <div className="pbr-credit-line">
+                <span className="pbr-credit-name"><FaHandHoldingUsd /> Credit <em>(not included in totals)</em></span>
+                <span>Credit given <strong>{SYM}{fmt(creditGiven)}</strong></span>
+                <span>Credit paid <strong>{SYM}{fmt(creditCollected)}</strong></span>
+                <span>Balance to collect <strong>{money(creditBalance)}</strong></span>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ── RESPONSIVE DIMENSION METHOD STYLES ── */}
       <style jsx>{`
-        /* ── Base Container with Fluid Dimensioning ── */
         .pbr-container {
           display: flex;
           flex-direction: column;
-          gap: clamp(14px, 2.5vw, 24px);
+          gap: 16px;
           margin-top: 8px;
           width: 100%;
-          max-width: 100%;
           box-sizing: border-box;
-          overflow: hidden;
+          color: #0f172a;
         }
+        .loading { opacity: 0.55; transition: opacity 0.2s; pointer-events: none; }
 
-        /* ── Responsive Toolbar ── */
+        /* ── Toolbar ── */
         .pbr-toolbar {
           display: flex;
           align-items: center;
           justify-content: space-between;
           flex-wrap: wrap;
-          gap: clamp(10px, 1.8vw, 16px);
-          background: #ffffff;
-          padding: clamp(12px, 1.8vw, 18px) clamp(14px, 2.2vw, 22px);
-          border-radius: 16px;
-          border: 1px solid #f1f5f9;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-          box-sizing: border-box;
-          width: 100%;
+          gap: 12px 20px;
+          background: #fff;
+          padding: 14px 18px;
+          border-radius: 14px;
+          border: 1px solid #e5e7eb;
         }
+        .pbr-toolbar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
+        .pbr-title { margin: 0; font-size: 16px; font-weight: 800; }
+        .pbr-subtitle { font-size: 12.5px; color: #64748b; }
+        .pbr-toolbar-controls { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; }
+        .pbr-type-filter { width: 200px; flex: 0 0 200px; }
 
-        .pbr-toolbar-info {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          min-width: 0;
-          flex: 1 1 280px;
+
+
+        .pbr-seg { display: inline-flex; background: #f1f5f9; padding: 3px; border-radius: 9px; gap: 2px; }
+        .pbr-seg button {
+          display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; border: none;
+          background: transparent; color: #64748b; font-size: 12px; font-weight: 700; cursor: pointer;
         }
+        .pbr-seg button.active { background: #fff; color: #f97316; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
-        .pbr-toolbar-title-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .pbr-toolbar-tag {
-          font-size: clamp(10.5px, 1.3vw, 11.5px);
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          color: #f97316;
-        }
-
-        .pbr-count-pill {
-          font-size: 10px;
-          font-weight: 800;
-          padding: 2px 7px;
-          border-radius: 6px;
-          background: #fff7ed;
-          color: #ea580c;
-          border: 1px solid #ffedd5;
-        }
-
-        .pbr-toolbar-sub {
-          font-size: clamp(11.5px, 1.4vw, 13px);
-          color: #64748b;
-          font-weight: 500;
-          line-height: 1.4;
-        }
-
-        /* ── Search Input ── */
-        .pbr-search-wrap {
-          position: relative;
-          display: flex;
-          align-items: center;
-          flex: 1 1 200px;
-          max-width: 280px;
-          min-width: 160px;
-        }
-
-        :global(.pbr-search-icon) {
-          position: absolute;
-          left: 11px;
-          color: #94a3b8;
-          font-size: 12px;
-          pointer-events: none;
-        }
-
-        .pbr-search-input {
-          width: 100%;
-          height: 38px;
-          padding: 0 28px 0 32px;
-          border-radius: 10px;
-          border: 1px solid #e2e8f0;
-          background: #f8fafc;
-          font-size: 12px;
-          color: #1e293b;
-          outline: none;
-          box-sizing: border-box;
-          transition: all 0.2s ease;
-        }
-
-        .pbr-search-input:focus {
-          border-color: #f97316;
-          background: #ffffff;
-          box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
-        }
-
-        .pbr-search-clear {
-          position: absolute;
-          right: 8px;
-          background: transparent;
-          border: none;
-          color: #94a3b8;
-          cursor: pointer;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 4px;
-        }
-
-        .pbr-search-clear:hover {
-          color: #475569;
-        }
-
-        /* ── Actions & View Switcher ── */
-        .pbr-actions-group {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          flex-shrink: 0;
-        }
-
-        .pbr-view-switcher {
-          display: inline-flex;
-          background: #f1f5f9;
-          padding: 3px;
-          border-radius: 10px;
-          gap: 2px;
-        }
-
-        .pbr-view-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 6px 11px;
-          border-radius: 8px;
-          border: none;
-          background: transparent;
-          color: #64748b;
-          font-size: 11px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          touch-action: manipulation;
-          white-space: nowrap;
-        }
-
-        .pbr-view-btn:hover {
-          color: #0f172a;
-        }
-
-        .pbr-view-btn.active {
-          background: #ffffff;
-          color: #f97316;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-        }
-
-        .pbr-actions {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-
+        .pbr-actions { display: flex; gap: 6px; }
         .pbr-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          padding: 7px 13px;
-          min-height: 38px;
-          border-radius: 10px;
-          font-size: 12px;
-          font-weight: 700;
-          color: #334155;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          touch-action: manipulation;
-          box-sizing: border-box;
-          white-space: nowrap;
+          height: 36px; padding: 0 14px; border-radius: 10px; border: 1.5px solid #f97316; background: #fff; color: #f97316;
+          font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: .2s;
         }
+        .pbr-btn.icon { width: 36px; padding: 0; justify-content: center; font-size: 13px; }
+        .pbr-btn:hover { background: #fff7ed; transform: translateY(-1px); }
+        :global(.pbr-spin) { animation: pbr-spin 1s linear infinite; }
+        @keyframes pbr-spin { to { transform: rotate(360deg); } }
 
-        .pbr-btn:hover {
-          background: #f1f5f9;
-          border-color: #cbd5e1;
-          color: #0f172a;
-          transform: translateY(-1px);
+        /* ── Summary tiles ── */
+        .pbr-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+        .pbr-kpi {
+          background: #fff; padding: 10px 14px; border-radius: 12px; border: 1px solid #f1f5f9;
+          display: grid; grid-template-areas: "label icon" "value icon"; grid-template-columns: 1fr auto;
+          align-items: center; gap: 4px 10px; min-height: 64px; transition: .2s;
         }
+        .pbr-kpi:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.03); }
+        .pbr-kpi-icon { grid-area: icon; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .pbr-kpi-label { grid-area: label; font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .4px; }
+        .pbr-kpi-val { grid-area: value; font-size: 18px; font-weight: 800; color: #1e293b; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+        .neg { color: #dc2626 !important; }
+        :global(.pbr-flow-label .in) { color: #10b981; }
+        :global(.pbr-flow-label .out) { color: #ef4444; }
+        :global(.pbr-flow-label .credit) { color: #8b5cf6; }
 
-        .pbr-btn:active {
-          transform: scale(0.98);
-        }
-
-        .pbr-btn.print {
-          background: #fff7ed;
-          border-color: #fed7aa;
-          color: #ea580c;
-        }
-
-        .pbr-btn.print:hover {
-          background: #ffedd5;
-        }
-
-        .pbr-btn.icon-only {
-          padding: 7px 11px;
-        }
-
-        :global(.pbr-spin) {
-          animation: spin 1s linear infinite;
-        }
-
-        /* ── Top KPI Grid ── */
-        .pbr-kpi-grid {
+        /* ── Cards ── */
+        .pbr-cards {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-          gap: clamp(10px, 1.8vw, 16px);
-          width: 100%;
-          box-sizing: border-box;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+          gap: 14px;
         }
-
-        .pbr-kpi-card {
-          background: #ffffff;
-          border-radius: 12px;
-          padding: 10px 14px;
-          border: 1px solid #f1f5f9;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          box-sizing: border-box;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-          min-width: 0;
-        }
-
-        .pbr-kpi-card:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
-        }
-
-        .pbr-kpi-card.inflow {
-          border-left: 2.5px solid #10b981;
-        }
-
-        .pbr-kpi-card.outflow {
-          border-left: 2.5px solid #f43f5e;
-        }
-
-        .pbr-kpi-card.net.surplus {
-          border-left: 2.5px solid #059669;
-          background: linear-gradient(to right, #f0fdf4, #ffffff);
-        }
-
-        .pbr-kpi-card.net.deficit {
-          border-left: 2.5px solid #e11d48;
-          background: linear-gradient(to right, #fff1f2, #ffffff);
-        }
-
-        .pbr-kpi-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .pbr-kpi-label {
-          font-size: clamp(9.5px, 1.1vw, 10px);
-          font-weight: 800;
-          color: #64748b;
-          letter-spacing: 0.4px;
-          text-transform: uppercase;
-        }
-
-        .pbr-kpi-icon-box {
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          flex-shrink: 0;
-        }
-
-        .pbr-kpi-icon-box.inflow {
-          background: #ecfdf5;
-          color: #10b981;
-        }
-
-        .pbr-kpi-icon-box.outflow {
-          background: #fff1f2;
-          color: #f43f5e;
-        }
-
-        .pbr-kpi-icon-box.net.surplus {
-          background: #dcfce7;
-          color: #16a34a;
-        }
-
-        .pbr-kpi-icon-box.net.deficit {
-          background: #ffe4e6;
-          color: #e11d48;
-        }
-
-        .pbr-kpi-amt {
-          font-size: clamp(16px, 2.5vw, 20px);
-          font-weight: 850;
-          color: #0f172a;
-          letter-spacing: -0.3px;
-          word-break: break-word;
-          overflow-wrap: anywhere;
-          line-height: 1.15;
-        }
-
-        .pbr-kpi-amt.positive {
-          color: #059669;
-        }
-
-        .pbr-kpi-amt.negative {
-          color: #e11d48;
-        }
-
-        .pbr-kpi-footer {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 4px;
-        }
-
-        .pbr-kpi-sub {
-          font-size: 11.5px;
-          color: #64748b;
-          font-weight: 500;
-        }
-
-        .pbr-status-pill {
-          font-size: 10px;
-          font-weight: 800;
-          padding: 2px 8px;
-          border-radius: 6px;
-          text-transform: uppercase;
-        }
-
-        .pbr-status-pill.surplus {
-          background: #dcfce7;
-          color: #15803d;
-        }
-
-        .pbr-status-pill.deficit {
-          background: #fee2e2;
-          color: #b91c1c;
-        }
-
-        /* ── Section Header ── */
-        .pbr-section-wrapper {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          width: 100%;
-        }
-
-        .pbr-section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-top: 4px;
-        }
-
-        .pbr-section-title-wrap {
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-          min-width: 0;
-          flex: 1 1 260px;
-        }
-
-        .pbr-section-title {
-          font-size: clamp(14px, 2vw, 16px);
-          font-weight: 800;
-          color: #0f172a;
-          margin: 0;
-        }
-
-        .pbr-section-sub {
-          font-size: clamp(11.5px, 1.4vw, 13px);
-          color: #64748b;
-          line-height: 1.4;
-        }
-
-        .pbr-filter-result-badge {
-          font-size: 11px;
-          font-weight: 700;
-          color: #ea580c;
-          background: #fff7ed;
-          padding: 3px 8px;
-          border-radius: 6px;
-          border: 1px solid #fed7aa;
-          white-space: nowrap;
-        }
-
-        /* ── Cards Grid ── */
-        .pbr-cards-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-          gap: clamp(12px, 1.8vw, 16px);
-          width: 100%;
-          box-sizing: border-box;
-        }
-
         .pbr-card {
-          background: #ffffff;
-          border-radius: 12px;
-          padding: 10px 14px;
-          border: 1px solid #f1f5f9;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-          box-sizing: border-box;
-          min-width: 0;
-        }
-
-        .pbr-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
-        }
-
-        .pbr-card-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .pbr-card-icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 14px;
-          flex-shrink: 0;
-        }
-
-        .pbr-card-title-wrap {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          min-width: 0;
-        }
-
-        .pbr-card-title-row {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-
-        .pbr-card-title {
-          font-size: clamp(13px, 1.7vw, 15px);
-          font-weight: 800;
-          color: #1e293b;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .pbr-config-badge {
-          font-size: 9px;
-          font-weight: 800;
-          text-transform: uppercase;
-          background: #f1f5f9;
-          color: #475569;
-          padding: 1px 5px;
-          border-radius: 4px;
-        }
-
-        .pbr-card-cat {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-
-        .pbr-badge {
-          font-size: 10px;
-          font-weight: 800;
-          padding: 3px 7px;
-          border-radius: 6px;
-          text-transform: uppercase;
-          white-space: nowrap;
-          flex-shrink: 0;
-        }
-
-        .pbr-badge.surplus {
-          background: #ecfdf5;
-          color: #059669;
-        }
-
-        .pbr-badge.deficit {
-          background: #fff1f2;
-          color: #e11d48;
-        }
-
-        .pbr-badge.settled {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        /* Balance Display */
-        .pbr-balance-box {
-          background: #f8fafc;
-          padding: 10px 12px;
-          border-radius: 12px;
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          flex-wrap: wrap;
-          gap: 4px;
-        }
-
-        .pbr-balance-label {
-          font-size: 10.5px;
-          font-weight: 700;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-        }
-
-        .pbr-balance-amt {
-          font-size: clamp(17px, 2.5vw, 21px);
-          font-weight: 900;
-          word-break: break-word;
-          overflow-wrap: anywhere;
-        }
-
-        .pbr-balance-amt.positive {
-          color: #059669;
-        }
-
-        .pbr-balance-amt.negative {
-          color: #e11d48;
-        }
-
-        /* Flow / Ratio Bar */
-        .pbr-flow-bar-wrap {
-          height: 6px;
-          background: #f1f5f9;
-          border-radius: 3px;
-          display: flex;
-          overflow: hidden;
-          width: 100%;
-        }
-
-        .pbr-flow-bar-in {
-          background: #10b981;
-          height: 100%;
-          transition: width 0.4s ease;
-        }
-
-        .pbr-flow-bar-out {
-          background: #f43f5e;
-          height: 100%;
-          transition: width 0.4s ease;
-        }
-
-        /* Stat Rows */
-        .pbr-stats-rows {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .pbr-stat-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .pbr-stat-left {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          min-width: 0;
-        }
-
-        :global(.pbr-icon-in) {
-          color: #10b981;
-          font-size: 11px;
-          flex-shrink: 0;
-        }
-
-        :global(.pbr-icon-out) {
-          color: #f43f5e;
-          font-size: 11px;
-          flex-shrink: 0;
-        }
-
-        .pbr-stat-name {
-          font-size: 12px;
-          font-weight: 600;
-          color: #475569;
-          white-space: nowrap;
-        }
-
-        .pbr-stat-right {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-          flex-shrink: 0;
-        }
-
-        .pbr-stat-val {
-          font-size: clamp(12px, 1.8vw, 13.5px);
-          font-weight: 800;
-        }
-
-        .pbr-stat-val.positive {
-          color: #059669;
-        }
-
-        .pbr-stat-val.negative {
-          color: #e11d48;
-        }
-
-        .pbr-stat-count {
-          font-size: 11px;
-          color: #94a3b8;
-          font-weight: 500;
-        }
-
-        .pbr-sub-stats {
-          font-size: 10px;
-          color: #94a3b8;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding-left: 17px;
-          margin-top: -3px;
-        }
-
-        /* Card Footer */
-        .pbr-card-footer {
-          border-top: 1px dashed #e2e8f0;
-          padding-top: 8px;
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          color: #64748b;
-        }
-
-        /* ── Table Section ── */
-        .pbr-table-section {
-          background: #ffffff;
-          border-radius: 16px;
-          border: 1px solid #f1f5f9;
-          padding: clamp(14px, 2vw, 20px);
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+          position: relative;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 14px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
           gap: 14px;
-          margin-top: 4px;
-          width: 100%;
-          box-sizing: border-box;
-          overflow: hidden;
+          min-width: 0;
+          border-left: 2.5px solid var(--accent);
+          transition: .2s;
         }
+        .pbr-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.04); }
 
-        .pbr-table-header {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
+        .pbr-card-head { display: flex; align-items: center; gap: 10px; }
+        .pbr-card-icon {
+          width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+          background: var(--accent-bg); color: var(--accent); font-size: 15px; flex-shrink: 0;
         }
+        .pbr-card-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .pbr-table-title-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
+        .pbr-card-net { display: flex; flex-direction: column; gap: 2px; }
+        .pbr-card-net-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; }
+        .pbr-card-net-amt { font-size: 24px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
-        .pbr-scroll-hint {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          font-size: 11px;
-          font-weight: 600;
-          color: #f97316;
-          background: #fff7ed;
-          padding: 3px 8px;
-          border-radius: 6px;
-          border: 1px solid #ffedd5;
-        }
+        .pbr-flows { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #f1f5f9; padding-top: 12px; }
+        .pbr-flow { display: flex; flex-direction: column; gap: 5px; }
+        .pbr-flow-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .pbr-flow-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #475569; }
+        .pbr-flow-amt { font-size: 14px; font-weight: 700; color: #1e293b; font-variant-numeric: tabular-nums; }
+        .pbr-flow-sub { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: #94a3b8; }
 
-        .pbr-tbl-wrap {
-          width: 100%;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          border: 1px solid #f1f5f9;
-          border-radius: 12px;
-          position: relative;
-        }
-
-        .pbr-tbl {
-          width: 100%;
-          min-width: 860px;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-
+        /* ── Ledger table ── */
+        .pbr-tbl-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden; }
+        .pbr-tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .pbr-tbl { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
         .pbr-tbl th {
-          text-align: left;
-          padding: 10px 12px;
-          font-size: 11px;
-          font-weight: 800;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.4px;
-          border-bottom: 2px solid #f1f5f9;
-          background: #f8fafc;
-          white-space: nowrap;
+          padding: 9px 14px; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;
+          letter-spacing: 0.4px; background: #fff; border-bottom: 2px solid #FF7A00; white-space: nowrap; text-align: left;
         }
+        .pbr-tbl th.grp { border-bottom: 1px solid #fed7aa; color: #ea580c; }
+        .pbr-tbl td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; white-space: nowrap; }
+        .pbr-tbl tbody tr:hover td { background: #fff7ed; }
+        .pbr-tbl tr.idle td { color: #cbd5e1; }
+        .pbr-tbl .r { text-align: right; }
+        .pbr-tbl .c { text-align: center; }
+        .pbr-tbl td.strong { font-weight: 700; }
+        .pbr-tbl td.net { font-weight: 800; color: #1e293b; background: #fffaf5; }
+        .pbr-tbl tfoot td { background: #f8fafc; font-weight: 800; border-top: 2px solid #e2e8f0; border-bottom: none; color: #0f172a; }
+        .pbr-tbl-name { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #0f172a; }
+        .sticky-col { position: sticky; left: 0; z-index: 1; background: #fff; }
+        .pbr-tbl th.sticky-col { background: #fff; z-index: 2; }
+        .pbr-tbl tfoot .sticky-col { background: #f8fafc; z-index: 2; }
 
-        .pbr-tbl td {
-          padding: 11px 12px;
-          border-bottom: 1px solid #f1f5f9;
-          color: #334155;
-          white-space: nowrap;
-        }
-
-        /* Sticky first column for swipe on small screens */
-        .sticky-col {
-          position: sticky;
-          left: 0;
-          z-index: 2;
-          background: #ffffff;
-        }
-
-        .pbr-tbl th.sticky-col {
-          background: #f8fafc;
-          z-index: 3;
-        }
-
-        .pbr-tbl tfoot .sticky-col {
-          background: #f8fafc;
-        }
-
-        .sticky-col::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          right: -4px;
-          bottom: 0;
-          width: 4px;
-          background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent);
-          pointer-events: none;
-        }
-
-        .pbr-tbl th.r, .pbr-tbl td.r {
-          text-align: right;
-        }
-
-        .pbr-tbl th.c, .pbr-tbl td.c {
-          text-align: center;
-        }
-
-        .pbr-tbl td.bold {
-          font-weight: 700;
-        }
-
-        .pbr-tbl td.positive {
-          color: #059669;
-        }
-
-        .pbr-tbl td.negative {
-          color: #e11d48;
-        }
-
-        .pbr-tbl td.highlight {
-          font-weight: 800;
-          font-size: 13.5px;
-          background: #fafafa;
-        }
-
-        .pbr-tbl-method-col {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .pbr-tbl-name {
-          font-weight: 700;
-          color: #0f172a;
-        }
-
-        .pbr-tbl-cfg-tag {
-          font-size: 9px;
-          font-weight: 800;
-          text-transform: uppercase;
-          background: #eff6ff;
-          color: #2563eb;
-          padding: 1px 4px;
-          border-radius: 4px;
-        }
-
-        .pbr-tbl-cat-badge {
-          font-size: 10px;
-          font-weight: 700;
-          color: #64748b;
-          background: #f1f5f9;
-          padding: 2px 6px;
-          border-radius: 4px;
-        }
-
-        .pbr-badge-sm {
-          font-size: 10px;
-          font-weight: 800;
-          padding: 2px 6px;
-          border-radius: 4px;
-          text-transform: uppercase;
-        }
-
-        .pbr-badge-sm.surplus {
-          background: #dcfce7;
-          color: #16a34a;
-        }
-
-        .pbr-badge-sm.deficit {
-          background: #fee2e2;
-          color: #dc2626;
-        }
-
-        .pbr-badge-sm.settled {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-
-        .pbr-tbl-footer-row td {
-          border-top: 2px solid #cbd5e1;
-          font-size: 13px;
-          background: #f8fafc;
-        }
+        .pbr-credit-note { border-top: 1px solid #f1f5f9; background: #f5f3ff; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+        .pbr-credit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; font-size: 12.5px; color: #475569; }
+        .pbr-credit-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #7c3aed; }
+        .pbr-credit-name em { font-style: normal; font-weight: 500; color: #94a3b8; }
 
         .pbr-empty {
-          padding: 36px 20px;
-          text-align: center;
-          color: #94a3b8;
-          font-size: 13px;
-          font-weight: 500;
-          background: #ffffff;
-          border-radius: 16px;
-          border: 1px dashed #cbd5e1;
-          width: 100%;
-          box-sizing: border-box;
+          padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 13px;
+          background: #fff; border-radius: 14px; border: 1px dashed #cbd5e1;
         }
 
-        /* ── RESPONSIVE DIMENSION BREAKPOINTS (ALL DEVICES WORLDWIDE) ── */
-
-        /* 1. Large Monitors / 4K / Ultra-wide (> 1440px) */
-        @media (min-width: 1440px) {
-          .pbr-cards-grid {
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-          }
-          .pbr-scroll-hint {
-            display: none;
-          }
+        /* ── Responsive ── */
+        @media (max-width: 1100px) {
+          .pbr-kpi-grid { grid-template-columns: 1fr 1fr; }
         }
-
-        /* 2. Standard Tablets, Dual-Screen POS & Laptops (<= 1024px) */
         @media (max-width: 1024px) {
-          .pbr-search-wrap {
-            max-width: 100%;
-            flex: 1 1 100%;
-          }
-          .pbr-actions-group {
-            width: 100%;
-            justify-content: space-between;
-          }
+          .pbr-toolbar-controls { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+          .pbr-type-filter { flex: 1 1 200px; width: auto; }
         }
-
-        /* 3. Small Tablets & Handheld POS in Landscape (<= 768px) */
         @media (max-width: 768px) {
-          .pbr-toolbar {
-            padding: 12px 14px;
-          }
-          .pbr-actions-group {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 8px;
-          }
-          .pbr-view-switcher {
-            width: 100%;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-          }
-          .pbr-view-btn {
-            justify-content: center;
-          }
-          .pbr-actions {
-            width: 100%;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr auto;
-            gap: 6px;
-          }
-          .pbr-btn {
-            padding: 6px 10px;
-            font-size: 11px;
-            justify-content: center;
-          }
+          .pbr-toolbar { padding: 12px 14px; }
+          .pbr-type-filter { flex: 1 1 100%; }
+          .pbr-actions { margin-left: auto; }
         }
-
-        /* 4. Handheld Smart POS & Mobile in Portrait (<= 480px, e.g. Sunmi V2, iMin M2, PAX) */
         @media (max-width: 480px) {
-          .pbr-container {
-            gap: 12px;
-          }
-          .pbr-toolbar {
-            padding: 10px 12px;
-            border-radius: 12px;
-          }
-          .pbr-actions {
-            grid-template-columns: 1fr 1fr;
-          }
-          .pbr-btn.icon-only {
-            grid-column: span 2;
-          }
-          .pbr-kpi-grid {
-            grid-template-columns: 1fr;
-          }
-          .pbr-cards-grid {
-            grid-template-columns: 1fr;
-          }
-          .pbr-card {
-            border-radius: 14px;
-            padding: 12px;
-          }
-          .pbr-kpi-card {
-            border-radius: 14px;
-            padding: 12px;
-          }
-          .pbr-balance-box {
-            padding: 8px 10px;
-          }
-          .pbr-card-footer {
-            flex-direction: column;
-            gap: 4px;
-          }
-          .pbr-table-section {
-            padding: 12px;
-            border-radius: 14px;
-          }
+          .pbr-kpi-grid { grid-template-columns: 1fr; }
+          .pbr-cards { grid-template-columns: 1fr; }
+          .pbr-card-net-amt { font-size: 22px; }
         }
 
-        /* 5. Ultra-compact Displays (<= 360px: iPhone SE 1st gen, small POS, fold outer screen) */
-        @media (max-width: 360px) {
-          .pbr-container {
-            gap: 10px;
-          }
-          .pbr-toolbar {
-            padding: 8px 10px;
-          }
-          .pbr-toolbar-tag {
-            font-size: 9.5px;
-          }
-          .pbr-toolbar-sub {
-            font-size: 11px;
-          }
-          .pbr-actions {
-            grid-template-columns: 1fr;
-          }
-          .pbr-btn.icon-only {
-            grid-column: span 1;
-          }
-          .pbr-card-title {
-            max-width: 140px;
-          }
-          .pbr-balance-amt {
-            font-size: 16px;
-          }
-          .pbr-stat-name {
-            font-size: 11px;
-          }
-          .pbr-stat-val {
-            font-size: 11.5px;
-          }
-        }
-
-        /* ── Print Styles ── */
         @media print {
-          .pbr-toolbar,
-          .pbr-search-wrap,
-          .pbr-actions-group,
-          .pbr-scroll-hint {
-            display: none !important;
-          }
-          .pbr-container {
-            gap: 12px;
-          }
-          .pbr-card, .pbr-kpi-card, .pbr-table-section {
-            box-shadow: none !important;
-            border: 1px solid #000 !important;
-          }
-          .sticky-col {
-            position: static !important;
-          }
+          .pbr-toolbar-controls { display: none !important; }
+          .pbr-card, .pbr-kpi, .pbr-tbl-card { box-shadow: none !important; border: 1px solid #000 !important; }
+          .sticky-col { position: static !important; }
         }
       `}</style>
     </div>

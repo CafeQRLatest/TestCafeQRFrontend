@@ -109,8 +109,14 @@ function Dashboard() {
   /* filters */
   const [orgs,        setOrgs]        = useState([]);
   const [terminals,   setTerminals]   = useState([]);
-  const [selOrg,      setSelOrg]      = useState('');
+  const [selOrg,      setSelOrg]      = useState(orgId || '');
   const [selTerminal, setSelTerminal] = useState('');
+
+  /* follow the org selected in the branch switcher */
+  useEffect(() => {
+    setSelOrg(orgId || '');
+    setSelTerminal('');
+  }, [orgId]);
 
   /* date filters — default: today full day in business timezone */
   const todayStart = () => {
