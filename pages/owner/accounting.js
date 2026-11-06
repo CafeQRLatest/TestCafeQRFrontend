@@ -145,16 +145,11 @@ function AccountingContent() {
   // Superadmin org/terminal filter states
   const [organizations, setOrganizations] = useState([]);
   const [allTerminals, setAllTerminals] = useState([]);
-  const [selectedOrgId, setSelectedOrgId] = useState(() => orgId || '');
+  // Branch selector removed: super admin sees all branches; other logins are scoped by the server.
+  const selectedOrgId = '';
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
   const SYM = config?.currencySymbol || '';
-
-  useEffect(() => {
-    if (orgId && !selectedOrgId) {
-      setSelectedOrgId(orgId);
-    }
-  }, [orgId, selectedOrgId]);
 
   // Load organizations and terminals for superadmin
   useEffect(() => {
@@ -185,12 +180,6 @@ function AccountingContent() {
       });
     return () => { active = false; };
   }, [isSuperAdmin, selectedOrgId, orgId]);
-
-  // When org changes, clear terminal selection
-  const handleOrgChange = (val) => {
-    setSelectedOrgId(val);
-    setSelectedTerminalId('');
-  };
 
   // Terminals filtered by selected org
   const filteredTerminals = useMemo(() => {
@@ -982,15 +971,6 @@ function AccountingContent() {
           {isSuperAdmin && (
             <>
               <span className="period-ctrl-sep" />
-              <NiceSelect
-                value={selectedOrgId}
-                onChange={handleOrgChange}
-                options={[
-                  { value: '', label: 'All Branches' },
-                  ...organizations.map(o => ({ value: o.id, label: o.name }))
-                ]}
-                style={{ minWidth: 140, maxWidth: 170 }}
-              />
               <NiceSelect
                 value={selectedTerminalId}
                 onChange={setSelectedTerminalId}

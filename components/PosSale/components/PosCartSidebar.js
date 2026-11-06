@@ -20,9 +20,10 @@ const SidebarContainer = styled.aside`
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: ${props => props.$isCounterMode ? 'auto' : '100%'};
   min-height: 0;
-  flex-shrink: 0;
+  flex: ${props => props.$isCounterMode ? '1 1 0' : '0 0 auto'};
+  flex-shrink: ${props => props.$isCounterMode ? 1 : 0};
   position: relative;
   z-index: 20;
   transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.24s cubic-bezier(0.16, 1, 0.3, 1), min-width 0.24s cubic-bezier(0.16, 1, 0.3, 1);
@@ -266,6 +267,7 @@ const DropdownItem = styled.div`
 
 const CartItemsScroll = styled.div`
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 12px;
   display: flex;
@@ -306,6 +308,8 @@ const CartBottomSection = styled.div`
   flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 480px) {
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));

@@ -78,7 +78,8 @@ export default function Reports() {
   // Superadmin org/terminal filter states
   const [organizations, setOrganizations] = useState([]);
   const [allTerminals, setAllTerminals] = useState([]);
-  const [selectedOrgId, setSelectedOrgId] = useState('');
+  // Branch selector removed: super admin sees all branches; other logins are scoped by the server.
+  const selectedOrgId = '';
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
 
@@ -95,10 +96,6 @@ export default function Reports() {
   }, [isSuperAdmin]);
 
   // When org changes, clear terminal selection
-  const handleOrgChange = (val) => {
-    setSelectedOrgId(val);
-    setSelectedTerminalId('');
-  };
 
   // Terminals filtered by selected org
   const filteredTerminals = useMemo(() => {
@@ -250,19 +247,6 @@ export default function Reports() {
 
           {isSuperAdmin && (
             <div className="rpt-sa-filters">
-              <div className="rpt-sa-item">
-                <label className="rpt-sa-label"><FaBuilding /> Branch</label>
-                <NiceSelect
-                  value={selectedOrgId}
-                  onChange={handleOrgChange}
-                  options={[
-                    { value: '', label: 'All Branches' },
-                    ...organizations.map(o => ({ value: o.id, label: o.name }))
-                  ]}
-                  placeholder="All Branches"
-                  style={{ minWidth: 140 }}
-                />
-              </div>
               <div className="rpt-sa-item">
                 <label className="rpt-sa-label">Terminal</label>
                 <NiceSelect

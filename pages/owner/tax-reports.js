@@ -66,7 +66,8 @@ function TaxReportsContent() {
   // Superadmin org/terminal states
   const [organizations, setOrganizations] = useState([]);
   const [allTerminals, setAllTerminals] = useState([]);
-  const [selectedOrgId, setSelectedOrgId] = useState('');
+  // Branch selector removed: super admin sees all branches; other logins are scoped by the server.
+  const selectedOrgId = '';
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
 
   // Main UI states
@@ -92,10 +93,6 @@ function TaxReportsContent() {
     }).catch(() => {});
   }, [isSuperAdmin]);
 
-  const handleOrgChange = (val) => {
-    setSelectedOrgId(val);
-    setSelectedTerminalId('');
-  };
 
   const filteredTerminals = useMemo(() => {
     if (!selectedOrgId) return allTerminals;
@@ -675,15 +672,6 @@ function TaxReportsContent() {
             {isSuperAdmin && (
               <div className="superadmin-filters" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span className="period-ctrl-sep" />
-                <NiceSelect
-                  value={selectedOrgId}
-                  onChange={handleOrgChange}
-                  options={[
-                    { value: '', label: 'All Branches' },
-                    ...organizations.map(o => ({ value: o.id, label: o.name }))
-                  ]}
-                  style={{ minWidth: 140, maxWidth: 170 }}
-                />
                 <NiceSelect
                   value={selectedTerminalId}
                   onChange={setSelectedTerminalId}
