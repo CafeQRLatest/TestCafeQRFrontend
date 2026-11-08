@@ -5,13 +5,14 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
 import { isMenuVisibleForConfig, isPosV2Enabled } from '../../utils/moduleVisibility';
+import { AI_ASSISTANT_ROLES, isAiAssistantEnabled } from '../../utils/aiAssistantApi';
 import {
   FaChartLine, FaCreditCard, FaBoxes, FaBookOpen, FaBalanceScale,
   FaCashRegister, FaFileInvoice, FaTable, FaBuilding, FaUserFriends,
   FaArrowRight, FaShoppingCart, FaDatabase, FaUsers, FaWifi, FaRecycle,
   FaCalculator, FaReceipt, FaCog, FaIdBadge, FaCrown, FaChartBar,
   FaSearch, FaTimes, FaHistory, FaClock, FaCalendarAlt, FaMoneyBillWave,
-  FaCogs, FaSlidersH, FaMoneyCheckAlt
+  FaCogs, FaSlidersH, FaMoneyCheckAlt, FaRobot
 } from 'react-icons/fa';
 
 export default function MainMenuPage() {
@@ -183,6 +184,13 @@ function MainMenuContent() {
     cat:   'Settings',
   });
 
+  // "Ask CafeQR" next to the search bar: super admins, when Settings > Enable MCP is on.
+  const showAskCafeQr = AI_ASSISTANT_ROLES.includes(userRole) && isAiAssistantEnabled(config);
+  const openAssistant = () => {
+    const q = searchQuery.trim();
+    router.push(q ? { pathname: '/owner/assistant', query: { q } } : '/owner/assistant');
+  };
+
   /* ── Live Search Matching Logic ── */
   const searchQueryClean = searchQuery.trim().toLowerCase();
   const searchMatchingItems = searchQueryClean
@@ -237,7 +245,7 @@ function MainMenuContent() {
       <div className="menu-wrap">
 
         {/* ─── Super Search Bar Container ─── */}
-        <div className="super-search-wrapper" ref={searchContainerRef}>
+        <div className={`super-search-wrapper ${showAskCafeQr ? 'with-ask' : ''}`} ref={searchContainerRef}>
           <div className={`super-search-bar ${isSearchFocused ? 'focused' : ''}`}>
             {/* Search Input */}
             <input
@@ -259,6 +267,16 @@ function MainMenuContent() {
               <FaSearch />
             </button>
           </div>
+          {showAskCafeQr && (
+            <button
+              type="button"
+              className="ask-btn"
+              onClick={openAssistant}
+              title={searchQuery.trim() ? `Ask CafeQR: ${searchQuery.trim()}` : 'Ask CafeQR about your sales, items and stock'}
+            >
+              <FaRobot /> <span>Ask CafeQR</span>
+            </button>
+          )}
         </div>
 
         {/* ─── Category Sections & Cards Grid ─── */}
@@ -315,6 +333,38 @@ function MainMenuContent() {
           max-width: 620px;
           margin: 0 auto 12px;
           z-index: 10;
+        }
+        .super-search-wrapper.with-ask {
+          max-width: 760px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .super-search-wrapper.with-ask .super-search-bar { flex: 1; min-width: 0; }
+        .ask-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          height: 52px;
+          padding: 0 20px;
+          border-radius: 9999px;
+          border: 1.5px solid #fed7aa;
+          background: #fff7ed;
+          color: #ea580c;
+          font-size: 14px;
+          font-weight: 700;
+          font-family: inherit;
+          white-space: nowrap;
+          cursor: pointer;
+          flex-shrink: 0;
+          box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.12);
+          transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.18s;
+        }
+        .ask-btn:hover {
+          background: #f97316;
+          border-color: #f97316;
+          color: #fff;
+          transform: translateY(-1px);
         }
         .super-search-bar {
           position: relative;
@@ -617,6 +667,10 @@ function MainMenuContent() {
         @media (max-width: 768px) {
           .card-grid { grid-template-columns: repeat(2, 1fr); }
           .super-search-wrapper { max-width: 100%; }
+        }
+        @media (max-width: 520px) {
+          .ask-btn { width: 52px; padding: 0; justify-content: center; font-size: 18px; }
+          .ask-btn span { display: none; }
         }
         @media (max-width: 640px) {
           .card-grid { grid-template-columns: 1fr; gap: 6px; }

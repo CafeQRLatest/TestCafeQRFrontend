@@ -9,8 +9,9 @@ import {
   FaHome, FaBars, FaBookOpen, FaUtensils, FaCashRegister, FaBoxes, FaClock, FaIndustry, FaTruck, FaIdBadge,
   FaCheckCircle, FaExclamationCircle, FaSave, FaCalculator, FaChartBar, FaFileInvoice, FaPlus, FaTimes,
   FaCamera, FaReceipt, FaTags, FaFilter, FaUsers, FaCog, FaChartLine, FaCreditCard, FaUserFriends, FaShoppingCart, FaChair, FaRecycle, FaDatabase, FaMoneyCheckAlt,
-  FaCalendarAlt, FaMoneyBillWave, FaCogs, FaSlidersH, FaHistory
+  FaCalendarAlt, FaMoneyBillWave, FaCogs, FaSlidersH, FaHistory, FaRobot
 } from 'react-icons/fa';
+import { isAiAssistantEnabled, AI_ASSISTANT_ROLES } from '../utils/aiAssistantApi';
 import SyncStatusBar from './SyncStatusBar';
 import BranchSwitcher from './BranchSwitcher';
 import { isMenuVisibleForConfig, isPosV2Enabled, isFeatureEnabled, setCachedConfig, getCachedConfig } from '../utils/moduleVisibility';
@@ -768,6 +769,13 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
   );
 }
 
+// "Ask CafeQR" (AI assistant) is added on the client for super admins when Settings > Enable MCP is on.
+function withAssistantMenu(menus, userRole, config) {
+  if (!isAiAssistantEnabled(config) || !AI_ASSISTANT_ROLES.includes(userRole)) return menus;
+  if (menus.some(m => m.name === "Ask CafeQR")) return menus;
+  return [...menus, { name: "Ask CafeQR", url: "/owner/assistant" }];
+}
+
 const MENU_CONFIG = {
   "Dashboard": { name: "Overview", icon: <FaHome /> },
   "Product Management": { name: "Product Management", icon: <FaBookOpen /> },
@@ -794,6 +802,7 @@ const MENU_CONFIG = {
 
   "Analytics": { name: "Analytics", icon: <FaChartBar /> },
   "Sales_Insight": { name: "Sales", icon: <FaChartLine /> },
+  "Ask CafeQR": { name: "Ask CafeQR", icon: <FaRobot />, url: "/owner/assistant" },
   "Sales History": { name: "Sales History", icon: <FaHistory />, url: "/owner/sales-history" },
   "Expenses": { name: "Expenses & Bills", icon: <FaReceipt /> },
   "Accounting": { name: "Accounting", icon: <FaBalanceScale /> },
@@ -844,6 +853,7 @@ const CATEGORY_MAPPING = {
   "Analytics": "INSIGHTS",
   "Sales_Insight": "INSIGHTS",
   "Sales History": "INSIGHTS",
+  "Ask CafeQR": "INSIGHTS",
   "Expenses": "INSIGHTS",
   "Accounting": "INSIGHTS",
   "Reports & Billing": "INSIGHTS",
@@ -868,7 +878,7 @@ const MENU_ORDER = [
   "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
   "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
   "Customers", "Loyalty",
-  "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+  "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
   "Payroll & HR"
 ];
@@ -886,7 +896,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
   const isV2 = isPosV2Enabled(config);
-  let rawMenus = [...menus];
+  let rawMenus = withAssistantMenu([...menus], userRole, config);
   if (isV2) {
     if (!rawMenus.some(m => m.name === "POS (V2)")) {
       rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });
@@ -1132,6 +1142,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
 
     "Analytics": { name: "Analytics", icon: <FaChartBar /> },
     "Sales_Insight": { name: "Sales", icon: <FaChartLine /> },
+  "Ask CafeQR": { name: "Ask CafeQR", icon: <FaRobot />, url: "/owner/assistant" },
     "Expenses": { name: "Expenses & Bills", icon: <FaReceipt /> },
     "Accounting": { name: "Accounting", icon: <FaBalanceScale /> },
     "Reports & Billing": { name: "Reports & Billing", icon: <FaCalculator />, url: "/owner/reports" },
@@ -1181,6 +1192,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Analytics": "INSIGHTS",
     "Sales_Insight": "INSIGHTS",
     "Sales History": "INSIGHTS",
+  "Ask CafeQR": "INSIGHTS",
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
     "Reports & Billing": "INSIGHTS",
@@ -1205,13 +1217,13 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
     "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
-    "Analytics", "Sales_Insight", "Sales History", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+    "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
   ];
 
   const hasPointOfSale = menus.some(m => m.name === "Point of Sale");
   const isV2 = isPosV2Enabled(config);
-  let rawMenus = [...menus];
+  let rawMenus = withAssistantMenu([...menus], userRole, config);
   if (isV2) {
     if (!rawMenus.some(m => m.name === "POS (V2)")) {
       rawMenus.push({ name: "POS (V2)", url: "/owner/pos-sales" });

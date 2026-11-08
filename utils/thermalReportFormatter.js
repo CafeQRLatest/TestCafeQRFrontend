@@ -258,7 +258,9 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
       lines.push('');
       lines.push(center('--- EXPENSES ---', W));
       lines.push(rowTwoCols('Operating Exp:', `${sym} ${formatAmount(data.expenses?.operatingExpenses)}`, W));
-      lines.push(rowTwoCols('Payroll/HR:', `${sym} ${formatAmount(data.expenses?.payroll)}`, W));
+      if (data.expenses?.payroll != null) {
+        lines.push(rowTwoCols('Payroll/HR:', `${sym} ${formatAmount(data.expenses.payroll)}`, W));
+      }
       lines.push(rowTwoCols('Total Expenses:', `${sym} ${formatAmount(data.expenses?.totalExpenses)}`, W));
       lines.push(dashes);
       lines.push(rowTwoCols('NET PROFIT:', `${sym} ${formatAmount(data.netProfit)}`, W));

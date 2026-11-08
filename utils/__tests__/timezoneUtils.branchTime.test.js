@@ -13,8 +13,8 @@ describe('branch time handling', () => {
   });
 
   test('getBranchParts returns branch wall-clock parts', () => {
-    expect(getBranchParts('2026-10-10T19:00:00', 'Asia/Kolkata')).toEqual({ year: 2026, month: 10, day: 11, hour: 0 });
-    expect(getBranchParts('2026-10-10T19:00:00Z', 'Asia/Dubai')).toEqual({ year: 2026, month: 10, day: 10, hour: 23 });
+    expect(getBranchParts('2026-10-10T19:00:00', 'Asia/Kolkata')).toEqual({ year: 2026, month: 10, day: 11, hour: 0, minute: 30 });
+    expect(getBranchParts('2026-10-10T19:00:00Z', 'Asia/Dubai')).toEqual({ year: 2026, month: 10, day: 10, hour: 23, minute: 0 });
     expect(getBranchParts('not a date', 'Asia/Dubai')).toBeNull();
   });
 });

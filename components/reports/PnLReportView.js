@@ -116,7 +116,23 @@ export default function PnLReportView({
 
   const handlePrint = async () => {
     if (!pnl) return;
-    const text = buildThermalReportText('pnl', pnl, config, timezone, { start: dateFrom, end: dateTo });
+    // The API returns a flat P&L shape; map it to the nested shape the thermal formatter expects,
+    // using the same formulas as the on-screen view so print matches what the user sees.
+    const pGross = Number(pnl.grossSales || 0);
+    const pDiscounts = Number(pnl.discounts || 0);
+    const pNetSales = pGross - pDiscounts;
+    const pCogs = Number(pnl.cogsPurchases || 0);
+    const pExpenses = Number(pnl.operatingExpenses || 0);
+    const pGrossProfit = pNetSales - pCogs;
+    const pNetProfit = pGrossProfit - pExpenses;
+    const printData = {
+      revenue: { grossSales: pGross, discounts: pDiscounts, netSales: pNetSales },
+      cogs: { materialCost: pCogs, grossProfit: pGrossProfit },
+      expenses: { operatingExpenses: pExpenses, totalExpenses: pExpenses },
+      netProfit: pNetProfit,
+      netProfitMargin: pNetSales !== 0 ? (pNetProfit / pNetSales) * 100 : 0,
+    };
+    const text = buildThermalReportText('pnl', printData, config, timezone, { start: dateFrom, end: dateTo });
     try {
       await printUniversal({ text, jobKind: 'bill', allowSystemDialog: true });
     } catch (e) {

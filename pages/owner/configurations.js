@@ -62,6 +62,7 @@ const MODULES = [
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
   { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
   { key: 'pm_payroll',          title: 'Payroll & HR',      desc: 'Staff, time tracking, leave approvals, salary rules & payroll', color: '#f97316' },
+  { key: 'pm_mcp',              title: 'Enable MCP',        desc: 'Ask CafeQR AI assistant and AI app connections (read-only reports)', color: '#f97316', superAdminOnly: true, comingSoon: true },
 ];
 
 const MODULE_SUBSCRIPTIONS = {
@@ -386,7 +387,8 @@ export default function ConfigurationsPage() {
 function ConfigurationsContent() {
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
-  const { orgId, orgName, hasModule, updateSubscription, posType } = useAuth();
+  const { orgId, orgName, hasModule, updateSubscription, posType, userRole } = useAuth();
+  const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
   const isNonFood = isNonFoodType(posType);
   const hasBranchContext = Boolean(orgId && orgId !== '0');
   const configEndpoint = useMemo(
@@ -399,7 +401,7 @@ function ConfigurationsContent() {
   const matchesConfigQuery = (...parts) => !configQuery || parts.join(' ').toLowerCase().includes(configQuery);
   const moduleMatches = (m) => matchesConfigQuery(m.title, m.desc, ...(m.children || []).flatMap(c => [c.title, c.desc]));
   const salesMatches = matchesConfigQuery('sales pos terminal screen classic counter standard cache catalog v2 history');
-  const visibleModules = MODULES.filter(moduleMatches);
+  const visibleModules = MODULES.filter(m => (!m.superAdminOnly || isSuperAdmin) && moduleMatches(m));
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [message, setMessage]     = useState(null);
@@ -421,7 +423,7 @@ function ConfigurationsContent() {
     non_stock_sales_policy: 'NONE',
     non_stock_transfer_policy: 'NONE',
     pm_customers: false, pm_loyalty: false,
-    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_allow_multi_customer: false,
+    pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_mcp: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
     credit_allocation_mode: 'OLDEST_FIRST',
     
@@ -576,7 +578,7 @@ function ConfigurationsContent() {
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
             pm_dinein_auto_kot: !!d.dineInAutoPrintKotOnSettle, pm_dinein_hide_kitchen: !!d.dineInHideKitchenMode,
-            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_payroll: !!d.payrollEnabled, pm_allow_multi_customer: false,
+            pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_payroll: !!d.payrollEnabled, pm_mcp: false, // Enable MCP is not available yet: always off pm_allow_multi_customer: false,
             pm_customer_age: false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
@@ -727,7 +729,7 @@ function ConfigurationsContent() {
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
         takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
         dineInAutoPrintKotOnSettle: config.pm_dinein_auto_kot, dineInHideKitchenMode: config.pm_dinein_hide_kitchen,
-        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: hasModule('BARCODE_SCANNER', orgId) ? config.pm_barcode_scanner : false, payrollEnabled: config.pm_payroll, allowMultipleCustomersPerOrder: false,
+        onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: hasModule('BARCODE_SCANNER', orgId) ? config.pm_barcode_scanner : false, payrollEnabled: config.pm_payroll, mcpEnabled: false, // Enable MCP is not available yet: always off allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
 
         taxEnabled: config.tax_enabled,
@@ -1063,11 +1065,17 @@ function ConfigurationsContent() {
                 {visibleModules.map(m => {
                   const requiredSub = MODULE_SUBSCRIPTIONS[m.key];
                   const isSubscribed = !requiredSub || hasModule(requiredSub, orgId);
-                  const isToggleOn = isSubscribed && config[m.key];
+                  const comingSoon = !!m.comingSoon;
+                  const isToggleOn = !comingSoon && isSubscribed && config[m.key];
                   
                   return (
-                    <div key={m.key} className={`module-wrapper ${isToggleOn ? 'is-active' : ''} ${!isSubscribed ? 'is-locked' : ''}`}>
-                      <div className="menu-box" onClick={() => {
+                    <div key={m.key} className={`module-wrapper ${isToggleOn ? 'is-active' : ''} ${!isSubscribed || comingSoon ? 'is-locked' : ''}`}>
+                      <div className="menu-box" aria-disabled={comingSoon || undefined} onClick={() => {
+                        if (comingSoon) {
+                          setMsgType('info');
+                          setMessage(`'${m.title}' is coming soon and cannot be turned on yet.`);
+                          return;
+                        }
                         if (!isSubscribed) {
                           setMsgType('error');
                           setMessage(`Subscription required to enable '${m.title}'. Please visit the billing center.`);
@@ -1087,7 +1095,11 @@ function ConfigurationsContent() {
                           </h3>
                           <p>{m.desc}</p>
                         </div>
-                        {isSubscribed ? (
+                        {comingSoon ? (
+                          <div className="lock-badge">
+                            COMING SOON
+                          </div>
+                        ) : isSubscribed ? (
                           <div className={`toggle-switch ${config[m.key] ? 'on' : ''}`}>
                             <div className="toggle-thumb"></div>
                           </div>
@@ -2550,6 +2562,7 @@ function ConfigurationsContent() {
         }
         .status-msg.success { background: #ecfdf5; color: #059669; }
         .status-msg.error { background: #fef2f2; color: #dc2626; }
+        .status-msg.info { background: #fff7ed; color: #c2410c; }
 
         .spinner-small {
            width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.4);
