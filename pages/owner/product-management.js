@@ -695,7 +695,7 @@ function ProductManagementContent() {
                {activeTab === 'products' ? (
                  <>
                    <button className="erp-btn primary" onClick={() => setShowImageImport(true)}>
-                     <FaCamera /> <span className="btn-label">Import from Image</span> <span className="ai-tag">AI</span>
+                     <FaCamera /> <span className="btn-label">AI Product Import</span> <span className="ai-tag">AI</span>
                    </button>
                    <button className="erp-btn primary" onClick={() => setShowExcelImport(true)}>
                      <FaFileExcel /> <span className="btn-label">Import from Excel</span>
@@ -1613,10 +1613,13 @@ function ProductManagementContent() {
           <MenuImageImport 
             onClose={() => setShowImageImport(false)} 
             existingItems={products}
+            categories={categories}
+            uoms={uoms}
             onImported={async (newItems) => {
               notify('success', `Successfully imported ${newItems?.length || 0} items!`);
               await Promise.allSettled([
                 fetchCategories(),
+                fetchUoms(),
                 fetchVariantGroups(),
                 fetchProducts()
               ]);
@@ -1626,10 +1629,13 @@ function ProductManagementContent() {
         {showExcelImport && (
           <MenuExcelImport 
             onClose={() => setShowExcelImport(false)} 
+            categories={categories}
+            uoms={uoms}
             onImported={async (newItems) => {
               notify('success', `Successfully imported ${newItems?.length || 0} items!`);
               await Promise.allSettled([
                 fetchCategories(),
+                fetchUoms(),
                 fetchProducts()
               ]);
             }} 

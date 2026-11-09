@@ -19,9 +19,17 @@ const MENU_SCHEMA = {
         properties: {
           name: { type: "STRING" },
           printedName: { type: "STRING" },
+          productCode: { type: "STRING" },
           category: { type: "STRING" },
           price: { type: "NUMBER" },
+          costPrice: { type: "NUMBER" },
+          mrp: { type: "NUMBER" },
           priceText: { type: "STRING" },
+          hsnCode: { type: "STRING" },
+          taxRate: { type: "NUMBER" },
+          isPackagedGood: { type: "BOOLEAN" },
+          uom: { type: "STRING" },
+          productType: { type: "STRING" },
           description: { type: "STRING" },
           veg: { type: "BOOLEAN" },
           variants: {
@@ -55,27 +63,55 @@ const MENU_SCHEMA = {
 };
 
 const PROMPT = `
-Extract restaurant menu products from this image and return only structured JSON.
+Extract products, menu items, or invoice line items from this image and return only structured JSON.
+This image may be a restaurant menu, an electronics/retail price list, a GST tax invoice, a wholesale purchase bill, or a product catalog.
 
 Rules:
-- Include only real menu products/items, not headings, phone numbers, address text, GST text, decorative text, or instructions.
-- Preserve the product name as printed, correcting obvious OCR mistakes.
-- Infer category from nearby headings such as Starters, Rice & Breads, Grilled, Drinks, etc. Use "General" only when no category is visible.
-- Parse prices as plain numbers. For Indian menus, "RS 120", "₹120", and "120/-" should become 120.
-- If a printed line has slash-separated choices, treat those choices as variants, not separate products.
-- For slash variants, make the product name the clean base name and move choices into variants.
-- Preserve the original printed product line in printedName and the printed price chunk in priceText when possible.
-- If an item has multiple prices for choices/sizes/portions, set price to the lowest/base price and add variants with useful option names.
-- For variants, infer useful group names such as "Protein", "Preparation", "Size", "Portion", or "Rice Type".
-- Example: "PANEER / CHICKEN BUTTER MASALA RS 200/220" => product name "BUTTER MASALA", variant group "Protein", options PANEER 200 and CHICKEN 220.
-- Example: "CHILLY GOBI / PANEER / BEEF / CHICKEN RS 140/170/180" => product name "CHILLY", variant group "Protein", options GOBI 140, PANEER 170, BEEF 180, CHICKEN 180.
-- Example: "EGG CURRY / ROAST RS 80" => product name "EGG", variant group "Preparation", options CURRY 80 and ROAST 80.
-- Example: "KIZHI POROTTA VEG/EGG/CHK/BEEF RS 160" => product name "KIZHI POROTTA", variant group "Protein", options VEG, EGG, CHICKEN, BEEF at 160.
-- If multiple variant groups have the same name but different options, rename them clearly so they stay unique.
-- Do not use the menu item name as the variant group name.
-- If a price is unreadable but the item is clearly visible, include the item with price 0.
-- Keep descriptions short. Leave description empty if none is visible.
-- Return JSON in this shape: { "items": [ { "name": "...", "category": "...", "price": 100, "description": "", "veg": false, "variants": [] } ] }.
+1. Product Identification:
+- Include all real products/goods/services. Discard document titles, seller addresses, bank account details, and phone numbers.
+- Preserve the complete product name as printed, including brand, model, and specifications (e.g. "portronics konnect type c cable por-1814", "tecno kn3 r1 galaxyblue in 4 64 g03").
+- If a model number or item code is clearly identifiable (e.g. "por-1814", "kn3 r1"), extract it in "productCode", while keeping the full descriptive name in "name".
+
+2. GST / Tax & HSN Code Extraction:
+- If the image contains columns or cells for "HSN Code", "HSN/SAC", "Tax %", "GST %", "CGST", "SGST", or "Total GST":
+  * "hsnCode": Extract the 4 to 8 digit HSN/SAC code as a string (e.g. "85444999", "85171300").
+  * "taxRate": Extract the total GST percentage for this row as a number (e.g., 18 for 18%, 12 for 12%, 5 for 5%, 0 for nil-rated).
+  * If CGST and SGST rates are listed in separate columns (e.g. 9% and 9%), sum them together (e.g. 9 + 9 = 18).
+  * If tax % is not directly printed but "Total GST" and "Taxable Amount" are visible, calculate taxRate = (Total GST / Taxable Amount) * 100.
+  * Whenever an HSN code is present, taxRate > 0, or the item is a manufactured/retail item (electronics, cables, phones, packaged foods, cosmetics), set "isPackagedGood" to true.
+
+3. Pricing (Tax-Inclusive Standard):
+- Parse prices as plain numbers without currency symbols (Rs, ₹, /-, INR).
+- If both "Taxable Amount" (base rate) and "Total Value" / "Total Amount" (tax inclusive) are present, set "price" to the Total Value (inclusive of tax), and set "costPrice" to the Taxable Amount.
+- If only one price is visible, set "price" to that amount. If a price is unreadable or missing, set price to 0.
+
+4. Categories & UOM:
+- Infer "category" from headers, section titles, or product type (e.g., "Cables", "Smartphones", "Chargers", "Beverages", "Starters"). Default to "General" if unclear.
+- If a unit of measure is printed (e.g. "Pcs", "Nos", "Kg", "Box", "Pkt", "Ltr"), extract it in "uom". Default to "Each" or "Pcs" for packaged goods.
+
+5. Restaurant Menus & Food Variants:
+- For slash-separated choices on a single line (e.g. "PANEER / CHICKEN BUTTER MASALA RS 200/220"), treat as variants with base name "BUTTER MASALA" and group "Protein" (PANEER 200, CHICKEN 220).
+- For pure restaurant dining dishes, set "isPackagedGood" to false and set "veg" to true for vegetarian dishes.
+
+Return JSON in this shape:
+{
+  "items": [
+    {
+      "name": "portronics konnect type c cable por-1814",
+      "productCode": "por-1814",
+      "category": "Cables",
+      "price": 230,
+      "costPrice": 194.92,
+      "hsnCode": "85444999",
+      "taxRate": 18,
+      "isPackagedGood": true,
+      "uom": "Pcs",
+      "description": "",
+      "veg": false,
+      "variants": []
+    }
+  ]
+}
 `;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -610,9 +646,17 @@ function mergeItems(items) {
     merged[existingIndex] = {
       ...existing,
       price: prices.length ? Math.min(...prices) : 0,
+      costPrice: existing.costPrice || item.costPrice,
+      mrp: existing.mrp || item.mrp,
       description: existing.description || item.description,
       veg: existing.veg || item.veg,
       variants: mergeVariants(existing.variants, item.variants),
+      hsnCode: existing.hsnCode || item.hsnCode,
+      taxRate: existing.taxRate !== undefined ? existing.taxRate : item.taxRate,
+      isPackagedGood: existing.isPackagedGood || item.isPackagedGood,
+      productCode: existing.productCode || item.productCode,
+      uom: existing.uom || item.uom,
+      productType: existing.productType || item.productType,
     };
   }
 
@@ -629,10 +673,33 @@ function normalizeItems(raw) {
       const price = toPrice(item?.price);
       const variants = normalizeVariants(item?.variants);
 
+      const rawHsn = cleanString(item?.hsnCode || item?.taxCode || item?.hsn);
+      const rawTax = toPrice(item?.taxRate ?? item?.tax ?? item?.gstRate);
+      let taxRate = rawTax;
+      const taxableAmount = toPrice(item?.costPrice ?? item?.taxableAmount);
+      const totalGst = toPrice(item?.totalGst ?? item?.gstAmount ?? item?.taxAmount);
+      if (!taxRate && taxableAmount > 0 && totalGst > 0) {
+        taxRate = Math.round((totalGst / taxableAmount) * 100);
+      }
+
+      const isPackagedGood = Boolean(
+        item?.isPackagedGood !== undefined
+          ? item.isPackagedGood
+          : Boolean(rawHsn || taxRate > 0)
+      );
+
       const normalizedItem = {
         name,
         category,
         price,
+        costPrice: taxableAmount > 0 ? taxableAmount : undefined,
+        mrp: toPrice(item?.mrp) > 0 ? toPrice(item?.mrp) : undefined,
+        hsnCode: rawHsn || undefined,
+        taxRate: taxRate > 0 ? taxRate : undefined,
+        isPackagedGood,
+        productCode: cleanString(item?.productCode || item?.itemCode || item?.sku) || undefined,
+        uom: cleanString(item?.uom || item?.unit) || undefined,
+        productType: cleanString(item?.productType) || undefined,
         description: cleanString(item?.description),
         veg: Boolean(item?.veg),
         variants,
@@ -714,7 +781,13 @@ const ALLOWED_ORIGINS = new Set([
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin || "";
-  if (ALLOWED_ORIGINS.has(origin)) {
+  if (
+    ALLOWED_ORIGINS.has(origin) ||
+    origin.endsWith(".pages.dev") ||
+    origin.endsWith(".cafeqr.in") ||
+    origin.includes("localhost:") ||
+    origin.startsWith("capacitor://")
+  ) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");

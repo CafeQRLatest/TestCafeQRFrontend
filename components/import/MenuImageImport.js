@@ -20,16 +20,21 @@ const getAiParseEndpoint = () => {
   const configuredEndpoint = cleanText(process.env.NEXT_PUBLIC_AI_PARSE_URL);
   if (configuredEndpoint) return configuredEndpoint;
 
-  const isNativeShell = typeof window !== 'undefined'
-    && window.Capacitor?.isNativePlatform?.();
+  if (typeof window !== 'undefined') {
+    const origin = window.location?.origin || '';
+    const isNativeShell = window.Capacitor?.isNativePlatform?.();
 
-  if (isNativeShell) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    // If WebView is loading a remote hosted domain (Vercel, Hostinger etc.), we can safely use its API route
-    if (origin && !origin.includes('localhost') && !origin.startsWith('file:')) {
-      return `${origin}/api/ai/parse-menu`;
+    // If running on Cloudflare Pages (*.pages.dev) where Next.js /api routes don't exist:
+    if (origin.includes('pages.dev')) {
+      return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-menu';
     }
-    throw new Error('NEXT_PUBLIC_AI_PARSE_URL must point to the hosted Vercel AI parse route for native builds.');
+
+    if (isNativeShell) {
+      if (origin && !origin.includes('localhost') && !origin.startsWith('file:') && !origin.includes('pages.dev')) {
+        return `${origin}/api/ai/parse-menu`;
+      }
+      return 'https://cafe-test-qr-frontend.vercel.app/api/ai/parse-menu';
+    }
   }
 
   return '/api/ai/parse-menu';
@@ -76,11 +81,26 @@ const normalizeImportedItem = (item) => {
     .flatMap((variant) => variant.options.map((option) => toMoney(option.price)))
     .filter((price) => price > 0);
   const parsedPrice = toMoney(item?.price);
+  const hsnCode = cleanText(item?.hsnCode || item?.taxCode || item?.hsn);
+  const taxRate = toMoney(item?.taxRate ?? item?.tax ?? item?.gstRate);
+  const isPackagedGood = Boolean(
+    item?.isPackagedGood !== undefined
+      ? item.isPackagedGood
+      : Boolean(hsnCode || taxRate > 0)
+  );
 
   return {
     name: cleanText(item?.name),
     category: cleanText(item?.category, 'General') || 'General',
     price: parsedPrice || (variantPrices.length ? Math.min(...variantPrices) : 0),
+    costPrice: toMoney(item?.costPrice),
+    mrp: toMoney(item?.mrp),
+    hsnCode,
+    taxRate,
+    isPackagedGood,
+    productCode: cleanText(item?.productCode || item?.itemCode || item?.sku),
+    uom: cleanText(item?.uom || item?.unit, 'Each') || 'Each',
+    productType: cleanText(item?.productType),
     description: cleanText(item?.description),
     veg: Boolean(item?.veg),
     variants,
@@ -88,7 +108,7 @@ const normalizeImportedItem = (item) => {
   };
 };
 
-export default function MenuImageImport({ onClose, onImported, existingItems = [] }) {
+export default function MenuImageImport({ onClose, onImported, existingItems = [], uoms = [], categories = [] }) {
   const currencySymbol = useCurrencySymbol();
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -283,13 +303,19 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
       payload.push({
         name: cleanText(item.name),
         price: toMoney(item.price),
+        costPrice: toMoney(item.costPrice) > 0 ? toMoney(item.costPrice) : null,
+        mrp: toMoney(item.mrp) > 0 ? toMoney(item.mrp) : toMoney(item.price),
+        taxCode: cleanText(item.hsnCode || item.taxCode),
+        taxRate: toMoney(item.taxRate),
+        productCode: cleanText(item.productCode) || null,
+        uom: item.uom ? { name: cleanText(item.uom) } : null,
         description: cleanText(item.description),
         category: { name: cleanText(item.category, 'General') || 'General' },
-        productType: item.veg ? 'VEG' : 'NON_VEG',
+        productType: item.productType || (item.veg ? 'VEG' : (item.isPackagedGood ? 'GENERAL' : 'NON_VEG')),
         isAvailable: true,
         isActive: true,
         isIngredient: false,
-        isPackagedGood: false,
+        isPackagedGood: Boolean(item.isPackagedGood),
         isVariant: variants.length > 0,
         variantMappings,
         variantPricings,
@@ -328,8 +354,29 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
 
   const updateItemField = (idx, field, value) => {
     const updated = [...items];
-    updated[idx][field] = field === 'price' ? parseFloat(value) || 0 : value;
+    if (field === 'price' || field === 'costPrice' || field === 'mrp' || field === 'taxRate') {
+      updated[idx][field] = value === '' ? '' : parseFloat(value) || 0;
+    } else if (field === 'isPackagedGood') {
+      updated[idx][field] = Boolean(value);
+    } else {
+      updated[idx][field] = value;
+    }
     setItems(updated);
+  };
+
+  const handleMarkAllPackaged = (status) => {
+    setItems((prev) => prev.map((it) => ({ ...it, isPackagedGood: status })));
+  };
+
+  const handleBulkSetTaxRate = (rate) => {
+    if (rate === '') return;
+    const num = toMoney(rate);
+    setItems((prev) => prev.map((it) => ({ ...it, taxRate: num })));
+  };
+
+  const handleBulkSetCategory = (catName) => {
+    if (!catName) return;
+    setItems((prev) => prev.map((it) => ({ ...it, category: catName })));
   };
 
   const updateVariantField = (itemIdx, variantIdx, field, value) => {
@@ -384,7 +431,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
 
   return (
     <CafeQRPopup
-      title="AI Menu Image Import"
+      title="AI Product & Menu Import"
       onClose={onClose}
       onSave={step === 'processing' || step === 'importing' ? null : (step === 'upload' ? (file ? processImage : null) : handleImport)}
       saveLabel={getSaveLabel()}
@@ -410,8 +457,8 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
             ) : (
               <div className="drop-zone" onClick={() => fileInputRef.current.click()}>
                 <FaImage className="drop-icon" />
-                <p>Click to upload a clear photo of your menu</p>
-                <span>Supports PNG, JPG (Max 5MB)</span>
+                <p>Click to upload a clear photo of your invoice, menu, or price list</p>
+                <span>Supports invoices, product sheets, rate cards & menus (PNG, JPG Max 5MB)</span>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" hidden />
               </div>
             )}
@@ -421,15 +468,47 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
         {step === 'processing' && (
           <div className="processing-state">
             <div className="ai-loader"></div>
-            <h4>AI is analyzing your menu...</h4>
-            <p>Extracting items, prices, and categories. This usually takes 10-20 seconds.</p>
+            <h4>AI is analyzing your document...</h4>
+            <p>Extracting products, HSN codes, tax rates, and prices. This usually takes 10-20 seconds.</p>
           </div>
         )}
 
         {step === 'review' && (
           <div className="review-section">
             <div className="review-header">
-              <span>{items.filter(i => i.selected).length} items selected for import</span>
+              <div className="review-header-left">
+                <strong>{items.filter(i => i.selected).length}</strong> items selected for import
+              </div>
+              <div className="review-header-tools">
+                <button 
+                  type="button" 
+                  className="batch-tool-btn" 
+                  onClick={() => handleMarkAllPackaged(true)}
+                  title="Mark all as packaged retail goods with barcode & tax support"
+                >
+                  📦 All Packaged
+                </button>
+                <button 
+                  type="button" 
+                  className="batch-tool-btn" 
+                  onClick={() => handleMarkAllPackaged(false)}
+                  title="Mark all as food menu items"
+                >
+                  🍽️ All Food
+                </button>
+                <select 
+                  className="batch-select"
+                  defaultValue="" 
+                  onChange={(e) => { handleBulkSetTaxRate(e.target.value); e.target.value = ''; }}
+                >
+                  <option value="" disabled>Set Tax Rate...</option>
+                  <option value="0">0% (Nil)</option>
+                  <option value="5">5% GST</option>
+                  <option value="12">12% GST</option>
+                  <option value="18">18% GST</option>
+                  <option value="28">28% GST</option>
+                </select>
+              </div>
             </div>
             <div className="items-list">
               {items.map((it, idx) => (
@@ -438,16 +517,25 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
                     {it.selected ? <FaCheckCircle className="checked" /> : <div className="unchecked" />}
                   </div>
                   <div className="item-fields">
+                    {/* Row 1: Product Name, SKU/Code, Duplicate Badge, Selling Price (Inclusive) */}
                     <div className="field-row">
                       <input 
                         className="name-input" 
                         value={it.name} 
                         onChange={(e) => updateItemField(idx, 'name', e.target.value)} 
-                        placeholder="Item Name" 
+                        placeholder="Product Name" 
                         style={baseInputStyle}
                       />
+                      <input
+                        className="code-input"
+                        value={it.productCode || ''}
+                        onChange={(e) => updateItemField(idx, 'productCode', e.target.value)}
+                        placeholder="SKU / Model"
+                        style={baseInputStyle}
+                        title="Item Code / SKU (e.g. POR-1814)"
+                      />
                       {it.isDupe && <span className="duplicate-badge">Duplicate</span>}
-                      <div className="price-input-wrap">
+                      <div className="price-input-wrap" title="Selling Price (Tax Inclusive / Total Value)">
                         <span>{currencySymbol}</span>
                         <input 
                           type="number" 
@@ -457,6 +545,52 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
                         />
                       </div>
                     </div>
+
+                    {/* Row 2: Packaged Toggle, HSN Code, Tax %, UOM, Taxable Hint */}
+                    <div className="field-row tax-row">
+                      <button
+                        type="button"
+                        className={`packaged-toggle-btn ${it.isPackagedGood ? 'active' : ''}`}
+                        onClick={() => updateItemField(idx, 'isPackagedGood', !it.isPackagedGood)}
+                        title="Toggle Packaged Good status (enables Barcode & HSN)"
+                      >
+                        {it.isPackagedGood ? '📦 Packaged' : '🍽️ Food/Dish'}
+                      </button>
+                      <input
+                        className="hsn-input"
+                        value={it.hsnCode || ''}
+                        onChange={(e) => updateItemField(idx, 'hsnCode', e.target.value)}
+                        placeholder="HSN Code (e.g. 85444999)"
+                        style={baseInputStyle}
+                        title="HSN / SAC Code"
+                      />
+                      <div className="tax-rate-wrap" title="GST Percentage (e.g. 18)">
+                        <input
+                          type="number"
+                          className="tax-rate-input"
+                          value={it.taxRate !== undefined && it.taxRate !== null ? it.taxRate : ''}
+                          onChange={(e) => updateItemField(idx, 'taxRate', e.target.value)}
+                          placeholder="0"
+                          style={baseInputStyle}
+                        />
+                        <span>% GST</span>
+                      </div>
+                      <input
+                        className="uom-input"
+                        value={it.uom || 'Each'}
+                        onChange={(e) => updateItemField(idx, 'uom', e.target.value)}
+                        placeholder="Unit (Pcs)"
+                        style={baseInputStyle}
+                        title="Unit of Measurement (UOM)"
+                      />
+                      {it.costPrice > 0 && (
+                        <div className="cost-tag" title="Taxable / Purchase Base Rate">
+                          Taxable: {currencySymbol}{it.costPrice}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Row 3: Category & Description */}
                     <div className="field-row secondary">
                       <input 
                         className="cat-input" 
@@ -578,7 +712,21 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
         .processing-state p { margin: 0; color: #64748b; font-size: 14px; font-weight: 500; }
 
         .review-section { display: flex; flex-direction: column; gap: 16px; }
-        .review-header { font-size: 13px; font-weight: 700; color: #64748b; background: #f8fafc; padding: 8px 16px; border-radius: 8px; }
+        .review-header { 
+          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+          font-size: 13px; font-weight: 700; color: #64748b; background: #f8fafc; padding: 10px 16px; border-radius: 10px; border: 1px solid #e2e8f0;
+        }
+        .review-header-left { display: flex; align-items: center; gap: 6px; }
+        .review-header-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .batch-tool-btn { 
+          background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #475569; cursor: pointer; transition: 0.2s;
+        }
+        .batch-tool-btn:hover { background: #fff7ed; border-color: #f97316; color: #ea580c; }
+        .batch-select {
+          background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; color: #475569; outline: none; cursor: pointer;
+        }
+        .batch-select:focus { border-color: #f97316; }
+
         .items-list { display: flex; flex-direction: column; gap: 12px; }
         .review-item { 
           display: flex; align-items: flex-start; gap: 14px; padding: 16px; border-radius: 16px; border: 1px solid #e2e8f0; 
@@ -592,6 +740,7 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
         .item-fields { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
         .field-row { display: flex; gap: 12px; }
         .field-row.secondary { gap: 8px; }
+        .field-row.tax-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .review-item input {
           color: #0f172a !important;
           -webkit-text-fill-color: #0f172a;
@@ -604,11 +753,35 @@ export default function MenuImageImport({ onClose, onImported, existingItems = [
         }
         .name-input { flex: 1; font-weight: 800; border: 1px solid #e2e8f0; outline: none; padding: 8px 10px; border-radius: 8px; font-size: 15px; background: #ffffff; min-width: 0; }
         .name-input:focus { background: white; box-shadow: 0 0 0 2px #fff7ed; }
+        .code-input { width: 120px; font-weight: 700; border: 1px solid #e2e8f0; outline: none; padding: 8px 10px; border-radius: 8px; font-size: 13px; background: #ffffff; }
         .duplicate-badge { align-self: center; border: 1px solid #fde68a; background: #fffbeb; color: #b45309; border-radius: 999px; padding: 5px 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; white-space: nowrap; }
         .price-input-wrap { display: flex; align-items: center; gap: 4px; background: #ffffff; padding: 8px 10px; border-radius: 8px; width: 120px; border: 1px solid #e2e8f0; }
         .price-input-wrap span { font-weight: 800; color: #64748b; }
         .price-input-wrap input { border: none; background: none; font-weight: 800; font-size: 14px; width: 100%; outline: none; }
         
+        .packaged-toggle-btn {
+          border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; white-space: nowrap;
+        }
+        .packaged-toggle-btn.active {
+          background: #fff7ed; border-color: #fdba74; color: #ea580c;
+        }
+        .hsn-input {
+          width: 140px; border: 1px solid #e2e8f0; background: #ffffff; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; outline: none;
+        }
+        .tax-rate-wrap {
+          display: flex; align-items: center; gap: 4px; border: 1px solid #e2e8f0; background: #ffffff; border-radius: 8px; padding: 6px 10px; width: 95px;
+        }
+        .tax-rate-input {
+          border: none; background: transparent; font-size: 12px; font-weight: 800; width: 100%; outline: none;
+        }
+        .tax-rate-wrap span { font-size: 11px; font-weight: 700; color: #94a3b8; white-space: nowrap; }
+        .uom-input {
+          width: 80px; border: 1px solid #e2e8f0; background: #ffffff; padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; outline: none;
+        }
+        .cost-tag {
+          font-size: 11px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+        }
+
         .cat-input, .desc-input { border: 1px solid #e2e8f0; background: #ffffff; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; outline: none; }
         .cat-input { width: 140px; color: #f97316; }
         .cat-input:not(:focus) { -webkit-text-fill-color: #f97316; }
