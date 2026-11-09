@@ -17,18 +17,45 @@ const MENU_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          name: { type: "STRING" },
+          name: {
+            type: "STRING",
+            description: "Full descriptive product/item name, e.g. 'Portronics Konnect X 2M Type C POR 2141'. Never omit the product name.",
+          },
           printedName: { type: "STRING" },
-          productCode: { type: "STRING" },
-          category: { type: "STRING" },
-          price: { type: "NUMBER" },
-          costPrice: { type: "NUMBER" },
+          productCode: {
+            type: "STRING",
+            description: "Model number, SKU, or item code, e.g. 'POR 2141', 'POR-1445', 'DC1.5m'.",
+          },
+          category: {
+            type: "STRING",
+            description: "Category inferred from item (e.g. 'Cables', 'Chargers', 'Accessories', 'General').",
+          },
+          price: {
+            type: "NUMBER",
+            description: "Total tax-inclusive selling price per unit or line total from Amount(₹) / Total Amount / Total Value. E.g. 170 for ₹170.00. NEVER return 0 if amount is printed.",
+          },
+          costPrice: {
+            type: "NUMBER",
+            description: "Taxable purchase base price or unit price before tax from Price / Rate / Taxable column (e.g. 144.06).",
+          },
           mrp: { type: "NUMBER" },
           priceText: { type: "STRING" },
-          hsnCode: { type: "STRING" },
-          taxRate: { type: "NUMBER" },
-          isPackagedGood: { type: "BOOLEAN" },
-          uom: { type: "STRING" },
+          hsnCode: {
+            type: "STRING",
+            description: "The 4, 6, or 8 digit HSN or SAC code from HSN/SAC Code column (e.g. '85444999', '85044030', '85369090'). MUST be extracted if present.",
+          },
+          taxRate: {
+            type: "NUMBER",
+            description: "Total GST percentage rate as a number (e.g. 18 for 18%). If CGST 9% and SGST 9% are separate columns, sum them to 18.",
+          },
+          isPackagedGood: {
+            type: "BOOLEAN",
+            description: "Set to true for manufactured retail goods, electronics, cables, accessories, packaged foods, or items with an HSN code.",
+          },
+          uom: {
+            type: "STRING",
+            description: "Unit of measure, e.g. 'Pcs', 'Nos', 'Box', 'Kg'. Default 'Pcs' for retail packaged goods.",
+          },
           productType: { type: "STRING" },
           description: { type: "STRING" },
           veg: { type: "BOOLEAN" },
@@ -69,25 +96,28 @@ This image may be a restaurant menu, an electronics/retail price list, a GST tax
 Rules:
 1. Product Identification:
 - Include all real products/goods/services. Discard document titles, seller addresses, bank account details, and phone numbers.
-- Preserve the complete product name as printed, including brand, model, and specifications (e.g. "portronics konnect type c cable por-1814", "tecno kn3 r1 galaxyblue in 4 64 g03").
-- If a model number or item code is clearly identifiable (e.g. "por-1814", "kn3 r1"), extract it in "productCode", while keeping the full descriptive name in "name".
+- Preserve the complete product name as printed, including brand, model, and specifications (e.g. "Portronics Konnect X 2M Type C POR 2141", "Portronics Adapto 45 POR-1445", "Digitek Aux Cable 1.5m DC1.5m Aux").
+- If a model number or item code is clearly identifiable (e.g. "POR 2141", "POR-1445", "DC1.5m"), extract it in "productCode", while keeping the full descriptive name in "name".
 
 2. GST / Tax & HSN Code Extraction:
-- If the image contains columns or cells for "HSN Code", "HSN/SAC", "Tax %", "GST %", "CGST", "SGST", or "Total GST":
-  * "hsnCode": Extract the 4 to 8 digit HSN/SAC code as a string (e.g. "85444999", "85171300").
+- Look for columns or table cells titled "HSN/SAC Code", "HSN/SAC", "HSN Code", "Commodity Code", "HSN", or "SAC":
+  * "hsnCode": Extract the 4 to 8 digit HSN/SAC code as a string (e.g. "85444999", "85044030", "85369090").
+  * CRITICAL: If the document table has an HSN/SAC column, you MUST extract the HSN code for each row into "hsnCode". Do not leave it null, empty, or omit it.
   * "taxRate": Extract the total GST percentage for this row as a number (e.g., 18 for 18%, 12 for 12%, 5 for 5%, 0 for nil-rated).
-  * If CGST and SGST rates are listed in separate columns (e.g. 9% and 9%), sum them together (e.g. 9 + 9 = 18).
+  * If CGST and SGST rates are listed in separate columns (e.g. "CGST Rate 9.00 %" and "SGST Rate 9.00 %"), sum them together (e.g. 9 + 9 = 18).
   * If tax % is not directly printed but "Total GST" and "Taxable Amount" are visible, calculate taxRate = (Total GST / Taxable Amount) * 100.
-  * Whenever an HSN code is present, taxRate > 0, or the item is a manufactured/retail item (electronics, cables, phones, packaged foods, cosmetics), set "isPackagedGood" to true.
+  * Whenever an HSN code is present, taxRate > 0, or the item is a manufactured/retail item (electronics, cables, chargers, phones, packaged foods, cosmetics), set "isPackagedGood" to true.
 
 3. Pricing (Tax-Inclusive Standard):
 - Parse prices as plain numbers without currency symbols (Rs, ₹, /-, INR).
-- If both "Taxable Amount" (base rate) and "Total Value" / "Total Amount" (tax inclusive) are present, set "price" to the Total Value (inclusive of tax), and set "costPrice" to the Taxable Amount.
-- If only one price is visible, set "price" to that amount. If a price is unreadable or missing, set price to 0.
+- In GST invoices, wholesale bills, and retail price lists:
+  * "price": Set to the tax-inclusive line total or final price from columns like "Amount(₹)", "Amount", "Total", "Total Value", "Total Amount", or "Net Amount" (e.g., 170.00 for ₹170.00, 450.00 for ₹450.00, 65.00 for ₹65.00).
+  * "costPrice": Set to the pre-tax base rate or unit rate from columns like "Price", "Rate", "Taxable Amount", or "Unit Price" (e.g., 144.06, 381.36, 55.08).
+  * CRITICAL: NEVER return "price" as 0 when amounts are visible in "Price" or "Amount(₹)" columns! If only one amount is printed on the row, set "price" to that amount.
 
 4. Categories & UOM:
 - Infer "category" from headers, section titles, or product type (e.g., "Cables", "Smartphones", "Chargers", "Beverages", "Starters"). Default to "General" if unclear.
-- If a unit of measure is printed (e.g. "Pcs", "Nos", "Kg", "Box", "Pkt", "Ltr"), extract it in "uom". Default to "Each" or "Pcs" for packaged goods.
+- If a unit of measure is printed (e.g. "Pcs", "Nos", "Kg", "Box", "Pkt", "Ltr"), extract it in "uom". Default to "Pcs" for retail packaged goods.
 
 5. Restaurant Menus & Food Variants:
 - For slash-separated choices on a single line (e.g. "PANEER / CHICKEN BUTTER MASALA RS 200/220"), treat as variants with base name "BUTTER MASALA" and group "Protein" (PANEER 200, CHICKEN 220).
@@ -97,11 +127,11 @@ Return JSON in this shape:
 {
   "items": [
     {
-      "name": "portronics konnect type c cable por-1814",
-      "productCode": "por-1814",
+      "name": "Portronics Konnect X 2M Type C POR 2141",
+      "productCode": "POR 2141",
       "category": "Cables",
-      "price": 230,
-      "costPrice": 194.92,
+      "price": 170,
+      "costPrice": 144.06,
       "hsnCode": "85444999",
       "taxRate": 18,
       "isPackagedGood": true,
@@ -670,16 +700,47 @@ function normalizeItems(raw) {
     .map((item) => {
       const name = stripPriceText(item?.name || item?.printedName || "");
       const category = cleanString(item?.category, "General") || "General";
-      const price = toPrice(item?.price);
       const variants = normalizeVariants(item?.variants);
 
-      const rawHsn = cleanString(item?.hsnCode || item?.taxCode || item?.hsn);
+      // Extract HSN code across all common aliases
+      const rawHsn = cleanString(
+        item?.hsnCode ||
+        item?.hsn_sac ||
+        item?.hsn_code ||
+        item?.hsnSacCode ||
+        item?.hsnSac ||
+        item?.hsn ||
+        item?.taxCode ||
+        item?.sacCode ||
+        item?.sac ||
+        ""
+      );
+
       const rawTax = toPrice(item?.taxRate ?? item?.tax ?? item?.gstRate);
       let taxRate = rawTax;
-      const taxableAmount = toPrice(item?.costPrice ?? item?.taxableAmount);
+      const taxableAmount = toPrice(item?.costPrice ?? item?.taxableAmount ?? item?.rate ?? item?.unitPrice);
+      const lineTotal = toPrice(item?.amount ?? item?.totalAmount ?? item?.totalValue ?? item?.lineTotal ?? item?.total ?? item?.netAmount);
       const totalGst = toPrice(item?.totalGst ?? item?.gstAmount ?? item?.taxAmount);
       if (!taxRate && taxableAmount > 0 && totalGst > 0) {
         taxRate = Math.round((totalGst / taxableAmount) * 100);
+      }
+
+      let price = toPrice(item?.price);
+      if (!price && lineTotal > 0) {
+        price = lineTotal;
+      } else if (!price && toPrice(item?.mrp) > 0) {
+        price = toPrice(item?.mrp);
+      } else if (!price && taxableAmount > 0) {
+        if (taxRate > 0) {
+          price = Math.round(taxableAmount * (1 + taxRate / 100) * 100) / 100;
+        } else {
+          price = taxableAmount;
+        }
+      }
+
+      let costPrice = taxableAmount > 0 ? taxableAmount : undefined;
+      if (!costPrice && price > 0 && taxRate > 0) {
+        costPrice = Math.round((price / (1 + taxRate / 100)) * 100) / 100;
       }
 
       const isPackagedGood = Boolean(
@@ -692,13 +753,13 @@ function normalizeItems(raw) {
         name,
         category,
         price,
-        costPrice: taxableAmount > 0 ? taxableAmount : undefined,
+        costPrice,
         mrp: toPrice(item?.mrp) > 0 ? toPrice(item?.mrp) : undefined,
         hsnCode: rawHsn || undefined,
         taxRate: taxRate > 0 ? taxRate : undefined,
         isPackagedGood,
         productCode: cleanString(item?.productCode || item?.itemCode || item?.sku) || undefined,
-        uom: cleanString(item?.uom || item?.unit) || undefined,
+        uom: cleanString(item?.uom || item?.unit) || (isPackagedGood ? "Pcs" : undefined),
         productType: cleanString(item?.productType) || undefined,
         description: cleanString(item?.description),
         veg: Boolean(item?.veg),

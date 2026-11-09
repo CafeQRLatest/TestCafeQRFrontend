@@ -80,8 +80,24 @@ const normalizeImportedItem = (item) => {
   const variantPrices = variants
     .flatMap((variant) => variant.options.map((option) => toMoney(option.price)))
     .filter((price) => price > 0);
-  const parsedPrice = toMoney(item?.price);
-  const hsnCode = cleanText(item?.hsnCode || item?.taxCode || item?.hsn);
+  const parsedPrice = toMoney(
+    item?.price ||
+    item?.amount ||
+    item?.totalValue ||
+    item?.lineTotal ||
+    item?.costPrice
+  );
+  const hsnCode = cleanText(
+    item?.hsnCode ||
+    item?.hsn_sac ||
+    item?.hsn_code ||
+    item?.hsnSacCode ||
+    item?.hsnSac ||
+    item?.hsn ||
+    item?.taxCode ||
+    item?.sacCode ||
+    item?.sac
+  );
   const taxRate = toMoney(item?.taxRate ?? item?.tax ?? item?.gstRate);
   const isPackagedGood = Boolean(
     item?.isPackagedGood !== undefined
@@ -99,7 +115,7 @@ const normalizeImportedItem = (item) => {
     taxRate,
     isPackagedGood,
     productCode: cleanText(item?.productCode || item?.itemCode || item?.sku),
-    uom: cleanText(item?.uom || item?.unit, 'Each') || 'Each',
+    uom: cleanText(item?.uom || item?.unit, isPackagedGood ? 'Pcs' : 'Each') || (isPackagedGood ? 'Pcs' : 'Each'),
     productType: cleanText(item?.productType),
     description: cleanText(item?.description),
     veg: Boolean(item?.veg),
