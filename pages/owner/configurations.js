@@ -1477,8 +1477,8 @@ function ConfigurationsContent() {
                                   <InfoTooltip id="tip_tax_default_id" text="Select the default tax rule applied to new products and orders." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
                               </label>
                               <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>The primary tax rule applied to transactions by default.</span>
-                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', maxWidth: '480px', width: '100%' }}>
-                                  <div style={{ flex: 1 }} className="small-select">
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', maxWidth: '480px', width: '100%' }}>
+                                  <div style={{ flex: '1 1 160px', minWidth: 0 }} className="small-select">
                                       <NiceSelect
                                           value={config.tax_default_id}
                                           onChange={(v) => set('tax_default_id', v)}
@@ -2293,6 +2293,7 @@ function ConfigurationsContent() {
            position: relative;
            min-height: 58px;
            height: 58px;
+           min-width: 0;
         }
         .module-wrapper:hover,
         .module-wrapper:focus-within {
@@ -2640,7 +2641,7 @@ function ConfigurationsContent() {
 
         /* ─── NEW TAX & I18N STYLES ─── */
         .tax-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start; margin-top: 8px; }
-        @media (max-width: 1150px) { .tax-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1150px) { .tax-grid { grid-template-columns: minmax(0, 1fr); } }
         
         .section-title-sm { font-size: 13px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
         

@@ -645,7 +645,8 @@ h1, h2, h3, h4, .outfit-font {
   .product-grid,
   .stock-grid,
   .dense-grid {
-    grid-template-columns: 1fr !important;
+    /* minmax(0, …) so long nowrap card text can't force the column wider than the phone */
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }
 
