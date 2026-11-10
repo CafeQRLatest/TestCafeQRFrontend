@@ -309,7 +309,7 @@ function AdjustmentContent() {
 
     const cost = selectedVariant.costPrice !== undefined && selectedVariant.costPrice !== null && Number(selectedVariant.costPrice) > 0
       ? Number(selectedVariant.costPrice)
-      : (selectedVariant.price || activeVariantProduct.costPrice || 0);
+      : (activeVariantProduct.costPrice || 0); // never fall back to the selling price
 
     const newLine = {
       productId: activeVariantProduct.id,

@@ -422,6 +422,7 @@ function ConfigurationsContent() {
     pm_purchase: true,
     non_stock_sales_policy: 'NONE',
     non_stock_transfer_policy: 'NONE',
+    costing_method: 'AVERAGE_PO',
     pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_mcp: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
@@ -574,6 +575,7 @@ function ConfigurationsContent() {
             pm_purchase: d.purchaseEnabled !== false,
             non_stock_sales_policy: d.nonStockSalesPolicy || 'NONE',
             non_stock_transfer_policy: d.nonStockTransferPolicy || 'NONE',
+            costing_method: d.costingMethod || 'AVERAGE_PO',
             pm_customers: !!d.customersEnabled,
             pm_loyalty: !!d.loyaltyEnabled, pm_send_to_kitchen: d.sendToKitchenEnabled !== false,
             pm_takeaway_auto_kot: !!d.takeawayAutoPrintKotOnSettle, pm_takeaway_hide_kitchen: !!d.takeawayHideKitchenMode,
@@ -725,6 +727,7 @@ function ConfigurationsContent() {
         purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
         nonStockSalesPolicy: (config.pm_inventory && hasModule('INVENTORY', orgId)) ? (config.non_stock_sales_policy || 'NONE') : 'NONE',
         nonStockTransferPolicy: (config.pm_inventory && hasModule('INVENTORY', orgId)) ? (config.non_stock_transfer_policy || 'NONE') : 'NONE',
+        costingMethod: config.costing_method || 'AVERAGE_PO',
         productionEnabled: false, customersEnabled: hasModule('CRM', orgId) ? config.pm_customers : false,
         loyaltyEnabled: hasModule('CRM', orgId) ? config.pm_loyalty : false, sendToKitchenEnabled: hasModule('KOT', orgId) ? config.pm_send_to_kitchen : false,
         takeawayAutoPrintKotOnSettle: config.pm_takeaway_auto_kot, takeawayHideKitchenMode: config.pm_takeaway_hide_kitchen,
@@ -1367,6 +1370,23 @@ function ConfigurationsContent() {
                                   { value: 'NONE', label: 'None (Allow freely)' },
                                   { value: 'WARNING', label: 'Warning (Alert only)' },
                                   { value: 'BLOCK', label: 'Block (Prevent transfer)' }
+                                ]}
+                              />
+                            </div>
+                          </div>
+                          <div className="subconfig-row" onClick={e => e.stopPropagation()} style={{ cursor: 'default' }}>
+                            <div className="subconfig-row-text">
+                              <strong>Costing Method</strong>
+                              <span>How stock cost and cost of goods sold are calculated from purchases</span>
+                            </div>
+                            <div className="small-select subconfig-select">
+                              <NiceSelect
+                                value={config.costing_method || 'AVERAGE_PO'}
+                                onChange={(v) => set('costing_method', v)}
+                                options={[
+                                  { value: 'AVERAGE_PO', label: 'Weighted Average (on purchase)' },
+                                  { value: 'LAST_PO', label: 'Last Purchase Price' },
+                                  { value: 'STANDARD', label: 'Standard (manual cost)' }
                                 ]}
                               />
                             </div>

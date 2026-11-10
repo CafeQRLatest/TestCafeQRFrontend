@@ -446,6 +446,21 @@ export default function ProductManagementPopup({
   };
 
   const [selectedProduct, setSelectedProduct] = useState(() => normalizeProductForDrawer(initialProduct));
+  // Inventory costing: current stock cost (weighted average / last PO / standard) for this branch.
+  const [stockCost, setStockCost] = useState(null);
+  useEffect(() => {
+    const productId = selectedProduct?.id;
+    if (!productId) { setStockCost(null); return; }
+    let cancelled = false;
+    api.get(`/api/v1/costing/products/${productId}`)
+      .then(res => {
+        if (cancelled) return;
+        const rows = res.data?.data || [];
+        setStockCost(rows.find(r => !r.variantId) || rows[0] || null);
+      })
+      .catch(() => { if (!cancelled) setStockCost(null); });
+    return () => { cancelled = true; };
+  }, [selectedProduct?.id]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   const isClientLevel = Boolean(
@@ -1453,7 +1468,13 @@ export default function ProductManagementPopup({
              ) : (
                <div className="erp-section" style={{ marginTop: '16px' }}>
                   <div className="section-title"><FaBoxOpen /> Procurement Standards</div>
-                  <div className="input-group"><label>Standard Purchase Cost</label><input type="number" placeholder="0.00" value={selectedProduct.costPrice === 0 || selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? '' : selectedProduct.costPrice} onChange={e => setSelectedProduct({...selectedProduct, costPrice: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
+                  <div className="input-group"><label>Last Purchase Price (auto-updated on receipt)</label><input type="number" placeholder="0.00" value={selectedProduct.costPrice === 0 || selectedProduct.costPrice === '' || selectedProduct.costPrice === null || selectedProduct.costPrice === undefined || isNaN(selectedProduct.costPrice) ? '' : selectedProduct.costPrice} onChange={e => setSelectedProduct({...selectedProduct, costPrice: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
+                  {stockCost && (
+                    <div className="input-group">
+                      <label>Current Stock Cost ({stockCost.costingMethod === 'LAST_PO' ? 'Last Purchase' : stockCost.costingMethod === 'STANDARD' ? 'Standard' : 'Weighted Average'})</label>
+                      <input type="text" readOnly value={`${currencySymbol}${Number(stockCost.currentCost || 0).toFixed(2)}`} />
+                    </div>
+                  )}
                </div>
              )}
 

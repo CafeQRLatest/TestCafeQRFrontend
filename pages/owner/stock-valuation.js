@@ -152,7 +152,7 @@ function ValuationContent() {
       } else {
         const p = products.find(prod => String(prod.id).toLowerCase() === pId);
         const unitCost = Number(
-          s.variantCostPrice ?? s.unitCost ?? s.costPrice ?? p?.costPrice ?? p?.purchasePrice ?? p?.price ?? 0
+          s.currentCost ?? s.variantCostPrice ?? s.unitCost ?? s.costPrice ?? p?.costPrice ?? p?.purchasePrice ?? 0
         );
         const variantLabel = s.variantOptionName || s.variantName || s.variantLabel;
         const displayName = variantLabel ? `${p?.name || s.productName || 'Product'} (${variantLabel})` : (p?.name || s.productName || 'Unknown Product');
