@@ -61,6 +61,7 @@ const MODULES = [
   },
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
   { key: 'pm_offline_sync',     title: 'Offline Billing & Sync', desc: 'Enable offline POS billing & cloud syncing', color: '#f97316' },
+  { key: 'pm_barcode_scanner',  title: 'Barcode Scanner',   desc: 'Scan product barcodes at POS & counter sale', color: '#f97316' },
   { key: 'pm_payroll',          title: 'Payroll & HR',      desc: 'Staff, time tracking, leave approvals, salary rules & payroll', color: '#f97316' },
   { key: 'pm_mcp',              title: 'Enable MCP',        desc: 'Ask CafeQR AI assistant and AI app connections (read-only reports)', color: '#f97316', superAdminOnly: true, comingSoon: true },
 ];
