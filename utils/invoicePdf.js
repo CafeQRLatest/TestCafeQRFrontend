@@ -574,9 +574,12 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
     const taxRate   = Number(line.taxRate || line.tax_rate || 0);
     const discAmt   = Number(line.discountAmount || line.discount_amount || 0);
     const lineTotal = Number(line.lineTotal || line.line_total || (unitPrice * qty));
-    const displayName = line.variant_name
+    const rawHsn = line.taxCode || line.tax_code || line.hsnCode || line.hsn_code;
+    const hsn = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? rawHsn : null;
+    const baseDisplayName = line.variant_name
       ? `${line.name || line.productName || 'Item'} (${line.variant_name})`
       : (line.name || line.productName || 'Item');
+    const displayName = hsn ? `${baseDisplayName}\nHSN: ${hsn}` : baseDisplayName;
     return {
       idx:       String(i + 1),
       name:      displayName,

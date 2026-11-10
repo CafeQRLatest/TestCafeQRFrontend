@@ -466,7 +466,7 @@ export default function SalesReportView({
             const headers = [
               'Order No', 'Invoice No', 'Date', 'Branch', 'Customer', 'Type', 'Table',
               'Order Status', 'Invoice Status', 'Payment Method', 'Payment No',
-              'Line No', 'Item Name', 'Category', 'Tax Rate %', 'Qty', 'Unit Rate', 'Line Taxable', 'CGST Amt', 'SGST Amt', 'Line Total',
+              'Line No', 'Item Name', 'Category', 'HSN Code', 'Tax Rate %', 'Qty', 'Unit Rate', 'Line Taxable', 'CGST Amt', 'SGST Amt', 'Line Total',
               'Invoice Discount', 'Invoice Tax', 'Invoice Total', 'Amount Due', 'Void Reason'
             ];
             const rows = [];
@@ -482,6 +482,8 @@ export default function SalesReportView({
 
               if (tx.lines && tx.lines.length > 0) {
                 tx.lines.forEach((line, index) => {
+                  const rawHsn = line.taxCode || line.hsnCode || line.tax_code || line.hsn_code || '';
+                  const hsnCode = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? rawHsn : '';
                   const taxRate = Number(line.taxRate || 0);
                   const taxAmount = Number(line.taxAmount || 0);
                   const cgst = (taxAmount / 2).toFixed(currencyDecimals);
@@ -492,6 +494,7 @@ export default function SalesReportView({
                     index + 1,
                     line.productName,
                     line.categoryName,
+                    hsnCode,
                     taxRate,
                     formatQty(line.quantity, uomPrecisionOf(line)),
                     line.unitPrice,
@@ -504,7 +507,7 @@ export default function SalesReportView({
                 });
               } else {
                 rows.push([...baseRow,
-                  '', '', '', '', '', '', '', '', '', '',
+                  '', '', '', '', '', '', '', '', '', '', '',
                   ...invoiceSummary
                 ].map(csvCell).join(','));
               }
@@ -538,6 +541,8 @@ export default function SalesReportView({
 
               if (tx.lines && tx.lines.length > 0) {
                 tx.lines.forEach((line, index) => {
+                  const rawHsn = line.taxCode || line.hsnCode || line.tax_code || line.hsn_code || '';
+                  const hsnCode = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? rawHsn : '';
                   const taxRate = Number(line.taxRate || 0);
                   const taxAmount = Number(line.taxAmount || 0);
                   const cgst = (taxAmount / 2).toFixed(currencyDecimals);
@@ -549,6 +554,7 @@ export default function SalesReportView({
                     'Line No': index + 1,
                     'Item Name': line.productName,
                     'Category': line.categoryName,
+                    'HSN Code': hsnCode,
                     'Tax Rate %': taxRate,
                     'Qty': line.quantity,
                     'Unit Rate': line.unitPrice,
@@ -565,6 +571,7 @@ export default function SalesReportView({
                   'Line No': '',
                   'Item Name': '',
                   'Category': '',
+                  'HSN Code': '',
                   'Tax Rate %': '',
                   'Qty': '',
                   'Unit Rate': '',
@@ -670,12 +677,16 @@ export default function SalesReportView({
                           <tr>
                             <td colSpan={config?.taxEnabled !== false ? 13 : 12} style={{ padding: '0', background: '#f8fafc' }}>
                               <div className="rpt-sales-subrows">
-                                {tx.lines.map((line, lIdx) => (
-                                  <div key={lIdx} className="rpt-sales-subrow">
-                                    <span>{line.productName} ({formatQty(line.quantity, uomPrecisionOf(line))} × {SYM}{fmt(line.unitPrice)})</span>
-                                    <span style={{ fontWeight: 700 }}>{SYM}{fmt(line.lineTotal)}</span>
-                                  </div>
-                                ))}
+                                {tx.lines.map((line, lIdx) => {
+                                  const rawHsn = line.taxCode || line.hsnCode || line.tax_code || line.hsn_code;
+                                  const hsnDisplay = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? ` [HSN: ${rawHsn}]` : '';
+                                  return (
+                                    <div key={lIdx} className="rpt-sales-subrow">
+                                      <span>{line.productName}{hsnDisplay} ({formatQty(line.quantity, uomPrecisionOf(line))} × {SYM}{fmt(line.unitPrice)})</span>
+                                      <span style={{ fontWeight: 700 }}>{SYM}{fmt(line.lineTotal)}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </td>
                           </tr>

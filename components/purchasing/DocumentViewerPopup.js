@@ -1607,6 +1607,27 @@ export default function DocumentViewerPopup({
                               })()}
                             </span>
                             {(l.productCode || l.product_code) && <span className="dv-pcode">{l.productCode || l.product_code}</span>}
+                            {(() => {
+                              const rawHsn = l.taxCode || l.tax_code || l.hsnCode || l.hsn_code;
+                              if (!rawHsn || String(rawHsn).startsWith('GST_') || String(rawHsn).startsWith('TAX_')) return null;
+                              return (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  color: '#475569',
+                                  background: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  marginLeft: '6px',
+                                  letterSpacing: '0.3px',
+                                  verticalAlign: 'middle'
+                                }}>
+                                  HSN: {rawHsn}
+                                </span>
+                              );
+                            })()}
                             
                             {/* Item-level Kitchen Note / Line Description */}
                             {(() => {

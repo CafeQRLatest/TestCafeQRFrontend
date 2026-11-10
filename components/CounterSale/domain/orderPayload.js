@@ -96,8 +96,13 @@ export function buildProcessedLines({ cart, totals, config }) {
     const rawDiscType = String(cartItem?.discount?.type || pi.line_discount_input_type || '').toLowerCase();
     const isPercentDisc = rawDiscType === 'percent' || rawDiscType === 'percentage';
 
+    const itemHsn = (
+      cartItem?.taxCode || cartItem?.tax_code || cartItem?.hsnCode || cartItem?.hsn_code ||
+      pi.taxCode || pi.tax_code || pi.hsnCode || pi.hsn_code || null
+    );
     const matchedRate = (config?.taxRates || []).find(r => parseFloat(r.value) === taxRatePct);
-    const taxCode     = gstEnabled && taxRatePct > 0 ? (matchedRate?.code  || `GST_${taxRatePct}`) : null;
+    const fallbackTaxCode = gstEnabled && taxRatePct > 0 ? (matchedRate?.code  || `GST_${taxRatePct}`) : null;
+    const taxCode     = itemHsn || fallbackTaxCode;
     const taxName     = gstEnabled && taxRatePct > 0 ? (matchedRate?.name  || `GST ${taxRatePct}%`) : null;
     const uomPrecision = uomPrecisionOf(cartItem || pi);
     const qty         = roundQty(Number(pi.quantity || 1), uomPrecision);
