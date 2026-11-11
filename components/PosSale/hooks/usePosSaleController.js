@@ -49,7 +49,7 @@ export default function usePosSaleController({
 }) {
   const { notify, showConfirm } = useNotification();
   const router = useRouter();
-  const { timezone, orgId } = useAuth();
+  const { timezone, orgId, userRole, canAutoOpenCashDrawer } = useAuth();
 
   // 1. V2 Bootstrap / Sales Screen Details — single API call replaces 5-7 waterfall requests
   const bootstrap = usePosSaleBootstrap({
@@ -199,7 +199,8 @@ export default function usePosSaleController({
   } = discounts;
 
   // 6. Order Submission (reused from CounterSale — uses V2 API via overridden createOrder)
-  const submission = useOrderSubmission({ timezone, createOrderFn: createSaleOrder });
+  const drawerAuth = useMemo(() => ({ userRole, canAutoOpenCashDrawer }), [userRole, canAutoOpenCashDrawer]);
+  const submission = useOrderSubmission({ timezone, createOrderFn: createSaleOrder, drawerAuth });
   const {
     processing,
     showSettleDialog,

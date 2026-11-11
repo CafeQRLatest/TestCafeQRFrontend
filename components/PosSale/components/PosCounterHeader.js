@@ -5,6 +5,7 @@ import PosSalesHistoryModal from './PosSalesHistoryModal';
 import PosDateTimePicker from './PosDateTimePicker';
 import { useAuth } from '../../../context/AuthContext';
 import { getKitchenTerms, getTakeawayLabel } from '../../../utils/businessTerms';
+import CashDrawerButton from '../../CashDrawerButton';
 
 const HeaderContainer = styled.header`
   padding: 8px 20px;
@@ -407,6 +408,9 @@ export default function PosCounterHeader({
             themeColor="#f97316"
           />
         </HeaderDateTimeWrapper>
+
+        {/* Cash drawer (No Sale) — hidden unless enabled + permitted */}
+        <CashDrawerButton config={ui?.config || order?.config} />
 
         {/* 4. Zoom Control */}
         <ZoomControl onClick={e => e.stopPropagation()}>

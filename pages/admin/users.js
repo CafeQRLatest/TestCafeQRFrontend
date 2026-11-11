@@ -287,6 +287,9 @@ function UsersContent() {
             canDeleteOrderItem: selectedRole.canDeleteOrderItem !== false,
             canDecrementOrderItem: selectedRole.canDecrementOrderItem !== false,
             canPrintOrder: selectedRole.canPrintOrder !== false,
+            canOpenCashDrawer: selectedRole.canOpenCashDrawer === true,
+            canAutoOpenCashDrawer: selectedRole.canAutoOpenCashDrawer !== false,
+            canViewCashDrawerHistory: selectedRole.canViewCashDrawerHistory === true,
           });
         }
       } else {
@@ -322,7 +325,10 @@ function UsersContent() {
       canCancelOrder: true,
       canDeleteOrderItem: true,
       canDecrementOrderItem: true,
-      canPrintOrder: true
+      canPrintOrder: true,
+      canOpenCashDrawer: false,
+      canAutoOpenCashDrawer: true,
+      canViewCashDrawerHistory: false
     });
   };
 
@@ -633,6 +639,58 @@ function UsersContent() {
                           <div className="perm-info">
                             <span className="perm-name">Print Orders</span>
                             <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Allow print buttons and print station</p>
+                          </div>
+                        </div>
+                      </div>
+                   </section>
+
+                   <section className="v2-data-block margin-top">
+                      <div className="block-header">
+                        <FaShieldAlt className="block-icon" />
+                        <h4>Cash Drawer Permissions</h4>
+                      </div>
+                      <div className="permissions-grid-premium">
+                        <div
+                          className={`perm-chip ${selectedRole.canAutoOpenCashDrawer !== false ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canAutoOpenCashDrawer: selectedRole.canAutoOpenCashDrawer === false})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Auto-open Drawer on Settle</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Drawer opens when this role settles a sale or kitchen order paid in cash (or a cash split)</p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`perm-chip ${selectedRole.canOpenCashDrawer === true ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => isAdmin && setSelectedRole({...selectedRole, canOpenCashDrawer: selectedRole.canOpenCashDrawer !== true})}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">Open Drawer (No Sale)</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Show the manual Drawer button; every open is logged with a reason</p>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`perm-chip ${selectedRole.canViewCashDrawerHistory === true ? 'active' : ''} ${!isAdmin ? 'read-only' : ''}`}
+                          onClick={() => {
+                            if (!isAdmin) return;
+                            const enable = selectedRole.canViewCashDrawerHistory !== true;
+                            // Keep the sidebar entry in step with the permission.
+                            const historyMenu = menus.find(m => m.url === '/owner/cash-drawer-history');
+                            const current = (selectedRole.menus || []).filter(m => m.url !== '/owner/cash-drawer-history');
+                            setSelectedRole({
+                              ...selectedRole,
+                              canViewCashDrawerHistory: enable,
+                              menus: enable && historyMenu ? [...current, historyMenu] : current,
+                            });
+                          }}
+                        >
+                          <div className="perm-toggle"></div>
+                          <div className="perm-info">
+                            <span className="perm-name">View Drawer History</span>
+                            <p className="perm-desc" style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Access the cash drawer audit report (who, when, why)</p>
                           </div>
                         </div>
                       </div>

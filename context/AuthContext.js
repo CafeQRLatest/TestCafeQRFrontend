@@ -62,6 +62,9 @@ export const AuthProvider = ({ children }) => {
   const [canDeleteOrderItem, setCanDeleteOrderItem] = useState(true);
   const [canDecrementOrderItem, setCanDecrementOrderItem] = useState(true);
   const [canPrintOrder, setCanPrintOrder] = useState(true);
+  const [canOpenCashDrawer, setCanOpenCashDrawer] = useState(false);
+  const [canAutoOpenCashDrawer, setCanAutoOpenCashDrawer] = useState(true);
+  const [canViewCashDrawerHistory, setCanViewCashDrawerHistory] = useState(false);
   const [activeModules, setActiveModules] = useState([]);
   const [activeModulesDetailed, setActiveModulesDetailed] = useState([]);
   const [termsAcceptedVersion, setTermsAcceptedVersion] = useState(null);
@@ -115,6 +118,9 @@ export const AuthProvider = ({ children }) => {
       const storedCanDeleteOrderItem = getStorageItem('canDeleteOrderItem');
       const storedCanDecrementOrderItem = getStorageItem('canDecrementOrderItem');
       const storedCanPrintOrder = getStorageItem('canPrintOrder');
+      const storedCanOpenCashDrawer = getStorageItem('canOpenCashDrawer');
+      const storedCanAutoOpenCashDrawer = getStorageItem('canAutoOpenCashDrawer');
+      const storedCanViewCashDrawerHistory = getStorageItem('canViewCashDrawerHistory');
       const storedModules = getStorageItem('activeModules');
       const storedModulesDetailed = getStorageItem('activeModulesDetailed');
       const storedTermsVersion = getStorageItem('termsAcceptedVersion');
@@ -143,6 +149,9 @@ export const AuthProvider = ({ children }) => {
       if (storedCanDeleteOrderItem !== undefined) setCanDeleteOrderItem(storedCanDeleteOrderItem === 'true');
       if (storedCanDecrementOrderItem !== undefined) setCanDecrementOrderItem(storedCanDecrementOrderItem === 'true');
       if (storedCanPrintOrder !== undefined) setCanPrintOrder(storedCanPrintOrder === 'true');
+      if (storedCanOpenCashDrawer !== undefined && storedCanOpenCashDrawer !== null) setCanOpenCashDrawer(storedCanOpenCashDrawer === 'true');
+      if (storedCanAutoOpenCashDrawer !== undefined && storedCanAutoOpenCashDrawer !== null) setCanAutoOpenCashDrawer(storedCanAutoOpenCashDrawer === 'true');
+      if (storedCanViewCashDrawerHistory !== undefined && storedCanViewCashDrawerHistory !== null) setCanViewCashDrawerHistory(storedCanViewCashDrawerHistory === 'true');
       if (storedModules) {
         try {
           setActiveModules(JSON.parse(storedModules));
@@ -221,6 +230,18 @@ export const AuthProvider = ({ children }) => {
               setCanPrintOrder(u.canPrintOrder);
               setStorageItem('canPrintOrder', String(u.canPrintOrder), cookieOptions);
             }
+            if (u.canOpenCashDrawer !== undefined && u.canOpenCashDrawer !== null) {
+              setCanOpenCashDrawer(u.canOpenCashDrawer);
+              setStorageItem('canOpenCashDrawer', String(u.canOpenCashDrawer), cookieOptions);
+            }
+            if (u.canAutoOpenCashDrawer !== undefined && u.canAutoOpenCashDrawer !== null) {
+              setCanAutoOpenCashDrawer(u.canAutoOpenCashDrawer);
+              setStorageItem('canAutoOpenCashDrawer', String(u.canAutoOpenCashDrawer), cookieOptions);
+            }
+            if (u.canViewCashDrawerHistory !== undefined && u.canViewCashDrawerHistory !== null) {
+              setCanViewCashDrawerHistory(u.canViewCashDrawerHistory);
+              setStorageItem('canViewCashDrawerHistory', String(u.canViewCashDrawerHistory), cookieOptions);
+            }
             if (u.role) {
               setUserRole(u.role);
               setStorageItem('userRole', u.role, cookieOptions);
@@ -260,6 +281,18 @@ export const AuthProvider = ({ children }) => {
       setCanPrintOrder(perms.canPrintOrder);
       setStorageItem('canPrintOrder', String(perms.canPrintOrder), cookieOptions);
     }
+    if (perms.canOpenCashDrawer !== undefined && perms.canOpenCashDrawer !== null) {
+      setCanOpenCashDrawer(perms.canOpenCashDrawer);
+      setStorageItem('canOpenCashDrawer', String(perms.canOpenCashDrawer), cookieOptions);
+    }
+    if (perms.canAutoOpenCashDrawer !== undefined && perms.canAutoOpenCashDrawer !== null) {
+      setCanAutoOpenCashDrawer(perms.canAutoOpenCashDrawer);
+      setStorageItem('canAutoOpenCashDrawer', String(perms.canAutoOpenCashDrawer), cookieOptions);
+    }
+    if (perms.canViewCashDrawerHistory !== undefined && perms.canViewCashDrawerHistory !== null) {
+      setCanViewCashDrawerHistory(perms.canViewCashDrawerHistory);
+      setStorageItem('canViewCashDrawerHistory', String(perms.canViewCashDrawerHistory), cookieOptions);
+    }
   }, []);
 
   const login = (data) => {
@@ -294,11 +327,17 @@ export const AuthProvider = ({ children }) => {
     const pCanDeleteOrderItem = data.canDeleteOrderItem !== undefined ? data.canDeleteOrderItem : true;
     const pCanDecrementOrderItem = data.canDecrementOrderItem !== undefined ? data.canDecrementOrderItem : true;
     const pCanPrintOrder = data.canPrintOrder !== undefined ? data.canPrintOrder : true;
+    const pCanOpenCashDrawer = data.canOpenCashDrawer !== undefined && data.canOpenCashDrawer !== null ? Boolean(data.canOpenCashDrawer) : false;
+    const pCanAutoOpenCashDrawer = data.canAutoOpenCashDrawer !== undefined && data.canAutoOpenCashDrawer !== null ? Boolean(data.canAutoOpenCashDrawer) : true;
+    const pCanViewCashDrawerHistory = data.canViewCashDrawerHistory !== undefined && data.canViewCashDrawerHistory !== null ? Boolean(data.canViewCashDrawerHistory) : false;
 
     setCanCancelOrder(pCanCancelOrder);
     setCanDeleteOrderItem(pCanDeleteOrderItem);
     setCanDecrementOrderItem(pCanDecrementOrderItem);
     setCanPrintOrder(pCanPrintOrder);
+    setCanOpenCashDrawer(pCanOpenCashDrawer);
+    setCanAutoOpenCashDrawer(pCanAutoOpenCashDrawer);
+    setCanViewCashDrawerHistory(pCanViewCashDrawerHistory);
     
     const cookieOptions = getFrontendCookieOptions();
     
@@ -339,6 +378,9 @@ export const AuthProvider = ({ children }) => {
     setStorageItem('canDeleteOrderItem', String(pCanDeleteOrderItem), cookieOptions);
     setStorageItem('canDecrementOrderItem', String(pCanDecrementOrderItem), cookieOptions);
     setStorageItem('canPrintOrder', String(pCanPrintOrder), cookieOptions);
+    setStorageItem('canOpenCashDrawer', String(pCanOpenCashDrawer), cookieOptions);
+    setStorageItem('canAutoOpenCashDrawer', String(pCanAutoOpenCashDrawer), cookieOptions);
+    setStorageItem('canViewCashDrawerHistory', String(pCanViewCashDrawerHistory), cookieOptions);
 
     // Fetch assigned menus immediately after login
     fetchAssignedMenus();
@@ -445,6 +487,9 @@ export const AuthProvider = ({ children }) => {
     removeStorageItem('canDeleteOrderItem', removeOptions);
     removeStorageItem('canDecrementOrderItem', removeOptions);
     removeStorageItem('canPrintOrder', removeOptions);
+    removeStorageItem('canOpenCashDrawer', removeOptions);
+    removeStorageItem('canAutoOpenCashDrawer', removeOptions);
+    removeStorageItem('canViewCashDrawerHistory', removeOptions);
     removeStorageItem('activeModulesDetailed', removeOptions);
     removeStorageItem('termsAcceptedVersion', removeOptions);
     removeStorageItem('termsAcceptedAt', removeOptions);
@@ -586,6 +631,9 @@ export const AuthProvider = ({ children }) => {
       canDeleteOrderItem,
       canDecrementOrderItem,
       canPrintOrder,
+      canOpenCashDrawer,
+      canAutoOpenCashDrawer,
+      canViewCashDrawerHistory,
       syncRolePermissions,
       activeModules,
       activeModulesDetailed,

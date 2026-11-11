@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import styled, { keyframes } from 'styled-components';
 import Cookies from 'js-cookie';
 import api from '../../utils/api';
+import { autoOpenCashDrawerAfterSettle, CASH_DRAWER_TRIGGERS } from '../../utils/cashDrawer';
 import { useAuth } from '../../context/AuthContext';
 import { isNonFoodType } from '../../utils/businessTerms';
 import { getQueuedOfflineOrders } from '../../utils/offlineStore';
@@ -352,7 +353,7 @@ export default function OrdersPage() {
   const currencyDecimals = useCurrencyDecimals();
   const { notify } = useNotification();
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule, posType } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule, posType, canAutoOpenCashDrawer } = useAuth();
   const sliderRef = useRef(null);
   const historyFiltersTouchedRef = useRef(false);
   const historyAbortControllerRef = useRef(null);
@@ -1597,6 +1598,14 @@ export default function OrdersPage() {
         : `/api/v1/orders/${settleId}/settle`;
       const res = await api.post(url, payloadToSend);
       const settledOrder = res?.data?.data;
+      // Cash drawer: kick after settling an existing kitchen/table order (config + role + tender rules; never throws).
+      autoOpenCashDrawerAfterSettle({
+        trigger: CASH_DRAWER_TRIGGERS.ORDER_SETTLE,
+        order: settledOrder || paymentOrder,
+        payment: payloadToSend,
+        auth: { userRole, canAutoOpenCashDrawer },
+        config,
+      });
       if (settledOrder && targetPhone) {
         try {
           const originUrl = typeof window !== 'undefined' ? window.location.origin : null;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
+import { downloadCsv, downloadWorkbook, toObjects, columnWidths, groupSum, num } from '../../utils/gstExport';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
@@ -198,6 +199,123 @@ export default function ExpenseReportView({
     );
   };
 
+  // ── Expense GST register export (same layout as purchase register; rows from the backend) ──
+  const [gstExporting, setGstExporting] = useState(null); // null | 'csv' | 'excel'
+  const gstDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'date' });
+
+  const EXPENSE_GST_COLUMNS = [
+    ['Supplier GSTIN', r => r.supplierGstin || ''],
+    ['Supplier Name', r => r.supplierName || ''],
+    ['Registration Type', r => r.supplierRegistrationType],
+    ['Supplier State Code', r => r.supplierStateCode || ''],
+    ['Supplier State', r => r.supplierState || ''],
+    ['Bill / Invoice No', r => r.supplierInvoiceNo || ''],
+    ['Bill Date', r => gstDate(r.invoiceDate)],
+    ['Expense Ref No', r => r.orderNo || ''],
+    ['Invoice Type', r => r.invoiceType],
+    ['Bill Value', r => num(r.invoiceValue)],
+    ['Place of Supply', r => r.placeOfSupply || ''],
+    ['Supply Type', r => (r.supplyType === 'INTER_STATE' ? 'Inter-State' : 'Intra-State')],
+    ['Reverse Charge', r => r.reverseCharge],
+    ['Branch', r => r.branchName || ''],
+    ['Branch GSTIN', r => r.recipientGstin || ''],
+    ['Category', r => r.categoryName || ''],
+    ['Description', r => r.itemName || ''],
+    ['HSN/SAC', r => r.hsnCode || ''],
+    ['Taxable Value', r => num(r.taxableValue)],
+    ['GST Rate %', r => num(r.gstRate)],
+    ['IGST Rate %', r => num(r.igstRate)],
+    ['IGST Amount', r => num(r.igstAmount)],
+    ['CGST Rate %', r => num(r.cgstRate)],
+    ['CGST Amount', r => num(r.cgstAmount)],
+    ['SGST/UTGST Rate %', r => num(r.sgstRate)],
+    ['SGST/UTGST Amount', r => num(r.sgstAmount)],
+    ['Cess Amount', r => num(r.cessAmount)],
+    ['Total Tax', r => num(r.totalTax)],
+    ['Total Amount', r => num(r.lineTotal)],
+    ['ITC Eligibility', r => r.itcEligibility || ''],
+    ['ITC IGST', r => num(r.itcIgst)],
+    ['ITC CGST', r => num(r.itcCgst)],
+    ['ITC SGST/UTGST', r => num(r.itcSgst)],
+    ['ITC Cess', r => num(r.itcCess)],
+    ['Payment Method', r => r.paymentMethod || ''],
+    ['Payment Status', r => r.paymentStatus || ''],
+    ['Remarks', r => r.remarks || ''],
+  ];
+
+  const fetchExpenseGstRegister = async () => {
+    const params = { fromDate: toInstant(dateFrom), toDate: toInstant(dateTo, true) };
+    if (selectedOrgId) params.branchId = selectedOrgId;
+    const res = await api.get('/api/v1/expenses/reports/gst-register', { params, timeout: 60000 });
+    if (!res.data?.success) throw new Error(res.data?.message || 'Failed to load expense GST register');
+    let rows = res.data.data || [];
+    // Respect the category filter chosen on the Expense Records tab
+    if (categoryFilter !== 'ALL') {
+      const cat = expenseCategories.find(c => String(c.id) === String(categoryFilter));
+      if (cat) rows = rows.filter(r => r.categoryName === cat.name);
+    }
+    return rows;
+  };
+
+  const expenseFileName = (ext) => `expense_gst_register_${(dateFrom || '').slice(0, 10)}_to_${(dateTo || '').slice(0, 10)}.${ext}`;
+
+  const runExpenseGstExport = async (kind, write) => {
+    setGstExporting(kind);
+    try {
+      const rows = await fetchExpenseGstRegister();
+      if (!rows.length) return notify('error', 'No expenses to export in this period (void expenses are excluded)');
+      await write(rows);
+    } catch (err) {
+      notify('error', err?.response?.data?.message || err.message || 'Expense export failed');
+    } finally {
+      setGstExporting(null);
+    }
+  };
+
+  const exportExpenseRecordsCSV = () => runExpenseGstExport('csv', async rows =>
+    downloadCsv(EXPENSE_GST_COLUMNS, rows, expenseFileName('csv')));
+
+  const exportExpenseRecordsExcel = () => runExpenseGstExport('excel', async rows => {
+    const taxSums = {
+      'Taxable Value': r => r.taxableValue, 'Integrated Tax Paid': r => r.igstAmount, 'Central Tax Paid': r => r.cgstAmount,
+      'State/UT Tax Paid': r => r.sgstAmount, 'Cess Paid': r => r.cessAmount,
+      'Availed ITC Integrated Tax': r => r.itcIgst, 'Availed ITC Central Tax': r => r.itcCgst,
+      'Availed ITC State/UT Tax': r => r.itcSgst, 'Availed ITC Cess': r => r.itcCess,
+    };
+    const b2b = groupSum(rows.filter(r => r.supplierGstin),
+      r => `${r.orderId}|${r.gstRate ?? 0}`,
+      r => ({
+        'Supplier GSTIN': r.supplierGstin || '', 'Supplier Name': r.supplierName || '',
+        'Invoice Number': r.supplierInvoiceNo || r.orderNo || '', 'Invoice Date': gstDate(r.invoiceDate),
+        'Invoice Value': num(r.invoiceValue), 'Place Of Supply': r.placeOfSupply || '',
+        'Reverse Charge': r.reverseCharge, 'Invoice Type': r.invoiceType, 'Rate': num(r.gstRate),
+        'Eligibility For ITC': r.itcEligibility || '',
+      }),
+      taxSums);
+    const hsn = groupSum(rows,
+      r => `${r.hsnCode || ''}|${r.gstRate ?? 0}`,
+      r => ({ 'HSN/SAC': r.hsnCode || '(missing)', 'Description': r.categoryName || '', 'Rate': num(r.gstRate) }),
+      { 'Total Value': r => r.lineTotal, 'Taxable Value': r => r.taxableValue, 'Integrated Tax Amount': r => r.igstAmount,
+        'Central Tax Amount': r => r.cgstAmount, 'State/UT Tax Amount': r => r.sgstAmount, 'Cess Amount': r => r.cessAmount })
+      .sort((a, b) => String(a['HSN/SAC']).localeCompare(String(b['HSN/SAC'])));
+    const byCategory = groupSum(rows,
+      r => r.categoryName || 'General',
+      r => ({ 'Category': r.categoryName || 'General' }),
+      { 'Total Amount': r => r.lineTotal, 'Taxable Value': r => r.taxableValue, 'Total Tax': r => r.totalTax })
+      .sort((a, b) => b['Total Amount'] - a['Total Amount']);
+    const issues = rows.filter(r => r.remarks).map(r => ({
+      'Expense Ref No': r.orderNo || '', 'Bill No': r.supplierInvoiceNo || '', 'Supplier': r.supplierName || '',
+      'Category': r.categoryName || '', 'Issue': r.remarks,
+    }));
+    await downloadWorkbook([
+      { name: 'Expense Register', data: toObjects(EXPENSE_GST_COLUMNS, rows), widths: columnWidths(EXPENSE_GST_COLUMNS) },
+      { name: 'B2B Invoices', data: b2b },
+      { name: 'HSN-SAC Summary', data: hsn },
+      { name: 'Category Summary', data: byCategory, widths: [28, 14, 14, 12] },
+      { name: 'Data Issues', data: issues, widths: [16, 16, 24, 20, 70] },
+    ], expenseFileName('xlsx'));
+  });
+
   const renderRecords = () => {
     const list = Array.isArray(expenseRecords) ? expenseRecords : [];
     const filtered = list.filter(r => {
@@ -238,39 +356,12 @@ export default function ExpenseReportView({
             />
             <FaSearch className="rpt-exp-search-icon" />
           </div>
-          <button className="rpt-exp-btn" onClick={() => exportCSV(
-            ['Date', 'Category', 'Title / Description', 'Payment Method', 'Amount'],
-            filtered.map(r => {
-              const isMixed = (r.paymentMethod || '').toUpperCase() === 'MIXED';
-              const cash = parseFloat(r.cashAmount ?? r.cash_amount) || (parseFloat(r.amount) / 2 || 0);
-              const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
-              const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
-              return [
-                formatReportDate(r.expenseDate || r.date || r.createdAt),
-                r.categoryName || r.category?.name || 'General',
-                r.title || r.name || r.description || '—',
-                payDisplay,
-                r.amount || 0
-              ].map(csvCell).join(',');
-            }),
-            'expense_records'
-          )}><FaFileCsv /> CSV</button>
-          <button className="rpt-exp-btn" onClick={() => exportExcel(
-            filtered.map(r => {
-              const isMixed = (r.paymentMethod || '').toUpperCase() === 'MIXED';
-              const cash = parseFloat(r.cashAmount ?? r.cash_amount) || (parseFloat(r.amount) / 2 || 0);
-              const online = parseFloat(r.onlineAmount ?? r.online_amount) || (parseFloat(r.amount) / 2 || 0);
-              const payDisplay = isMixed ? `Cash: ${fmt(cash)} + Online: ${fmt(online)}` : (r.paymentMethod || '—');
-              return {
-                'Date': formatReportDate(r.expenseDate || r.date || r.createdAt),
-                'Category': r.categoryName || r.category?.name || 'General',
-                'Title / Description': r.title || r.name || r.description || '—',
-                'Payment Method': payDisplay,
-                'Amount': Number(r.amount || 0)
-              };
-            }),
-            'Expense Records', 'expense_records'
-          )}><FaFileExcel /> Excel</button>
+          <button className="rpt-exp-btn" disabled={!!gstExporting} onClick={exportExpenseRecordsCSV}
+            title="Expense GST register: supplier GSTIN, bill no., HSN/SAC, taxable value, CGST/SGST/IGST, ITC"
+          ><FaFileCsv /> {gstExporting === 'csv' ? 'Preparing…' : 'CSV'}</button>
+          <button className="rpt-exp-btn" disabled={!!gstExporting} onClick={exportExpenseRecordsExcel}
+            title="Expense GST workbook: Expense Register, B2B Invoices (GSTR-2B), HSN/SAC Summary, Category Summary, Data Issues"
+          ><FaFileExcel /> {gstExporting === 'excel' ? 'Preparing…' : 'Excel'}</button>
         </div>
 
         {filtered.length === 0 ? (

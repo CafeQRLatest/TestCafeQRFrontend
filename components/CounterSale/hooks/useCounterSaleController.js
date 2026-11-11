@@ -31,7 +31,7 @@ export default function useCounterSaleController({
 }) {
   const { notify, showConfirm } = useNotification();
   const router = useRouter();
-  const { timezone, orgId } = useAuth();
+  const { timezone, orgId, userRole, canAutoOpenCashDrawer } = useAuth();
 
   // 1. Bootstrap Core Data
   const bootstrap = useCounterSaleBootstrap({
@@ -178,7 +178,8 @@ export default function useCounterSaleController({
   } = discounts;
 
   // 6. Order Submission Hook
-  const submission = useOrderSubmission({ timezone });
+  const drawerAuth = useMemo(() => ({ userRole, canAutoOpenCashDrawer }), [userRole, canAutoOpenCashDrawer]);
+  const submission = useOrderSubmission({ timezone, drawerAuth });
   const {
     processing,
     showSettleDialog,

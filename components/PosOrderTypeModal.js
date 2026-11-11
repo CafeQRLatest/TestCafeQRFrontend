@@ -43,6 +43,8 @@ import {
   FaSpinner
 } from 'react-icons/fa';
 import api from '../utils/api';
+import { autoOpenCashDrawerAfterSettle, CASH_DRAWER_TRIGGERS } from '../utils/cashDrawer';
+import CashDrawerButton from './CashDrawerButton';
 import { useAuth } from '../context/AuthContext';
 import { getTakeawayLabel } from '../utils/businessTerms';
 import { useNotification } from '../context/NotificationContext';
@@ -929,7 +931,7 @@ export default function PosOrderTypeModal({
 }) {
   const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
-  const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule, posType } = useAuth();
+  const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule, posType, userRole, canAutoOpenCashDrawer } = useAuth();
   const takeawayLabel = getTakeawayLabel(posType);
   const { notify, showConfirm } = useNotification();
 
@@ -1820,6 +1822,14 @@ export default function PosOrderTypeModal({
 
       const res = await api.post(url, payloadToSend);
       const settledOrder = res?.data?.data || paymentOrder;
+      // Cash drawer: kick after settling an existing kitchen/table order (config + role + tender rules; never throws).
+      autoOpenCashDrawerAfterSettle({
+        trigger: CASH_DRAWER_TRIGGERS.ORDER_SETTLE,
+        order: settledOrder,
+        payment: payloadToSend,
+        auth: { userRole, canAutoOpenCashDrawer },
+        config,
+      });
 
       // Automatically dispatch smart digital e-bill via WhatsApp
       const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
@@ -2231,6 +2241,8 @@ export default function PosOrderTypeModal({
 
         {/* 3. Right: View Mode Toggle & Orange New Order Button */}
         <div className="pos-right-ctrl-group" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Cash drawer (No Sale) — hidden unless enabled for the branch and permitted for the role */}
+          <CashDrawerButton config={config} />
           <div className="pos-viewmode-toggle-box" style={S.viewModeToggleBox}>
             <button
               type="button"

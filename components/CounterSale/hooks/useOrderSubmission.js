@@ -10,6 +10,7 @@ import { businessTimeToUtc, getLocalISOString } from '../../../utils/timezoneUti
 import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
 import api from '../../../utils/api';
 import { generateInvoicePdfDoc } from '../../../utils/invoicePdf';
+import { autoOpenCashDrawerAfterSettle, CASH_DRAWER_TRIGGERS } from '../../../utils/cashDrawer';
 
 function createIdempotencyKey() {
   return typeof window !== 'undefined' && window.crypto?.randomUUID
@@ -36,7 +37,10 @@ function stableSerialize(value) {
     .join(',')}}`;
 }
 
-export default function useOrderSubmission({ timezone, createOrderFn = createOrder }) {
+export default function useOrderSubmission({ timezone, createOrderFn = createOrder, drawerAuth = null }) {
+  // Latest role flags for the cash drawer; a ref keeps handleSubmitOrder's identity stable.
+  const drawerAuthRef = useRef(drawerAuth);
+  drawerAuthRef.current = drawerAuth;
   const [processing, setProcessing] = useState(false);
   const [showSettleDialog, setShowSettleDialog] = useState(false);
   const [orderDateTime, setOrderDateTime] = useState('');
@@ -322,6 +326,17 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
       
       if (typeof onOrderCreated === 'function') {
         onOrderCreated(printOrder, kind);
+      }
+
+      // Cash drawer: kick on a paid direct sale (config + role + tender rules applied inside; never throws).
+      if (isSettleDirect && drawerAuthRef.current) {
+        autoOpenCashDrawerAfterSettle({
+          trigger: CASH_DRAWER_TRIGGERS.SALE_SETTLE,
+          order: printOrder,
+          payment: paymentPayload,
+          auth: drawerAuthRef.current,
+          config,
+        });
       }
       setIsDateTimeManuallyEdited(false);
       

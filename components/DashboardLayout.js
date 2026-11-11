@@ -793,6 +793,7 @@ const MENU_CONFIG = {
   "Credit Customers": { name: "Credit Settlements", icon: <FaUserFriends />, url: "/owner/credit-settlements" },
   "Credit Sales": { name: "Credit Sales Ledger", icon: <FaBookOpen /> },
   "Offline Sync Center": { name: "Offline Sync Center", icon: <FaClock /> },
+  "Cash Drawer History": { name: "Cash Drawer History", icon: <FaMoneyCheckAlt /> },
   "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
   "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
@@ -853,6 +854,7 @@ const CATEGORY_MAPPING = {
   "Analytics": "INSIGHTS",
   "Sales_Insight": "INSIGHTS",
   "Sales History": "INSIGHTS",
+  "Cash Drawer History": "INSIGHTS",
   "Ask CafeQR": "INSIGHTS",
   "Expenses": "INSIGHTS",
   "Accounting": "INSIGHTS",
@@ -878,7 +880,7 @@ const MENU_ORDER = [
   "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
   "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
   "Customers", "Loyalty",
-  "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+  "Analytics", "Sales_Insight", "Sales History", "Cash Drawer History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
   "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
   "Payroll & HR"
 ];
@@ -1133,6 +1135,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Credit Customers": { name: "Credit Settlements", icon: <FaUserFriends />, url: "/owner/credit-settlements" },
     "Credit Sales": { name: "Credit Sales Ledger", icon: <FaBookOpen /> },
     "Offline Sync Center": { name: "Offline Sync Center", icon: <FaClock /> },
+  "Cash Drawer History": { name: "Cash Drawer History", icon: <FaMoneyCheckAlt /> },
     "Waste Management": { name: "Waste Management", icon: <FaRecycle /> },
 
     "Point of Sale": { name: "POS", icon: <FaCashRegister />, url: "/owner/sales" },
@@ -1192,6 +1195,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Analytics": "INSIGHTS",
     "Sales_Insight": "INSIGHTS",
     "Sales History": "INSIGHTS",
+  "Cash Drawer History": "INSIGHTS",
   "Ask CafeQR": "INSIGHTS",
     "Expenses": "INSIGHTS",
     "Accounting": "INSIGHTS",
@@ -1217,7 +1221,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
     "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
-    "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+    "Analytics", "Sales_Insight", "Sales History", "Cash Drawer History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
   ];
 

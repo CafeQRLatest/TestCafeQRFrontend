@@ -18,6 +18,7 @@ import { clearAllPosCache } from '../../components/PosSale/services/posIndexedDb
 import { setCachedConfig } from '../../utils/moduleVisibility';
 import { isNonFoodType } from '../../utils/businessTerms';
 import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard';
+import CashDrawerSettings from '../../components/settings/CashDrawerSettings';
 import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom, FaSearch } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
@@ -58,6 +59,17 @@ const MODULES = [
       { key: 'pm_takeaway_hide_kitchen', title: 'Hide Kitchen Mode for Takeaway POS', desc: 'Force Takeaway orders directly to Settle mode and hide the Kitchen mode toggle button.' },
       { key: 'pm_dinein_auto_kot', title: 'Auto-Print KOT on Dine-In Settlement', desc: 'When completing/settling a Dine-In order, automatically print Final Bill first, followed by KOT.' },
       { key: 'pm_dinein_hide_kitchen', title: 'Hide Kitchen Mode for Dine-In POS', desc: 'Force Dine-In orders directly to Settle mode and hide the Kitchen mode toggle button.' }
+    ]
+  },
+  {
+    key: 'pm_cash_drawer',
+    title: 'Cash Drawer',
+    desc: 'Open the printer-connected cash drawer on settle and from the POS',
+    color: '#f97316',
+    children: [
+      { key: 'pm_cd_auto_sale', title: 'Auto-open on POS Sale Settlement', desc: 'Open the drawer when a direct sale is paid in cash or with a split payment that includes cash.' },
+      { key: 'pm_cd_auto_order', title: 'Auto-open on Kitchen / Table Order Settlement', desc: 'Open the drawer when an existing kitchen or table order is settled in cash or with a cash split.' },
+      { key: 'pm_cd_reason_required', title: 'Require Reason for Manual Open', desc: 'Users must pick a reason before a No Sale drawer open. Every open is logged in Cash Drawer History.' }
     ]
   },
   { key: 'pm_online_delivery',  title: 'Online Delivery',   desc: 'Enable delivery ordering',                  color: '#f97316' },
@@ -389,7 +401,7 @@ export default function ConfigurationsPage() {
 function ConfigurationsContent() {
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
-  const { orgId, orgName, hasModule, updateSubscription, posType, userRole } = useAuth();
+  const { orgId, orgName, hasModule, updateSubscription, posType, userRole, canOpenCashDrawer } = useAuth();
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
   const isNonFood = isNonFoodType(posType);
   const hasBranchContext = Boolean(orgId && orgId !== '0');
@@ -428,6 +440,7 @@ function ConfigurationsContent() {
     pm_customers: false, pm_loyalty: false,
     pm_send_to_kitchen: false, pm_takeaway_auto_kot: false, pm_takeaway_hide_kitchen: false, pm_dinein_auto_kot: false, pm_dinein_hide_kitchen: false, pm_online_delivery: false, pm_offline_sync: false, pm_barcode_scanner: false, pm_payroll: false, pm_mcp: false, pm_allow_multi_customer: false,
     pm_customer_age: false,
+    pm_cash_drawer: false, pm_cd_auto_sale: true, pm_cd_auto_order: true, pm_cd_reason_required: true, cd_open_tenders: 'CASH',
     credit_allocation_mode: 'OLDEST_FIRST',
     
     tax_enabled: false,
@@ -584,6 +597,9 @@ function ConfigurationsContent() {
             pm_dinein_auto_kot: !!d.dineInAutoPrintKotOnSettle, pm_dinein_hide_kitchen: !!d.dineInHideKitchenMode,
             pm_online_delivery: !!d.onlineDeliveryEnabled, pm_offline_sync: !!d.offlineSyncEnabled, pm_barcode_scanner: !!d.barcodeScannerEnabled, pm_payroll: !!d.payrollEnabled, pm_mcp: false, // Enable MCP is not available yet: always off pm_allow_multi_customer: false,
             pm_customer_age: false,
+            pm_cash_drawer: d.cashDrawerEnabled === true, pm_cd_auto_sale: d.cashDrawerAutoOpenOnSale !== false,
+            pm_cd_auto_order: d.cashDrawerAutoOpenOnOrderSettle !== false, pm_cd_reason_required: d.cashDrawerManualReasonRequired !== false,
+            cd_open_tenders: d.cashDrawerOpenTenders || 'CASH',
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             
             tax_enabled: !!d.taxEnabled, 
@@ -736,6 +752,9 @@ function ConfigurationsContent() {
         dineInAutoPrintKotOnSettle: config.pm_dinein_auto_kot, dineInHideKitchenMode: config.pm_dinein_hide_kitchen,
         onlineDeliveryEnabled: config.pm_online_delivery, offlineSyncEnabled: config.pm_offline_sync, barcodeScannerEnabled: hasModule('BARCODE_SCANNER', orgId) ? config.pm_barcode_scanner : false, payrollEnabled: config.pm_payroll, mcpEnabled: false, // Enable MCP is not available yet: always off allowMultipleCustomersPerOrder: false,
         customerAgeEnabled: false,
+        cashDrawerEnabled: !!config.pm_cash_drawer, cashDrawerAutoOpenOnSale: config.pm_cd_auto_sale !== false,
+        cashDrawerAutoOpenOnOrderSettle: config.pm_cd_auto_order !== false, cashDrawerManualReasonRequired: config.pm_cd_reason_required !== false,
+        cashDrawerOpenTenders: config.cd_open_tenders || 'CASH',
 
         taxEnabled: config.tax_enabled,
         taxLabelGlobal: config.tax_label_global,
@@ -1931,6 +1950,10 @@ function ConfigurationsContent() {
                       config={config} 
                       onConfigChange={set} 
                    />
+                    <CashDrawerSettings
+                      enabled={!!config.pm_cash_drawer}
+                      canTest={canOpenCashDrawer === true || ['ADMIN', 'SUPER_ADMIN'].includes(String(userRole || '').toUpperCase())}
+                    />
                 </div>
              </div>
           )}

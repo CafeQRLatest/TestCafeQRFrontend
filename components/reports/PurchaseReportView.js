@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
@@ -10,6 +10,8 @@ import {
   FaFileCsv, FaFileExcel, FaSearch, FaPlus, FaShoppingBag, FaClock,
   FaChartLine, FaFileInvoice, FaMoneyBillWave, FaWallet, FaMobileAlt
 } from 'react-icons/fa';
+
+const REPORT_TIMEOUT_MS = 30000;
 
 const PURCHASE_TABS = [
   { key: 'purch_summary', label: 'Procurement Summary', icon: <FaChartBar /> },
@@ -70,7 +72,13 @@ export default function PurchaseReportView({
     try { return businessTimeToUtc(val, timezone); } catch { return undefined; }
   };
 
+  // Each load gets a sequence number; responses from superseded loads (e.g. an older date range
+  // that resolves after a newer one) are dropped so the table always matches the current filters.
+  const loadSeqRef = useRef(0);
+
   const loadSubTab = useCallback(async (tabKey) => {
+    const seq = ++loadSeqRef.current;
+    const isCurrent = () => seq === loadSeqRef.current;
     setLoading(true);
     setLoadError(null);
     const fromVal = toInstant(dateFrom);
@@ -86,8 +94,8 @@ export default function PurchaseReportView({
 
     try {
       if (tabKey === 'purch_summary') {
-        const res = await api.get('/api/v1/purchase/orders/reports/summary', { params });
-        if (res.data?.success) setPurchSummary(res.data.data || null);
+        const res = await api.get('/api/v1/purchase/orders/reports/summary', { params, timeout: REPORT_TIMEOUT_MS });
+        if (isCurrent() && res.data?.success) setPurchSummary(res.data.data || null);
         return;
       }
       if (tabKey === 'purch_orders') {
@@ -95,37 +103,39 @@ export default function PurchaseReportView({
           ...params,
           size: 200,
           page: purchPage,
-          status: purchStatusFilter !== 'ALL' ? purchStatusFilter : undefined,
-          searchTerm: purchSearchTerm?.trim() || undefined
+          status: purchStatusFilter !== 'ALL' ? purchStatusFilter : undefined
+          // Search is applied client-side (PO no. + vendor name); sending it to the server
+          // refetched on every keystroke and the server only matches PO no./reference.
         };
-        const res = await api.get('/api/v1/purchase/orders', { params: p });
-        if (res.data?.success) setPurchOrders(res.data.data?.content || res.data.data || []);
+        const res = await api.get('/api/v1/purchase/orders', { params: p, timeout: REPORT_TIMEOUT_MS });
+        if (isCurrent() && res.data?.success) setPurchOrders(res.data.data?.content || res.data.data || []);
         return;
       }
       if (tabKey === 'purch_items') {
-        const res = await api.get('/api/v1/purchase/orders/reports/item-wise', { params });
-        if (res.data?.success) setPurchItems(res.data.data || []);
+        const res = await api.get('/api/v1/purchase/orders/reports/item-wise', { params, timeout: REPORT_TIMEOUT_MS });
+        if (isCurrent() && res.data?.success) setPurchItems(res.data.data || []);
         return;
       }
       if (tabKey === 'purch_vendors') {
-        const res = await api.get('/api/v1/purchase/orders/reports/vendor-wise', { params });
-        if (res.data?.success) setPurchVendors(res.data.data || []);
+        const res = await api.get('/api/v1/purchase/orders/reports/vendor-wise', { params, timeout: REPORT_TIMEOUT_MS });
+        if (isCurrent() && res.data?.success) setPurchVendors(res.data.data || []);
         return;
       }
       if (tabKey === 'purch_payments') {
-        const res = await api.get('/api/v1/purchase/orders/reports/payment-breakdown', { params });
-        if (res.data?.success) setPurchPayments(res.data.data || []);
+        const res = await api.get('/api/v1/purchase/orders/reports/payment-breakdown', { params, timeout: REPORT_TIMEOUT_MS });
+        if (isCurrent() && res.data?.success) setPurchPayments(res.data.data || []);
         return;
       }
     } catch (err) {
+      if (!isCurrent()) return;
       console.error('Purchase report error:', err);
       const msg = err?.response?.data?.message || 'Failed to load procurement report';
       setLoadError(msg);
       notify('error', msg);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [dateFrom, dateTo, purchPage, purchStatusFilter, purchSearchTerm, selectedOrgId, selectedTerminalId, timezone, notify]);
+  }, [dateFrom, dateTo, purchPage, purchStatusFilter, selectedOrgId, selectedTerminalId, timezone, notify]);
 
   useEffect(() => {
     loadSubTab(subTab);
@@ -150,6 +160,199 @@ export default function PurchaseReportView({
       XLSX.writeFile(wb, `${filename}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch {
       notify('error', 'Excel export failed');
+    }
+  };
+
+  // ── India GST purchase register (line-level, for GSTR-2B reconciliation / ITC) ──
+  const [gstExporting, setGstExporting] = useState(null); // null | 'csv' | 'excel'
+
+  const fetchGstRegister = async () => {
+    const fromVal = toInstant(dateFrom);
+    const toVal = toInstant(dateTo, true);
+    const params = { from: fromVal, to: toVal };
+    if (selectedOrgId) params.orgId = selectedOrgId;
+    const res = await api.get('/api/v1/purchase/orders/reports/gst-register', { params });
+    if (!res.data?.success) throw new Error(res.data?.message || 'Failed to load GST register');
+    return res.data.data || [];
+  };
+
+  const gstDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'date' });
+  const num = (v) => (v === null || v === undefined || v === '' ? '' : Number(v));
+
+  const GST_LINE_COLUMNS = [
+    ['Supplier GSTIN', r => r.supplierGstin || ''],
+    ['Supplier Name', r => r.supplierName || ''],
+    ['Registration Type', r => r.supplierRegistrationType],
+    ['Supplier State Code', r => r.supplierStateCode || ''],
+    ['Supplier State', r => r.supplierState || ''],
+    ['Supplier Invoice No', r => r.supplierInvoiceNo || ''],
+    ['Invoice Date', r => gstDate(r.invoiceDate)],
+    ['PO / Bill No', r => r.orderNo || ''],
+    ['Invoice Type', r => r.invoiceType],
+    ['Invoice Value', r => num(r.invoiceValue)],
+    ['Place of Supply', r => r.placeOfSupply || ''],
+    ['Supply Type', r => (r.supplyType === 'INTER_STATE' ? 'Inter-State' : 'Intra-State')],
+    ['Reverse Charge', r => r.reverseCharge],
+    ['Branch', r => r.branchName || ''],
+    ['Branch GSTIN', r => r.recipientGstin || ''],
+    ['Line No', r => r.lineNo],
+    ['Item Code', r => r.productCode || ''],
+    ['Item Name', r => r.itemName || ''],
+    ['Category', r => r.categoryName || ''],
+    ['HSN/SAC', r => r.hsnCode || ''],
+    ['UQC', r => r.uqc || ''],
+    ['Quantity', r => num(r.quantity)],
+    ['Rate (Excl. GST)', r => num(r.rateExTax)],
+    ['Discount', r => num(r.discountAmount)],
+    ['Taxable Value', r => num(r.taxableValue)],
+    ['GST Rate %', r => num(r.gstRate)],
+    ['IGST Rate %', r => num(r.igstRate)],
+    ['IGST Amount', r => num(r.igstAmount)],
+    ['CGST Rate %', r => num(r.cgstRate)],
+    ['CGST Amount', r => num(r.cgstAmount)],
+    ['SGST/UTGST Rate %', r => num(r.sgstRate)],
+    ['SGST/UTGST Amount', r => num(r.sgstAmount)],
+    ['Cess Amount', r => num(r.cessAmount)],
+    ['Total Tax', r => num(r.totalTax)],
+    ['Line Total', r => num(r.lineTotal)],
+    ['ITC Eligibility', r => r.itcEligibility || ''],
+    ['ITC IGST', r => num(r.itcIgst)],
+    ['ITC CGST', r => num(r.itcCgst)],
+    ['ITC SGST/UTGST', r => num(r.itcSgst)],
+    ['ITC Cess', r => num(r.itcCess)],
+    ['Payment Status', r => r.paymentStatus || ''],
+    ['Remarks', r => r.remarks || ''],
+  ];
+
+  const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+
+  // Invoice × rate rows in GSTR-2 B2B layout
+  const buildGstB2B = (rows) => {
+    const map = new Map();
+    rows.forEach(r => {
+      const key = `${r.orderId}|${r.gstRate ?? 0}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          'Supplier GSTIN': r.supplierGstin || '',
+          'Supplier Name': r.supplierName || '',
+          'Invoice Number': r.supplierInvoiceNo || r.orderNo || '',
+          'Invoice Date': gstDate(r.invoiceDate),
+          'Invoice Value': num(r.invoiceValue),
+          'Place Of Supply': r.placeOfSupply || '',
+          'Reverse Charge': r.reverseCharge,
+          'Invoice Type': r.invoiceType,
+          'Rate': num(r.gstRate),
+          'Taxable Value': 0,
+          'Integrated Tax Paid': 0,
+          'Central Tax Paid': 0,
+          'State/UT Tax Paid': 0,
+          'Cess Paid': 0,
+          'Eligibility For ITC': r.itcEligibility || '',
+          'Availed ITC Integrated Tax': 0,
+          'Availed ITC Central Tax': 0,
+          'Availed ITC State/UT Tax': 0,
+          'Availed ITC Cess': 0,
+        });
+      }
+      const g = map.get(key);
+      g['Taxable Value'] = round2(g['Taxable Value'] + Number(r.taxableValue || 0));
+      g['Integrated Tax Paid'] = round2(g['Integrated Tax Paid'] + Number(r.igstAmount || 0));
+      g['Central Tax Paid'] = round2(g['Central Tax Paid'] + Number(r.cgstAmount || 0));
+      g['State/UT Tax Paid'] = round2(g['State/UT Tax Paid'] + Number(r.sgstAmount || 0));
+      g['Cess Paid'] = round2(g['Cess Paid'] + Number(r.cessAmount || 0));
+      g['Availed ITC Integrated Tax'] = round2(g['Availed ITC Integrated Tax'] + Number(r.itcIgst || 0));
+      g['Availed ITC Central Tax'] = round2(g['Availed ITC Central Tax'] + Number(r.itcCgst || 0));
+      g['Availed ITC State/UT Tax'] = round2(g['Availed ITC State/UT Tax'] + Number(r.itcSgst || 0));
+      g['Availed ITC Cess'] = round2(g['Availed ITC Cess'] + Number(r.itcCess || 0));
+    });
+    return [...map.values()];
+  };
+
+  // HSN-wise summary of inward supplies
+  const buildGstHsn = (rows) => {
+    const map = new Map();
+    rows.filter(r => r.lineNo > 0).forEach(r => {
+      const key = `${r.hsnCode || ''}|${r.uqc || ''}|${r.gstRate ?? 0}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          'HSN/SAC': r.hsnCode || '(missing)',
+          'Description': r.itemName || '',
+          'UQC': r.uqc || '',
+          'Total Quantity': 0,
+          'Total Value': 0,
+          'Rate': num(r.gstRate),
+          'Taxable Value': 0,
+          'Integrated Tax Amount': 0,
+          'Central Tax Amount': 0,
+          'State/UT Tax Amount': 0,
+          'Cess Amount': 0,
+        });
+      }
+      const g = map.get(key);
+      g['Total Quantity'] = Math.round((g['Total Quantity'] + Number(r.quantity || 0)) * 1000) / 1000;
+      g['Total Value'] = round2(g['Total Value'] + Number(r.lineTotal || 0));
+      g['Taxable Value'] = round2(g['Taxable Value'] + Number(r.taxableValue || 0));
+      g['Integrated Tax Amount'] = round2(g['Integrated Tax Amount'] + Number(r.igstAmount || 0));
+      g['Central Tax Amount'] = round2(g['Central Tax Amount'] + Number(r.cgstAmount || 0));
+      g['State/UT Tax Amount'] = round2(g['State/UT Tax Amount'] + Number(r.sgstAmount || 0));
+      g['Cess Amount'] = round2(g['Cess Amount'] + Number(r.cessAmount || 0));
+    });
+    return [...map.values()].sort((a, b) => String(a['HSN/SAC']).localeCompare(String(b['HSN/SAC'])));
+  };
+
+  const gstPeriodSuffix = () => `${(dateFrom || '').slice(0, 10)}_to_${(dateTo || '').slice(0, 10)}`;
+
+  const exportGstCSV = async () => {
+    setGstExporting('csv');
+    try {
+      const rows = await fetchGstRegister();
+      if (!rows.length) return notify('error', 'No purchases to export in this period (draft, void and cancelled purchases are excluded from GST)');
+      const headers = GST_LINE_COLUMNS.map(([h]) => csvCell(h));
+      const body = rows.map(r => GST_LINE_COLUMNS.map(([, fn]) => csvCell(fn(r))).join(','));
+      // BOM so Excel opens ₹ / non-ASCII names correctly
+      const csv = '﻿' + [headers.join(','), ...body].join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `purchase_gst_register_${gstPeriodSuffix()}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (err) {
+      notify('error', err?.response?.data?.message || err.message || 'GST export failed');
+    } finally {
+      setGstExporting(null);
+    }
+  };
+
+  const exportGstExcel = async () => {
+    setGstExporting('excel');
+    try {
+      const rows = await fetchGstRegister();
+      if (!rows.length) return notify('error', 'No purchases to export in this period (draft, void and cancelled purchases are excluded from GST)');
+      const XLSX = await import('xlsx');
+      const lineData = rows.map(r => Object.fromEntries(GST_LINE_COLUMNS.map(([h, fn]) => [h, fn(r)])));
+      const b2b = buildGstB2B(rows);
+      const hsn = buildGstHsn(rows);
+      const issues = rows.filter(r => r.remarks).map(r => ({
+        'PO / Bill No': r.orderNo, 'Supplier Invoice No': r.supplierInvoiceNo || '',
+        'Supplier': r.supplierName || '', 'Line No': r.lineNo, 'Item Name': r.itemName || '', 'Issue': r.remarks,
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const addSheet = (data, name, widths) => {
+        const ws = XLSX.utils.json_to_sheet(data);
+        if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      };
+      addSheet(lineData, 'Purchase Register', GST_LINE_COLUMNS.map(([h]) => Math.max(12, h.length + 2)));
+      addSheet(b2b, 'B2B Invoices');
+      addSheet(hsn, 'HSN Summary');
+      if (issues.length) addSheet(issues, 'Data Issues', [14, 18, 24, 8, 28, 60]);
+      XLSX.writeFile(wb, `purchase_gst_register_${gstPeriodSuffix()}.xlsx`);
+    } catch (err) {
+      notify('error', err?.response?.data?.message || err.message || 'GST Excel export failed');
+    } finally {
+      setGstExporting(null);
     }
   };
 
@@ -259,7 +462,7 @@ export default function PurchaseReportView({
         (po.orderNo || '').toLowerCase().includes(q) ||
         (po.vendorName || po.vendor?.name || '').toLowerCase().includes(q)
       );
-      const matchStatus = purchStatusFilter === 'ALL' || (po.status || '').toUpperCase() === purchStatusFilter;
+      const matchStatus = purchStatusFilter === 'ALL' || (po.orderStatus || po.status || '').toUpperCase() === purchStatusFilter;
       return matchSearch && matchStatus;
     });
 
@@ -288,31 +491,18 @@ export default function PurchaseReportView({
             />
             <FaSearch className="rpt-purch-search-icon" />
           </div>
-          <button className="rpt-purch-btn" onClick={() => exportCSV(
-            ['PO Number', 'Date', 'Supplier', 'Status', 'Payment Status', 'Total Amount', 'Amount Due'],
-            filtered.map(po => [
-              po.orderNo,
-              formatReportDate(po.orderDate || po.createdAt || po.transactionDate),
-              po.vendorName || po.vendor?.name || '—',
-              po.status,
-              po.paymentStatus || '—',
-              po.grandTotal || po.totalAmount || 0,
-              po.amountDue || 0
-            ].map(csvCell).join(',')),
-            'purchase_invoices'
-          )}><FaFileCsv /> CSV</button>
-          <button className="rpt-purch-btn" onClick={() => exportExcel(
-            filtered.map(po => ({
-              'PO Number': po.orderNo,
-              'Date': formatReportDate(po.orderDate || po.createdAt || po.transactionDate),
-              'Supplier': po.vendorName || po.vendor?.name || '—',
-              'Status': po.status,
-              'Payment Status': po.paymentStatus || '—',
-              'Total Amount': Number(po.grandTotal || po.totalAmount || 0),
-              'Amount Due': Number(po.amountDue || 0)
-            })),
-            'Purchase Invoices', 'purchase_invoices'
-          )}><FaFileExcel /> Excel</button>
+          <button
+            className="rpt-purch-btn"
+            disabled={!!gstExporting}
+            title="GST purchase register: supplier GSTIN, HSN, UQC, taxable value, CGST/SGST/IGST, ITC"
+            onClick={exportGstCSV}
+          ><FaFileCsv /> {gstExporting === 'csv' ? 'Preparing…' : 'CSV'}</button>
+          <button
+            className="rpt-purch-btn"
+            disabled={!!gstExporting}
+            title="GST workbook: Purchase Register, B2B Invoices (GSTR-2B layout), HSN Summary, Data Issues"
+            onClick={exportGstExcel}
+          ><FaFileExcel /> {gstExporting === 'excel' ? 'Preparing…' : 'Excel'}</button>
         </div>
 
         {filtered.length === 0 ? (
@@ -345,7 +535,7 @@ export default function PurchaseReportView({
                     </td>
                     <td>{formatReportDate(po.orderDate || po.createdAt || po.transactionDate)}</td>
                     <td style={{ fontWeight: 600, color: '#1e293b' }}>{po.vendorName || po.vendor?.name || '—'}</td>
-                    <td><span className={`rpt-purch-st ${(po.status || '').toLowerCase()}`}>{po.status || 'DRAFT'}</span></td>
+                    <td><span className={`rpt-purch-st ${(po.orderStatus || po.status || '').toLowerCase()}`}>{po.orderStatus || po.status || '—'}</span></td>
                     <td><span className={`rpt-purch-st ${(po.paymentStatus || '').toLowerCase()}`}>{po.paymentStatus || '—'}</span></td>
                     <td className="r rpt-purch-amt">{SYM}{fmt(po.grandTotal ?? po.totalAmount ?? 0)}</td>
                     <td className="r" style={{ fontWeight: 700, color: Number(po.amountDue || 0) > 0 ? '#ef4444' : '#10b981' }}>
@@ -656,6 +846,15 @@ export default function PurchaseReportView({
     );
   };
 
+  // Show the full-page loader only on first load of a tab; afterwards keep the old rows visible.
+  const hasTabData = (tabKey) => ({
+    purch_summary: !!purchSummary,
+    purch_orders: purchOrders.length > 0,
+    purch_items: purchItems.length > 0,
+    purch_vendors: purchVendors.length > 0,
+    purch_payments: purchPayments.length > 0,
+  })[tabKey];
+
   const subTabContent = {
     purch_summary: renderSummary,
     purch_orders: renderOrders,
@@ -682,10 +881,13 @@ export default function PurchaseReportView({
       {loadError && <div className="rpt-purch-error">{loadError}</div>}
 
       <div className="rpt-purch-body">
-        {loading ? (
+        {loading && !hasTabData(subTab) ? (
           <div className="rpt-purch-loading">Aggregating procurement records…</div>
         ) : (
-          subTabContent[subTab]?.()
+          <>
+            {loading && <div className="rpt-purch-refreshing">Refreshing…</div>}
+            {subTabContent[subTab]?.()}
+          </>
         )}
       </div>
 
@@ -732,7 +934,7 @@ export default function PurchaseReportView({
         .rpt-purch-st.completed, .rpt-purch-st.paid { background: #ecfdf5; color: #10b981; }
         .rpt-purch-st.billed { background: #eff6ff; color: #3b82f6; }
         .rpt-purch-st.draft, .rpt-purch-st.unpaid { background: #fff7ed; color: #f97316; }
-        .rpt-purch-st.cancelled { background: #fef2f2; color: #ef4444; }
+        .rpt-purch-st.cancelled, .rpt-purch-st.void { background: #fef2f2; color: #ef4444; }
         .rpt-purch-amt { font-weight: 800; color: #1e293b; }
 
         .rpt-purch-pay-grid { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -749,6 +951,7 @@ export default function PurchaseReportView({
         .rpt-purch-pay-bar-wrapper { height: 4px; background: #f1f5f9; border-radius: 2px; overflow: hidden; }
         .rpt-purch-pay-bar-fill { height: 100%; border-radius: 2px; }
 
+        .rpt-purch-refreshing { font-size: 11px; font-weight: 700; color: #f97316; margin-bottom: 6px; }
         .rpt-purch-loading, .rpt-purch-empty { text-align: center; padding: 60px 20px; color: #94a3b8; font-weight: 700; font-size: 14px; }
         .rpt-purch-error { margin-bottom: 16px; padding: 12px 14px; border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 12px; font-size: 12px; font-weight: 800; }
       `}</style>

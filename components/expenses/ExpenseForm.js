@@ -82,6 +82,15 @@ export default function ExpenseForm({
   const [paymentTypes, setPaymentTypes] = useState([]);
   const [cashAmount, setCashAmount] = useState('');
   const [onlineAmount, setOnlineAmount] = useState('');
+  // Optional India GST details (exported in the expense GST register)
+  const [showGst, setShowGst] = useState(false);
+  const [gSupplier, setGSupplier] = useState('');
+  const [gGstin, setGGstin] = useState('');
+  const [gBillNo, setGBillNo] = useState('');
+  const [gHsn, setGHsn] = useState('');
+  const [gRate, setGRate] = useState('');
+  const [gTax, setGTax] = useState('');
+  const [gTaxTouched, setGTaxTouched] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -140,6 +149,14 @@ export default function ExpenseForm({
       setCashAmount(editing.cashAmount ? String(editing.cashAmount) : '');
       setOnlineAmount(editing.onlineAmount ? String(editing.onlineAmount) : '');
       setFDesc(editing.description || '');
+      setGSupplier(editing.supplierName || '');
+      setGGstin(editing.supplierGstin || '');
+      setGBillNo(editing.billNo || '');
+      setGHsn(editing.hsnSac || '');
+      setGRate(editing.gstRate != null ? String(Number(editing.gstRate)) : '');
+      setGTax(editing.taxAmount != null ? String(editing.taxAmount) : '');
+      setGTaxTouched(editing.taxAmount != null);
+      setShowGst(!!(editing.supplierGstin || editing.billNo || editing.hsnSac || editing.gstRate != null || editing.supplierName));
       setFBranchId(editing.scope === SCOPE_GLOBAL || !editing.orgId ? SCOPE_GLOBAL : editing.orgId);
     } else {
       setFCatId('');
@@ -188,6 +205,14 @@ export default function ExpenseForm({
       }
     }
   }, [fMethod, fAmount]);
+
+  useEffect(() => {
+    if (gTaxTouched) return;
+    const amt = parseFloat(fAmount) || 0;
+    const rate = parseFloat(gRate);
+    if (!rate || rate <= 0 || amt <= 0) { setGTax(''); return; }
+    setGTax(String(Number((amt * rate / (100 + rate)).toFixed(2))));
+  }, [fAmount, gRate, gTaxTouched]);
 
   const handleCashChange = useCallback((val) => {
     setCashAmount(val);
@@ -247,6 +272,23 @@ export default function ExpenseForm({
       }
     }
 
+    const gstinClean = gGstin.trim().toUpperCase();
+    if (gstinClean && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gstinClean)) {
+      notify('error', 'Supplier GSTIN must be 15 characters starting with the 2-digit state code');
+      return;
+    }
+    const hsnClean = gHsn.trim();
+    if (hsnClean && !/^[0-9]{4,8}$/.test(hsnClean)) {
+      notify('error', 'HSN/SAC must be 4 to 8 digits');
+      return;
+    }
+    const rateVal = gRate === '' ? null : parseFloat(gRate);
+    const taxVal = gTax === '' ? null : parseFloat(gTax);
+    if (taxVal != null && taxVal > parseFloat(fAmount)) {
+      notify('error', 'GST amount cannot be more than the expense amount');
+      return;
+    }
+
     const payload = {
       categoryId:    fCatId,
       // Branch wall-clock date and time are converted to UTC before saving
@@ -256,11 +298,20 @@ export default function ExpenseForm({
       paymentMethod: fMethod || 'CASH',
       cashAmount:    cashVal,
       onlineAmount:  onlineVal,
+      supplierName:  gSupplier.trim() || null,
+      supplierGstin: gstinClean || null,
+      billNo:        gBillNo.trim() || null,
+      hsnSac:        hsnClean || null,
+      gstRate:       Number.isFinite(rateVal) ? rateVal : null,
+      taxAmount:     Number.isFinite(taxVal) ? taxVal : null,
       ...scopePayload
     };
 
     onSubmit(payload);
-  }, [fAmount, fCatId, editing, fBranchId, orgId, fDate, fTime, fDesc, fMethod, notify, onSubmit, cashAmount, onlineAmount, timezone]);
+  }, [fAmount, fCatId, editing, fBranchId, orgId, fDate, fTime, fDesc, fMethod, notify, onSubmit, cashAmount, onlineAmount, timezone,
+      gSupplier, gGstin, gBillNo, gHsn, gRate, gTax]);
+
+  const gstInputStyle = { height: '42px', padding: '0 12px', borderRadius: '10px', width: '100%', boxSizing: 'border-box', fontSize: '13px' };
 
   return (
     <CafeQRPopup
@@ -410,6 +461,72 @@ export default function ExpenseForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* GST details (optional) */}
+      <div className={styles['mdl-field']}>
+        <button
+          type="button"
+          className={styles['lbl-act']}
+          onClick={() => setShowGst(v => !v)}
+          style={{ padding: 0 }}
+        >
+          {showGst ? '− Hide GST details' : '+ Add GST details (supplier GSTIN, bill no., HSN/SAC)'}
+        </button>
+      </div>
+      {showGst && (
+        <>
+          <div className={styles['mdl-row']}>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>Supplier Name</label>
+              <input className={styles['amt-input']} style={gstInputStyle} value={gSupplier}
+                onChange={e => setGSupplier(e.target.value)} placeholder="e.g. KSEB" />
+            </div>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>Supplier GSTIN</label>
+              <input className={styles['amt-input']} style={gstInputStyle} value={gGstin} maxLength={15}
+                onChange={e => setGGstin(e.target.value.toUpperCase())} placeholder="15-character GSTIN" />
+            </div>
+          </div>
+          <div className={styles['mdl-row']}>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>Bill / Invoice No.</label>
+              <input className={styles['amt-input']} style={gstInputStyle} value={gBillNo}
+                onChange={e => setGBillNo(e.target.value)} placeholder="Supplier bill no." />
+            </div>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>HSN / SAC</label>
+              <input className={styles['amt-input']} style={gstInputStyle} value={gHsn} maxLength={8} inputMode="numeric"
+                onChange={e => setGHsn(e.target.value.replace(/[^0-9]/g, ''))} placeholder="e.g. 998422" />
+            </div>
+          </div>
+          <div className={styles['mdl-row']}>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>GST Rate %</label>
+              <NiceSelect
+                value={gRate}
+                onChange={v => { setGRate(v); setGTaxTouched(false); }}
+                options={[
+                  { value: '', label: 'No GST' },
+                  { value: '0', label: '0%' },
+                  { value: '5', label: '5%' },
+                  { value: '12', label: '12%' },
+                  { value: '18', label: '18%' },
+                  { value: '28', label: '28%' },
+                ]}
+              />
+            </div>
+            <div className={styles['mdl-field']}>
+              <label className={styles['mdl-lbl']}>GST Amount (incl. in total)</label>
+              <div className={styles['amt-input-w']}>
+                <span className={styles['amt-pre']}>{currencySymbol}</span>
+                <input className={styles['amt-input']} type="number" step="0.01" min="0" value={gTax}
+                  onChange={e => { setGTax(e.target.value); setGTaxTouched(e.target.value !== ''); }}
+                  placeholder="Auto from rate" />
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Notes */}

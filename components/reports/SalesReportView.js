@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { downloadCsv, downloadWorkbook, toObjects, columnWidths, groupSum, num } from '../../utils/gstExport';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import { useNotification } from '../../context/NotificationContext';
@@ -438,6 +439,115 @@ export default function SalesReportView({
     );
   };
 
+  // ── India GST sales register (GSTR-1) export ──
+  const [gstExporting, setGstExporting] = useState(null); // null | 'csv' | 'excel'
+  const gstDate = (val) => formatTzDate(val, timezone || 'Asia/Kolkata', { format: 'date' });
+
+  const SALES_GST_COLUMNS = [
+    ['Invoice No', r => r.invoiceNo || ''],
+    ['Invoice Date', r => gstDate(r.invoiceDate)],
+    ['Order No', r => r.orderNo || ''],
+    ['Supply Category', r => r.supplyCategory],
+    ['Customer Name', r => r.customerName || ''],
+    ['Customer GSTIN', r => r.customerGstin || ''],
+    ['Customer State', r => r.customerState || ''],
+    ['Place of Supply', r => r.placeOfSupply || ''],
+    ['Supply Type', r => (r.supplyType === 'INTER_STATE' ? 'Inter-State' : 'Intra-State')],
+    ['Reverse Charge', r => r.reverseCharge],
+    ['Invoice Type', r => r.invoiceType],
+    ['Invoice Value', r => num(r.invoiceValue)],
+    ['Branch', r => r.branchName || ''],
+    ['Branch GSTIN', r => r.branchGstin || ''],
+    ['Line No', r => r.lineNo],
+    ['Item Code', r => r.productCode || ''],
+    ['Item Name', r => r.itemName || ''],
+    ['Category', r => r.categoryName || ''],
+    ['HSN/SAC', r => r.hsnCode || ''],
+    ['UQC', r => r.uqc || ''],
+    ['Quantity', r => num(r.quantity)],
+    ['Rate (Excl. GST)', r => num(r.rateExTax)],
+    ['Discount', r => num(r.discountAmount)],
+    ['Taxable Value', r => num(r.taxableValue)],
+    ['GST Rate %', r => num(r.gstRate)],
+    ['IGST Rate %', r => num(r.igstRate)],
+    ['IGST Amount', r => num(r.igstAmount)],
+    ['CGST Rate %', r => num(r.cgstRate)],
+    ['CGST Amount', r => num(r.cgstAmount)],
+    ['SGST/UTGST Rate %', r => num(r.sgstRate)],
+    ['SGST/UTGST Amount', r => num(r.sgstAmount)],
+    ['Cess Amount', r => num(r.cessAmount)],
+    ['Total Tax', r => num(r.totalTax)],
+    ['Line Total', r => num(r.lineTotal)],
+    ['Payment Method', r => r.paymentMethod || ''],
+    ['Remarks', r => r.remarks || ''],
+  ];
+
+  const fetchSalesGstRegister = async () => {
+    const params = { from: toInstant(dateFrom), to: toInstant(dateTo, true) };
+    if (selectedOrgId) params.orgId = selectedOrgId;
+    if (selectedTerminalId) params.terminalId = selectedTerminalId;
+    const res = await api.get('/api/v1/reports/sales-gst-register', { params, timeout: 60000 });
+    if (!res.data?.success) throw new Error(res.data?.message || 'Failed to load GST register');
+    return res.data.data || [];
+  };
+
+  const gstFileName = (ext) => `sales_gst_register_${(dateFrom || '').slice(0, 10)}_to_${(dateTo || '').slice(0, 10)}.${ext}`;
+
+  const runSalesGstExport = async (kind, write) => {
+    setGstExporting(kind);
+    try {
+      const rows = await fetchSalesGstRegister();
+      if (!rows.length) return notify('error', 'No completed sales to export in this period (void/cancelled sales are excluded from GST)');
+      await write(rows);
+    } catch (err) {
+      notify('error', err?.response?.data?.message || err.message || 'GST export failed');
+    } finally {
+      setGstExporting(null);
+    }
+  };
+
+  const exportSalesGstCSV = () => runSalesGstExport('csv', async rows => downloadCsv(SALES_GST_COLUMNS, rows, gstFileName('csv')));
+
+  const exportSalesGstExcel = () => runSalesGstExport('excel', async rows => {
+    const lines = rows.filter(r => r.lineNo > 0);
+    const taxSums = {
+      'Taxable Value': r => r.taxableValue, 'Integrated Tax': r => r.igstAmount, 'Central Tax': r => r.cgstAmount,
+      'State/UT Tax': r => r.sgstAmount, 'Cess Amount': r => r.cessAmount,
+    };
+    const b2b = groupSum(lines.filter(r => r.supplyCategory === 'B2B'),
+      r => `${r.orderId}|${r.gstRate ?? 0}`,
+      r => ({
+        'GSTIN/UIN of Recipient': r.customerGstin || '', 'Receiver Name': r.customerName || '',
+        'Invoice Number': r.invoiceNo || '', 'Invoice Date': gstDate(r.invoiceDate), 'Invoice Value': num(r.invoiceValue),
+        'Place Of Supply': r.placeOfSupply || '', 'Reverse Charge': r.reverseCharge, 'Invoice Type': r.invoiceType,
+        'Rate': num(r.gstRate),
+      }),
+      taxSums);
+    const b2cs = groupSum(lines.filter(r => r.supplyCategory !== 'B2B'),
+      r => `${r.placeOfSupply}|${r.gstRate ?? 0}`,
+      r => ({ 'Type': 'OE', 'Place Of Supply': r.placeOfSupply || '', 'Rate': num(r.gstRate) }),
+      taxSums);
+    const hsn = groupSum(lines,
+      r => `${r.hsnCode || ''}|${r.uqc || ''}|${r.gstRate ?? 0}`,
+      r => ({ 'HSN/SAC': r.hsnCode || '(missing)', 'Description': r.itemName || '', 'UQC': r.uqc || '', 'Rate': num(r.gstRate) }),
+      {
+        'Total Quantity': r => r.quantity, 'Total Value': r => r.lineTotal, 'Taxable Value': r => r.taxableValue,
+        'Integrated Tax Amount': r => r.igstAmount, 'Central Tax Amount': r => r.cgstAmount,
+        'State/UT Tax Amount': r => r.sgstAmount, 'Cess Amount': r => r.cessAmount,
+      })
+      .sort((a, b) => String(a['HSN/SAC']).localeCompare(String(b['HSN/SAC'])));
+    const issues = rows.filter(r => r.remarks).map(r => ({
+      'Invoice No': r.invoiceNo || '', 'Order No': r.orderNo || '', 'Line No': r.lineNo, 'Item Name': r.itemName || '', 'Issue': r.remarks,
+    }));
+    await downloadWorkbook([
+      { name: 'Sales Register', data: toObjects(SALES_GST_COLUMNS, rows), widths: columnWidths(SALES_GST_COLUMNS) },
+      { name: 'B2B', data: b2b },
+      { name: 'B2CS', data: b2cs },
+      { name: 'HSN Summary', data: hsn },
+      { name: 'Data Issues', data: issues, widths: [16, 16, 8, 28, 60] },
+    ], gstFileName('xlsx'));
+  });
+
   const renderSalesInvoices = () => {
     const invoiceTotalPages = Math.ceil(salesInvoices.length / INVOICE_PAGE_SIZE) || 1;
     const pagedInvoices = salesInvoices.slice(invoicePage * INVOICE_PAGE_SIZE, (invoicePage + 1) * INVOICE_PAGE_SIZE);
@@ -462,129 +572,12 @@ export default function SalesReportView({
             ]}
             style={{ width: 170 }}
           />
-          <button className="rpt-sales-btn" onClick={() => {
-            const headers = [
-              'Order No', 'Invoice No', 'Date', 'Branch', 'Customer', 'Type', 'Table',
-              'Order Status', 'Invoice Status', 'Payment Method', 'Payment No',
-              'Line No', 'Item Name', 'Category', 'HSN Code', 'Tax Rate %', 'Qty', 'Unit Rate', 'Line Taxable', 'CGST Amt', 'SGST Amt', 'Line Total',
-              'Invoice Discount', 'Invoice Tax', 'Invoice Total', 'Amount Due', 'Void Reason'
-            ];
-            const rows = [];
-            salesInvoices.forEach(tx => {
-              const formattedDate = formatReportDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt);
-              const baseRow = [
-                tx.orderNo, tx.invoiceNo, formattedDate, branchLabel(tx), tx.customerName, tx.fulfillmentType, tx.tableNumber,
-                tx.orderStatus, tx.invoiceStatus, tx.paymentMethod, tx.paymentNo
-              ];
-              const invoiceSummary = [
-                tx.totalDiscountAmount, tx.totalTaxAmount, tx.grandTotal, tx.amountDue, tx.voidReason
-              ];
-
-              if (tx.lines && tx.lines.length > 0) {
-                tx.lines.forEach((line, index) => {
-                  const rawHsn = line.taxCode || line.hsnCode || line.tax_code || line.hsn_code || '';
-                  const hsnCode = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? rawHsn : '';
-                  const taxRate = Number(line.taxRate || 0);
-                  const taxAmount = Number(line.taxAmount || 0);
-                  const cgst = (taxAmount / 2).toFixed(currencyDecimals);
-                  const sgst = (taxAmount / 2).toFixed(currencyDecimals);
-                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(currencyDecimals);
-
-                  rows.push([...baseRow,
-                    index + 1,
-                    line.productName,
-                    line.categoryName,
-                    hsnCode,
-                    taxRate,
-                    formatQty(line.quantity, uomPrecisionOf(line)),
-                    line.unitPrice,
-                    lineTaxable,
-                    cgst,
-                    sgst,
-                    line.lineTotal,
-                    ...invoiceSummary
-                  ].map(csvCell).join(','));
-                });
-              } else {
-                rows.push([...baseRow,
-                  '', '', '', '', '', '', '', '', '', '', '',
-                  ...invoiceSummary
-                ].map(csvCell).join(','));
-              }
-            });
-            exportCSV(headers, rows, 'sales_invoices_detailed');
-          }}><FaFileCsv /> CSV</button>
-          <button className="rpt-sales-btn" onClick={() => {
-            const data = [];
-            salesInvoices.forEach(tx => {
-              const formattedDate = formatReportDate(tx.transactionDate || tx.orderDate || tx.invoiceDate || tx.createdAt);
-              const baseObj = {
-                'Order No': tx.orderNo,
-                'Invoice No': tx.invoiceNo,
-                'Date': formattedDate,
-                'Branch': branchLabel(tx),
-                'Customer': tx.customerName,
-                'Type': tx.fulfillmentType,
-                'Table': tx.tableNumber,
-                'Order Status': tx.orderStatus,
-                'Invoice Status': tx.invoiceStatus,
-                'Payment Method': tx.paymentMethod,
-                'Payment No': tx.paymentNo,
-              };
-              const invoiceSummaryObj = {
-                'Invoice Discount': tx.totalDiscountAmount,
-                'Invoice Tax': tx.totalTaxAmount,
-                'Invoice Total': tx.grandTotal,
-                'Amount Due': tx.amountDue,
-                'Void Reason': tx.voidReason || '',
-              };
-
-              if (tx.lines && tx.lines.length > 0) {
-                tx.lines.forEach((line, index) => {
-                  const rawHsn = line.taxCode || line.hsnCode || line.tax_code || line.hsn_code || '';
-                  const hsnCode = (rawHsn && !String(rawHsn).startsWith('GST_') && !String(rawHsn).startsWith('TAX_')) ? rawHsn : '';
-                  const taxRate = Number(line.taxRate || 0);
-                  const taxAmount = Number(line.taxAmount || 0);
-                  const cgst = (taxAmount / 2).toFixed(currencyDecimals);
-                  const sgst = (taxAmount / 2).toFixed(currencyDecimals);
-                  const lineTaxable = (Number(line.lineTotal || 0) - taxAmount).toFixed(currencyDecimals);
-
-                  data.push({
-                    ...baseObj,
-                    'Line No': index + 1,
-                    'Item Name': line.productName,
-                    'Category': line.categoryName,
-                    'HSN Code': hsnCode,
-                    'Tax Rate %': taxRate,
-                    'Qty': line.quantity,
-                    'Unit Rate': line.unitPrice,
-                    'Line Taxable': lineTaxable,
-                    'CGST Amt': cgst,
-                    'SGST Amt': sgst,
-                    'Line Total': line.lineTotal,
-                    ...invoiceSummaryObj
-                  });
-                });
-              } else {
-                data.push({
-                  ...baseObj,
-                  'Line No': '',
-                  'Item Name': '',
-                  'Category': '',
-                  'HSN Code': '',
-                  'Tax Rate %': '',
-                  'Qty': '',
-                  'Unit Rate': '',
-                  'Line Taxable': '',
-                  'CGST Amt': '',
-                  'SGST Amt': '',
-                  'Line Total': '',
-                  ...invoiceSummaryObj
-                });
-              }
-            });
-            exportExcel(data, 'Sales & Invoices Detailed', 'sales_invoices_detailed');
-          }}><FaFileExcel /> Excel</button>
+          <button className="rpt-sales-btn" disabled={!!gstExporting} onClick={exportSalesGstCSV}
+            title="GST sales register: customer GSTIN, B2B/B2CS, place of supply, HSN, UQC, taxable value, CGST/SGST/IGST"
+          ><FaFileCsv /> {gstExporting === 'csv' ? 'Preparing…' : 'CSV'}</button>
+          <button className="rpt-sales-btn" disabled={!!gstExporting} onClick={exportSalesGstExcel}
+            title="GST workbook: Sales Register, B2B, B2CS, HSN Summary, Data Issues (GSTR-1 layout)"
+          ><FaFileExcel /> {gstExporting === 'excel' ? 'Preparing…' : 'Excel'}</button>
         </div>
 
         {salesInvoices.length === 0 ? <div className="rpt-sales-empty">No invoices found</div> : (

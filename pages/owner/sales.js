@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } fr
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useRouter } from 'next/router';
 import api from '../../utils/api';
+import { autoOpenCashDrawerAfterSettle, CASH_DRAWER_TRIGGERS } from '../../utils/cashDrawer';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { formatTzDate, getBusinessNow, getLocalISOString, businessTimeToUtc } from '../../utils/timezoneUtils';
@@ -417,7 +418,7 @@ export default function Sales() {
 function SalesContent() {
   const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
-  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder } = useAuth();
+  const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, canAutoOpenCashDrawer } = useAuth();
   const isSalesBranchMissing = !orgId;
   const canSelectBranchInSales = isSuperAdminRole(userRole);
   const [tables, setTables] = useState([]);
@@ -1765,6 +1766,14 @@ function SalesContent() {
         };
       const { data } = await api.post(endpoint, requestPayload);
       const settledOrder = normalizeOrder(data.data || paymentOrder);
+      // Cash drawer: kick after settling an existing kitchen/table order (config + role + tender rules; never throws).
+      autoOpenCashDrawerAfterSettle({
+        trigger: CASH_DRAWER_TRIGGERS.ORDER_SETTLE,
+        order: settledOrder,
+        payment: requestPayload,
+        auth: { userRole, canAutoOpenCashDrawer },
+        config,
+      });
 
       // Automatically dispatch smart digital e-bill via WhatsApp
       const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
