@@ -52,19 +52,19 @@ export default function DiscountDialog({
         <S.CsDiscountTabHeader>
           <S.CsDiscountTabButton
             type="button"
-            $active={discountModalTab === 'line'}
-            $themeColor={theme.main}
-            onClick={() => setDiscountModalTab('line')}
-          >
-            Line Discounts
-          </S.CsDiscountTabButton>
-          <S.CsDiscountTabButton
-            type="button"
             $active={discountModalTab === 'total'}
             $themeColor={theme.main}
             onClick={() => setDiscountModalTab('total')}
           >
             Total Discount
+          </S.CsDiscountTabButton>
+          <S.CsDiscountTabButton
+            type="button"
+            $active={discountModalTab === 'line'}
+            $themeColor={theme.main}
+            onClick={() => setDiscountModalTab('line')}
+          >
+            Line Discounts
           </S.CsDiscountTabButton>
         </S.CsDiscountTabHeader>
 
@@ -112,7 +112,7 @@ export default function DiscountDialog({
                           />
                         </S.CsDiscountInputWrapper>
                         
-                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                           <S.CsDiscUnitToggle 
                             type="button"
                             $active={disc.type === 'amount'} 
@@ -175,7 +175,7 @@ export default function DiscountDialog({
                     />
                   </S.CsDiscountInputWrapper>
                   
-                  <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                     <S.CsDiscUnitToggle 
                       type="button"
                       $active={localOrderDiscountType === 'amount'} 

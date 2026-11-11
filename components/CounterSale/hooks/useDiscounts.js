@@ -1,13 +1,39 @@
 import { useState, useCallback } from 'react';
 
+const DISCOUNT_UNIT_STORAGE_KEY = 'pos_discount_unit_pref';
+
+const getSavedDiscountUnit = () => {
+  if (typeof window === 'undefined') return 'amount';
+  try {
+    const saved = localStorage.getItem(DISCOUNT_UNIT_STORAGE_KEY);
+    return saved === 'percentage' || saved === 'amount' ? saved : 'amount';
+  } catch (e) {
+    return 'amount';
+  }
+};
+
+const saveDiscountUnit = (type) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (type === 'percentage' || type === 'amount') {
+      localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, type);
+    }
+  } catch (e) {}
+};
+
 export default function useDiscounts() {
-  const [discountType, setDiscountType] = useState('amount'); // 'amount' | 'percentage'
+  const [discountType, setDiscountType] = useState(() => getSavedDiscountUnit()); // 'amount' | 'percentage'
   const [discountValue, setDiscountValue] = useState(0);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [localDiscounts, setLocalDiscounts] = useState({});
-  const [localOrderDiscountType, setLocalOrderDiscountType] = useState('amount');
+  const [localOrderDiscountType, setLocalOrderDiscountTypeState] = useState(() => getSavedDiscountUnit());
   const [localOrderDiscountValue, setLocalOrderDiscountValue] = useState(0);
-  const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
+  const [discountModalTab, setDiscountModalTab] = useState('total'); // 'total' | 'line'
+
+  const setLocalOrderDiscountType = useCallback((type) => {
+    setLocalOrderDiscountTypeState(type);
+    saveDiscountUnit(type);
+  }, []);
 
   const syncLocalDiscounts = useCallback((cart, cartKeyFor) => {
     const initial = {};
@@ -26,9 +52,11 @@ export default function useDiscounts() {
       });
     }
     setLocalDiscounts(initial);
-    setLocalOrderDiscountType(discountType || 'amount');
+    const preferredUnit = getSavedDiscountUnit();
+    const effectiveType = (discountValue > 0 && discountType) ? discountType : preferredUnit;
+    setLocalOrderDiscountTypeState(effectiveType);
     setLocalOrderDiscountValue(discountValue || 0);
-    setDiscountModalTab('line');
+    setDiscountModalTab('total');
   }, [discountType, discountValue]);
 
   const handleApplyDiscounts = useCallback((setCart, cartKeyFor, discountsEnabled) => {
@@ -73,7 +101,8 @@ export default function useDiscounts() {
       });
       return next;
     });
-    setLocalOrderDiscountType('amount');
+    const preferredUnit = getSavedDiscountUnit();
+    setLocalOrderDiscountType(preferredUnit);
     setLocalOrderDiscountValue(0);
   }, []);
 
