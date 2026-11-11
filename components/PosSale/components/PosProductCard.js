@@ -471,7 +471,8 @@ const PosProductCard = React.memo(function PosProductCard({
   onIncrement,
   onDecrement,
   onSetQty,
-  menuImagesEnabled = true
+  menuImagesEnabled = true,
+  showDietIndicator = true
 }) {
   const nonVeg = isNonVegProduct(product);
   const precision = uomPrecisionOf(product);
@@ -518,7 +519,9 @@ const PosProductCard = React.memo(function PosProductCard({
       }}
     >
       {/* FSSAI Veg / Non-Veg Indicator */}
-      <VegIndicator $nonVeg={nonVeg} title={nonVeg ? 'Non-Veg' : 'Veg'} />
+      {showDietIndicator && (
+        <VegIndicator $nonVeg={nonVeg} title={nonVeg ? 'Non-Veg' : 'Veg'} />
+      )}
 
       {/* Cart quantity circle badge (number only) */}
       {cartLineCount > 0 && (

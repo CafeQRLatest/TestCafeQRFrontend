@@ -17,7 +17,8 @@ const ProductCard = React.memo(function ProductCard({
   onDecrement,
   onSetQty,
   activeOrderMode = 'settle',
-  menuImagesEnabled = true
+  menuImagesEnabled = true,
+  showDietIndicator = true
 }) {
   const nonVeg = isNonVegProduct(product);
   const precision = uomPrecisionOf(product);
@@ -83,15 +84,17 @@ const ProductCard = React.memo(function ProductCard({
       {menuImagesEnabled ? (
         <S.CsProdImg style={product.imageUrl ? { backgroundImage: `url(${product.imageUrl})` } : undefined}>
           {!product.imageUrl && <FaImage />}
-          <S.CsVegBadge $nonVeg={nonVeg}>{nonVeg ? <FaFire /> : <FaLeaf />}</S.CsVegBadge>
+          {showDietIndicator && (
+            <S.CsVegBadge $nonVeg={nonVeg}>{nonVeg ? <FaFire /> : <FaLeaf />}</S.CsVegBadge>
+          )}
         </S.CsProdImg>
-      ) : (
+      ) : showDietIndicator ? (
         <S.CsVegBadge $nonVeg={nonVeg} style={{ top: '8px', right: '8px' }}>
           {nonVeg ? <FaFire /> : <FaLeaf />}
         </S.CsVegBadge>
-      )}
+      ) : null}
       <S.CsProductBody>
-        <S.CsProdNameWrapper style={!menuImagesEnabled ? { paddingRight: '16px' } : undefined}>
+        <S.CsProdNameWrapper style={!menuImagesEnabled && showDietIndicator ? { paddingRight: '16px' } : undefined}>
           <S.CsProdName
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}

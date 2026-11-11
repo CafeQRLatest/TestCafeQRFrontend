@@ -2,6 +2,7 @@
 // SUPER_ADMIN only | Responsive | Modern Segmented Tabs | Centered Layout
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
 import { useAuth } from '../../context/AuthContext';
@@ -3420,6 +3421,15 @@ function ConfigurationsContent() {
         :global(.custom-tooltip-wrapper:hover) {
           z-index: 1000;
         }
+        /* Touch screens: the 16px icon is too small to hit, and a near-miss toggles the
+           surrounding setting row instead. Enlarge the tap area invisibly. */
+        @media (hover: none) {
+          :global(.custom-tooltip-wrapper::before) {
+            content: '';
+            position: absolute;
+            inset: -10px;
+          }
+        }
         :global(.custom-tooltip-icon) {
           display: inline-flex;
           align-items: center;
@@ -3443,11 +3453,10 @@ function ConfigurationsContent() {
           transform: scale(1.1);
         }
         :global(.custom-tooltip-box) {
-          position: absolute;
-          bottom: 135%;
-          left: 50%;
-          transform: translateX(-50%);
+          position: fixed;
           width: 220px;
+          max-width: calc(100vw - 16px);
+          box-sizing: border-box;
           background: #ea580c;
           color: #ffffff;
           padding: 10px 14px;
@@ -3465,13 +3474,18 @@ function ConfigurationsContent() {
         :global(.custom-tooltip-arrow) {
           position: absolute;
           bottom: -6px;
-          left: 50%;
           transform: translateX(-50%);
           width: 0;
           height: 0;
           border-left: 6px solid transparent;
           border-right: 6px solid transparent;
           border-top: 6px solid #ea580c;
+        }
+        :global(.custom-tooltip-box.below .custom-tooltip-arrow) {
+          bottom: auto;
+          top: -6px;
+          border-top: none;
+          border-bottom: 6px solid #ea580c;
         }
         /* ─── TAX RULE MODAL STYLES ─── */
         .modal-overlay {
@@ -3658,57 +3672,61 @@ function ConfigurationsContent() {
 
 const InfoTooltip = ({ id, text, activeTooltip, setActiveTooltip }) => {
   const isOpen = activeTooltip === id;
-  const ref = React.useRef(null);
-  const [coords, setCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
-  const [arrowCoords, setArrowCoords] = useState({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
+  const iconRef = React.useRef(null);
+  const boxRef = React.useRef(null);
+  const [pos, setPos] = useState(null);
+
+  // The popup is portalled to <body> with fixed positioning so parents with
+  // overflow:hidden (card titles, .form-card) can no longer clip it.
+  React.useLayoutEffect(() => {
+    if (!isOpen || !iconRef.current || !boxRef.current) { setPos(null); return; }
+    const icon = iconRef.current.getBoundingClientRect();
+    const box = boxRef.current.getBoundingClientRect();
+    const margin = 8;
+    const centre = icon.left + icon.width / 2;
+    const left = Math.min(Math.max(centre - box.width / 2, margin), window.innerWidth - box.width - margin);
+    const above = icon.top - box.height - 10 >= margin;
+    const top = above ? icon.top - box.height - 10 : icon.bottom + 10;
+    setPos({ top, left, above, arrowLeft: Math.min(Math.max(centre - left, 14), box.width - 14) });
+  }, [isOpen, text]);
 
   useEffect(() => {
-    if (isOpen) {
-      if (ref.current) {
-        const rect = ref.current.getBoundingClientRect();
-        const screenWidth = window.innerWidth;
-        
-        if (rect.left < 16) {
-          setCoords({ left: '-16px', transform: 'none', right: 'auto' });
-          setArrowCoords({ left: '20px', transform: 'none', right: 'auto' });
-        } else if (rect.right > screenWidth - 16) {
-          setCoords({ right: '-16px', left: 'auto', transform: 'none' });
-          setArrowCoords({ right: '20px', left: 'auto', transform: 'none' });
-        } else {
-          setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
-          setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
-        }
-      }
-    } else {
-      setCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
-      setArrowCoords({ left: '50%', transform: 'translateX(-50%)', right: 'auto' });
-    }
-  }, [isOpen]);
+    if (!isOpen) return undefined;
+    const close = () => setActiveTooltip(null);
+    document.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [isOpen, setActiveTooltip]);
+
+  const canHover = () => typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
 
   return (
     <span
       className="custom-tooltip-wrapper"
-      onMouseEnter={() => {
-        if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
-          setActiveTooltip(id);
-        }
-      }}
-      onMouseLeave={() => {
-        if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
-          if (activeTooltip === id) setActiveTooltip(null);
-        }
-      }}
+      onMouseEnter={() => { if (canHover()) setActiveTooltip(id); }}
+      onMouseLeave={() => { if (canHover() && activeTooltip === id) setActiveTooltip(null); }}
       onClick={(e) => {
         e.stopPropagation();
         setActiveTooltip(isOpen ? null : id);
       }}
     >
-      <span className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`}>i</span>
-      {isOpen && (
-        <span ref={ref} className="custom-tooltip-box" style={coords} onClick={(e) => e.stopPropagation()}>
+      <span ref={iconRef} className={`custom-tooltip-icon ${isOpen ? 'active' : ''}`}>i</span>
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <span
+          ref={boxRef}
+          className={`custom-tooltip-box ${pos && !pos.above ? 'below' : ''}`}
+          style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: 'hidden' }}
+          onClick={(e) => e.stopPropagation()}
+        >
           {text}
-          <span className="custom-tooltip-arrow" style={arrowCoords} />
-        </span>
+          <span className="custom-tooltip-arrow" style={{ left: pos ? pos.arrowLeft : '50%' }} />
+        </span>,
+        document.body
       )}
     </span>
   );

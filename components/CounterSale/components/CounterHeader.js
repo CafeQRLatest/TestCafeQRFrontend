@@ -2,6 +2,8 @@ import React from 'react';
 import { FaArrowLeft, FaHistory, FaTh, FaList, FaMinus, FaPlus } from 'react-icons/fa';
 import * as S from '../CounterSale.styles';
 import PremiumDateTimePicker from '../../PremiumDateTimePicker';
+import { useAuth } from '../../../context/AuthContext';
+import { getTakeawayLabel } from '../../../utils/businessTerms';
 
 export default function CounterHeader({
   onBack,
@@ -14,6 +16,8 @@ export default function CounterHeader({
   const { productListingOn, handleToggleProductListing } = catalog;
   const { mode: orderMode, setMode: setOrderMode, activeOrderMode, kitchenEnabled, hideKitchenForTakeaway, hideKitchenForDineIn, orderDateTime, setOrderDateTime, setIsDateTimeManuallyEdited } = order;
   const { zoomLevel, handleZoom, THEME: theme } = ui;
+  const { posType } = useAuth();
+  const takeawayTitle = getTakeawayLabel(posType) === 'Order' ? 'Order' : 'Takeaway Order';
 
   return (
     <S.CsCounterHeader>
@@ -26,7 +30,7 @@ export default function CounterHeader({
             <S.CsTitle>
               {initialTable
                 ? (initialTable.tableNumber === 'COUNTER'
-                  ? (initialTable.orderType === 'DELIVERY' ? 'Delivery Order' : 'Takeaway Order')
+                  ? (initialTable.orderType === 'DELIVERY' ? 'Delivery Order' : takeawayTitle)
                   : `Table ${initialTable.tableNumber}`)
                 : 'Sale Order'}
             </S.CsTitle>

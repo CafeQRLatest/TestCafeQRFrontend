@@ -8,16 +8,18 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   FaChair, FaUtensils, FaShoppingBag, FaTruck, FaHistory,
 } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
+import { getTakeawayLabel } from '../utils/businessTerms';
 
 /* ─── order type definitions ─────────────────────────────────────── */
-function buildOrderTypes(config) {
+function buildOrderTypes(config, takeawayLabel = 'Takeaway') {
   const types = [];
   if (config?.tableManagementEnabled) {
     types.push({ key: 'TABLE',    icon: <FaChair />,     label: 'Dine in',     accent: '#f97316' });
   } else {
     types.push({ key: 'DINE_IN',   icon: <FaUtensils />,  label: 'Dine in',     accent: '#6366f1' });
   }
-  types.push({ key: 'TAKEAWAY',  icon: <FaShoppingBag />, label: 'Takeaway', accent: '#10b981' });
+  types.push({ key: 'TAKEAWAY',  icon: <FaShoppingBag />, label: takeawayLabel, accent: '#10b981' });
   const isDeliveryOn = Boolean(config?.onlineDeliveryEnabled ?? config?.pm_online_delivery ?? false);
   if (isDeliveryOn) {
     types.push({ key: 'DELIVERY',  icon: <FaTruck />,     label: 'Delivery',  accent: '#3b82f6' });
@@ -69,7 +71,9 @@ export default function OrderTypeSelectorModal({
     }
   }, [config?.tableManagementEnabled, config?.defaultBillingUiMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const orderTypes = useMemo(() => buildOrderTypes(config), [config]);
+  const { posType } = useAuth();
+  const takeawayLabel = getTakeawayLabel(posType);
+  const orderTypes = useMemo(() => buildOrderTypes(config, takeawayLabel), [config, takeawayLabel]);
 
   /* group tables by floor — must be declared before any early return */
   const floors = useMemo(() => {

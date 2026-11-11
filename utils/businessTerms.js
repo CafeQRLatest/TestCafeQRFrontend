@@ -1,9 +1,19 @@
 // Business-type specific wording for the kitchen (KOT) flow.
 // Non-food business types keep the same send-to-KOT behaviour but call the unbilled mode "Pay Later".
-const NON_FOOD_POS_TYPES = ['carwash', 'salon', 'grocery', 'others'];
+const NON_FOOD_POS_TYPES = ['carwash', 'salon', 'grocery', 'boutique', 'others'];
 
 export function isNonFoodType(posType) {
   return NON_FOOD_POS_TYPES.includes(String(posType || '').trim().toLowerCase());
+}
+
+// Non-food businesses don't do "takeaway" — the counter order type is just an "Order".
+export function getTakeawayLabel(posType) {
+  return isNonFoodType(posType) ? 'Order' : 'Takeaway';
+}
+
+// Veg / Non-Veg filter and indicators only make sense for food businesses.
+export function showsDietInfo(posType) {
+  return !isNonFoodType(posType);
 }
 
 export function getKitchenTerms(posType) {

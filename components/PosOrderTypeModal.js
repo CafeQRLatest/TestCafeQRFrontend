@@ -44,6 +44,7 @@ import {
 } from 'react-icons/fa';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { getTakeawayLabel } from '../utils/businessTerms';
 import { useNotification } from '../context/NotificationContext';
 import { formatTzDate } from '../utils/timezoneUtils';
 import { subscribeLiveOrderChanges } from '../utils/liveOrderStream';
@@ -928,7 +929,8 @@ export default function PosOrderTypeModal({
 }) {
   const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
-  const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule } = useAuth();
+  const { clientId, orgId, timezone, canCancelOrder, canPrintOrder, hasModule, posType } = useAuth();
+  const takeawayLabel = getTakeawayLabel(posType);
   const { notify, showConfirm } = useNotification();
 
   const effectiveConfig = config || (typeof window !== 'undefined' ? getCachedConfig() : null);
@@ -1322,7 +1324,7 @@ export default function PosOrderTypeModal({
     tabs.push({
       key: 'TAKEAWAY',
       icon: <FaShoppingBag />,
-      label: 'Takeaway',
+      label: takeawayLabel,
       accent: '#10b981',
       badge: takeawayOrders.length
     });
@@ -1338,7 +1340,7 @@ export default function PosOrderTypeModal({
     }
 
     return tabs;
-  }, [isTableConfigOn, isKitchenEnabled, isDeliveryConfigOn, tableOrders.length, kitchenOrders.length, takeawayOrders.length, deliveryOrders.length]);
+  }, [isTableConfigOn, isKitchenEnabled, isDeliveryConfigOn, tableOrders.length, kitchenOrders.length, takeawayOrders.length, deliveryOrders.length, takeawayLabel]);
 
   // Group tables by floor
   const floors = useMemo(() => {
@@ -1925,7 +1927,7 @@ export default function PosOrderTypeModal({
           <button
             type="button"
             className="pos-table-cube pos-new-cube"
-            title={`Start a new ${isTakeaway ? 'takeaway' : 'delivery'} order`}
+            title={isTakeaway && takeawayLabel === 'Order' ? 'Start a new order' : `Start a new ${isTakeaway ? 'takeaway' : 'delivery'} order`}
             style={{
               ...S.cube,
               background: '#ffffff',
@@ -2007,7 +2009,7 @@ export default function PosOrderTypeModal({
     const onNewOrder = isTakeawayOrDelivery
       ? (currentType === 'DELIVERY' ? handleStartNewDelivery : handleStartNewTakeaway)
       : null;
-    const newOrderLabel = currentType === 'DELIVERY' ? '+ New Delivery' : '+ New Takeaway';
+    const newOrderLabel = currentType === 'DELIVERY' ? '+ New Delivery' : `+ New ${takeawayLabel}`;
 
     if ((!ordersList || ordersList.length === 0) && !onNewOrder) {
       return (
@@ -2205,7 +2207,7 @@ export default function PosOrderTypeModal({
             onClick={() => setActiveType('TAKEAWAY')}
           >
             <FaShoppingBag size={13} style={{ marginRight: 7, color: activeType === 'TAKEAWAY' ? '#0f172a' : '#64748b' }} />
-            <span>Takeaway</span>
+            <span>{takeawayLabel}</span>
             <span className="pos-tab-badge" style={activeType === 'TAKEAWAY' ? S.tabCountBadgeActive : S.tabCountBadge}>
               {takeawayOrders.length}
             </span>
@@ -2404,7 +2406,7 @@ export default function PosOrderTypeModal({
                   <div style={{ ...S.emptyStateBox, padding: '32px 16px' }}>
                     <FaChair size={30} style={{ color: '#cbd5e1' }} />
                     <div style={S.emptyTitle}>No Available Tables</div>
-                    <div style={S.emptySub}>No active dining tables found. You can start a Takeaway order or configure tables in settings.</div>
+                    <div style={S.emptySub}>No active dining tables found. You can start {takeawayLabel === 'Order' ? 'a new order' : 'a Takeaway order'} or configure tables in settings.</div>
                   </div>
                 ) : (
                   <div className="pos-cube-grid" style={S.cubeGrid}>

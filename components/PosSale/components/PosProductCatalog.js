@@ -5,6 +5,8 @@ import PosProductCard from './PosProductCard';
 import PosCategoryFilter from './PosCategoryFilter';
 import { hasExtendedOptions } from '../../CounterSale/domain/cart';
 import * as S from '../../CounterSale/CounterSale.styles';
+import { useAuth } from '../../../context/AuthContext';
+import { showsDietInfo } from '../../../utils/businessTerms';
 
 // ── Styled Components ──
 
@@ -552,6 +554,12 @@ export default function PosProductCatalog({
   }, [cart.items]);
   const { THEME: theme, sym } = ui;
   const currencyDecimalPlaces = config?.currencyDecimalPlaces ?? 2;
+  const { posType } = useAuth();
+  const showDiet = showsDietInfo(posType);
+
+  useEffect(() => {
+    if (!showDiet && dietFilter === 'VEG') setDietFilter('ALL');
+  }, [showDiet, dietFilter, setDietFilter]);
 
   return (
     <CatalogContainer $productListingOn={productListingOn}>
@@ -666,14 +674,16 @@ export default function PosProductCatalog({
             >
               All
             </SegmentTab>
-            <SegmentTab
-              type="button"
-              $active={dietFilter === 'VEG'}
-              $type="VEG"
-              onClick={() => setDietFilter('VEG')}
-            >
-              Veg Only
-            </SegmentTab>
+            {showDiet && (
+              <SegmentTab
+                type="button"
+                $active={dietFilter === 'VEG'}
+                $type="VEG"
+                onClick={() => setDietFilter('VEG')}
+              >
+                Veg Only
+              </SegmentTab>
+            )}
             <SegmentTab
               type="button"
               $active={dietFilter === 'TRENDING'}
@@ -704,14 +714,16 @@ export default function PosProductCatalog({
               >
                 All
               </SegmentTab>
-              <SegmentTab
-                type="button"
-                $active={dietFilter === 'VEG'}
-                $type="VEG"
-                onClick={() => setDietFilter('VEG')}
-              >
-                Veg Only
-              </SegmentTab>
+              {showDiet && (
+                <SegmentTab
+                  type="button"
+                  $active={dietFilter === 'VEG'}
+                  $type="VEG"
+                  onClick={() => setDietFilter('VEG')}
+                >
+                  Veg Only
+                </SegmentTab>
+              )}
               <SegmentTab
                 type="button"
                 $active={dietFilter === 'TRENDING'}
@@ -763,6 +775,7 @@ export default function PosProductCatalog({
                       onDecrement={decrementProduct}
                       onSetQty={setProductQty}
                       menuImagesEnabled={config?.menuImagesEnabled !== false}
+                      showDietIndicator={showDiet}
                     />
                   );
                 })}

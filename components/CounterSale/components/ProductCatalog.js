@@ -4,6 +4,8 @@ import * as S from '../CounterSale.styles';
 import ProductCard from './ProductCard';
 import CategoryFilter from './CategoryFilter';
 import { hasExtendedOptions } from '../domain/cart';
+import { useAuth } from '../../../context/AuthContext';
+import { showsDietInfo } from '../../../utils/businessTerms';
 
 export default function ProductCatalog({
   bootstrap,
@@ -34,6 +36,12 @@ export default function ProductCatalog({
   }, [cart.items]);
   const { THEME: theme, sym } = ui;
   const currencyDecimalPlaces = config?.currencyDecimalPlaces ?? 2;
+  const { posType } = useAuth();
+  const showDiet = showsDietInfo(posType);
+
+  React.useEffect(() => {
+    if (!showDiet && dietFilter === 'VEG') setDietFilter('ALL');
+  }, [showDiet, dietFilter, setDietFilter]);
 
   return (
     <>
@@ -141,9 +149,11 @@ export default function ProductCatalog({
             <S.CsFilterBtn $active={dietFilter === 'ALL'} $themeColor={theme.main} onClick={() => setDietFilter('ALL')}>
               All
             </S.CsFilterBtn>
-            <S.CsFilterBtn $active={dietFilter === 'VEG'} $themeColor={theme.main} onClick={() => setDietFilter('VEG')}>
-              Veg Only
-            </S.CsFilterBtn>
+            {showDiet && (
+              <S.CsFilterBtn $active={dietFilter === 'VEG'} $themeColor={theme.main} onClick={() => setDietFilter('VEG')}>
+                Veg Only
+              </S.CsFilterBtn>
+            )}
             <S.CsFilterBtn $active={dietFilter === 'TRENDING'} $themeColor={theme.main} onClick={() => setDietFilter('TRENDING')}>
               Trending
             </S.CsFilterBtn>
@@ -177,6 +187,7 @@ export default function ProductCatalog({
                   onSetQty={setProductQty}
                   activeOrderMode={order?.activeOrderMode || 'settle'}
                   menuImagesEnabled={config?.menuImagesEnabled}
+                  showDietIndicator={showDiet}
                 />
               );
             })}
