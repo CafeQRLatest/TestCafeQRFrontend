@@ -27,9 +27,9 @@ const STRENGTHS = [
 ];
 
 const PINS = [
-  { key: '2', label: 'Standard', hint: 'Pin 2 — most drawers' },
-  { key: '5', label: 'Alternate', hint: 'Pin 5' },
-  { key: 'both', label: 'Both', hint: 'Not sure? Try this' },
+  { key: '2', label: 'Pin 2 (standard)' },
+  { key: '5', label: 'Pin 5' },
+  { key: 'both', label: 'Both pins' },
 ];
 
 function readPrinterNames() {
@@ -121,7 +121,7 @@ export default function CashDrawerSettings({ enabled, canTest }) {
         : null;
 
   const printerOptions = [
-    { value: '', label: 'Same as bill printer (recommended)' },
+    { value: '', label: 'Same as bill printer' },
     ...printers.map((p) => ({ value: p, label: p })),
     ...(hw.printerName && !printers.includes(hw.printerName) ? [{ value: hw.printerName, label: hw.printerName }] : []),
   ];
@@ -184,25 +184,25 @@ export default function CashDrawerSettings({ enabled, canTest }) {
                 onChange={(v) => updateHw({ printerName: v })}
                 disabled={!hw.enabled}
               />
-              <small className="field-hint">Keep &quot;Same as bill printer&quot; unless the drawer hangs off another printer.</small>
+              <small className="field-hint">Recommended. Change only if the drawer is on a different printer.</small>
             </div>
 
             <div className="input-group">
               <label className="group-lbl">Drawer connector</label>
               <NiceSelect
-                options={PINS.map((p) => ({ value: p.key, label: `${p.label} — ${p.hint}` }))}
+                options={PINS.map((p) => ({ value: p.key, label: p.label }))}
                 value={hw.pin}
                 onChange={(v) => updateHw({ pin: v })}
                 disabled={!hw.enabled}
               />
-              <small className="field-hint">If the drawer does not open, try &quot;Both&quot;.</small>
+              <small className="field-hint">Most drawers use pin 2. Not sure? Choose &quot;Both pins&quot;.</small>
             </div>
 
             <div className="input-group">
               <label className="group-lbl">Kick strength</label>
               <NiceSelect
                 options={[
-                  ...STRENGTHS.map((st) => ({ value: st.key, label: `${st.label} — ${st.hint}` })),
+                  ...STRENGTHS.map((st) => ({ value: st.key, label: st.label })),
                   { value: 'custom', label: 'Custom timing' },
                 ]}
                 value={strength}
@@ -213,6 +213,7 @@ export default function CashDrawerSettings({ enabled, canTest }) {
                 }}
                 disabled={!hw.enabled}
               />
+              <small className="field-hint">{(STRENGTHS.find((x) => x.key === strength) || { hint: 'Custom pulse timing' }).hint}. Use Strong if the drawer only clicks.</small>
               <AdvancedToggle type="button" onClick={() => setShowAdvanced((v) => !v)} $open={showAdvanced}>
                 Advanced timing {strength === 'custom' ? '(custom)' : ''} <FaChevronDown size={10} />
               </AdvancedToggle>

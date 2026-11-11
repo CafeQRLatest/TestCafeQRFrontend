@@ -22,7 +22,6 @@ const ProductCard = React.memo(function ProductCard({
 }) {
   const nonVeg = isNonVegProduct(product);
   const precision = uomPrecisionOf(product);
-  const unitLabel = product.uomShortName || product.uomName || null;
   const [showDesc, setShowDesc] = useState(false);
   const [localQty, setLocalQty] = useState(formatQty(quantity, precision));
   const editingQtyRef = useRef(false);
@@ -115,7 +114,6 @@ const ProductCard = React.memo(function ProductCard({
           <S.CsProdPrice $themeColor={theme.main}>
             {product.isVariablePrice && <span style={{ display: 'inline-block', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: '8px', fontWeight: 800, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '4px', verticalAlign: 'middle' }}>OPEN</span>}
             {sym}{Number(product.price || 0).toFixed(currencyDecimalPlaces)}{hasOptions ? '+' : ''}
-            {unitLabel && <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', marginLeft: '3px' }}>/ {unitLabel}</span>}
           </S.CsProdPrice>
           {hasOptions ? (
             <S.CsAddBtn $themeColor={theme.main} $outline>
