@@ -3,6 +3,7 @@ import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import CafeQRPopup from '../CafeQRPopup';
 import api from '../../utils/api';
 import { calculateOrderTotals } from '../../utils/orderCalculations';
+import { computePurchaseOrderTotals, isPurchaseDocument } from '../../utils/purchaseOrderTotals';
 import { FaUser, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaStickyNote, FaTruck, FaDownload, FaExclamationCircle } from 'react-icons/fa';
 import { downloadInvoicePdf } from '../../utils/invoicePdf';
 import { useAuth } from '../../context/AuthContext';
@@ -208,6 +209,34 @@ export default function DocumentViewerPopup({
   const [currentOrder, setCurrentOrder] = React.useState(order);
   const [loadingOrder, setLoadingOrder] = React.useState(false);
   React.useEffect(() => { setCurrentOrder(order); setRevisions([]); setShowHistory(false); setLoadingOrder(false); }, [order]);
+
+  // Callers like Reports & Billing don't pass vendors/warehouses lists, so load the
+  // supplier and warehouse of a purchase document by id when the props can't resolve them.
+  const [fetchedVendor, setFetchedVendor] = React.useState(null);
+  const [fetchedWarehouse, setFetchedWarehouse] = React.useState(null);
+  const docVendorId = currentOrder?.vendorId || currentOrder?.vendor_id || null;
+  const docWarehouseId = currentOrder?.warehouseId || currentOrder?.warehouse_id || null;
+  // Booleans (not the arrays) as deps: the default `[]` props are new on every render.
+  const vendorInProps = (vendors || []).some(v => String(v.id) === String(docVendorId));
+  const warehouseInProps = (warehouses || []).some(w => String(w.id) === String(docWarehouseId));
+  React.useEffect(() => {
+    setFetchedVendor(null);
+    if (!docVendorId || vendorInProps) return;
+    let alive = true;
+    api.get(`/api/v1/purchasing/vendors/${docVendorId}`)
+      .then(res => { if (alive && res.data?.data) setFetchedVendor(res.data.data); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [docVendorId, vendorInProps]);
+  React.useEffect(() => {
+    setFetchedWarehouse(null);
+    if (!docWarehouseId || warehouseInProps) return;
+    let alive = true;
+    api.get(`/api/v1/warehouses/${docWarehouseId}`)
+      .then(res => { if (alive && res.data?.data) setFetchedWarehouse(res.data.data); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [docWarehouseId, warehouseInProps]);
 
   const [downloading, setDownloading] = React.useState(false);
   const handleDownload = async () => {
@@ -445,6 +474,12 @@ export default function DocumentViewerPopup({
       }
     }
 
+    // Purchase orders store totalAmount as the pre-tax gross, so the sales-oriented
+    // derivation below (roundOff = grandTotal − totalAmount) would report the tax as round off.
+    if (docType !== 'invoice' && docType !== 'payment' && isPurchaseDocument(currentOrder)) {
+      return computePurchaseOrderTotals(currentOrder, activeLines, currencyDecimals);
+    }
+
     const activeDoc = (docType === 'invoice' && invoiceData) ? invoiceData : currentOrder;
     let subtotal = 0, taxTotal = 0, grandTotal = 0;
     const discountTotal = parseFloat(activeDoc.totalDiscountAmount || activeDoc.total_discount_amount || 0);
@@ -555,7 +590,7 @@ export default function DocumentViewerPopup({
     }
 
     return { subtotal, tax: effTax, discount: discountTotal, grandTotal: Math.max(0, grandTotal), gross: dbGrossAmount, roundOff: dbRoundOff };
-  }, [currentOrder, docType, invoiceData, activeLines]);
+  }, [currentOrder, docType, invoiceData, activeLines, currencyDecimals]);
 
   const primaryCustomer = React.useMemo(() => {
     if (!currentOrder) return null;
@@ -598,8 +633,16 @@ export default function DocumentViewerPopup({
     (currentOrder?.paymentSplits && currentOrder.paymentSplits.length > 1) ||
     (currentOrder?.payment_splits && currentOrder.payment_splits.length > 1)
   );
-  const vendor = (!isSale || isVendorPayment) && vendors ? vendors.find(v => String(v.id) === String(currentOrder.vendorId || currentOrder.vendor_id)) : null;
-  const warehouse = (!isSale || isVendorPayment) && warehouses ? warehouses.find(w => String(w.id) === String(currentOrder.warehouseId || currentOrder.warehouse_id)) : null;
+  const vendor = (!isSale || isVendorPayment)
+    ? ((vendors || []).find(v => String(v.id) === String(docVendorId))
+        || fetchedVendor
+        || ((currentOrder.vendorName || currentOrder.vendor_name) ? { name: currentOrder.vendorName || currentOrder.vendor_name } : null))
+    : null;
+  const warehouse = (!isSale || isVendorPayment)
+    ? ((warehouses || []).find(w => String(w.id) === String(docWarehouseId))
+        || fetchedWarehouse
+        || ((currentOrder.warehouseName || currentOrder.warehouse_name) ? { name: currentOrder.warehouseName || currentOrder.warehouse_name } : null))
+    : null;
   const cfg = (() => {
     if (docType === 'payment') {
       return { label: 'Paid', bg: '#dcfce7', color: '#15803d' };
