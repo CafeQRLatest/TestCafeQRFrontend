@@ -730,8 +730,8 @@ export const DiscountInputWrapper = styled.div`
   background: white;
   border: 1.5px solid #cbd5e1;
   border-radius: 8px;
-  padding: 2px;
-  height: 32px;
+  padding: 2px 6px;
+  height: clamp(34px, 4.5vw, 38px);
   &:focus-within {
     border-color: ${props => props.$themeColor};
   }
@@ -741,16 +741,18 @@ export const DiscUnitToggle = styled.button`
   border: none;
   background: ${props => props.$active ? props.$themeColor : 'transparent'};
   color: ${props => props.$active ? 'white' : '#64748b'};
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  font-size: 10px;
+  min-width: clamp(28px, 4vw, 34px);
+  height: clamp(28px, 4vw, 34px);
+  padding: 0 clamp(4px, 1vw, 8px);
+  border-radius: 6px;
+  font-size: clamp(13px, 1.8vw, 15px);
   font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+  user-select: none;
   &:hover {
     background: ${props => props.$active ? props.$themeColor : '#f1f5f9'};
   }

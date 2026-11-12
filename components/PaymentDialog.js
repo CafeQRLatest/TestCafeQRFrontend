@@ -488,15 +488,41 @@ export default function PaymentDialog({
     }
   }, [selectOptions, paymentMethod]);
 
+  const DISCOUNT_UNIT_STORAGE_KEY = 'pos_discount_unit_pref';
+
+  const getSavedDiscountUnit = () => {
+    if (typeof window === 'undefined') return 'amount';
+    try {
+      const saved = localStorage.getItem(DISCOUNT_UNIT_STORAGE_KEY);
+      return saved === 'percentage' || saved === 'amount' ? saved : 'amount';
+    } catch (e) {
+      return 'amount';
+    }
+  };
+
+  const saveDiscountUnit = (type) => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (type === 'percentage' || type === 'amount') {
+        localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, type);
+      }
+    } catch (e) {}
+  };
+
   // Discount Modal States
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [localDiscounts, setLocalDiscounts] = useState({});
-  const [localOrderDiscountType, setLocalOrderDiscountType] = useState('amount');
+  const [localOrderDiscountType, setLocalOrderDiscountTypeState] = useState(() => getSavedDiscountUnit());
   const [localOrderDiscountValue, setLocalOrderDiscountValue] = useState(0);
-  const [discountModalTab, setDiscountModalTab] = useState('line'); // 'line' | 'total'
+  const [discountModalTab, setDiscountModalTab] = useState('total'); // 'total' | 'line'
+
+  const setLocalOrderDiscountType = (type) => {
+    setLocalOrderDiscountTypeState(type);
+    saveDiscountUnit(type);
+  };
 
   const [cartItems, setCartItems] = useState([]);
-  const [discountType, setDiscountType] = useState('amount');
+  const [discountType, setDiscountType] = useState(() => getSavedDiscountUnit());
   const [discountValue, setDiscountValue] = useState(0);
 
 
@@ -591,9 +617,11 @@ export default function PaymentDialog({
         }
       });
       setLocalDiscounts(initial);
-      setLocalOrderDiscountType(discountType || 'amount');
+      const preferredUnit = getSavedDiscountUnit();
+      const effectiveType = (discountValue > 0 && discountType) ? (discountType === 'percent' ? 'percentage' : discountType) : preferredUnit;
+      setLocalOrderDiscountTypeState(effectiveType);
       setLocalOrderDiscountValue(discountValue || 0);
-      setDiscountModalTab('line');
+      setDiscountModalTab('total');
     }
   }, [showDiscountModal, cartItems, discountType, discountValue]);
 
@@ -888,7 +916,9 @@ export default function PaymentDialog({
       }
       return item;
     }));
-    setDiscountType(localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 'percent' : 'amount');
+    const normalizedType = localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 'percent' : 'amount';
+    setDiscountType(normalizedType);
+    saveDiscountUnit(localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 'percentage' : 'amount');
     setDiscountValue(localOrderDiscountValue);
     setShowDiscountModal(false);
   };
@@ -903,7 +933,8 @@ export default function PaymentDialog({
       });
       return next;
     });
-    setLocalOrderDiscountType('amount');
+    const preferredUnit = getSavedDiscountUnit();
+    setLocalOrderDiscountTypeState(preferredUnit);
     setLocalOrderDiscountValue(0);
   };
 
@@ -2054,19 +2085,19 @@ export default function PaymentDialog({
               <DiscountTabHeader>
                 <DiscountTabButton
                   type="button"
-                  $active={discountModalTab === 'line'}
-                  $themeColor={theme.primaryDark}
-                  onClick={() => setDiscountModalTab('line')}
-                >
-                  Line Discounts
-                </DiscountTabButton>
-                <DiscountTabButton
-                  type="button"
                   $active={discountModalTab === 'total'}
                   $themeColor={theme.primaryDark}
                   onClick={() => setDiscountModalTab('total')}
                 >
                   Total Discount
+                </DiscountTabButton>
+                <DiscountTabButton
+                  type="button"
+                  $active={discountModalTab === 'line'}
+                  $themeColor={theme.primaryDark}
+                  onClick={() => setDiscountModalTab('line')}
+                >
+                  Line Discounts
                 </DiscountTabButton>
               </DiscountTabHeader>
               <DiscountModalBody>
@@ -2112,7 +2143,7 @@ export default function PaymentDialog({
                                   }}
                                 />
                               </DiscountInputWrapper>
-                              <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                              <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                                 <DiscUnitToggle 
                                   type="button"
                                   $active={disc.type === 'amount'} 
@@ -2174,7 +2205,7 @@ export default function PaymentDialog({
                             }}
                           />
                         </DiscountInputWrapper>
-                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                           <DiscUnitToggle 
                             type="button"
                             $active={localOrderDiscountType === 'amount'} 
