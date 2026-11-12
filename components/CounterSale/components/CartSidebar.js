@@ -265,7 +265,7 @@ export default function CartSidebar({
 
           {discountsEnabled && activeOrderMode === 'settle' && (
             <S.CsDiscountBtn type="button" onClick={() => setShowDiscountModal(true)} style={{ marginBottom: '10px' }}>
-              {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)})` : 'Apply Discount'}
+              {totals.discount_amount > 0 ? `Edit Discounts (${(discounts?.type === 'percentage' || discounts?.type === 'percent') && discounts?.value > 0 ? `${discounts.value}%` : `${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)}`})` : 'Apply Discount'}
             </S.CsDiscountBtn>
           )}
 
@@ -335,7 +335,7 @@ export default function CartSidebar({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 }}>
             {discountsEnabled && activeOrderMode === 'settle' && (
               <S.CsDiscountBtn type="button" onClick={() => setShowDiscountModal(true)}>
-                {totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)})` : 'Apply Discount'}
+                {totals.discount_amount > 0 ? `Edit Discounts (${(discounts?.type === 'percentage' || discounts?.type === 'percent') && discounts?.value > 0 ? `${discounts.value}%` : `${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)}`})` : 'Apply Discount'}
               </S.CsDiscountBtn>
             )}
 

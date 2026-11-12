@@ -6,7 +6,7 @@ const getSavedDiscountUnit = () => {
   if (typeof window === 'undefined') return 'amount';
   try {
     const saved = localStorage.getItem(DISCOUNT_UNIT_STORAGE_KEY);
-    return saved === 'percentage' || saved === 'amount' ? saved : 'amount';
+    return saved === 'percentage' || saved === 'percent' || saved === 'amount' ? (saved === 'percent' ? 'percentage' : saved) : 'amount';
   } catch (e) {
     return 'amount';
   }
@@ -15,9 +15,8 @@ const getSavedDiscountUnit = () => {
 const saveDiscountUnit = (type) => {
   if (typeof window === 'undefined') return;
   try {
-    if (type === 'percentage' || type === 'amount') {
-      localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, type);
-    }
+    const normalized = (type === 'percentage' || type === 'percent') ? 'percentage' : 'amount';
+    localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, normalized);
   } catch (e) {}
 };
 
@@ -53,7 +52,9 @@ export default function useDiscounts() {
     }
     setLocalDiscounts(initial);
     const preferredUnit = getSavedDiscountUnit();
-    const effectiveType = (discountValue > 0 && discountType) ? discountType : preferredUnit;
+    const effectiveType = (discountValue > 0 && discountType) 
+      ? ((discountType === 'percentage' || discountType === 'percent') ? 'percentage' : 'amount')
+      : preferredUnit;
     setLocalOrderDiscountTypeState(effectiveType);
     setLocalOrderDiscountValue(discountValue || 0);
     setDiscountModalTab('total');
@@ -86,8 +87,10 @@ export default function useDiscounts() {
         return item;
       }));
     }
-    setDiscountType(localOrderDiscountType);
+    const normalizedOrderType = (localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent') ? 'percentage' : 'amount';
+    setDiscountType(normalizedOrderType);
     setDiscountValue(localOrderDiscountValue);
+    saveDiscountUnit(normalizedOrderType);
     setShowDiscountModal(false);
   }, [localDiscounts, localOrderDiscountType, localOrderDiscountValue]);
 

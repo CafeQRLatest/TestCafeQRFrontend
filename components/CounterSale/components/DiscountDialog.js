@@ -90,7 +90,7 @@ export default function DiscountDialog({
                           <input 
                             type="number"
                             min="0"
-                            max={disc.type === 'percentage' ? 100 : undefined}
+                            max={disc.type === 'percentage' || disc.type === 'percent' ? 100 : undefined}
                             value={disc.value || ''}
                             onChange={e => {
                               const val = parseFloat(e.target.value) || 0;
@@ -128,7 +128,7 @@ export default function DiscountDialog({
                           </S.CsDiscUnitToggle>
                           <S.CsDiscUnitToggle 
                             type="button"
-                            $active={disc.type === 'percentage'} 
+                            $active={disc.type === 'percentage' || disc.type === 'percent'} 
                             $themeColor={theme.main}
                             onClick={() => {
                               setLocalDiscounts(prev => ({
@@ -155,7 +155,7 @@ export default function DiscountDialog({
                     <input 
                       type="number"
                       min="0"
-                      max={localOrderDiscountType === 'percentage' ? 100 : undefined}
+                      max={localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent' ? 100 : undefined}
                       value={localOrderDiscountValue || ''}
                       onChange={e => {
                         const val = parseFloat(e.target.value) || 0;
@@ -186,7 +186,7 @@ export default function DiscountDialog({
                     </S.CsDiscUnitToggle>
                     <S.CsDiscUnitToggle 
                       type="button"
-                      $active={localOrderDiscountType === 'percentage'} 
+                      $active={localOrderDiscountType === 'percentage' || localOrderDiscountType === 'percent'} 
                       $themeColor={theme.main}
                       onClick={() => setLocalOrderDiscountType('percentage')}
                     >

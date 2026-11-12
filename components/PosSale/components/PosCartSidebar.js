@@ -826,7 +826,7 @@ export default function PosCartSidebar({
                 style={{ marginTop: '6px', marginBottom: '2px' }}
               >
                 <FaPercentage size={9.5} />
-                <span>{totals.discount_amount > 0 ? `Edit Discounts (${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)})` : 'Apply Discount'}</span>
+                <span>{totals.discount_amount > 0 ? `Edit Discounts (${(discounts?.type === 'percentage' || discounts?.type === 'percent') && discounts?.value > 0 ? `${discounts.value}%` : `${sym}${totals.discount_amount.toFixed(currencyDecimalPlaces)}`})` : 'Apply Discount'}</span>
               </CartDiscountBtn>
             )}
 
