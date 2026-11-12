@@ -361,9 +361,9 @@ export default function PurchaseReportView({
     if (!purchSummary && !loading) return <div className="rpt-purch-empty">No purchase data for selected range</div>;
     const totalPurch = Number(purchSummary?.totalPurchases || 0);
     const totalPaid = Number(purchSummary?.totalPaid || 0);
-    const totalDue = Number(purchSummary?.totalDue || 0);
+    const totalDue = Number(purchSummary?.totalUnpaid || 0);
     const totalTax = Number(purchSummary?.totalTax || 0);
-    const avgOrderVal = Number(purchSummary?.avgOrderValue || 0);
+    const avgOrderVal = Number(purchSummary?.averageOrderValue || 0);
     const totalOrders = Number(purchSummary?.totalOrders || 0);
 
     const cards = [
@@ -375,8 +375,8 @@ export default function PurchaseReportView({
       (config?.taxEnabled !== false) && { label: 'Input Tax (GST)', val: `${SYM}${fmt(totalTax)}`, color: '#0ea5e9', bg: '#f0f9ff', icon: <FaFileInvoice /> },
     ].filter(Boolean);
 
-    const statusCounts = purchSummary?.ordersByStatus || {};
-    const paymentCounts = purchSummary?.ordersByPaymentStatus || {};
+    const statusCounts = purchSummary?.statusCounts || {};
+    const paymentCounts = purchSummary?.paymentStatusCounts || {};
 
     return (
       <>
@@ -657,9 +657,10 @@ export default function PurchaseReportView({
       return !q || (v.vendorName || '').toLowerCase().includes(q);
     });
 
-    const totalBilled = filtered.reduce((acc, v) => acc + Number(v.totalPurchases || 0), 0);
+    const totalOrders = filtered.reduce((acc, v) => acc + Number(v.orderCount || 0), 0);
+    const totalBilled = filtered.reduce((acc, v) => acc + Number(v.totalBilled || 0), 0);
     const totalPaid = filtered.reduce((acc, v) => acc + Number(v.totalPaid || 0), 0);
-    const totalDue = filtered.reduce((acc, v) => acc + Number(v.totalDue || 0), 0);
+    const totalDue = filtered.reduce((acc, v) => acc + Number(v.outstandingBalance || 0), 0);
 
     return (
       <>
@@ -678,20 +679,20 @@ export default function PurchaseReportView({
             ['Vendor Name', 'POs Placed', 'Total Billed', 'Total Paid', 'Outstanding Balance'],
             filtered.map(v => [
               v.vendorName,
-              v.totalOrders || 0,
-              v.totalPurchases || 0,
+              v.orderCount || 0,
+              v.totalBilled || 0,
               v.totalPaid || 0,
-              v.totalDue || 0
+              v.outstandingBalance || 0
             ].map(csvCell).join(',')),
             'vendor_procurement'
           )}><FaFileCsv /> CSV</button>
           <button className="rpt-purch-btn" onClick={() => exportExcel(
             filtered.map(v => ({
               'Vendor Name': v.vendorName,
-              'POs Placed': Number(v.totalOrders || 0),
-              'Total Billed': Number(v.totalPurchases || 0),
+              'POs Placed': Number(v.orderCount || 0),
+              'Total Billed': Number(v.totalBilled || 0),
               'Total Paid': Number(v.totalPaid || 0),
-              'Outstanding Balance': Number(v.totalDue || 0)
+              'Outstanding Balance': Number(v.outstandingBalance || 0)
             })),
             'Vendor Procurement', 'vendor_procurement'
           )}><FaFileExcel /> Excel</button>
@@ -720,11 +721,11 @@ export default function PurchaseReportView({
                         <span>{v.vendorName || 'Direct / Cash Supplier'}</span>
                       </div>
                     </td>
-                    <td className="r" style={{ fontWeight: 600 }}>{v.totalOrders || 0}</td>
-                    <td className="r rpt-purch-amt">{SYM}{fmt(v.totalPurchases)}</td>
+                    <td className="r" style={{ fontWeight: 600 }}>{v.orderCount || 0}</td>
+                    <td className="r rpt-purch-amt">{SYM}{fmt(v.totalBilled)}</td>
                     <td className="r" style={{ color: '#10b981', fontWeight: 700 }}>{SYM}{fmt(v.totalPaid)}</td>
-                    <td className="r" style={{ color: Number(v.totalDue || 0) > 0 ? '#ef4444' : '#64748b', fontWeight: 800 }}>
-                      {SYM}{fmt(v.totalDue)}
+                    <td className="r" style={{ color: Number(v.outstandingBalance || 0) > 0 ? '#ef4444' : '#64748b', fontWeight: 800 }}>
+                      {SYM}{fmt(v.outstandingBalance)}
                     </td>
                   </tr>
                 ))}
@@ -732,7 +733,7 @@ export default function PurchaseReportView({
               <tfoot>
                 <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
                   <td>Total ({filtered.length} vendors)</td>
-                  <td className="r">—</td>
+                  <td className="r">{totalOrders}</td>
                   <td className="r rpt-purch-amt">{SYM}{fmt(totalBilled)}</td>
                   <td className="r" style={{ color: '#10b981' }}>{SYM}{fmt(totalPaid)}</td>
                   <td className="r" style={{ color: totalDue > 0 ? '#ef4444' : '#10b981' }}>{SYM}{fmt(totalDue)}</td>
