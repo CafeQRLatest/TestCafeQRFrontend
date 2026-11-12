@@ -11,18 +11,18 @@ function loadCurrencyConfig() {
       .then(res => {
         const cfg = res.data?.data || res.data || {};
         const decimals = Number.isInteger(cfg.currencyDecimalPlaces) ? cfg.currencyDecimalPlaces : 2;
-        return { symbol: cfg.currencySymbol || '', decimals };
+        return { symbol: cfg.currencySymbol || '', decimals, code: cfg.currencyCode || '' };
       })
       .catch(() => {
         currencyPromise = null;
-        return { symbol: '', decimals: 2 };
+        return { symbol: '', decimals: 2, code: '' };
       });
   }
   return currencyPromise;
 }
 
 export function useCurrencyConfig() {
-  const [currency, setCurrency] = useState({ symbol: '', decimals: 2 });
+  const [currency, setCurrency] = useState({ symbol: '', decimals: 2, code: '' });
 
   useEffect(() => {
     let active = true;

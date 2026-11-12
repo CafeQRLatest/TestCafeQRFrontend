@@ -9,9 +9,8 @@ import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
-import { useCurrencySymbol } from '../../hooks/useCurrencySymbol';
-import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
-import { formatTzDate, getBusinessNow } from '../../utils/timezoneUtils';
+import { useCurrencyConfig } from '../../hooks/useCurrencyConfig';
+import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
 import { formatQty } from '../../components/CounterSale/domain/quantity';
 import { FaCalculator, FaFileCsv, FaInfoCircle, FaTimes, FaArrowDown, FaArrowUp, FaBalanceScale, FaFlagCheckered, FaPlayCircle, FaTag, FaSortAmountDown, FaSortAmountUp, FaCaretUp, FaCaretDown } from 'react-icons/fa';
 
@@ -91,12 +90,13 @@ const typeLabel = (t) => TYPE_LABELS[t] || (t || '—').replace(/_/g, ' ').toLow
 function ProductCostReportContent() {
   const router = useRouter();
   const { orgId, timezone } = useAuth();
-  const sym = useCurrencySymbol();
-  const decimals = useCurrencyDecimals();
+  const { symbol: sym, decimals, code: currencyCode } = useCurrencyConfig();
+  // Lakh-style digit grouping only for the Indian rupee; every other currency groups in thousands.
+  const numberLocale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
   const activeOrgId = orgId || (typeof window !== 'undefined' ? (Cookies.get('orgId') || '') : '');
 
   const dayStr = (endOfDay, daysBack = 0) => {
-    const d = getBusinessNow(timezone || 'Asia/Kolkata');
+    const d = getBusinessNow(timezone);
     d.setDate(d.getDate() - daysBack);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${endOfDay ? '23:59' : '00:00'}`;
   };
@@ -135,15 +135,18 @@ function ProductCostReportContent() {
     });
   }, [activeOrgId]);
 
-  // Local business date-time from the pickers → UTC ISO instant (ledger dates are stored in UTC).
-  const toIso = (local) => (local ? new Date(local + ':00').toISOString() : undefined);
+  // Branch date-time from the pickers → UTC ISO instant (ledger dates are stored in UTC).
+  // The end of the range runs to the last second of the picked minute.
+  const toIso = (local, isEnd = false) => (local
+    ? businessTimeToUtc(isEnd && local.length === 16 ? `${local}:59` : local, timezone)
+    : undefined);
 
   useEffect(() => {
     if (!productId) { setReport(null); return; }
     let cancelled = false;
     setLoading(true);
     setError('');
-    const params = { from: toIso(dateFrom), to: toIso(dateTo) };
+    const params = { from: toIso(dateFrom), to: toIso(dateTo, true) };
     if (warehouseId) params.warehouseId = warehouseId;
     if (activeOrgId) params.orgId = activeOrgId;
     api.get(`/api/v1/costing/products/${productId}/cost-detail`, { params })
@@ -155,7 +158,7 @@ function ProductCostReportContent() {
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [productId, warehouseId, dateFrom, dateTo, activeOrgId]);
+  }, [productId, warehouseId, dateFrom, dateTo, activeOrgId, timezone]);
 
   const productOptions = useMemo(() => [
     { value: '', label: 'Select a product…' },
@@ -173,7 +176,7 @@ function ProductCostReportContent() {
   const whName = (id) => warehouses.find(w => String(w.id) === String(id))?.name || '—';
   const money = (v, dp = decimals) => (v === null || v === undefined)
     ? '—'
-    : `${sym}${Number(v).toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+    : `${sym}${Number(v).toLocaleString(numberLocale, { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
   const qty = (v) => formatQty(Number(v || 0), 3);
 
   const rows = useMemo(() => (report?.lines || []).map(l => ({ ...l, id: l.ledgerId })), [report]);
