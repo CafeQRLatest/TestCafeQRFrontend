@@ -42,6 +42,12 @@ const TRIGGER_STYLE = {
   TEST: { color: '#4338ca', background: '#eef2ff', borderColor: '#c7d2fe' },
 };
 
+// Opens the server recorded but flagged because they broke a rule (the device kicks before the server sees it).
+const VIOLATION_LABELS = {
+  NOT_PERMITTED: 'Role not permitted',
+  REASON_MISSING: 'No reason given',
+};
+
 const PAGE_SIZE = 20;
 const EXPORT_PAGE_SIZE = 200;
 const EXPORT_MAX_ROWS = 10000;
@@ -193,12 +199,13 @@ export default function CashDrawerHistoryPage() {
           all.push(...(data.content || []));
           if (p + 1 >= (data.totalPages || 0)) break;
         }
-        lines = [['Recorded at', 'Device time', 'User', 'Role', 'Terminal', 'Trigger', 'Reason', 'Order', 'Tender', 'Amount', 'Status', 'Error', 'Transport'].join(',')]
+        lines = [['Recorded at', 'Device time', 'User', 'Role', 'Terminal', 'Trigger', 'Reason', 'Order', 'Tender', 'Amount', 'Status', 'Error', 'Transport', 'Policy flag'].join(',')]
           .concat(all.map((r) => [
             formatTzDate(r.recordedAt, timezone, { format: 'full' }),
             r.deviceEventAt ? formatTzDate(r.deviceEventAt, timezone, { format: 'full' }) : '',
             r.userName, r.roleName, r.terminalName || r.deviceLabel, TRIGGER_LABELS[r.triggerType] || r.triggerType,
             r.reason, r.orderNo, r.paymentMethod, r.amount, r.status === 'SENT' ? 'Opened' : 'Failed', r.errorMessage ? describeDrawerError(r.errorMessage).split('. ')[0] : '', r.transport,
+            r.policyViolation ? (VIOLATION_LABELS[r.policyViolation] || r.policyViolation) : '',
           ].map(csvCell).join(',')));
       }
       const blob = new Blob([`﻿${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
@@ -340,6 +347,16 @@ export default function CashDrawerHistoryPage() {
                               <HistStatusBadge style={{ color: '#b91c1c', background: '#fef2f2', borderColor: '#fecaca' }} title={r.errorMessage || ''}>Failed</HistStatusBadge>
                               {r.errorMessage && <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 4, whiteSpace: 'normal', maxWidth: 240 }} title={r.errorMessage}>{describeDrawerError(r.errorMessage).split('. ')[0]}.</div>}
                             </>
+                          )}
+                          {r.policyViolation && (
+                            <div style={{ marginTop: 4 }}>
+                              <HistStatusBadge
+                                style={{ color: '#b45309', background: '#fffbeb', borderColor: '#fde68a' }}
+                                title="This open broke a cash drawer rule. It was recorded and flagged for review."
+                              >
+                                {VIOLATION_LABELS[r.policyViolation] || r.policyViolation}
+                              </HistStatusBadge>
+                            </div>
                           )}
                         </td>
                       </HistRow>

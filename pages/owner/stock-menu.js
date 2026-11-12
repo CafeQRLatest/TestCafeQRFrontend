@@ -5,7 +5,7 @@ import RoleGate from '../../components/RoleGate';
 import ModuleGate from '../../components/ModuleGate';
 import {
   FaExchangeAlt, FaBalanceScale,
-  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight, FaCheckCircle, FaWarehouse
+  FaDollarSign, FaFileAlt, FaClipboardList, FaArrowRight, FaCheckCircle, FaWarehouse, FaCalculator
 } from 'react-icons/fa';
 
 const transactionModules = [
@@ -51,6 +51,14 @@ const reportModules = [
     icon:  <FaDollarSign />,
     color: '#10b981',
     bg:    '#f0fdf4',
+  },
+  {
+    title: 'Product Cost Report',
+    desc:  'How each product cost was calculated, movement by movement',
+    href:  '/owner/product-cost-report',
+    icon:  <FaCalculator />,
+    color: '#f97316',
+    bg:    '#fff7ed',
   },
   {
     title: 'Transfer Reports',

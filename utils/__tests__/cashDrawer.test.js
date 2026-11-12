@@ -7,6 +7,7 @@ import {
   CASH_DRAWER_TRIGGERS,
   buildDrawerKickBytes,
   canManuallyOpenDrawer,
+  flushCashDrawerEventQueue,
   openCashDrawer,
   readDrawerConfig,
   shouldAutoOpenDrawer,
@@ -115,6 +116,26 @@ describe('openCashDrawer', () => {
     const queued = JSON.parse(window.localStorage.getItem('CASH_DRAWER_EVENT_QUEUE') || '[]');
     expect(queued).toHaveLength(1);
     expect(queued[0]).toEqual(expect.objectContaining({ status: 'FAILED', errorMessage: 'NO_PRINTER_CONFIGURED', amount: 120 }));
+    api.post.mockReset();
+  });
+
+  it('keeps an event queued while a flush is running', async () => {
+    const queuedEarlier = { clientEventId: 'old-1', triggerType: 'SALE_SETTLE', status: 'SENT' };
+    window.localStorage.setItem('CASH_DRAWER_EVENT_QUEUE', JSON.stringify([queuedEarlier]));
+
+    let releaseFlushPost;
+    api.post.mockImplementationOnce(() => new Promise((resolve) => { releaseFlushPost = () => resolve({ data: {} }); }));
+    const flush = flushCashDrawerEventQueue(); // blocked sending old-1
+
+    // A kick made mid-flush cannot reach the server and is appended to the queue.
+    const duringFlush = { clientEventId: 'new-1', triggerType: 'MANUAL', status: 'SENT' };
+    window.localStorage.setItem('CASH_DRAWER_EVENT_QUEUE', JSON.stringify([queuedEarlier, duringFlush]));
+
+    releaseFlushPost();
+    await flush;
+
+    const queued = JSON.parse(window.localStorage.getItem('CASH_DRAWER_EVENT_QUEUE') || '[]');
+    expect(queued.map((e) => e.clientEventId)).toEqual(['new-1']);
     api.post.mockReset();
   });
 });

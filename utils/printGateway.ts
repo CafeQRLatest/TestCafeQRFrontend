@@ -620,6 +620,8 @@ async function printUniversalNow(opts: Options) {
       let nameHint: string | undefined = (window.localStorage.getItem(nameHintKey) || '').trim() || 'pos';
 
       // Execute LAN prints first
+      let netDelivered = 0;
+      let lastNetError: any = null;
       for (const netTarget of netTargets) {
         try {
           await DevicePrinter.printTcpRaw({
@@ -627,7 +629,9 @@ async function printUniversalNow(opts: Options) {
             host: netTarget.host,
             port: netTarget.port
           });
+          netDelivered += 1;
         } catch (netErr) {
+          lastNetError = netErr;
           console.warn(`[print-gateway] Android TCP print to ${netTarget.host}:${netTarget.port} failed:`, netErr);
         }
       }
@@ -660,6 +664,11 @@ async function printUniversalNow(opts: Options) {
       }
 
       if (netTargets.length > 0) {
+        // Device commands (cash drawer kick) must not report success when no printer received them:
+        // the caller records the outcome in an audit trail. Receipt/KOT jobs keep their existing behaviour.
+        if (opts.rawPayload && netDelivered === 0) {
+          throw new Error(`PRINTER_TCP_FAILED ${lastNetError?.message || lastNetError || ''}`.trim());
+        }
         return { via: 'android-pos' as const };
       }
 

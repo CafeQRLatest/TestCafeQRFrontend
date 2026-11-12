@@ -210,17 +210,23 @@ export function flushCashDrawerEventQueue() {
   flushing = (async () => {
     const pending = readQueue();
     if (!pending.length) return;
-    const remaining = [];
+    const settled = new Set();
     for (const evt of pending) {
       try {
         await postEvent(evt);
+        settled.add(evt);
       } catch (error) {
-        // Permission / validation rejects are final; keep only transient failures.
-        if (isRetryable(error)) remaining.push(evt);
-        else console.warn('[cash-drawer] dropping rejected queued event', evt?.clientEventId, error?.response?.status);
+        // Validation rejects are final; keep only transient failures.
+        if (!isRetryable(error)) {
+          settled.add(evt);
+          console.warn('[cash-drawer] dropping rejected queued event', evt?.clientEventId, error?.response?.status);
+        }
       }
     }
-    writeQueue(remaining);
+    // Re-read before writing: kicks made while this flush was running have appended to the queue,
+    // and writing back the snapshot taken above would erase them.
+    const settledIds = new Set([...settled].map((evt) => evt?.clientEventId));
+    writeQueue(readQueue().filter((evt) => !settledIds.has(evt?.clientEventId)));
   })().finally(() => { flushing = null; });
   return flushing;
 }
@@ -259,7 +265,7 @@ export function describeDrawerError(error) {
   if (/PRINT_HUB_FAILED/.test(code)) {
     return 'The receipt printer rejected the command. Check it is switched on, has paper and is online.';
   }
-  if (/timeout|ETIMEDOUT|ECONNREFUSED|socket/i.test(code)) {
+  if (/timeout|ETIMEDOUT|ECONNREFUSED|socket|PRINTER_TCP_FAILED/i.test(code)) {
     return 'The receipt printer did not respond. Check its cable or network connection.';
   }
   return code ? `The receipt printer could not be reached (${code}).` : 'The receipt printer could not be reached.';

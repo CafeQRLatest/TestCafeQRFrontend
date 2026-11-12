@@ -498,7 +498,11 @@ export default function PurchaseReportView({
         (po.orderNo || '').toLowerCase().includes(q) ||
         (po.vendorName || po.vendor?.name || '').toLowerCase().includes(q)
       );
-      const matchStatus = purchStatusFilter === 'ALL' || (po.orderStatus || po.status || '').toUpperCase() === purchStatusFilter;
+      const poStatus = (po.orderStatus || po.status || '').toUpperCase();
+      // Same rule as the backend: "Cancelled" covers both VOID and CANCELLED.
+      const matchStatus = purchStatusFilter === 'ALL'
+        || poStatus === purchStatusFilter
+        || (purchStatusFilter === 'VOID' && poStatus === 'CANCELLED');
       return matchSearch && matchStatus;
     });
 
@@ -509,11 +513,12 @@ export default function PurchaseReportView({
             value={purchStatusFilter}
             onChange={setPurchStatusFilter}
             options={[
+              // Values must match stored order_status (DRAFT, CONFIRMED, COMPLETED, VOID).
               { value: 'ALL', label: 'All Statuses' },
-              { value: 'BILLED', label: 'Billed' },
-              { value: 'COMPLETED', label: 'Completed' },
               { value: 'DRAFT', label: 'Draft' },
-              { value: 'CANCELLED', label: 'Cancelled' },
+              { value: 'CONFIRMED', label: 'Ordered, not received' },
+              { value: 'COMPLETED', label: 'Received' },
+              { value: 'VOID', label: 'Cancelled' },
             ]}
             style={{ width: 150 }}
           />
@@ -574,9 +579,23 @@ export default function PurchaseReportView({
                     <td><span className={`rpt-purch-st ${(po.orderStatus || po.status || '').toLowerCase()}`}>{po.orderStatus || po.status || '—'}</span></td>
                     <td><span className={`rpt-purch-st ${(po.paymentStatus || '').toLowerCase()}`}>{po.paymentStatus || '—'}</span></td>
                     <td className="r rpt-purch-amt">{SYM}{fmt(po.grandTotal ?? po.totalAmount ?? 0)}</td>
-                    <td className="r" style={{ fontWeight: 700, color: Number(po.amountDue || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                      {SYM}{fmt(po.amountDue || 0)}
-                    </td>
+                    {(() => {
+                      // The list API has no amountDue, so derive it from the payment status.
+                      // Cancelled orders owe nothing; partly paid ones need the order's payments for an exact figure.
+                      const pay = String(po.paymentStatus || '').toUpperCase();
+                      const st = String(po.orderStatus || po.status || '').toUpperCase();
+                      const total = Number(po.grandTotal ?? po.totalAmount ?? 0);
+                      if (po.amountDue != null) {
+                        const due = Number(po.amountDue);
+                        return <td className="r" style={{ fontWeight: 700, color: due > 0 ? '#ef4444' : '#10b981' }}>{SYM}{fmt(due)}</td>;
+                      }
+                      if (pay === 'PARTIAL') {
+                        return <td className="r" style={{ fontWeight: 700, color: '#f59e0b' }}>Part paid</td>;
+                      }
+                      // Nothing is owed on paid, voided/cancelled or draft (not yet placed) orders.
+                      const due = (pay === 'PAID' || pay === 'VOID' || st === 'VOID' || st === 'CANCELLED' || st === 'DRAFT') ? 0 : total;
+                      return <td className="r" style={{ fontWeight: 700, color: due > 0 ? '#ef4444' : '#10b981' }}>{SYM}{fmt(due)}</td>;
+                    })()}
                     <td style={{ textAlign: 'center' }}>
                       <button
                         className="rpt-purch-btn"
@@ -603,7 +622,7 @@ export default function PurchaseReportView({
         (item.categoryName || '').toLowerCase().includes(q);
     });
 
-    const totalSpend = filtered.reduce((acc, i) => acc + Number(i.totalSpend || 0), 0);
+    const totalSpend = filtered.reduce((acc, i) => acc + Number(i.totalSpent ?? i.totalSpend ?? 0), 0);
     const totalQty = filtered.reduce((acc, i) => acc + Number(i.totalQuantity || 0), 0);
 
     return (
@@ -620,25 +639,25 @@ export default function PurchaseReportView({
             <FaSearch className="rpt-purch-search-icon" />
           </div>
           <button className="rpt-purch-btn" onClick={() => exportCSV(
-            ['Item Name', 'Category', 'Units Procured', 'Avg Unit Cost', 'Total Spend', 'Orders Count'],
+            ['Item Name', 'Category', 'Qty Bought', 'Average Cost', 'Total Cost', 'Orders'],
             filtered.map(item => [
               item.productName || item.itemName,
               item.categoryName || '—',
               item.totalQuantity || 0,
-              item.averageUnitCost || 0,
-              item.totalSpend || 0,
+              item.avgUnitCost ?? item.averageUnitCost ?? 0,
+              item.totalSpent ?? item.totalSpend ?? 0,
               item.orderCount || 0
             ].map(csvCell).join(',')),
             'item_procurement'
           )}><FaFileCsv /> CSV</button>
           <button className="rpt-purch-btn" onClick={() => exportExcel(
             filtered.map(item => ({
-              'Item Name': item.productName || item.itemName,
+              'Item': item.productName || item.itemName,
               'Category': item.categoryName || '—',
-              'Units Procured': Number(item.totalQuantity || 0),
-              'Avg Unit Cost': Number(item.averageUnitCost || 0),
-              'Total Spend': Number(item.totalSpend || 0),
-              'Orders Count': Number(item.orderCount || 0)
+              'Qty Bought': Number(item.totalQuantity || 0),
+              'Average Cost': Number(item.avgUnitCost ?? item.averageUnitCost ?? 0),
+              'Total Cost': Number(item.totalSpent ?? item.totalSpend ?? 0),
+              'Orders': Number(item.orderCount || 0)
             })),
             'Item Procurement', 'item_procurement'
           )}><FaFileExcel /> Excel</button>
@@ -651,12 +670,12 @@ export default function PurchaseReportView({
             <table className="rpt-purch-tbl">
               <thead>
                 <tr>
-                  <th>Item / Ingredient Name</th>
+                  <th>Item</th>
                   <th>Category</th>
-                  <th className="r">Units Procured</th>
-                  <th className="r">Avg Unit Cost</th>
-                  <th className="r">Total Spend</th>
-                  <th className="r">POs Placed</th>
+                  <th className="r">Qty Bought</th>
+                  <th className="r">Average Cost</th>
+                  <th className="r">Total Cost</th>
+                  <th className="r">Orders</th>
                 </tr>
               </thead>
               <tbody>
@@ -665,8 +684,8 @@ export default function PurchaseReportView({
                     <td style={{ fontWeight: 700, color: '#1e293b' }}>{item.productName || item.itemName}</td>
                     <td><span className="rpt-purch-pill">{item.categoryName || 'General'}</span></td>
                     <td className="r" style={{ fontWeight: 600 }}>{Number(item.totalQuantity || 0).toLocaleString('en-IN')}</td>
-                    <td className="r">{SYM}{fmt(item.averageUnitCost)}</td>
-                    <td className="r rpt-purch-amt">{SYM}{fmt(item.totalSpend)}</td>
+                    <td className="r">{SYM}{fmt(item.avgUnitCost ?? item.averageUnitCost)}</td>
+                    <td className="r rpt-purch-amt">{SYM}{fmt(item.totalSpent ?? item.totalSpend)}</td>
                     <td className="r">{item.orderCount || 0}</td>
                   </tr>
                 ))}
