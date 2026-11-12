@@ -494,7 +494,7 @@ export default function PaymentDialog({
     if (typeof window === 'undefined') return 'amount';
     try {
       const saved = localStorage.getItem(DISCOUNT_UNIT_STORAGE_KEY);
-      return saved === 'percentage' || saved === 'amount' ? saved : 'amount';
+      return saved === 'percentage' || saved === 'percent' || saved === 'amount' ? (saved === 'percent' ? 'percentage' : saved) : 'amount';
     } catch (e) {
       return 'amount';
     }
@@ -503,9 +503,8 @@ export default function PaymentDialog({
   const saveDiscountUnit = (type) => {
     if (typeof window === 'undefined') return;
     try {
-      if (type === 'percentage' || type === 'amount') {
-        localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, type);
-      }
+      const normalized = (type === 'percentage' || type === 'percent') ? 'percentage' : 'amount';
+      localStorage.setItem(DISCOUNT_UNIT_STORAGE_KEY, normalized);
     } catch (e) {}
   };
 
@@ -590,8 +589,12 @@ export default function PaymentDialog({
         order.orderDiscount?.value ??
         0;
 
+      const isPercent =
+        String(ordDiscType).toUpperCase() === 'PERCENT' ||
+        String(ordDiscType).toUpperCase() === 'PERCENTAGE';
+
       setDiscountType(
-        String(ordDiscType).toUpperCase() === 'PERCENT'
+        isPercent
           ? 'percent'
           : 'amount'
       );

@@ -63,5 +63,20 @@ describe('useDiscounts Hook', () => {
     expect(result.current.discountModalTab).toBe('total');
     expect(result.current.localOrderDiscountType).toBe('amount');
   });
+
+  test('normalizes "percent" to "percentage" from storage or active discount type', () => {
+    localStorage.setItem('pos_discount_unit_pref', 'percent');
+    const { result } = renderHook(() => useDiscounts());
+    expect(result.current.discountType).toBe('percentage');
+    expect(result.current.localOrderDiscountType).toBe('percentage');
+
+    act(() => {
+      result.current.setDiscountType('percent');
+      result.current.setDiscountValue(10);
+      result.current.syncLocalDiscounts([], () => '');
+    });
+
+    expect(result.current.localOrderDiscountType).toBe('percentage');
+  });
 });
 
