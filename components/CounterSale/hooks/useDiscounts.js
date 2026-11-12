@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 
-const DISCOUNT_UNIT_STORAGE_KEY = 'pos_discount_unit_pref';
+export const DISCOUNT_UNIT_STORAGE_KEY = 'pos_discount_unit_pref';
 
-const getSavedDiscountUnit = () => {
+export const getSavedDiscountUnit = () => {
   if (typeof window === 'undefined') return 'amount';
   try {
     const saved = localStorage.getItem(DISCOUNT_UNIT_STORAGE_KEY);
@@ -12,7 +12,7 @@ const getSavedDiscountUnit = () => {
   }
 };
 
-const saveDiscountUnit = (type) => {
+export const saveDiscountUnit = (type) => {
   if (typeof window === 'undefined') return;
   try {
     const normalized = (type === 'percentage' || type === 'percent') ? 'percentage' : 'amount';
@@ -94,8 +94,8 @@ export default function useDiscounts() {
     setShowDiscountModal(false);
   }, [localDiscounts, localOrderDiscountType, localOrderDiscountValue]);
 
-  const handleClearAllDiscounts = useCallback((discountsEnabled) => {
-    if (!discountsEnabled) return;
+  const handleClearAllDiscounts = useCallback((discountsEnabled = true) => {
+    if (discountsEnabled === false) return;
 
     setLocalDiscounts(prev => {
       const next = {};
@@ -105,8 +105,10 @@ export default function useDiscounts() {
       return next;
     });
     const preferredUnit = getSavedDiscountUnit();
-    setLocalOrderDiscountType(preferredUnit);
+    setLocalOrderDiscountTypeState(preferredUnit);
     setLocalOrderDiscountValue(0);
+    setDiscountType(preferredUnit);
+    setDiscountValue(0);
   }, []);
 
   return {
@@ -120,6 +122,7 @@ export default function useDiscounts() {
     setLocalDiscounts,
     localOrderDiscountType,
     setLocalOrderDiscountType,
+    setLocalOrderDiscountTypeState,
     localOrderDiscountValue,
     setLocalOrderDiscountValue,
     discountModalTab,

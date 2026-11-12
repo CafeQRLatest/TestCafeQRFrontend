@@ -16,7 +16,7 @@ import usePosSaleBootstrap from './usePosSaleBootstrap';
 import useCart from '../../CounterSale/hooks/useCart';
 import usePosProductCatalog from './usePosProductCatalog';
 import usePosCustomerSelection from './usePosCustomerSelection';
-import useDiscounts from '../../CounterSale/hooks/useDiscounts';
+import useDiscounts, { getSavedDiscountUnit } from '../../CounterSale/hooks/useDiscounts';
 import useOrderSubmission from '../../CounterSale/hooks/useOrderSubmission';
 
 // ── V2: Use new API for customer save + product refresh ──
@@ -189,6 +189,7 @@ export default function usePosSaleController({
     setLocalDiscounts,
     localOrderDiscountType,
     setLocalOrderDiscountType,
+    setLocalOrderDiscountTypeState,
     localOrderDiscountValue,
     setLocalOrderDiscountValue,
     discountModalTab,
@@ -264,13 +265,13 @@ export default function usePosSaleController({
       setCart([]);
       setOrderNote('');
       clearCustomerSelection();
-      handleClearAllDiscounts();
+      handleClearAllDiscounts(discountsEnabled);
       setShowSettleDialog(false);
       setVariantProduct(null);
       setVariablePriceProduct(null);
       setVariablePriceQueue([]);
     }
-  }, [currentTableKey, setCart, setOrderNote, clearCustomerSelection, handleClearAllDiscounts, setShowSettleDialog, setVariantProduct, setVariablePriceProduct, setVariablePriceQueue]);
+  }, [currentTableKey, setCart, setOrderNote, clearCustomerSelection, handleClearAllDiscounts, discountsEnabled, setShowSettleDialog, setVariantProduct, setVariablePriceProduct, setVariablePriceQueue]);
 
   const handleZoom = useCallback((delta) => {
     setZoomLevel(prev => {
@@ -291,9 +292,10 @@ export default function usePosSaleController({
   useEffect(() => {
     if (!discountsEnabled || activeOrderMode === 'kitchen') {
       setShowDiscountModal(false);
-      setDiscountType('amount');
+      const preferredUnit = getSavedDiscountUnit();
+      setDiscountType(preferredUnit);
       setDiscountValue(0);
-      setLocalOrderDiscountType('amount');
+      setLocalOrderDiscountTypeState(preferredUnit);
       setLocalOrderDiscountValue(0);
       setLocalDiscounts({});
       setCart(prev => {
@@ -301,7 +303,7 @@ export default function usePosSaleController({
         return hasDiscount ? prev.map(withoutDiscounts) : prev;
       });
     }
-  }, [discountsEnabled, activeOrderMode, setCart, setLocalDiscounts, setDiscountType, setDiscountValue, setLocalOrderDiscountType, setLocalOrderDiscountValue, setShowDiscountModal]);
+  }, [discountsEnabled, activeOrderMode, setCart, setLocalDiscounts, setDiscountType, setDiscountValue, setLocalOrderDiscountTypeState, setLocalOrderDiscountValue, setShowDiscountModal]);
 
   // Derived calculations
   const totals = useMemo(() => {
@@ -517,6 +519,7 @@ export default function usePosSaleController({
         showConfirm,
         clearCustomerSelection
       });
+      handleClearAllDiscounts(discountsEnabled);
     } catch (err) {
       notify('error', 'Failed to place order: ' + (err.response?.data?.message || err.message));
     }

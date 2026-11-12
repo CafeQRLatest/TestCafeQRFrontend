@@ -78,5 +78,34 @@ describe('useDiscounts Hook', () => {
 
     expect(result.current.localOrderDiscountType).toBe('percentage');
   });
+
+  test('handleClearAllDiscounts resets order discounts to 0 while preserving saved unit preference', () => {
+    localStorage.setItem('pos_discount_unit_pref', 'percentage');
+    const { result } = renderHook(() => useDiscounts());
+
+    act(() => {
+      result.current.setDiscountValue(10);
+      result.current.setLocalOrderDiscountValue(10);
+    });
+
+    act(() => {
+      result.current.handleClearAllDiscounts(true);
+    });
+
+    expect(result.current.discountValue).toBe(0);
+    expect(result.current.localOrderDiscountValue).toBe(0);
+    expect(result.current.discountType).toBe('percentage');
+    expect(result.current.localOrderDiscountType).toBe('percentage');
+    expect(localStorage.getItem('pos_discount_unit_pref')).toBe('percentage');
+
+    // Simulate opening discount modal for a new subsequent order
+    act(() => {
+      result.current.syncLocalDiscounts([], () => '');
+    });
+
+    expect(result.current.discountModalTab).toBe('total');
+    expect(result.current.localOrderDiscountType).toBe('percentage');
+    expect(result.current.localOrderDiscountValue).toBe(0);
+  });
 });
 
