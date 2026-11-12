@@ -880,8 +880,8 @@ const MENU_ORDER = [
   "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
   "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
   "Customers", "Loyalty",
-  "Analytics", "Sales_Insight", "Sales History", "Cash Drawer History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
-  "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", 
+  "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting", "Cash Drawer History",
+  "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup",
   "Payroll & HR"
 ];
 
@@ -1221,7 +1221,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
     "Dashboard", "Product Management", "Orders", "Point of Sale", "POS (V2)", "Sales", "Table Management",
     "Purchase Orders", "Purchases & Reports", "Purchases", "Stock", "QR Availability", "Delivery Hours", "Credit Customers", "Credit Sales", "Offline Sync Center", "Waste Management",
     "Customers", "Loyalty",
-    "Analytics", "Sales_Insight", "Sales History", "Cash Drawer History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting",
+    "Analytics", "Sales_Insight", "Sales History", "Ask CafeQR", "Expenses", "Reports & Billing", "Billing & Reports", "Accounting", "Cash Drawer History",
     "Organization", "Partners", "Subscription", "Configurations", "Document Sequences", "Data Backup", "Payroll & HR"
   ];
 
