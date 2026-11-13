@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Cookies from 'js-cookie';
 import { FaDownload, FaListUl, FaUsers } from 'react-icons/fa';
 import DashboardLayout from '../../components/DashboardLayout';
+import ModuleGate from '../../components/ModuleGate';
 import { PageContainer } from '../../components/PremiumPOSUI';
 import {
   HistoryShell,
@@ -96,6 +97,14 @@ function Pagination({ page, totalPages, totalElements, loading, onChange, noun }
 }
 
 export default function CashDrawerHistoryPage() {
+  return (
+    <ModuleGate>
+      <CashDrawerHistoryContent />
+    </ModuleGate>
+  );
+}
+
+function CashDrawerHistoryContent() {
   const { timezone, userRole, canViewCashDrawerHistory, loading: authLoading } = useAuth();
   const dp = useCurrencyDecimals();
   const sym = useCurrencySymbol();

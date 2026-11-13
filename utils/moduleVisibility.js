@@ -38,6 +38,7 @@ const FEATURE_DEFAULTS = {
   payrollEnabled: true,
   posV2Enabled: false,
   partnersEnabled: false,
+  cashDrawerEnabled: false,
 };
 
 const MENU_FEATURES = {
@@ -66,6 +67,7 @@ const MENU_FEATURES = {
   'Payroll Processing': 'payrollEnabled',
   'POS (V2)': 'posV2Enabled',
   'Sales History': 'posV2Enabled',
+  'Cash Drawer History': 'cashDrawerEnabled',
 };
 
 const ROUTE_FEATURES = [
@@ -83,6 +85,7 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/hr(?:-|\/|$)/, flag: 'payrollEnabled', label: 'Payroll & HR' },
   { pattern: /^\/owner\/pos-sales(?:\/)?$/, flag: 'posV2Enabled', label: 'POS (V2)' },
   { pattern: /^\/owner\/sales-history(?:\/)?$/, flag: 'posV2Enabled', label: 'Sales History' },
+  { pattern: /^\/owner\/cash-drawer-history(?:\/)?$/, flag: 'cashDrawerEnabled', label: 'Cash Drawer History' },
 ];
 
 export function isPosV2Enabled(config) {
@@ -128,6 +131,13 @@ export function isFeatureEnabled(config, flag) {
     if (effectiveConfig.purchaseEnabled === true || effectiveConfig.purchaseEnabled === 'true') return true;
     if (effectiveConfig.pm_purchase === true || effectiveConfig.pm_purchase === 'true') return true;
     return FEATURE_DEFAULTS.purchaseEnabled !== false;
+  }
+  if (flag === 'cashDrawerEnabled') {
+    if (effectiveConfig.cashDrawerEnabled === false || effectiveConfig.cashDrawerEnabled === 'false') return false;
+    if (effectiveConfig.pm_cash_drawer === false || effectiveConfig.pm_cash_drawer === 'false') return false;
+    if (effectiveConfig.cashDrawerEnabled === true || effectiveConfig.cashDrawerEnabled === 'true') return true;
+    if (effectiveConfig.pm_cash_drawer === true || effectiveConfig.pm_cash_drawer === 'true') return true;
+    return FEATURE_DEFAULTS.cashDrawerEnabled !== false;
   }
   if (typeof effectiveConfig[flag] === 'undefined' || effectiveConfig[flag] === null) {
     return FEATURE_DEFAULTS[flag] !== false;
@@ -188,4 +198,8 @@ export function isKitchenModuleEnabled(config) {
 
 export function isLoyaltyModuleEnabled(config) {
   return isFeatureEnabled(config, 'loyaltyEnabled');
+}
+
+export function isCashDrawerModuleEnabled(config) {
+  return isFeatureEnabled(config, 'cashDrawerEnabled');
 }

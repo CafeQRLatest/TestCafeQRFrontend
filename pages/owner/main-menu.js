@@ -121,6 +121,7 @@ function MainMenuContent() {
     'Payroll Processing': { name: 'Run Payroll',          desc: 'Salaries, payslips & sync',     icon: <FaMoneyCheckAlt />,color: '#ea580c', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr?tab=payroll' },
     'Payroll':            { name: 'Run Payroll',          desc: 'Salaries, payslips & sync',     icon: <FaMoneyCheckAlt />,color: '#ea580c', bg: '#fff7ed', cat: 'Payroll & HR', url: '/owner/hr?tab=payroll' },
     'Sales History':      { name: 'Sales History',        desc: 'Completed & cancelled orders',   icon: <FaHistory />,      color: '#f97316', bg: '#fff7ed', cat: 'Insights',   url: '/owner/sales-history' },
+    'Cash Drawer History': { name: 'Cash Drawer History', desc: 'Hardware event log & drawer opens', icon: <FaMoneyCheckAlt />, color: '#0f766e', bg: '#f0fdfa', cat: 'Insights', url: '/owner/cash-drawer-history' },
   };
 
   const categoryOrder = ['Operations', 'Payroll & HR', 'Insights', 'Customers', 'Account'];
