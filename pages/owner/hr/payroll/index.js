@@ -9,10 +9,16 @@ import { downloadPayslipPdf } from '../../../../utils/payslipPdf';
 import { FaMoneyCheckAlt, FaPlay, FaFileDownload, FaEye, FaSync, FaTrash, FaPrint, FaCheck } from 'react-icons/fa';
 import { formatTzDate } from '../../../../utils/timezoneUtils';
 import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
+import { useNotification } from '../../../../context/NotificationContext';
+import NiceSelect from '../../../../components/NiceSelect';
+import PremiumDateTimePicker from '../../../../components/PremiumDateTimePicker';
+import HrInfoButton from '../../../../components/hr/HrInfoButton';
+import { HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 
 export default function PayrollDashboard({ embedded = false }) {
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
+  const { notify, showConfirm } = useNotification();
   const router = useRouter();
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -78,21 +84,21 @@ export default function PayrollDashboard({ embedded = false }) {
     e.preventDefault();
     const trimmedName = newRunName.trim();
     if (!trimmedName) {
-      alert('Payroll run name cannot be empty.');
+      notify('error', 'Payroll run name cannot be empty.');
       return;
     }
     if (!startDate || !endDate) {
-      alert('Please select both Start Date and End Date.');
+      notify('error', 'Please select both Start Date and End Date.');
       return;
     }
     if (new Date(startDate) > new Date(endDate)) {
-      alert('Start Date cannot be after End Date.');
+      notify('error', 'Start Date cannot be after End Date.');
       return;
     }
     const startYear = new Date(startDate).getFullYear();
     const endYear = new Date(endDate).getFullYear();
     if (startYear < 2000 || startYear > 2100 || endYear < 2000 || endYear > 2100) {
-      alert('Invalid date range: Year must be between 2000 and 2100.');
+      notify('error', 'Invalid date range: Year must be between 2000 and 2100.');
       return;
     }
 
@@ -103,7 +109,7 @@ export default function PayrollDashboard({ embedded = false }) {
         startDate: startDate,
         endDate: endDate
       });
-      alert('Payroll calculation complete!');
+      notify('success', 'Payroll calculation complete.');
       setNewRunName('');
       setStartDate('');
       setEndDate('');
@@ -111,7 +117,7 @@ export default function PayrollDashboard({ embedded = false }) {
     } catch (error) {
       console.error("Failed to run payroll", error);
       const errMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Error running payroll.';
-      alert(errMsg);
+      notify('error', errMsg);
     } finally {
       setIsRunning(false);
     }
@@ -126,7 +132,7 @@ export default function PayrollDashboard({ embedded = false }) {
       setSlips(res.data || []);
     } catch (error) {
       console.error("Failed to fetch slips", error);
-      alert("Failed to fetch salary slips.");
+      notify('error', 'Failed to fetch salary slips.');
     } finally {
       setIsLoadingSlips(false);
     }
@@ -139,7 +145,7 @@ export default function PayrollDashboard({ embedded = false }) {
         const text = await response.data.text();
         try {
           const json = JSON.parse(text);
-          alert(json.message || "Failed to download ACH file.");
+          notify('error', json.message || 'Failed to download ACH file.');
           return;
         } catch (e) {}
       }
@@ -162,7 +168,7 @@ export default function PayrollDashboard({ embedded = false }) {
       } else if (error.response?.data?.message) {
         msg = error.response.data.message;
       }
-      alert(msg);
+      notify('error', msg);
     }
   };
 
@@ -184,27 +190,33 @@ export default function PayrollDashboard({ embedded = false }) {
     try {
       setIsLoading(true);
       await hrService.syncToAccounting(syncRunId, syncPaymentMethod);
-      alert("Payroll successfully synchronized with Accounting Expenses!");
+      notify('success', 'Payroll synchronized with Accounting Expenses.');
       setShowSyncModal(false);
       setSyncRunId(null);
       fetchPayrollRuns();
     } catch (error) {
       console.error("Failed to sync accounting", error);
-      alert(error.response?.data?.message || error.message || "Failed to sync with accounting.");
+      notify('error', error.response?.data?.message || error.message || 'Failed to sync with accounting.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDeleteRun = async (runId) => {
-    if (!confirm("Are you sure you want to delete this payroll run and all its generated payslips?")) return;
-    try {
-      await hrService.deletePayrollRun(runId);
-      fetchPayrollRuns();
-    } catch (error) {
-      console.error("Failed to delete payroll run", error);
-      alert("Failed to delete payroll run.");
-    }
+  const handleDeleteRun = (runId) => {
+    showConfirm({
+      title: 'Delete payroll run?',
+      message: 'This deletes the payroll run and all its generated payslips. This cannot be undone.',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          await hrService.deletePayrollRun(runId);
+          fetchPayrollRuns();
+        } catch (error) {
+          console.error('Failed to delete payroll run', error);
+          notify('error', 'Failed to delete payroll run.');
+        }
+      },
+    });
   };
 
   return (
@@ -218,15 +230,27 @@ export default function PayrollDashboard({ embedded = false }) {
         {/* Initiate New Run Section */}
         <div className="initiate-card glass-panel">
           <div className="card-header">
-            <h3><FaPlay className="text-orange-500" /> Initiate Payroll Run</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <h3><FaPlay className="text-orange-500" /> Initiate Payroll Run</h3>
+              <HrInfoButton title="How a payroll run is calculated">
+                <p style={{ margin: '0 0 8px' }}>Choose a start and end date, then run the engine. For each active employee it calculates:</p>
+                <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+                  <li>Base pay (monthly salary, or hourly rate × worked hours)</li>
+                  <li>Overtime, using the multiplier set in HR Settings</li>
+                  <li>Earnings and deductions from each employee's salary rules</li>
+                  <li>Advance installments and unpaid leave</li>
+                </ul>
+                <p style={{ margin: 0 }}>Amounts use the default currency from Currency Master.</p>
+              </HrInfoButton>
+            </div>
             <p>Select the date range to automatically calculate base pay, hourly wages, and deductions.</p>
           </div>
-          
+
           <form className="run-form" onSubmit={handleInitiateRun}>
             <div className="form-group">
               <label>Run Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="e.g. September 2026 Payroll"
                 value={newRunName}
                 onChange={(e) => setNewRunName(e.target.value)}
@@ -235,20 +259,18 @@ export default function PayrollDashboard({ embedded = false }) {
             </div>
             <div className="form-group">
               <label>Start Date</label>
-              <input 
-                type="date" 
+              <PremiumDateTimePicker
+                dateOnly
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
+                onChange={(val) => setStartDate(val)}
               />
             </div>
             <div className="form-group">
               <label>End Date</label>
-              <input 
-                type="date" 
+              <PremiumDateTimePicker
+                dateOnly
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
+                onChange={(val) => setEndDate(val)}
               />
             </div>
             <button type="submit" className="btn-primary" disabled={isRunning}>
@@ -259,11 +281,11 @@ export default function PayrollDashboard({ embedded = false }) {
 
         {/* History Section */}
         <h3 className="section-title">Past Payroll Runs</h3>
-        <div className="table-container glass-panel">
+        <HistTableWrap>
           {isLoading ? (
             <div className="loading-state">Loading history...</div>
           ) : (
-            <table className="modern-table">
+            <HistTable>
               <thead>
                 <tr>
                   <th>Run Name</th>
@@ -295,7 +317,7 @@ export default function PayrollDashboard({ embedded = false }) {
                           </span>
                         </td>
                         <td>
-                        <div className="action-buttons">
+                        <HistActionGroup>
                           <button 
                             className="btn-action view" 
                             title="View Slips"
@@ -334,16 +356,16 @@ export default function PayrollDashboard({ embedded = false }) {
                           >
                             <FaTrash /> Delete
                           </button>
-                        </div>
+                        </HistActionGroup>
                       </td>
                     </tr>
                   );
                 })
                 )}
               </tbody>
-            </table>
+            </HistTable>
           )}
-        </div>
+        </HistTableWrap>
       </div>
 
       {/* Salary Slips Modal */}
@@ -360,11 +382,11 @@ export default function PayrollDashboard({ embedded = false }) {
               <button className="btn-secondary" onClick={() => setShowSlipsModal(false)}>Close</button>
             </div>
 
-            <div className="table-container">
+            <HistTableWrap>
               {isLoadingSlips ? (
                 <div className="loading-state">Loading generated salary slips...</div>
               ) : (
-                <table className="modern-table">
+                <HistTable>
                   <thead>
                     <tr>
                       <th>Employee Name</th>
@@ -414,9 +436,9 @@ export default function PayrollDashboard({ embedded = false }) {
                       ))
                     )}
                   </tbody>
-                </table>
+                </HistTable>
               )}
-            </div>
+            </HistTableWrap>
           </div>
         </div>
       )}
@@ -553,41 +575,21 @@ export default function PayrollDashboard({ embedded = false }) {
             
             <div className="form-group" style={{ marginBottom: '24px' }}>
               <label>Select Payment Method</label>
-              <select 
+              <NiceSelect
                 value={syncPaymentMethod}
-                onChange={(e) => setSyncPaymentMethod(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  padding: '12px', 
-                  borderRadius: '12px', 
-                  border: '1px solid #cbd5e1', 
-                  outline: 'none', 
-                  background: '#ffffff', 
-                  color: '#0f172a', 
-                  fontWeight: '600',
-                  fontSize: '14px',
-                  colorScheme: 'light'
-                }}
-              >
-                {expensePaymentTypes.length > 0 ? (
-                  expensePaymentTypes.map(pt => {
-                    const val = pt.code || pt.name || (pt.displayName ? pt.displayName.toUpperCase() : '');
-                    return (
-                      <option key={pt.id || val || pt.displayName} value={val} style={{ color: '#0f172a', background: '#ffffff' }}>
-                        {pt.displayName || pt.name}
-                      </option>
-                    );
-                  })
-                ) : (
-                  <>
-                    <option value="CASH" style={{ color: '#0f172a', background: '#ffffff' }}>Cash</option>
-                    <option value="ONLINE" style={{ color: '#0f172a', background: '#ffffff' }}>Online</option>
-                    <option value="MIXED" style={{ color: '#0f172a', background: '#ffffff' }}>Mixed</option>
-                    <option value="BANK_TRANSFER" style={{ color: '#0f172a', background: '#ffffff' }}>Bank Transfer</option>
-                  </>
-                )}
-              </select>
-
+                onChange={(val) => setSyncPaymentMethod(val)}
+                options={expensePaymentTypes.length > 0
+                  ? expensePaymentTypes.map(pt => {
+                      const val = pt.code || pt.name || (pt.displayName ? pt.displayName.toUpperCase() : '');
+                      return { value: val, label: pt.displayName || pt.name || val };
+                    })
+                  : [
+                      { value: 'CASH', label: 'Cash' },
+                      { value: 'ONLINE', label: 'Online' },
+                      { value: 'MIXED', label: 'Mixed' },
+                      { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                    ]}
+              />
             </div>
 
             <button 
@@ -606,9 +608,11 @@ export default function PayrollDashboard({ embedded = false }) {
         .payroll-wrapper { display: flex; flex-direction: column; gap: 32px; animation: slideUp 0.4s ease-out; }
         
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
 
         .initiate-card { padding: 32px; background: linear-gradient(135deg, #fff 0%, #fff7ed 100%); }
@@ -635,7 +639,10 @@ export default function PayrollDashboard({ embedded = false }) {
         }
         .btn-primary:hover:not(:disabled) { transform: translateY(-2px); }
         .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn-secondary { padding: 8px 16px; border-radius: 10px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
+        .btn-secondary {
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
+        }
 
         .section-title { font-size: 18px; color: #1e293b; margin: 0 0 -16px; padding-left: 8px; }
 
@@ -662,7 +669,7 @@ export default function PayrollDashboard({ embedded = false }) {
           padding: 6px 12px; border-radius: 8px; border: none; font-size: 12px; font-weight: 700;
           display: flex; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s;
         }
-        .btn-action.view { background: #f1f5f9; color: #3b82f6; }
+        .btn-action.view { background: #f1f5f9; color: #f97316; }
         .btn-action.download { background: #f1f5f9; color: #8b5cf6; }
         .btn-action.sync { background: #f1f5f9; color: #10b981; }
         .btn-action.delete { background: #fef2f2; color: #ef4444; }

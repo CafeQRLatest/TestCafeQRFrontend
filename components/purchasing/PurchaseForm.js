@@ -12,10 +12,8 @@ import {
 import api from '../../utils/api';
 import VariantSelector from '../VariantSelector';
 import PurchasePaymentPopup from './PurchasePaymentPopup';
-import { formatQty, parseQty, qtyInputStep } from '../CounterSale/domain/quantity';
+import { formatQty, parseQty, qtyInputStep, uomPrecisionOf } from '../CounterSale/domain/quantity';
 
-// Lines without a precision (older data) keep 3 decimals.
-const linePrecision = (line) => (Number.isInteger(line.uomPrecision) ? line.uomPrecision : 3);
 // Stop typing once the decimals exceed the product's UOM precision.
 const withinPrecision = (raw, precision) => (String(raw).split('.')[1] || '').length <= precision;
 
@@ -58,14 +56,18 @@ export default function PurchaseForm({
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
   const [pendingTargetStatus, setPendingTargetStatus] = useState(null);
 
+  const getLinePrecision = (line) => {
+    return uomPrecisionOf(line) || uomPrecisionOf(products?.find(p => String(p.id) === String(line?.productId || line?.id))) || 0;
+  };
+
   // Quantities are stored and shown padded to the line's UOM precision (e.g. 1.000 for 3 decimals).
   const stepQty = (idx, line, delta) => {
-    const precision = linePrecision(line);
+    const precision = getLinePrecision(line);
     const next = Math.max(qtyInputStep(precision), (parseFloat(line.quantity) || 0) + delta);
     updateLine(idx, 'quantity', formatQty(next, precision));
   };
   const commitQty = (idx, line) => {
-    const precision = linePrecision(line);
+    const precision = getLinePrecision(line);
     updateLine(idx, 'quantity', formatQty(parseQty(line.quantity, precision), precision));
   };
 
@@ -572,9 +574,9 @@ export default function PurchaseForm({
                               type="number" 
                               className={styles['qty-inp']} 
                               min="0.001" 
-                              step={qtyInputStep(linePrecision(line))}
+                              step={qtyInputStep(getLinePrecision(line))}
                               value={line.quantity}
-                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)}
+                              onChange={(e) => { if (withinPrecision(e.target.value, getLinePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)}
                               disabled={isLocked} 
                             />
                             <button 
@@ -684,7 +686,7 @@ export default function PurchaseForm({
                               type="number" 
                               className={styles['qty-inp']} 
                               value={line.quantity}
-                              onChange={(e) => { if (withinPrecision(e.target.value, linePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)} 
+                              onChange={(e) => { if (withinPrecision(e.target.value, getLinePrecision(line))) updateLine(idx, 'quantity', e.target.value); }} onBlur={() => commitQty(idx, line)} 
                               disabled={isLocked} 
                             />
                             <button 

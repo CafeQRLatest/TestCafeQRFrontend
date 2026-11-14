@@ -22,6 +22,7 @@ export default function PurchaseDocumentViewerPopup({
   order,
   vendors = [],
   warehouses = [],
+  products = [],
   timezone,
   currencySymbol = '',
   formatTzDate: formatTzDateProp,
@@ -46,6 +47,29 @@ export default function PurchaseDocumentViewerPopup({
   const [revisions, setRevisions] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [productList, setProductList] = useState(products || []);
+
+  useEffect(() => {
+    if (products && products.length > 0) {
+      setProductList(products);
+    } else {
+      api.get('/api/v1/products').then(res => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          setProductList(res.data.data);
+        }
+      }).catch(() => {});
+    }
+  }, [products]);
+
+  const resolveLinePrecision = (l) => {
+    return uomPrecisionOf(l) || uomPrecisionOf(productList.find(p => String(p.id) === String(l?.productId || l?.id))) || 0;
+  };
+
+  const resolveLineUom = (l) => {
+    if (l?.unitOfMeasure && l.unitOfMeasure !== 'units') return l.unitOfMeasure;
+    const prod = productList.find(p => String(p.id) === String(l?.productId || l?.id));
+    return prod?.uomName || prod?.unitOfMeasure || l?.unitOfMeasure || '';
+  };
 
   const [splits, setSplits] = useState([]);
   const [loadingSplits, setLoadingSplits] = useState(false);
@@ -554,7 +578,7 @@ export default function PurchaseDocumentViewerPopup({
                               {l.variantName ? ` (${l.variantName})` : ''}
                             </span>
                           </td>
-                          <td className="col-qty">{formatQty(qty, uomPrecisionOf(l))}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ''}</td>
+                          <td className="col-qty">{formatQty(qty, resolveLinePrecision(l))}{resolveLineUom(l) ? ` ${resolveLineUom(l)}` : ''}</td>
                           <td className="col-price">{currencySymbol}{fmt(uPrice)}</td>
                           <td className="col-gst">
                             <div>{taxRate}%</div>
@@ -583,7 +607,7 @@ export default function PurchaseDocumentViewerPopup({
             <div>
               <button
                 className="dv-download-btn"
-                onClick={() => downloadPurchaseInvoicePdf(currentOrder, vendor, warehouse, activeDocType, linkedInvoice)}
+                onClick={() => downloadPurchaseInvoicePdf(currentOrder, vendor, warehouse, activeDocType, linkedInvoice, productList)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -673,7 +697,7 @@ export default function PurchaseDocumentViewerPopup({
                               {rev.lines.map((l, i) => (
                                 <tr key={i}>
                                   <td>{l.productName || l.name || 'Item'}</td>
-                                  <td>{formatQty(l.quantity, uomPrecisionOf(l))}</td>
+                                  <td>{formatQty(l.quantity, resolveLinePrecision(l))}{resolveLineUom(l) ? ` ${resolveLineUom(l)}` : ''}</td>
                                   <td>{currencySymbol}{fmt(l.unitPrice || l.price)}</td>
                                   <td>{currencySymbol}{fmt(l.lineTotal || (l.quantity * (l.unitPrice || l.price)))}</td>
                                 </tr>

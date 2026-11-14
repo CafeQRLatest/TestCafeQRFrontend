@@ -39,9 +39,11 @@ export default function GlobalUI() {
               <p>{modal.message}</p>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => modal.onCancel()}>Cancel</button>
+              {modal.showCancel !== false && (
+                <button className="btn-cancel" onClick={() => modal.onCancel()}>{modal.cancelText || 'Cancel'}</button>
+              )}
               <button className={`btn-confirm ${modal.type || 'warning'}`} onClick={() => modal.onConfirm()}>
-                Proceed
+                {modal.confirmText || 'Proceed'}
               </button>
             </div>
             <button className="modal-close-x" onClick={() => modal.onCancel()}><FaTimes /></button>
@@ -139,7 +141,7 @@ export default function GlobalUI() {
         .modal-icon-small { font-size: 32px; margin-bottom: 16px; opacity: 0.8; }
         .modal-icon-small .warning { color: #f97316; }
         .modal-icon-small .error { color: #ef4444; }
-        .modal-icon-small .info { color: #3b82f6; }
+        .modal-icon-small .info { color: #f97316; }
         .modal-icon-small .success { color: #10b981; }
 
         .modal-body h3 { 

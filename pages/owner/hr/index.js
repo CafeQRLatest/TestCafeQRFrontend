@@ -59,7 +59,7 @@ function UnifiedHrContent() {
 
       <div className="unified-hr-wrapper">
         {/* Top Segmented Control Tabs */}
-        <div className="segmented-tabs-wrapper glass-panel">
+        <div className="segmented-tabs-wrapper">
           <div className="segmented-tabs">
             {TABS.map(t => (
               <button
@@ -94,46 +94,39 @@ function UnifiedHrContent() {
         }
 
         .glass-panel {
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4);
-          border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
 
         .segmented-tabs-wrapper {
-          padding: 8px; overflow-x: auto;
+          padding: 6px; overflow-x: auto; background: #f1f5f9;
+          border: 1px solid #e2e8f0; border-radius: 14px;
         }
 
         .segmented-tabs {
-          display: flex; gap: 6px; flex-wrap: nowrap; min-width: max-content;
+          display: flex; gap: 4px; flex-wrap: nowrap; min-width: max-content;
         }
 
         .segmented-tab {
           display: flex; align-items: center; gap: 8px;
-          padding: 10px 18px; border-radius: 12px; border: none;
-          background: transparent; color: #475569; font-weight: 600;
-          font-size: 13.5px; cursor: pointer; transition: all 0.2s ease;
+          padding: 9px 16px; border-radius: 10px; border: none;
+          background: transparent; color: #64748b; font-weight: 700;
+          font-size: 13px; cursor: pointer; transition: all 0.2s ease;
           white-space: nowrap;
         }
 
         .segmented-tab .tab-icon {
-          display: flex; align-items: center; font-size: 15px; color: #64748b;
-          transition: color 0.2s;
+          display: flex; align-items: center; font-size: 14px; color: inherit;
         }
 
-        .segmented-tab:hover {
-          background: rgba(241, 245, 249, 0.8); color: #1e293b;
-        }
+        .segmented-tab:hover { color: #1e293b; }
 
         .segmented-tab.active {
-          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-          color: white; font-weight: 700;
-          box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-        }
-
-        .segmented-tab.active .tab-icon {
-          color: white;
+          background: #ffffff; color: #ea580c;
+          box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.03);
         }
 
         .tab-view-content {

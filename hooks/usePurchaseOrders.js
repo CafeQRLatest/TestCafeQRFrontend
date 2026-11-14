@@ -335,7 +335,7 @@ export function usePurchaseOrders() {
       productName:    displayName,
       productCode:    product.productCode || '',
       categoryName:   product.categoryName || '',
-      unitOfMeasure:  product.uomName || 'units',
+      unitOfMeasure:  product.uomName || product.unitOfMeasure || 'units',
       uomPrecision:   uomPrecisionOf(product),
       quantity:       formatQty(1, uomPrecisionOf(product)),
       unitPrice:      initialUnitPrice,
@@ -450,19 +450,24 @@ export function usePurchaseOrders() {
         totalAmount: parseFloat(po.totalAmount) || 0,
         totalTaxAmount: parseFloat(po.totalTaxAmount) || 0,
         grandTotal: parseFloat(po.grandTotal) || 0,
-        lines: po.lines.map((l) => ({
-          productId: l.productId || l.id || null,
-          variantId: l.variantId || null,
-          productName: l.productName || l.name || '',
-          quantity: parseFloat(l.quantity) || 1,
-          unitPrice: parseFloat(l.unitPrice) || 0,
-          unitOfMeasure: l.unitOfMeasure || 'units',
-          uomPrecision: Number.isInteger(l.uomPrecision) ? l.uomPrecision : 0,
-          taxRate: parseFloat(l.taxRate) || 0,
-          taxAmount: parseFloat(l.taxAmount) || 0,
-          discountAmount: parseFloat(l.discountAmount) || 0,
-          lineTotal: parseFloat(l.lineTotal) || 0,
-        })),
+        lines: po.lines.map((l) => {
+          const prod = products.find(p => String(p.id) === String(l.productId || l.id));
+          const prec = uomPrecisionOf(l) || uomPrecisionOf(prod);
+          const uom = l.unitOfMeasure || prod?.uomName || prod?.unitOfMeasure || 'units';
+          return {
+            productId: l.productId || l.id || null,
+            variantId: l.variantId || null,
+            productName: l.productName || l.name || '',
+            quantity: parseFloat(l.quantity) || 1,
+            unitPrice: parseFloat(l.unitPrice) || 0,
+            unitOfMeasure: uom,
+            uomPrecision: prec,
+            taxRate: parseFloat(l.taxRate) || 0,
+            taxAmount: parseFloat(l.taxAmount) || 0,
+            discountAmount: parseFloat(l.discountAmount) || 0,
+            lineTotal: parseFloat(l.lineTotal) || 0,
+          };
+        }),
       };
       const idempotencyKey = po.sourceLocalRef || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `po_${Date.now()}`);
       payload.sourceLocalRef = idempotencyKey;
@@ -512,14 +517,17 @@ export function usePurchaseOrders() {
     const loadedLines = rawLines.map(l => {
       const pId = l.productId || l.id;
       const prod = products.find(p => String(p.id) === String(pId));
+      const prec = uomPrecisionOf(l) || uomPrecisionOf(prod);
+      const uom = l.unitOfMeasure || prod?.uomName || prod?.unitOfMeasure || 'units';
       return recalcLine({
         productId:      pId,
         variantId:      l.variantId || null,
         productName:    l.productName || prod?.name || 'Unknown Item',
         productCode:    l.productCode || prod?.productCode || '',
         categoryName:   l.categoryName || prod?.categoryName || '',
-        unitOfMeasure:  l.unitOfMeasure || prod?.unitOfMeasure || 'units',
-        quantity:       parseFloat(l.quantity) || 1,
+        unitOfMeasure:  uom,
+        uomPrecision:   prec,
+        quantity:       l.quantity != null ? formatQty(l.quantity, prec) : formatQty(1, prec),
         unitPrice:      parseFloat(l.unitPrice ?? l.price ?? 0),
         taxRate:        parseFloat(l.taxRate ?? 0),
         discountAmount: parseFloat(l.discountAmount ?? 0),

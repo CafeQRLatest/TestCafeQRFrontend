@@ -140,6 +140,7 @@ export default function DocumentViewerPopup({
   },
   docType: propDocType = 'order',
   type: propType,
+  products = [],
   onViewLinked,
   onInvoiceOrder,
   config = null,
@@ -150,6 +151,24 @@ export default function DocumentViewerPopup({
   const { posType, timezone: authTimezone, userId: authUserId, firstName, lastName, email: authEmail, userRole } = auth;
   const currentLoggedInName = [firstName, lastName].filter(Boolean).join(" ") || authEmail || (userRole ? `${userRole} Staff` : "Staff User");
   const [usersList, setUsersList] = React.useState([]);
+  const [productList, setProductList] = React.useState(products || []);
+
+  React.useEffect(() => {
+    if (products && products.length > 0) {
+      setProductList(products);
+    } else {
+      api.get('/api/v1/products')
+        .then(res => {
+          const pList = res.data?.data || res.data || [];
+          if (Array.isArray(pList)) setProductList(pList);
+        })
+        .catch(() => {});
+    }
+  }, [products]);
+
+  const resolveLinePrecision = (l) => {
+    return uomPrecisionOf(l) || uomPrecisionOf(productList.find(p => String(p.id) === String(l?.productId || l?.product_id || l?.id))) || 0;
+  };
 
   React.useEffect(() => {
     api.get('/api/v1/users')
@@ -1478,7 +1497,7 @@ export default function DocumentViewerPopup({
                                 return (
                                 <tr key={l.id || li}>
                                   <td>{displayName}</td>
-                                  <td>{formatQty(parseFloat(l.quantity || 0), uomPrecisionOf(l))}</td>
+                                  <td>{formatQty(parseFloat(l.quantity || 0), resolveLinePrecision(l))}</td>
                                   <td>{currencySymbol}{parseFloat(l.unitPrice || 0).toFixed(currencyDecimals)}</td>
                                   <td>{currencySymbol}{parseFloat(l.lineTotal || 0).toFixed(currencyDecimals)}</td>
                                 </tr>
@@ -1707,7 +1726,7 @@ export default function DocumentViewerPopup({
                               </div>
                             )}
                           </td>
-                          <td className="col-qty">{formatQty(qty, uomPrecisionOf(l))}{l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}</td>
+                          <td className="col-qty">{formatQty(qty, resolveLinePrecision(l))}{l.unitOfMeasure && <span className="dv-uom"> {l.unitOfMeasure}</span>}</td>
                           <td className="col-price">
                             {currencySymbol}{fmt(uPrice)}
                             {taxEnabled && isInclusive && (l.unitPriceExTax || l.unit_price_ex_tax) && taxRate > 0 && (

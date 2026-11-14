@@ -4,7 +4,7 @@ import { FaCalendarAlt, FaClock, FaChevronLeft, FaChevronRight, FaChevronDown, F
 import { useAuth } from '../context/AuthContext';
 import { getBusinessNow as getBizNow } from '../utils/timezoneUtils';
 
-export default function PremiumDateTimePicker({ value, onChange, themeColor = '#f97316', disabled = false }) {
+export default function PremiumDateTimePicker({ value, onChange, themeColor = '#f97316', disabled = false, dateOnly = false }) {
   const { timezone } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
@@ -22,16 +22,27 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
+    if (dateOnly) return `${year}-${month}-${day}`;
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  // Date-only values ("YYYY-MM-DD") are parsed as local dates, not UTC midnight.
+  const parseValue = (raw) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw || '');
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return new Date(raw);
+  };
+
   const formatDate = (date) => {
     if (!date || isNaN(date.getTime())) return '';
-    return date.toLocaleString([], { 
-      day: '2-digit', 
-      month: 'short', 
+    if (dateOnly) {
+      return date.toLocaleString([], { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    return date.toLocaleString([], {
+      day: '2-digit',
+      month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
@@ -41,7 +52,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
 
   useEffect(() => {
     if (value && value.length > 5) {
-      const d = new Date(value);
+      const d = parseValue(value);
       if (!isNaN(d.getTime())) {
         setSelectedDate(d);
         if (viewDate.getMonth() !== d.getMonth() || viewDate.getFullYear() !== d.getFullYear()) {
@@ -53,7 +64,8 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
       const d = getBusinessNow();
       setSelectedDate(d);
       setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
-      setInputValue(formatDate(d));
+      // Date-only fields stay blank until a date is chosen, so an empty value never looks filled in.
+      setInputValue(dateOnly ? '' : formatDate(d));
     }
   }, [value, timezone]);
 
@@ -176,7 +188,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
   const isPM = currentHour24 >= 12;
   const displayMin = String(selectedDate.getMinutes()).padStart(2, '0');
 
-  const dropdownWidth = isMobile ? 280 : 360;
+  const dropdownWidth = dateOnly ? 300 : (isMobile ? 280 : 360);
   const triggerCenter = coords.left + coords.width / 2;
   const boundedLeft = typeof window !== 'undefined'
     ? Math.max(8, Math.min(triggerCenter - dropdownWidth / 2, window.innerWidth - dropdownWidth - 8))
@@ -219,9 +231,16 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         </div>
       </div>
 
+      {dateOnly && (
+        <div className="dt-today-row">
+          <button type="button" className="now-btn" onClick={handleSetNow}>Today</button>
+        </div>
+      )}
+
+      {!dateOnly && (
       <div className="dt-time-side">
         <div className="time-box-title">Time</div>
-        
+
         <div className="time-stepper">
           <div className="step-col">
             <button type="button" className="step-btn" onClick={(e) => adjustTime(e, 'h', 1)}><FaChevronUp /></button>
@@ -243,6 +262,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
 
         <button type="button" className="now-btn" onClick={handleSetNow}>Set Now</button>
       </div>
+      )}
     </div>
   );
 
@@ -256,7 +276,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
           value={inputValue} 
           onChange={handleInputChange} 
           onClick={(e) => { e.stopPropagation(); if(!disabled) setIsOpen(true); }}
-          placeholder="Select date & time…"
+          placeholder={dateOnly ? 'Select date…' : 'Select date & time…'}
           readOnly={!isOpen || disabled}
         />
         <FaChevronDown className={`dt-chevron ${isOpen ? 'up' : ''}`} />
@@ -318,6 +338,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
         .day.selected { background: ${themeColor} !important; color: #fff !important; font-weight: 600; box-shadow: 0 4px 10px ${themeColor}15; }
         .day.empty { cursor: default; }
 
+        .dt-today-row { display: flex; justify-content: flex-end; padding: 10px 14px; border-top: 1px solid #f1f5f9; background: #fcfdfe; }
         .dt-time-side { width: 120px; padding: 14px; background: #fcfdfe; display: flex; flex-direction: column; align-items: center; gap: 10px; }
         .time-box-title { font-size: 8px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
         

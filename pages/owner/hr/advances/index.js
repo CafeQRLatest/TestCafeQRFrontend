@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useNotification } from '../../../../context/NotificationContext';
 import { useCurrencyDecimals } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
-import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
+import NiceSelect from '../../../../components/NiceSelect';
+import PremiumDateTimePicker from '../../../../components/PremiumDateTimePicker';
+import HrInfoButton from '../../../../components/hr/HrInfoButton';
+import { HistoryToolbar, HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 import { FaMoneyBillWave, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { formatTzDate } from '../../../../utils/timezoneUtils';
 
 export default function SalaryAdvances({ embedded = false }) {
+  const { showConfirm } = useNotification();
   const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
   const currencySymbol = useCurrencySymbol();
@@ -17,7 +22,6 @@ export default function SalaryAdvances({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingAdvance, setEditingAdvance] = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -88,20 +92,19 @@ export default function SalaryAdvances({ embedded = false }) {
       fetchData();
     } catch (error) {
       const msg = error.response?.data?.message || error.message || "Failed to update status.";
-      setConfirmModal({
+      showConfirm({
         title: 'Error Updating Status',
         message: msg,
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
         showCancel: false,
-        onConfirm: () => setConfirmModal(null)
       });
     }
   };
 
   const handleDeleteAdvance = (adv) => {
-    setConfirmModal({
+    showConfirm({
       title: 'Delete Salary Advance',
       message: 'Are you sure you want to delete this salary advance record?',
       type: 'confirm',
@@ -109,21 +112,19 @@ export default function SalaryAdvances({ embedded = false }) {
       confirmVariant: 'danger',
       showCancel: true,
       onConfirm: async () => {
-        setConfirmModal(null);
         try {
           await hrService.deleteAdvance(adv.id);
           fetchData();
         } catch (error) {
           console.error("Failed to delete salary advance", error);
           const errorMsg = error.response?.data?.message || error.message || 'Failed to delete salary advance.';
-          setConfirmModal({
+          showConfirm({
             title: 'Cannot Delete Advance',
             message: errorMsg,
             type: 'error',
             confirmText: 'Got It',
             confirmVariant: 'primary',
             showCancel: false,
-            onConfirm: () => setConfirmModal(null)
           });
         }
       }
@@ -160,14 +161,13 @@ export default function SalaryAdvances({ embedded = false }) {
     } catch (error) {
       console.error("Error saving advance request", error);
       const msg = error.response?.data?.message || error.message || 'Error saving advance request.';
-      setConfirmModal({
+      showConfirm({
         title: 'Error Saving Advance',
         message: msg,
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
         showCancel: false,
-        onConfirm: () => setConfirmModal(null)
       });
     }
   };
@@ -178,17 +178,18 @@ export default function SalaryAdvances({ embedded = false }) {
         <title>Advances | Cafe QR</title>
       </Head>
 
-      <div className="flex justify-end mb-6">
+      <HistoryToolbar style={{ justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{advances.length} salary advance{advances.length === 1 ? '' : 's'}</span>
         <button className="btn-primary" onClick={handleOpenCreate}>
           <FaPlus /> Issue Salary Advance
         </button>
-      </div>
+      </HistoryToolbar>
 
-      <div className="table-container glass-panel">
+      <HistTableWrap>
         {isLoading ? (
           <div className="loading-state">Loading advances...</div>
         ) : (
-          <table className="modern-table">
+          <HistTable>
             <thead>
               <tr>
                 <th>Employee</th>
@@ -215,7 +216,7 @@ export default function SalaryAdvances({ embedded = false }) {
                     <td className="font-bold text-orange-600">{currencySymbol}{adv.remainingBalance?.toFixed(currencyDecimals)}</td>
                     <td><span className={`status-badge ${adv.status.toLowerCase()}`}>{adv.status}</span></td>
                     <td>
-                      <div className="action-buttons">
+                      <HistActionGroup>
                         {adv.status !== 'APPROVED' && adv.status !== 'PAID' && (
                           <button onClick={() => handleStatusChange(adv.id, 'APPROVED')} className="icon-btn approve" title="Approve Loan">
                             <FaCheck />
@@ -232,15 +233,15 @@ export default function SalaryAdvances({ embedded = false }) {
                         <button onClick={() => handleDeleteAdvance(adv)} className="icon-btn delete" title="Delete Loan Record">
                           <FaTrash />
                         </button>
-                      </div>
+                      </HistActionGroup>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </HistTable>
         )}
-      </div>
+      </HistTableWrap>
 
       {showModal && (
         <div className="modal-overlay">
@@ -249,16 +250,17 @@ export default function SalaryAdvances({ embedded = false }) {
             <form onSubmit={handleSaveAdvance}>
               <div className="form-group mb-4">
                 <label>Employee</label>
-                <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
-                  <option value="">Select Employee</option>
-                  {employees
+                <NiceSelect
+                  value={employeeId}
+                  onChange={val => setEmployeeId(val)}
+                  placeholder="Select Employee"
+                  options={employees
                     .filter(emp => emp.isActive !== false || emp.id === employeeId)
-                    .map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
-                      </option>
-                    ))}
-                </select>
+                    .map(emp => ({
+                      value: emp.id,
+                      label: `${emp.firstName} ${emp.lastName || ''}`.trim() + (!emp.isActive ? ' (Inactive)' : ''),
+                    }))}
+                />
               </div>
               <div className="flex gap-4 mb-4">
                 <div className="form-group flex-1">
@@ -278,18 +280,22 @@ export default function SalaryAdvances({ embedded = false }) {
                   </div>
                   <div className="form-group flex-1">
                     <label>Status</label>
-                    <select value={status} onChange={e => setStatus(e.target.value)}>
-                      <option value="PENDING">Pending</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="PAID">Paid (Fully Cleared)</option>
-                      <option value="REJECTED">Rejected</option>
-                    </select>
+                    <NiceSelect
+                      value={status}
+                      onChange={val => setStatus(val)}
+                      options={[
+                        { value: 'PENDING', label: 'Pending' },
+                        { value: 'APPROVED', label: 'Approved' },
+                        { value: 'PAID', label: 'Paid (Fully Cleared)' },
+                        { value: 'REJECTED', label: 'Rejected' },
+                      ]}
+                    />
                   </div>
                 </div>
               )}
               <div className="form-group mb-4">
                 <label>Advance Issue Date</label>
-                <input type="date" value={advanceDate} onChange={e => setAdvanceDate(e.target.value)} required />
+                <PremiumDateTimePicker dateOnly value={advanceDate} onChange={val => setAdvanceDate(val)} />
               </div>
               <div className="form-group mb-6">
                 <label>Reason / Notes</label>
@@ -304,17 +310,14 @@ export default function SalaryAdvances({ embedded = false }) {
         </div>
       )}
 
-      <HrConfirmModal
-        isOpen={!!confirmModal}
-        onClose={() => setConfirmModal(null)}
-        {...confirmModal}
-      />
 
       <style jsx>{`
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -326,10 +329,13 @@ export default function SalaryAdvances({ embedded = false }) {
         .status-badge.approved { background: #dcfce7; color: #15803d; }
         .status-badge.pending { background: #fef3c7; color: #b45309; }
         .status-badge.rejected { background: #fee2e2; color: #b91c1c; }
-        .status-badge.paid { background: #e0e7ff; color: #4338ca; }
+        .status-badge.paid { background: #fff7ed; color: #c2410c; }
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
-        .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
+        .btn-secondary {
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
+        }
         
         .action-buttons { display: flex; gap: 8px; align-items: center; }
         .icon-btn {
@@ -341,8 +347,8 @@ export default function SalaryAdvances({ embedded = false }) {
         .icon-btn.approve:hover { background: #bbf7d0; }
         .icon-btn.reject { background: #fee2e2; color: #dc2626; }
         .icon-btn.reject:hover { background: #fca5a5; }
-        .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
-        .icon-btn.edit:hover { background: #dbeafe; }
+        .icon-btn.edit { background: #f1f5f9; color: #f97316; }
+        .icon-btn.edit:hover { background: #fff7ed; }
         .icon-btn.delete { background: #fef2f2; color: #ef4444; }
         .icon-btn.delete:hover { background: #fee2e2; }
 

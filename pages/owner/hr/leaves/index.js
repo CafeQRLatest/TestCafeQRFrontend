@@ -3,22 +3,24 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaCalendarAlt, FaCheck, FaTimes, FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
 import { formatTzDate } from '../../../../utils/timezoneUtils';
+import { useNotification } from '../../../../context/NotificationContext';
+import NiceSelect from '../../../../components/NiceSelect';
+import PremiumDateTimePicker from '../../../../components/PremiumDateTimePicker';
+import HrInfoButton from '../../../../components/hr/HrInfoButton';
+import { HistoryToolbar, HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 
 export default function LeaveManagement({ embedded = false }) {
   const router = useRouter();
+  const { notify, showConfirm } = useNotification();
   const [leaves, setLeaves] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingLeave, setEditingLeave] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
 
   const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    notify(type === 'success' ? 'success' : 'error', msg);
   };
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function LeaveManagement({ embedded = false }) {
   };
 
   const handleDeleteLeave = (leave) => {
-    setConfirmModal({
+    showConfirm({
       title: 'Delete Leave Request',
       message: 'Are you sure you want to delete this leave request?',
       type: 'confirm',
@@ -101,7 +103,6 @@ export default function LeaveManagement({ embedded = false }) {
       confirmVariant: 'danger',
       showCancel: true,
       onConfirm: async () => {
-        setConfirmModal(null);
         try {
           await hrService.deleteLeaveRequest(leave.id);
           showToast("Leave request deleted", "success");
@@ -109,14 +110,13 @@ export default function LeaveManagement({ embedded = false }) {
         } catch (error) {
           console.error("Failed to delete leave request", error);
           const errorMsg = error.response?.data?.message || error.message || 'Failed to delete leave request.';
-          setConfirmModal({
+          showConfirm({
             title: 'Cannot Delete Leave',
             message: errorMsg,
             type: 'error',
             confirmText: 'Got It',
             confirmVariant: 'primary',
             showCancel: false,
-            onConfirm: () => setConfirmModal(null)
           });
         }
       }
@@ -175,17 +175,18 @@ export default function LeaveManagement({ embedded = false }) {
         <title>Leaves | Cafe QR</title>
       </Head>
 
-      <div className="flex justify-end mb-6">
+      <HistoryToolbar style={{ justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{leaves.length} leave request{leaves.length === 1 ? '' : 's'}</span>
         <button className="btn-primary" onClick={handleOpenCreate}>
           <FaPlus /> New Leave Request
         </button>
-      </div>
+      </HistoryToolbar>
 
-      <div className="table-container glass-panel">
+      <HistTableWrap>
         {isLoading ? (
           <div className="loading-state">Loading leaves...</div>
         ) : (
-          <table className="modern-table">
+          <HistTable>
             <thead>
               <tr>
                 <th>Employee</th>
@@ -210,7 +211,7 @@ export default function LeaveManagement({ embedded = false }) {
                     <td>{leave.totalDays}</td>
                     <td><span className={`status-badge ${leave.status.toLowerCase()}`}>{leave.status}</span></td>
                     <td>
-                      <div className="action-buttons">
+                      <HistActionGroup>
                         {leave.status !== 'APPROVED' && (
                           <button onClick={() => handleStatusChange(leave.id, 'APPROVED')} className="icon-btn approve" title="Approve Request">
                             <FaCheck />
@@ -227,15 +228,15 @@ export default function LeaveManagement({ embedded = false }) {
                         <button onClick={() => handleDeleteLeave(leave)} className="icon-btn delete" title="Delete Request">
                           <FaTrash />
                         </button>
-                      </div>
+                      </HistActionGroup>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
-          </table>
+          </HistTable>
         )}
-      </div>
+      </HistTableWrap>
 
       {showModal && (
         <div className="modal-overlay">
@@ -244,44 +245,53 @@ export default function LeaveManagement({ embedded = false }) {
             <form onSubmit={handleSaveLeave}>
               <div className="form-group mb-4">
                 <label>Employee</label>
-                <select value={employeeId} onChange={e => setEmployeeId(e.target.value)} required>
-                  <option value="">Select Employee</option>
-                  {employees
+                <NiceSelect
+                  value={employeeId}
+                  onChange={(val) => setEmployeeId(val)}
+                  placeholder="Select Employee"
+                  options={employees
                     .filter(emp => emp.isActive !== false || emp.id === employeeId)
-                    .map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
-                      </option>
-                    ))}
-                </select>
+                    .map(emp => ({
+                      value: emp.id,
+                      label: `${emp.firstName} ${emp.lastName || ''}`.trim() + (!emp.isActive ? ' (Inactive)' : ''),
+                    }))}
+                />
               </div>
               <div className="flex gap-4 mb-4">
                 <div className="form-group flex-1">
                   <label>Start Date</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                  <PremiumDateTimePicker dateOnly value={startDate} onChange={val => setStartDate(val)} />
                 </div>
                 <div className="form-group flex-1">
                   <label>End Date</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
+                  <PremiumDateTimePicker dateOnly value={endDate} onChange={val => setEndDate(val)} />
                 </div>
               </div>
               <div className="flex gap-4 mb-4">
                 <div className="form-group flex-1">
                   <label>Leave Type</label>
-                  <select value={leaveType} onChange={e => setLeaveType(e.target.value)}>
-                    <option value="UNPAID">Unpaid Leave</option>
-                    <option value="PAID">Paid Leave / Vacation</option>
-                    <option value="SICK">Sick Leave</option>
-                    <option value="CASUAL">Casual Leave</option>
-                  </select>
+                  <NiceSelect
+                    value={leaveType}
+                    onChange={val => setLeaveType(val)}
+                    options={[
+                      { value: 'UNPAID', label: 'Unpaid Leave' },
+                      { value: 'PAID', label: 'Paid Leave / Vacation' },
+                      { value: 'SICK', label: 'Sick Leave' },
+                      { value: 'CASUAL', label: 'Casual Leave' },
+                    ]}
+                  />
                 </div>
                 <div className="form-group flex-1">
                   <label>Status</label>
-                  <select value={status} onChange={e => setStatus(e.target.value)}>
-                    <option value="PENDING">Pending</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="REJECTED">Rejected</option>
-                  </select>
+                  <NiceSelect
+                    value={status}
+                    onChange={val => setStatus(val)}
+                    options={[
+                      { value: 'PENDING', label: 'Pending' },
+                      { value: 'APPROVED', label: 'Approved' },
+                      { value: 'REJECTED', label: 'Rejected' },
+                    ]}
+                  />
                 </div>
               </div>
               <div className="form-group mb-6">
@@ -297,18 +307,7 @@ export default function LeaveManagement({ embedded = false }) {
         </div>
       )}
 
-      <HrConfirmModal
-        isOpen={!!confirmModal}
-        onClose={() => setConfirmModal(null)}
-        {...confirmModal}
-      />
 
-      {toast && (
-        <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>
-          {toast.type === 'success' ? <FaCheck /> : <FaTimes />}
-          <span>{toast.msg}</span>
-        </div>
-      )}
 
       <style jsx>{`
         ._t {
@@ -321,9 +320,11 @@ export default function LeaveManagement({ embedded = false }) {
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -337,10 +338,13 @@ export default function LeaveManagement({ embedded = false }) {
         .status-badge.rejected { background: #fee2e2; color: #b91c1c; }
 
         .type-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #f1f5f9; color: #475569; }
-        .type-badge.paid { background: #e0e7ff; color: #4338ca; }
+        .type-badge.paid { background: #fff7ed; color: #c2410c; }
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
-        .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
+        .btn-secondary {
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
+        }
         
         .action-buttons { display: flex; gap: 8px; align-items: center; }
         .icon-btn {
@@ -352,8 +356,8 @@ export default function LeaveManagement({ embedded = false }) {
         .icon-btn.approve:hover { background: #bbf7d0; }
         .icon-btn.reject { background: #fee2e2; color: #dc2626; }
         .icon-btn.reject:hover { background: #fca5a5; }
-        .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
-        .icon-btn.edit:hover { background: #dbeafe; }
+        .icon-btn.edit { background: #f1f5f9; color: #f97316; }
+        .icon-btn.edit:hover { background: #fff7ed; }
         .icon-btn.delete { background: #fef2f2; color: #ef4444; }
         .icon-btn.delete:hover { background: #fee2e2; }
 

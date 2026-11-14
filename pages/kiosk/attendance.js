@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { hrService } from '../../services/hrService';
+import NiceSelect from '../../components/NiceSelect';
 import { FaClock, FaKeyboard, FaCamera, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 
 export default function AttendanceKiosk() {
@@ -237,16 +238,15 @@ export default function AttendanceKiosk() {
               
               <div className="form-group">
                 <label>Select Employee</label>
-                <select 
-                  value={selectedEmployee} 
-                  onChange={(e) => setSelectedEmployee(e.target.value)}
-                  required
-                >
-                  <option value="">-- Tap to Select --</option>
-                  {employees.filter(emp => emp.isActive).map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
-                  ))}
-                </select>
+                <NiceSelect
+                  value={selectedEmployee}
+                  onChange={(val) => setSelectedEmployee(val)}
+                  placeholder="Tap to Select"
+                  options={employees.filter(emp => emp.isActive).map(emp => ({
+                    value: emp.id,
+                    label: `${emp.firstName} ${emp.lastName || ''}`.trim(),
+                  }))}
+                />
               </div>
 
               {selectedEmployee && employeeStatus && (
@@ -405,7 +405,7 @@ export default function AttendanceKiosk() {
           display: flex; align-items: center; justify-content: center; gap: 8px;
           transition: transform 0.2s; box-shadow: 0 8px 16px rgba(0,0,0,0.2);
         }
-        .btn-primary { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); }
+        .btn-primary { background: linear-gradient(135deg, #f97316 0%, #f97316 100%); }
         .btn-secondary { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
         .btn-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
         .btn-primary:hover, .btn-secondary:hover, .btn-warning:hover { transform: translateY(-2px); }

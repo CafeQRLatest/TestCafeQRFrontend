@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { hrService } from '../../services/hrService';
 import { useCurrencyDecimals, useCurrencySymbol } from '../../hooks/useCurrencyConfig';
+import NiceSelect from '../NiceSelect';
+import { useNotification } from '../../context/NotificationContext';
 import { FaTimes, FaSave, FaTrash, FaCheck, FaPlus } from 'react-icons/fa';
 
 export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) {
   const currencySymbol = useCurrencySymbol();
   const currencyDecimals = useCurrencyDecimals();
   const money = (value) => `${currencySymbol}${Number(value || 0).toFixed(currencyDecimals)}`;
+  const { notify, showConfirm } = useNotification();
   const [allComponents, setAllComponents] = useState([]);
   const [employeeComponents, setEmployeeComponents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +49,7 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
       c => String(c.salaryComponentId) === String(selectedComponentId)
     );
     if (isAlreadyAssigned) {
-      alert('This salary rule is already assigned to this employee.');
+      notify('warning', 'This salary rule is already assigned to this employee.');
       return;
     }
 
@@ -66,20 +69,27 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
       await loadData();
     } catch (error) {
       console.error('Failed to assign component:', error);
-      alert('Failed to assign component: ' + (error.response?.data?.message || error.message));
+      notify('error', 'Failed to assign component: ' + (error.response?.data?.message || error.message));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleRemoveComponent = async (salaryComponentId) => {
-    if (!confirm('Remove this custom rule for the employee?')) return;
-    try {
-      await hrService.removeEmployeeSalaryComponent(employee.id, salaryComponentId);
-      await loadData();
-    } catch (error) {
-      console.error('Failed to remove component:', error);
-    }
+  const handleRemoveComponent = (salaryComponentId) => {
+    showConfirm({
+      title: 'Remove salary rule?',
+      message: 'Remove this custom rule for the employee?',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          await hrService.removeEmployeeSalaryComponent(employee.id, salaryComponentId);
+          await loadData();
+        } catch (error) {
+          console.error('Failed to remove component:', error);
+          notify('error', 'Failed to remove salary rule.');
+        }
+      },
+    });
   };
 
   const assignedIds = employeeComponents
@@ -110,17 +120,15 @@ export default function EmployeeSalaryRulesModal({ isOpen, onClose, employee }) 
                 <div className="add-rule-form">
                   <div className="form-group" style={{ flex: 2 }}>
                     <label>Select Global Salary Rule</label>
-                    <select
+                    <NiceSelect
                       value={selectedComponentId}
-                      onChange={(e) => setSelectedComponentId(e.target.value)}
-                    >
-                      <option value="">-- Choose Component --</option>
-                      {availableComponents.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.type}) - Default: {c.amountType === 'PERCENTAGE' ? `${c.percentage}%` : money(c.defaultAmount)}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedComponentId(val)}
+                      placeholder="-- Choose Component --"
+                      options={availableComponents.map(c => ({
+                        value: c.id,
+                        label: `${c.name} (${c.type}) - Default: ${c.amountType === 'PERCENTAGE' ? `${c.percentage}%` : money(c.defaultAmount)}`,
+                      }))}
+                    />
                   </div>
                   <div className="form-group" style={{ flex: 1 }}>
                     <label>Override Amount{currencySymbol ? ` (${currencySymbol})` : ''}</label>

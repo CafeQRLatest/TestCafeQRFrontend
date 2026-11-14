@@ -539,6 +539,7 @@ function PurchaseContent() {
             docType={viewingDoc.type}
             vendors={vendors}
             warehouses={warehouses}
+            products={products}
             timezone={timezone}
             currencySymbol={currencySymbol}
             formatTzDate={formatTzDate}

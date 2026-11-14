@@ -4,6 +4,7 @@ import api from './api';
 import { loadCurrencyDecimals } from './currencyDecimals';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import { formatTzDate } from './timezoneUtils';
+import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 // Symbol from Currency Master (default currency). ₹ prints as "Rs." because the bundled PDF font lacks the glyph.
 async function loadPdfCurrencySymbol() {
@@ -40,7 +41,7 @@ const TEXT_MUTED = [148, 163, 184]; // #94a3b8
  * Generates and downloads a clean, professional Purchase Order / Purchase Invoice PDF document
  * styled to match the Sales Invoice PDF template using jsPDF + jspdf-autotable.
  */
-export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse = {}, docType = 'invoice', linkedInvoice = null) {
+export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse = {}, docType = 'invoice', linkedInvoice = null, products = []) {
   const inv = linkedInvoice || order;
   const sym = await loadPdfCurrencySymbol();
   const currencyDecimals = await loadCurrencyDecimals();
@@ -164,10 +165,13 @@ export async function downloadPurchaseInvoicePdf(order, vendor = {}, warehouse =
     const lineTotal = parseFloat(l.lineTotal || (uPrice * qty - disc + taxAmt));
     const pName = l.productName || l.name || `Item ${idx + 1}`;
 
+    const prec = uomPrecisionOf(l) || uomPrecisionOf(products?.find(p => String(p.id) === String(l.productId || l.id))) || 0;
+    const uom = (l.unitOfMeasure && l.unitOfMeasure !== 'units') ? l.unitOfMeasure : (products?.find(p => String(p.id) === String(l.productId || l.id))?.uomName || l.unitOfMeasure || '');
+
     return [
       idx + 1,
       pName,
-      `${qty}${l.unitOfMeasure ? ' ' + l.unitOfMeasure : ''}`,
+      `${formatQty(qty, prec)}${uom ? ' ' + uom : ''}`,
       fmt(uPrice, currencyDecimals),
       `${taxRate}%`,
       fmt(lineTotal, currencyDecimals)

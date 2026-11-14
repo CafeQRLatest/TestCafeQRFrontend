@@ -3,22 +3,25 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
 import { FaClock, FaEdit, FaTrash, FaPlus, FaCalendarAlt, FaTimes, FaSave, FaExclamationTriangle, FaCheck } from 'react-icons/fa';
 import { formatTzDate } from '../../../../utils/timezoneUtils';
+import { useNotification } from '../../../../context/NotificationContext';
+import NiceSelect from '../../../../components/NiceSelect';
+import PremiumDateTimePicker from '../../../../components/PremiumDateTimePicker';
+import PremiumTimeSelect from '../../../../components/PremiumTimeSelect';
+import HrInfoButton from '../../../../components/hr/HrInfoButton';
+import { HistoryToolbar, HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 
 export default function TimesheetsDashboard({ embedded = false }) {
   const router = useRouter();
+  const { notify, showConfirm } = useNotification();
   const [timesheets, setTimesheets] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [confirmModal, setConfirmModal] = useState(null);
 
   const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    notify(type === 'success' ? 'success' : 'error', msg);
   };
 
   useEffect(() => {
@@ -184,6 +187,19 @@ export default function TimesheetsDashboard({ embedded = false }) {
     e.preventDefault();
     if (isSubmitting) return;
 
+    if (!formData.employeeId) {
+      showToast('Select an employee.', 'error');
+      return;
+    }
+    if (!formData.attendanceDate) {
+      showToast('Attendance date is required.', 'error');
+      return;
+    }
+    if (formData.status !== 'ABSENT' && !formData.clockInTime) {
+      showToast('Clock In time is required.', 'error');
+      return;
+    }
+
     if (formData.status !== 'ABSENT' && formData.clockInTime && formData.clockOutTime) {
       if (!formData.isNextDay && formData.clockOutTime <= formData.clockInTime) {
         showToast("Clock Out time must be later than Clock In time.", "error");
@@ -238,7 +254,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
   };
 
   const handleDelete = (id) => {
-    setConfirmModal({
+    showConfirm({
       title: 'Delete Timecard',
       message: 'Are you sure you want to delete this attendance record?',
       type: 'confirm',
@@ -246,7 +262,6 @@ export default function TimesheetsDashboard({ embedded = false }) {
       confirmVariant: 'danger',
       showCancel: true,
       onConfirm: async () => {
-        setConfirmModal(null);
         try {
           await hrService.deleteAttendance(id);
           showToast("Timecard deleted", "success");
@@ -294,23 +309,15 @@ export default function TimesheetsDashboard({ embedded = false }) {
         </div>
 
         {/* Date Filter Bar */}
-        <div className="filter-bar glass-panel">
+        <HistoryToolbar className="filter-bar" style={{ flexWrap: 'wrap' }}>
           <div className="filter-group">
             <FaCalendarAlt className="filter-icon" />
             <label>From:</label>
-            <input 
-              type="date" 
-              value={startDate} 
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            <PremiumDateTimePicker dateOnly value={startDate} onChange={(val) => setStartDate(val)} />
           </div>
           <div className="filter-group">
             <label>To:</label>
-            <input 
-              type="date" 
-              value={endDate} 
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <PremiumDateTimePicker dateOnly value={endDate} onChange={(val) => setEndDate(val)} />
           </div>
           <button className="btn-secondary" onClick={() => { setStartDate(todayStr); setEndDate(todayStr); }}>
             Today
@@ -318,13 +325,21 @@ export default function TimesheetsDashboard({ embedded = false }) {
           <button className="btn-secondary" onClick={() => { setStartDate(thirtyDaysAgoStr); setEndDate(todayStr); }}>
             Last 30 Days
           </button>
-        </div>
+          <HrInfoButton title="How timesheet hours are counted">
+            <p style={{ margin: '0 0 8px' }}>Each clock-in and clock-out pair is one shift, counted from the clock-in date.</p>
+            <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+              <li>Shifts that cross midnight are kept as one continuous shift.</li>
+              <li>A continuous shift cannot exceed 16 hours.</li>
+              <li>Manual entries are marked MANUAL and override the punch method.</li>
+            </ul>
+          </HrInfoButton>
+        </HistoryToolbar>
 
-        <div className="table-container glass-panel">
+        <HistTableWrap>
           {isLoading ? (
             <div className="loading-state">Loading timesheets...</div>
           ) : (
-            <table className="modern-table">
+            <HistTable>
               <thead>
                 <tr>
                   <th></th>
@@ -397,10 +412,10 @@ export default function TimesheetsDashboard({ embedded = false }) {
                             </span>
                           </td>
                           <td onClick={e => e.stopPropagation()}>
-                            <div className="action-buttons">
+                            <HistActionGroup>
                               <button className="icon-btn edit" onClick={() => handleOpenEdit(record)} title="Edit Timecard"><FaEdit /></button>
                               <button className="icon-btn delete" onClick={() => handleDelete(record.id)} title="Delete Timecard"><FaTrash /></button>
-                            </div>
+                            </HistActionGroup>
                           </td>
                         </tr>
                         {isExpanded && record.segments && record.segments.length > 0 && (
@@ -437,9 +452,9 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   })
                 )}
               </tbody>
-            </table>
+            </HistTable>
           )}
-        </div>
+        </HistTableWrap>
       </div>
 
       {/* Timecard Modal */}
@@ -454,29 +469,25 @@ export default function TimesheetsDashboard({ embedded = false }) {
             <form onSubmit={handleSave} className="modal-body">
               <div className="form-group">
                 <label>Employee</label>
-                <select 
-                  value={formData.employeeId} 
-                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                  required
-                >
-                  <option value="">Select Employee...</option>
-                  {employees
+                <NiceSelect
+                  value={formData.employeeId}
+                  onChange={(val) => setFormData({ ...formData, employeeId: val })}
+                  placeholder="Select Employee..."
+                  options={employees
                     .filter(emp => emp.isActive !== false || emp.id === formData.employeeId)
-                    .map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName}{!emp.isActive ? ' (Inactive)' : ''}
-                      </option>
-                    ))}
-                </select>
+                    .map(emp => ({
+                      value: emp.id,
+                      label: `${emp.firstName} ${emp.lastName || ''}`.trim() + (!emp.isActive ? ' (Inactive)' : ''),
+                    }))}
+                />
               </div>
 
               <div className="form-group">
                 <label>Attendance Date</label>
-                <input 
-                  type="date" 
-                  value={formData.attendanceDate} 
-                  onChange={(e) => {
-                    const newDate = e.target.value;
+                <PremiumDateTimePicker
+                  dateOnly
+                  value={formData.attendanceDate}
+                  onChange={(newDate) => {
                     setFormData(prev => {
                       let newIn = prev.clockInTime;
                       let newOut = prev.clockOutTime;
@@ -489,7 +500,6 @@ export default function TimesheetsDashboard({ embedded = false }) {
                       return { ...prev, attendanceDate: newDate, clockInTime: newIn, clockOutTime: newOut };
                     });
                   }}
-                  required 
                 />
               </div>
 
@@ -498,19 +508,16 @@ export default function TimesheetsDashboard({ embedded = false }) {
                   <div className="form-row">
                     <div className="form-group">
                       <label>Clock In Time</label>
-                      <input 
-                        type="time" 
-                        value={formData.clockInTime ? (formData.clockInTime.length > 5 ? formData.clockInTime.substring(11, 16) : formData.clockInTime) : ''} 
+                      <PremiumTimeSelect
+                        value={formData.clockInTime ? (formData.clockInTime.length > 5 ? formData.clockInTime.substring(11, 16) : formData.clockInTime) : ''}
                         onChange={(e) => handleTimeChange('clockInTime', e.target.value)}
-                        required={formData.status !== 'ABSENT'} 
                       />
                     </div>
 
                     <div className="form-group">
                       <label>Clock Out Time</label>
-                      <input 
-                        type="time" 
-                        value={formData.clockOutTime ? (formData.clockOutTime.length > 5 ? formData.clockOutTime.substring(11, 16) : formData.clockOutTime) : ''} 
+                      <PremiumTimeSelect
+                        value={formData.clockOutTime ? (formData.clockOutTime.length > 5 ? formData.clockOutTime.substring(11, 16) : formData.clockOutTime) : ''}
                         onChange={(e) => handleTimeChange('clockOutTime', e.target.value)}
                       />
                     </div>
@@ -554,26 +561,28 @@ export default function TimesheetsDashboard({ embedded = false }) {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Status</label>
-                  <select 
-                    value={formData.status} 
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  >
-                    <option value="PRESENT">Present</option>
-                    <option value="HALF_DAY">Half Day</option>
-                    <option value="ABSENT">Absent</option>
-                  </select>
+                  <NiceSelect
+                    value={formData.status}
+                    onChange={(val) => setFormData({ ...formData, status: val })}
+                    options={[
+                      { value: 'PRESENT', label: 'Present' },
+                      { value: 'HALF_DAY', label: 'Half Day' },
+                      { value: 'ABSENT', label: 'Absent' },
+                    ]}
+                  />
                 </div>
 
                 <div className="form-group">
                   <label>Punch Method</label>
-                  <select 
-                    value={formData.punchMethod} 
-                    onChange={(e) => setFormData({ ...formData, punchMethod: e.target.value })}
-                  >
-                    <option value="MANUAL">MANUAL (Override)</option>
-                    <option value="PIN">PIN Entry</option>
-                    <option value="FACE_SCAN">Face Scan</option>
-                  </select>
+                  <NiceSelect
+                    value={formData.punchMethod}
+                    onChange={(val) => setFormData({ ...formData, punchMethod: val })}
+                    options={[
+                      { value: 'MANUAL', label: 'MANUAL (Override)' },
+                      { value: 'PIN', label: 'PIN Entry' },
+                      { value: 'FACE_SCAN', label: 'Face Scan' },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -588,18 +597,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
         </div>
       )}
 
-      <HrConfirmModal
-        isOpen={!!confirmModal}
-        onClose={() => setConfirmModal(null)}
-        {...confirmModal}
-      />
 
-      {toast && (
-        <div className={`_t ${toast.type}`} onClick={() => setToast(null)}>
-          {toast.type === 'success' ? <FaCheck /> : <FaTimes />}
-          <span>{toast.msg}</span>
-        </div>
-      )}
 
       <style jsx>{`
         ._t {
@@ -614,18 +612,20 @@ export default function TimesheetsDashboard({ embedded = false }) {
         .timesheets-wrapper { display: flex; flex-direction: column; gap: 24px; animation: slideUp 0.4s ease-out; }
         
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
 
         .info-alert {
           display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px;
-          background: linear-gradient(to right, #eff6ff, #f8fafc);
-          border-left: 4px solid #3b82f6; flex-wrap: wrap;
+          background: linear-gradient(to right, #fff7ed, #f8fafc);
+          border-left: 4px solid #f97316; flex-wrap: wrap;
         }
         .alert-content { flex: 1; min-width: 250px; }
-        .alert-icon { font-size: 28px; color: #3b82f6; }
+        .alert-icon { font-size: 28px; color: #f97316; }
         .info-alert h3 { margin: 0 0 4px; color: #1e293b; font-size: 16px; }
         .info-alert p { margin: 0; color: #475569; font-size: 14px; }
         .add-btn { white-space: nowrap; }
@@ -640,8 +640,8 @@ export default function TimesheetsDashboard({ embedded = false }) {
         }
 
         .btn-secondary {
-          padding: 10px 16px; border-radius: 10px; border: 1px solid #cbd5e1;
-          background: white; color: #475569; font-weight: 700; cursor: pointer; transition: background 0.2s;
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
         }
         .btn-secondary:hover { background: #f1f5f9; }
 
@@ -668,7 +668,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
         .time-badge.in { background: #dcfce7; color: #15803d; }
         .time-badge.out { background: #f1f5f9; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
         .next-day-tag {
-          font-size: 10px; font-weight: 800; background: #e0e7ff; color: #4338ca;
+          font-size: 10px; font-weight: 800; background: #fff7ed; color: #c2410c;
           padding: 1px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;
         }
 
@@ -687,7 +687,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
           border-radius: 8px; font-size: 12px; font-weight: 600; width: fit-content;
         }
         .preview-pill.overnight {
-          background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+          background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;
         }
         .preview-pill.sameday {
           background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
@@ -702,7 +702,7 @@ export default function TimesheetsDashboard({ embedded = false }) {
         }
 
         .method-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-        .method-badge.face_scan { background: #dbeafe; color: #1d4ed8; }
+        .method-badge.face_scan { background: #fff7ed; color: #f97316; }
         .method-badge.pin { background: #fef3c7; color: #b45309; }
         .method-badge.manual { background: #f3e8ff; color: #7e22ce; }
 
@@ -711,8 +711,8 @@ export default function TimesheetsDashboard({ embedded = false }) {
           width: 32px; height: 32px; border-radius: 8px; border: none;
           display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
         }
-        .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
-        .icon-btn.edit:hover { background: #dbeafe; }
+        .icon-btn.edit { background: #f1f5f9; color: #f97316; }
+        .icon-btn.edit:hover { background: #fff7ed; }
         .icon-btn.delete { background: #fef2f2; color: #ef4444; }
         .icon-btn.delete:hover { background: #fee2e2; }
 

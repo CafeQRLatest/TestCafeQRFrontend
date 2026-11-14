@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useNotification } from '../../../../context/NotificationContext';
 import { useCurrencyDecimals, useCurrencySymbol } from '../../../../hooks/useCurrencyConfig';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
-import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
+import NiceSelect from '../../../../components/NiceSelect';
+import HrInfoButton from '../../../../components/hr/HrInfoButton';
+import { HistoryToolbar, HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 import { FaPlus, FaCogs, FaEdit, FaTrash } from 'react-icons/fa';
 
 export default function SalaryComponents({ embedded = false }) {
+  const { showConfirm } = useNotification();
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
   const router = useRouter();
@@ -15,7 +19,6 @@ export default function SalaryComponents({ embedded = false }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingComponent, setEditingComponent] = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -78,14 +81,13 @@ export default function SalaryComponents({ embedded = false }) {
       c => c.id !== editingComponent?.id && c.name?.trim().toLowerCase() === trimmedName.toLowerCase()
     );
     if (isDuplicate) {
-      setConfirmModal({
+      showConfirm({
         title: 'Duplicate Rule Name',
         message: 'Rule Name already exists.',
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
         showCancel: false,
-        onConfirm: () => setConfirmModal(null)
       });
       return;
     }
@@ -112,14 +114,13 @@ export default function SalaryComponents({ embedded = false }) {
     } catch (error) {
       console.error("Error saving component", error);
       const msg = error.response?.data?.message || error.message || "Failed to save salary rule.";
-      setConfirmModal({
+      showConfirm({
         title: 'Error Saving Rule',
         message: msg,
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
         showCancel: false,
-        onConfirm: () => setConfirmModal(null)
       });
     }
   };
@@ -140,7 +141,7 @@ export default function SalaryComponents({ embedded = false }) {
   };
 
   const handleDeleteComponent = (comp) => {
-    setConfirmModal({
+    showConfirm({
       title: 'Delete Salary Rule',
       message: `Are you sure you want to delete rule "${comp.name}"?`,
       type: 'confirm',
@@ -148,21 +149,19 @@ export default function SalaryComponents({ embedded = false }) {
       confirmVariant: 'danger',
       showCancel: true,
       onConfirm: async () => {
-        setConfirmModal(null);
         try {
           await hrService.deleteComponent(comp.id);
           fetchData();
         } catch (error) {
           console.error("Error deleting component", error);
           const errorMsg = error.response?.data?.message || error.message || 'Failed to delete salary component.';
-          setConfirmModal({
+          showConfirm({
             title: 'Cannot Delete Rule',
             message: errorMsg,
             type: 'error',
             confirmText: 'Got It',
             confirmVariant: 'primary',
             showCancel: false,
-            onConfirm: () => setConfirmModal(null)
           });
         }
       }
@@ -175,17 +174,18 @@ export default function SalaryComponents({ embedded = false }) {
         <title>Salary Rules | Cafe QR</title>
       </Head>
 
-      <div className="flex justify-end mb-6">
+      <HistoryToolbar style={{ justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{components.length} salary rule{components.length === 1 ? '' : 's'}</span>
         <button className="btn-primary" onClick={handleOpenCreate}>
           <FaPlus /> New Component
         </button>
-      </div>
+      </HistoryToolbar>
 
-      <div className="table-container glass-panel">
+      <HistTableWrap>
         {isLoading ? (
           <div className="loading-state">Loading components...</div>
         ) : (
-          <table className="modern-table">
+          <HistTable>
             <thead>
               <tr>
                 <th>Rule Name</th>
@@ -236,24 +236,34 @@ export default function SalaryComponents({ embedded = false }) {
                         </span>
                       </td>
                       <td>
-                        <div className="action-buttons" style={{ display: 'flex', gap: '8px' }}>
+                        <HistActionGroup>
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(comp)} title="Edit Rule"><FaEdit /></button>
                           <button className="icon-btn delete" onClick={() => handleDeleteComponent(comp)} title="Delete Rule"><FaTrash /></button>
-                        </div>
+                        </HistActionGroup>
                       </td>
                     </tr>
                   );
                 })
               )}
             </tbody>
-          </table>
+          </HistTable>
         )}
-      </div>
+      </HistTableWrap>
 
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content glass-panel">
-            <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <h3>{editingComponent ? 'Edit Salary Rule' : 'Create Salary Rule'}</h3>
+              <HrInfoButton title="Salary rules">
+                <p style={{ margin: '0 0 8px' }}>A salary rule is an earning or deduction applied to payroll.</p>
+                <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+                  <li><strong>Fixed</strong> adds or deducts the same amount each run.</li>
+                  <li><strong>Percentage</strong> is calculated on the gross pay of each run.</li>
+                  <li>Rules can be overridden per employee from the Employees screen.</li>
+                </ul>
+              </HrInfoButton>
+            </div>
             <form onSubmit={handleSaveComponent}>
               <div className="form-group mb-4">
                 <label>Rule Name (e.g., &quot;Health Insurance&quot;)</label>
@@ -262,17 +272,25 @@ export default function SalaryComponents({ embedded = false }) {
               <div className="flex gap-4 mb-4">
                 <div className="form-group flex-1">
                   <label>Category</label>
-                  <select value={type} onChange={e => setType(e.target.value)}>
-                    <option value="EARNING">Earning / Bonus</option>
-                    <option value="DEDUCTION">Deduction / Tax</option>
-                  </select>
+                  <NiceSelect
+                    value={type}
+                    onChange={val => setType(val)}
+                    options={[
+                      { value: 'EARNING', label: 'Earning / Bonus' },
+                      { value: 'DEDUCTION', label: 'Deduction / Tax' },
+                    ]}
+                  />
                 </div>
                 <div className="form-group flex-1">
                   <label>Calculation Type</label>
-                  <select value={amountType} onChange={e => setAmountType(e.target.value)}>
-                    <option value="FIXED">Fixed Amount</option>
-                    <option value="PERCENTAGE">Percentage (%)</option>
-                  </select>
+                  <NiceSelect
+                    value={amountType}
+                    onChange={val => setAmountType(val)}
+                    options={[
+                      { value: 'FIXED', label: 'Fixed Amount' },
+                      { value: 'PERCENTAGE', label: 'Percentage (%)' },
+                    ]}
+                  />
                 </div>
               </div>
               
@@ -302,17 +320,14 @@ export default function SalaryComponents({ embedded = false }) {
         </div>
       )}
 
-      <HrConfirmModal
-        isOpen={!!confirmModal}
-        onClose={() => setConfirmModal(null)}
-        {...confirmModal}
-      />
 
       <style jsx>{`
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -329,7 +344,7 @@ export default function SalaryComponents({ embedded = false }) {
         .status-badge.rejected { background: #fee2e2; color: #b91c1c; }
 
         .type-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
-        .type-badge.earning { background: #e0e7ff; color: #4338ca; }
+        .type-badge.earning { background: #fff7ed; color: #c2410c; }
         .type-badge.deduction { background: #ffedd5; color: #c2410c; }
 
         .calc-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; white-space: nowrap; }
@@ -341,10 +356,13 @@ export default function SalaryComponents({ embedded = false }) {
         .tax-badge.no { background: #f1f5f9; color: #64748b; }
 
         .btn-primary { display: flex; gap: 8px; align-items: center; padding: 10px 20px; border-radius: 12px; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-weight: 600; border: none; cursor: pointer; }
-        .btn-secondary { padding: 10px 20px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600; border: none; cursor: pointer; }
+        .btn-secondary {
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
+        }
         
         .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .icon-btn.edit { background: #e0e7ff; color: #4338ca; }
+        .icon-btn.edit { background: #fff7ed; color: #c2410c; }
         .icon-btn.delete { background: #fee2e2; color: #b91c1c; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }

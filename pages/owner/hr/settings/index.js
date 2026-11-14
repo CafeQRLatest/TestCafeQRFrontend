@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
 import { hrService } from '../../../../services/hrService';
 import { useCurrencySymbol } from '../../../../hooks/useCurrencySymbol';
+import NiceSelect from '../../../../components/NiceSelect';
 import { FaSlidersH, FaSave, FaClock, FaCalculator, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
 
 export default function HrSettingsDashboard({ embedded = false }) {
@@ -192,11 +193,15 @@ export default function HrSettingsDashboard({ embedded = false }) {
 
               <div className="form-group">
                 <label>Overtime Calculation Mode</label>
-                <select name="overtimeMode" value={formData.overtimeMode} onChange={handleChange}>
-                  <option value="DAILY">Daily Threshold (Beyond {stdHrs} hrs/day)</option>
-                  <option value="WEEKLY">Weekly Threshold (Beyond {formData.weeklyOvertimeThreshold} hrs/week)</option>
-                  <option value="BOTH">Both (Higher of Daily or Weekly Overtime)</option>
-                </select>
+                <NiceSelect
+                  value={formData.overtimeMode}
+                  onChange={val => handleChange({ target: { name: 'overtimeMode', value: val } })}
+                  options={[
+                    { value: 'DAILY', label: `Daily Threshold (Beyond ${stdHrs} hrs/day)` },
+                    { value: 'WEEKLY', label: `Weekly Threshold (Beyond ${formData.weeklyOvertimeThreshold} hrs/week)` },
+                    { value: 'BOTH', label: 'Both (Higher of Daily or Weekly Overtime)' },
+                  ]}
+                />
                 <small className="help-text">Select whether overtime is evaluated on a daily shift basis or weekly total basis.</small>
               </div>
 
@@ -276,9 +281,12 @@ export default function HrSettingsDashboard({ embedded = false }) {
         .hr-settings-wrapper { animation: slideUp 0.4s ease-out; }
         
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); padding: 24px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+          padding: 24px;
         }
 
         .settings-grid {
@@ -358,8 +366,8 @@ export default function HrSettingsDashboard({ embedded = false }) {
         .total-row .sim-val { color: #166534; font-size: 17px; }
 
         .info-callout {
-          margin-top: 16px; padding: 14px; background: #eff6ff;
-          border: 1px solid #bfdbfe; border-radius: 12px; color: #1e40af; font-size: 12px; line-height: 1.5;
+          margin-top: 16px; padding: 14px; background: #fff7ed;
+          border: 1px solid #fed7aa; border-radius: 12px; color: #c2410c; font-size: 12px; line-height: 1.5;
         }
         .info-callout p { margin: 0; }
 

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
 import { hrService } from '../../services/hrService';
+import { useNotification } from '../../context/NotificationContext';
 
 export default function DepartmentModal({ isOpen, onClose, departments, onRefresh }) {
+  const { notify } = useNotification();
   const [newDeptName, setNewDeptName] = useState('');
   const [newDeptDesc, setNewDeptDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,7 +23,7 @@ export default function DepartmentModal({ isOpen, onClose, departments, onRefres
       onRefresh(); // Refresh the parent list
     } catch (error) {
       console.error('Failed to create department', error);
-      alert('Failed to create department');
+      notify('error', 'Failed to create department.');
     } finally {
       setIsSubmitting(false);
     }
@@ -33,7 +35,7 @@ export default function DepartmentModal({ isOpen, onClose, departments, onRefres
       onRefresh();
     } catch (error) {
       console.error("Failed to update department status", error);
-      alert("Failed to update status. Please try again.");
+      notify('error', 'Failed to update status. Please try again.');
     }
   };
 

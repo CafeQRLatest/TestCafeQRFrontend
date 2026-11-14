@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaSave, FaUser, FaEnvelope, FaPhone, FaMoneyBillWave, FaBuilding } from 'react-icons/fa';
 import { useCurrencySymbol } from '../../hooks/useCurrencyConfig';
+import NiceSelect from '../NiceSelect';
 
 export default function EmployeeCreationModal({ isOpen, onClose, onSave, employeeToEdit = null, departments = [], designations = [] }) {
   const currencySymbol = useCurrencySymbol();
@@ -176,26 +177,40 @@ export default function EmployeeCreationModal({ isOpen, onClose, onSave, employe
             
             <div className="form-group">
               <label><FaBuilding className="input-icon" /> Department</label>
-              <select name="departmentId" value={formData.departmentId} onChange={handleChange}>
-                <option value="">Select Department...</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              <NiceSelect
+                value={formData.departmentId}
+                onChange={val => handleChange({ target: { name: 'departmentId', value: val } })}
+                placeholder="Select Department..."
+                options={[
+                  { value: '', label: 'Select Department...' },
+                  ...departments.map(d => ({ value: d.id, label: d.name })),
+                ]}
+              />
             </div>
             <div className="form-group">
               <label><FaBuilding className="input-icon" /> Designation</label>
-              <select name="designationId" value={formData.designationId} onChange={handleChange}>
-                <option value="">Select Designation...</option>
-                {designations.map(d => <option key={d.id} value={d.id}>{d.name || d.title}</option>)}
-              </select>
+              <NiceSelect
+                value={formData.designationId}
+                onChange={val => handleChange({ target: { name: 'designationId', value: val } })}
+                placeholder="Select Designation..."
+                options={[
+                  { value: '', label: 'Select Designation...' },
+                  ...designations.map(d => ({ value: d.id, label: d.name || d.title })),
+                ]}
+              />
             </div>
 
             <div className="form-group">
               <label>Employment Type</label>
-              <select name="employmentType" value={formData.employmentType} onChange={handleChange}>
-                <option value="FULL_TIME">Full Time</option>
-                <option value="PART_TIME">Part Time</option>
-                <option value="HOURLY">Hourly (Shift-based)</option>
-              </select>
+              <NiceSelect
+                value={formData.employmentType}
+                onChange={val => handleChange({ target: { name: 'employmentType', value: val } })}
+                options={[
+                  { value: 'FULL_TIME', label: 'Full Time' },
+                  { value: 'PART_TIME', label: 'Part Time' },
+                  { value: 'HOURLY', label: 'Hourly (Shift-based)' },
+                ]}
+              />
             </div>
 
             {formData.employmentType === 'HOURLY' ? (

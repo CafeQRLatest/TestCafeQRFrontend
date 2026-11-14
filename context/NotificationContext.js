@@ -14,11 +14,18 @@ export function NotificationProvider({ children }) {
     }, 5000);
   }, []);
 
-  const showConfirm = useCallback(({ title, message, onConfirm, onCancel, type = 'warning' }) => {
+  const showConfirm = useCallback(({
+    title, message, onConfirm, onCancel,
+    type = 'warning', confirmText = 'Proceed', cancelText = 'Cancel', showCancel = true,
+  }) => {
     setModal({
       title,
       message,
-      type,
+      // 'confirm' is the generic prompt type; it renders with the warning styling.
+      type: type === 'confirm' ? 'warning' : type,
+      confirmText,
+      cancelText,
+      showCancel,
       onConfirm: () => {
         if (onConfirm) onConfirm();
         setModal(null);

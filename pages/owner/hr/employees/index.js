@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNotification } from '../../../../context/NotificationContext';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import DashboardLayout from '../../../../components/DashboardLayout';
@@ -7,11 +8,13 @@ import EmployeeCreationModal from '../../../../components/hr/EmployeeCreationMod
 import DepartmentModal from '../../../../components/hr/DepartmentModal';
 import DesignationModal from '../../../../components/hr/DesignationModal';
 import EmployeeSalaryRulesModal from '../../../../components/hr/EmployeeSalaryRulesModal';
-import HrConfirmModal from '../../../../components/hr/HrConfirmModal';
+import NiceSelect from '../../../../components/NiceSelect';
+import { HistoryToolbar, HistTableWrap, HistTable, HistActionGroup } from '../../../../components/PremiumOrdersUI';
 import { FaPlus, FaSearch, FaUserTie, FaEdit, FaTrash, FaCogs } from 'react-icons/fa';
 import { useCurrencyDecimals, useCurrencySymbol } from '../../../../hooks/useCurrencyConfig';
 
 export default function EmployeeMaster({ embedded = false }) {
+  const { showConfirm } = useNotification();
   const currencySymbol = useCurrencySymbol();
   const currencyDecimals = useCurrencyDecimals();
   const router = useRouter();
@@ -24,7 +27,6 @@ export default function EmployeeMaster({ embedded = false }) {
   const [employmentTypeFilter, setEmploymentTypeFilter] = useState('');
   const [rulesEmployee, setRulesEmployee] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     if (!embedded) {
@@ -82,14 +84,13 @@ export default function EmployeeMaster({ embedded = false }) {
     } catch (error) {
       console.error('Failed to save employee:', error);
       const msg = error.response?.data?.message || error.message || 'Failed to save employee.';
-      setConfirmModal({
+      showConfirm({
         title: 'Error Saving Employee',
         message: msg,
         type: 'error',
         confirmText: 'OK',
         confirmVariant: 'primary',
         showCancel: false,
-        onConfirm: () => setConfirmModal(null)
       });
     }
   };
@@ -108,7 +109,7 @@ export default function EmployeeMaster({ embedded = false }) {
 
   const handleDeleteEmployee = (emp) => {
     const empName = `${emp.firstName} ${emp.lastName || ''}`.trim();
-    setConfirmModal({
+    showConfirm({
       title: 'Delete Employee',
       message: `Are you sure you want to delete "${empName}"?`,
       type: 'confirm',
@@ -116,21 +117,19 @@ export default function EmployeeMaster({ embedded = false }) {
       confirmVariant: 'danger',
       showCancel: true,
       onConfirm: async () => {
-        setConfirmModal(null);
         try {
           await hrService.deleteEmployee(emp.id);
           fetchData();
         } catch (error) {
           console.error('Failed to delete employee:', error);
           const errorMsg = error.response?.data?.message || error.message || 'Failed to delete employee.';
-          setConfirmModal({
+          showConfirm({
             title: 'Cannot Delete Employee',
             message: errorMsg,
             type: 'error',
             confirmText: 'Got It',
             confirmVariant: 'primary',
             showCancel: false,
-            onConfirm: () => setConfirmModal(null)
           });
         }
       }
@@ -155,7 +154,7 @@ export default function EmployeeMaster({ embedded = false }) {
       <div className="hr-dashboard">
         
         {/* Header Action Bar */}
-        <div className="action-bar glass-panel">
+        <HistoryToolbar className="action-bar" style={{ flexWrap: 'wrap' }}>
           <div className="search-box">
             <FaSearch className="search-icon" />
             <input 
@@ -167,27 +166,27 @@ export default function EmployeeMaster({ embedded = false }) {
           </div>
 
           <div className="filter-box" style={{ display: 'flex', gap: '8px' }}>
-            <select
+            <NiceSelect
               value={departmentFilter}
-              onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="">All Departments</option>
-              {departments.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setDepartmentFilter(val)}
+              placeholder="All Departments"
+              options={[
+                { value: '', label: 'All Departments' },
+                ...departments.map(d => ({ value: d.id, label: d.name })),
+              ]}
+            />
 
-            <select
+            <NiceSelect
               value={employmentTypeFilter}
-              onChange={(e) => setEmploymentTypeFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="">All Types</option>
-              <option value="FULL_TIME">Full Time</option>
-              <option value="PART_TIME">Part Time</option>
-              <option value="HOURLY">Hourly</option>
-            </select>
+              onChange={(val) => setEmploymentTypeFilter(val)}
+              placeholder="All Types"
+              options={[
+                { value: '', label: 'All Types' },
+                { value: 'FULL_TIME', label: 'Full Time' },
+                { value: 'PART_TIME', label: 'Part Time' },
+                { value: 'HOURLY', label: 'Hourly' },
+              ]}
+            />
           </div>
           
           <div className="action-buttons-group" style={{ display: 'flex', gap: '12px' }}>
@@ -201,12 +200,12 @@ export default function EmployeeMaster({ embedded = false }) {
               <FaPlus /> Add Employee
             </button>
           </div>
-        </div>
+        </HistoryToolbar>
 
         {/* Stats Row */}
         <div className="stats-grid">
           <div className="stat-card glass-panel">
-            <div className="stat-icon" style={{background: '#e0e7ff', color: '#4f46e5'}}><FaUserTie /></div>
+            <div className="stat-icon" style={{background: '#fff7ed', color: '#ea580c'}}><FaUserTie /></div>
             <div className="stat-info">
               <h3>Total Employees</h3>
               <p>{employees.length}</p>
@@ -222,11 +221,11 @@ export default function EmployeeMaster({ embedded = false }) {
         </div>
 
         {/* Data Table */}
-        <div className="table-container glass-panel">
+        <HistTableWrap>
           {isLoading ? (
             <div className="loading-state">Loading employee data...</div>
           ) : (
-            <table className="modern-table">
+            <HistTable>
               <thead>
                 <tr>
                   <th>Employee Name</th>
@@ -292,18 +291,18 @@ export default function EmployeeMaster({ embedded = false }) {
                         </span>
                       </td>
                       <td>
-                        <div className="action-buttons">
+                        <HistActionGroup>
                           <button className="icon-btn edit" onClick={() => handleOpenEdit(emp)} title="Edit Employee"><FaEdit /></button>
                           <button className="icon-btn delete" onClick={() => handleDeleteEmployee(emp)} title="Delete Employee"><FaTrash /></button>
-                        </div>
+                        </HistActionGroup>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
-            </table>
+            </HistTable>
           )}
-        </div>
+        </HistTableWrap>
       </div>
 
       <EmployeeCreationModal 
@@ -335,11 +334,6 @@ export default function EmployeeMaster({ embedded = false }) {
         employee={rulesEmployee}
       />
 
-      <HrConfirmModal
-        isOpen={!!confirmModal}
-        onClose={() => setConfirmModal(null)}
-        {...confirmModal}
-      />
 
       <style jsx>{`
         .hr-dashboard {
@@ -348,11 +342,11 @@ export default function EmployeeMaster({ embedded = false }) {
         }
 
         .glass-panel {
-          background: rgba(255, 255, 255, 0.7);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.4);
-          border-radius: 16px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-top: 3px solid #f97316;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
         }
 
         .action-bar {
@@ -375,9 +369,8 @@ export default function EmployeeMaster({ embedded = false }) {
         .search-box input:focus { border-color: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1); }
 
         .btn-secondary {
-          padding: 12px 20px; border-radius: 12px; border: 1px solid #cbd5e1;
-          background: white; color: #475569; font-weight: 700; cursor: pointer;
-          transition: background 0.2s;
+          padding: 10px 18px; border-radius: 10px; border: 1px solid #cbd5e1;
+          background: #ffffff; color: #475569; font-weight: 600; cursor: pointer;
         }
         .btn-secondary:hover { background: #f1f5f9; }
 
@@ -391,16 +384,16 @@ export default function EmployeeMaster({ embedded = false }) {
         }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4); }
 
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 220px)); gap: 12px; }
         .stat-card {
-          padding: 24px; display: flex; align-items: center; gap: 16px;
+          padding: 12px 14px; display: flex; align-items: center; gap: 10px; min-height: 0;
         }
         .stat-icon {
-          width: 48px; height: 48px; border-radius: 14px;
-          display: flex; align-items: center; justify-content: center; font-size: 20px;
+          width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center; font-size: 14px;
         }
-        .stat-info h3 { margin: 0 0 4px; font-size: 13px; color: #64748b; font-weight: 600; text-transform: uppercase; }
-        .stat-info p { margin: 0; font-size: 24px; font-weight: 800; color: #0f172a; }
+        .stat-info h3 { margin: 0 0 2px; font-size: 11px; line-height: 1.2; color: #64748b; font-weight: 600; text-transform: uppercase; }
+        .stat-info p { margin: 0; font-size: 18px; line-height: 1.2; font-weight: 800; color: #0f172a; }
 
         .table-container { overflow-x: auto; }
         .modern-table { width: 100%; border-collapse: collapse; text-align: left; }
@@ -418,7 +411,7 @@ export default function EmployeeMaster({ embedded = false }) {
         .emp-name-cell { display: flex; align-items: center; gap: 12px; }
         .emp-avatar {
           width: 40px; height: 40px; border-radius: 12px;
-          background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;
+          background: linear-gradient(135deg, #f97316 0%, #f97316 100%); color: white;
           display: flex; align-items: center; justify-content: center;
           font-weight: 700; font-size: 14px;
         }
@@ -434,7 +427,7 @@ export default function EmployeeMaster({ embedded = false }) {
         .badge {
           padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
         }
-        .type-full_time { background: #dbeafe; color: #1d4ed8; }
+        .type-full_time { background: #fff7ed; color: #f97316; }
         .type-part_time { background: #fef3c7; color: #b45309; }
         .type-hourly { background: #f3e8ff; color: #7e22ce; }
         
@@ -453,8 +446,8 @@ export default function EmployeeMaster({ embedded = false }) {
         }
         .icon-btn.rules { background: #f3e8ff; color: #8b5cf6; }
         .icon-btn.rules:hover { background: #e9d5ff; }
-        .icon-btn.edit { background: #f1f5f9; color: #3b82f6; }
-        .icon-btn.edit:hover { background: #dbeafe; }
+        .icon-btn.edit { background: #f1f5f9; color: #f97316; }
+        .icon-btn.edit:hover { background: #fff7ed; }
         .icon-btn.delete { background: #fef2f2; color: #ef4444; }
         .icon-btn.delete:hover { background: #fee2e2; }
 

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
 import { hrService } from '../../services/hrService';
+import { useNotification } from '../../context/NotificationContext';
 
 export default function DesignationModal({ isOpen, onClose, designations, onRefresh }) {
+  const { notify } = useNotification();
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,7 +23,7 @@ export default function DesignationModal({ isOpen, onClose, designations, onRefr
       onRefresh(); // Refresh the parent list
     } catch (error) {
       console.error('Failed to create designation', error);
-      alert('Failed to create designation');
+      notify('error', 'Failed to create designation.');
     } finally {
       setIsSubmitting(false);
     }
@@ -33,7 +35,7 @@ export default function DesignationModal({ isOpen, onClose, designations, onRefr
       onRefresh();
     } catch (error) {
       console.error("Failed to update designation status", error);
-      alert("Failed to update status. Please try again.");
+      notify('error', 'Failed to update status. Please try again.');
     }
   };
 
