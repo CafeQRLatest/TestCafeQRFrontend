@@ -16,6 +16,7 @@ import {
   matchBillItem,
   toLocalInputValue,
   parseBillDate,
+  resolveBillUom,
 } from '../../utils/billScanMatching';
 
 
@@ -94,6 +95,21 @@ export default function PurchaseBillScanModal({
 
   // Bill Items Data
   const [billItems, setBillItems] = useState([]);
+
+  // UOMs configured in Product Management: the only units a bill line can use
+  const [uoms, setUoms] = useState([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api.get('/api/v1/products/uoms')
+      .then(res => {
+        if (cancelled || !res.data?.success) return;
+        const active = (res.data.data || []).filter(u => u.isActive !== false && u.active !== false);
+        setUoms(active);
+      })
+      .catch(() => { if (!cancelled) setUoms([]); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   // Hidden file inputs
   const cameraInputRef = useRef(null);
@@ -261,8 +277,19 @@ export default function PurchaseBillScanModal({
           isIngredient: isIngredient,
           confidence: confidence,
           quantity: it.quantity || 1,
-          unitOfMeasure: matchedProduct?.uomName || it.unitOfMeasure || 'units',
-          uomPrecision: matchedProduct?.uomPrecision ?? null,
+          ...(() => {
+            // A mapped product keeps its own UOM; otherwise the printed unit is mapped to the UOM master
+            if (matchedProduct) {
+              return { unitOfMeasure: matchedProduct.uomName || '', uomPrecision: matchedProduct.uomPrecision ?? null, uomMatched: Boolean(matchedProduct.uomName), invoiceUnit: it.rawUnitOfMeasure || '' };
+            }
+            const res = resolveBillUom(it.rawUnitOfMeasure || it.unitOfMeasure, uoms);
+            return {
+              unitOfMeasure: res.uom ? res.uom.name : '',
+              uomPrecision: res.uom ? (res.uom.uomPrecision ?? null) : null,
+              uomMatched: res.matched,
+              invoiceUnit: res.invoiceUnit,
+            };
+          })(),
           unitPrice: it.unitPrice || 0,
           taxRate: it.taxRate || 0,
           lineTotal: it.lineTotal || (it.quantity * it.unitPrice),
@@ -301,6 +328,7 @@ export default function PurchaseBillScanModal({
           productId: String(match.id),
           isIngredient: isIngredientProduct(match),
           unitOfMeasure: match.uomName || l.unitOfMeasure,
+          uomMatched: match.uomName ? true : l.uomMatched,
           uomPrecision: match.uomPrecision ?? l.uomPrecision ?? null,
           confidence: sameProduct ? l.confidence : 'MANUAL',
           oldCostPrice: match.costPrice || 0,
@@ -317,6 +345,14 @@ export default function PurchaseBillScanModal({
         currentStock: '—',
       };
     }));
+  };
+
+  // Unit is chosen from the UOMs in Product Management; the printed bill label is kept for reference
+  const handleUpdateUom = (idx, uomName) => {
+    const uom = uoms.find(u => u.name === uomName);
+    setBillItems(prev => prev.map((l, i) => i === idx
+      ? { ...l, unitOfMeasure: uomName, uomPrecision: uom?.uomPrecision ?? null, uomMatched: true }
+      : l));
   };
 
   const handleUpdateLineField = (idx, field, val) => {
@@ -362,6 +398,7 @@ export default function PurchaseBillScanModal({
         productName: prod.name,
         isIngredient: isIng,
         unitOfMeasure: prod.uomName || l.unitOfMeasure,
+        uomMatched: prod.uomName ? true : l.uomMatched,
         uomPrecision: prod.uomPrecision ?? null,
         confidence: 'MANUAL',
         oldCostPrice: prod.costPrice || 0,
@@ -372,6 +409,14 @@ export default function PurchaseBillScanModal({
 
   // A line mapped to an existing product takes that product's type; only new items can choose a type.
   const isMappedLine = (l) => Boolean(l?.productId) && l.productId !== '__NEW__';
+
+  const uomOptionsFor = (item) => {
+    const options = uoms.map(u => ({ value: u.name, label: u.shortName && u.shortName !== u.name ? `${u.name} (${u.shortName})` : u.name }));
+    if (item.unitOfMeasure && !options.some(o => o.value === item.unitOfMeasure)) {
+      options.unshift({ value: item.unitOfMeasure, label: `${item.unitOfMeasure} (not in UOMs)` });
+    }
+    return options;
+  };
 
   const handleToggleIngredient = (idx) => {
     setBillItems(prev => prev.map((l, i) => (i === idx && !isMappedLine(l)) ? { ...l, isIngredient: !l.isIngredient } : l));
@@ -469,6 +514,8 @@ export default function PurchaseBillScanModal({
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, {
           name,
+          // Sent by name: the server resolves it to the configured UOM
+          uom: line.unitOfMeasure ? { name: line.unitOfMeasure } : undefined,
           price: line.isIngredient ? 0 : (parseFloat(line.unitPrice) || 0),
           costPrice: parseFloat(line.unitPrice) || 0,
           isIngredient: Boolean(line.isIngredient),
@@ -521,11 +568,21 @@ export default function PurchaseBillScanModal({
     });
   };
 
+  // Lines that would create a product need a UOM from Product Management
+  const lineMissingUom = (lines) => lines.find(l =>
+    !l.uomMatched && !(l.productId && l.productId !== '__NEW__')
+  );
+
   // Option A: Populate PO Form
   const handleApplyToPurchaseOrder = async () => {
     const activeLines = billItems.filter(l => l.selected);
     if (activeLines.length === 0) {
       toast('Please select at least one item from the bill', 'error');
+      return;
+    }
+    const missingUom = lineMissingUom(activeLines);
+    if (missingUom) {
+      toast(`Choose a UOM for "${missingUom.billName}" (bill unit: ${missingUom.invoiceUnit || 'not printed'})`, 'error');
       return;
     }
 
@@ -593,6 +650,11 @@ export default function PurchaseBillScanModal({
     }
     if (activeLines.length === 0) {
       toast('Please select at least one item from the bill', 'error');
+      return;
+    }
+    const missingUom = lineMissingUom(activeLines);
+    if (missingUom) {
+      toast(`Choose a UOM for "${missingUom.billName}" (bill unit: ${missingUom.invoiceUnit || 'not printed'})`, 'error');
       return;
     }
 
@@ -897,12 +959,18 @@ export default function PurchaseBillScanModal({
                             />
                           </td>
                           <td>
-                            <input
-                              type="text"
-                              className="cell-input uom"
-                              value={item.unitOfMeasure}
-                              onChange={e => handleUpdateLineField(idx, 'unitOfMeasure', e.target.value)}
+                            <NiceSelect
+                              options={uomOptionsFor(item)}
+                              value={item.unitOfMeasure || ''}
+                              onChange={val => handleUpdateUom(idx, val)}
+                              placeholder="Choose UOM…"
+                              maxHeight={220}
+                              style={{ minWidth: '120px' }}
                             />
+                            {item.invoiceUnit && item.invoiceUnit !== item.unitOfMeasure && (
+                              <div className="item-sub-meta"><span className="raw-bill-badge" title="Unit printed on the bill">Bill: {item.invoiceUnit}</span></div>
+                            )}
+                            {!item.uomMatched && <div className="item-sub-meta"><span className="match-tag new" title="This bill unit is not configured in Product Management. Pick a UOM.">Pick UOM</span></div>}
                           </td>
                           <td>
                             <div className="cost-input-wrapper">
@@ -1005,11 +1073,12 @@ export default function PurchaseBillScanModal({
                         </div>
                         <div className="card-field">
                           <label>Unit</label>
-                          <input
-                            type="text"
-                            className="cell-input"
-                            value={item.unitOfMeasure}
-                            onChange={e => handleUpdateLineField(idx, 'unitOfMeasure', e.target.value)}
+                          <NiceSelect
+                            options={uomOptionsFor(item)}
+                            value={item.unitOfMeasure || ''}
+                            onChange={val => handleUpdateUom(idx, val)}
+                            placeholder="Choose UOM…"
+                            maxHeight={220}
                           />
                         </div>
                         <div className="card-field">

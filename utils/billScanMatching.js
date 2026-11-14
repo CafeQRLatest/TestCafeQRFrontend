@@ -120,3 +120,56 @@ export const parseBillDate = (raw) => {
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(text);
   return isNaN(d.getTime()) ? null : d;
 };
+
+// Units that mean the same thing. Each group lists the spellings that can appear on a bill.
+const UOM_GROUPS = [
+  ['kg', ['kg', 'kgs', 'kilo', 'kilos', 'kilogram', 'kilograms']],
+  ['g', ['g', 'gm', 'gms', 'gr', 'gram', 'grams']],
+  ['l', ['l', 'ltr', 'ltrs', 'lt', 'litre', 'litres', 'liter', 'liters']],
+  ['ml', ['ml', 'mls', 'millilitre', 'millilitres', 'milliliter', 'milliliters']],
+  ['pcs', ['pc', 'pcs', 'pce', 'pces', 'piece', 'pieces', 'no', 'nos', 'nr', 'each', 'ea', 'unit', 'units']],
+  ['pkt', ['pkt', 'pkts', 'pk', 'pack', 'packs', 'packet', 'packets']],
+  ['box', ['box', 'boxes', 'bx', 'cb']],
+  ['carton', ['ctn', 'ctns', 'carton', 'cartons']],
+  ['dozen', ['doz', 'dozen', 'dozens']],
+  ['bag', ['bag', 'bags', 'sack', 'sacks']],
+  ['tin', ['tin', 'tins']],
+  ['can', ['can', 'cans']],
+  ['bottle', ['bottle', 'bottles', 'btl', 'btls']],
+];
+
+// Letters only, lowercase: "Kgs." -> "kgs", "Pkt (500g)" -> "pktg".
+const uomKey = (val) => cleanStr(val).toLowerCase().replace(/[^a-z]/g, '');
+
+/**
+ * Maps a unit label from the bill to a UOM from Product Management.
+ * uoms: [{ name, shortName, uomPrecision }] (active UOMs for the branch).
+ * Returns { uom, matched, invoiceUnit } where uom is the matched UOM record or null.
+ */
+export const resolveBillUom = (rawLabel, uoms = []) => {
+  const invoiceUnit = cleanStr(rawLabel);
+  const key = uomKey(invoiceUnit);
+  if (!key || !uoms.length) {
+    return { uom: null, matched: false, invoiceUnit };
+  }
+
+  // 1. The bill uses the exact name or short name of a configured UOM
+  const exact = uoms.find(u => uomKey(u.name) === key || uomKey(u.shortName) === key);
+  if (exact) {
+    return { uom: exact, matched: true, invoiceUnit };
+  }
+
+  // 2. A known alias of a configured UOM (e.g. "KGS" -> "Kg", "PKT" -> "Packet")
+  const group = UOM_GROUPS.find(([, spellings]) => spellings.includes(key));
+  if (group) {
+    const [canonical, spellings] = group;
+    const byAlias = uoms.find(u => spellings.includes(uomKey(u.name)) || spellings.includes(uomKey(u.shortName))
+      || uomKey(u.name) === canonical || uomKey(u.shortName) === canonical);
+    if (byAlias) {
+      return { uom: byAlias, matched: true, invoiceUnit };
+    }
+  }
+
+  // 3. No configured UOM fits: the user must pick one
+  return { uom: null, matched: false, invoiceUnit };
+};

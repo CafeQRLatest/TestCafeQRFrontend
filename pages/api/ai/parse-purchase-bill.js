@@ -95,7 +95,7 @@ Tasks:
      CRITICAL: DO NOT truncate, abbreviate, or simplify product names to single generic words like "Cashew", "Arrowroot", or "Marie Gold". Different package sizes, weights, and pack counts are distinct inventory SKUs and MUST be preserved in full so each SKU is distinguishable.
    - "rawName": Text exactly as printed or handwritten in the commodity/description column of the bill.
    - "quantity": Number purchased. On wholesale invoices with both "Qty CB" (Carton Box) and "Qty NO" (Packets/Pieces), use "Qty NO" if it represents the billed individual units/packets, otherwise use the billed quantity. If unreadable, default to 1.
-   - "unitOfMeasure": Standard unit (e.g. PCS, PKT, BOX, KG, G, LTR, ML, CAN, BOTTLE, TIN, UNIT). For packaged biscuits/snacks, use "pcs" or "pkt".
+   - "unitOfMeasure": The unit EXACTLY as printed on the invoice for that line (e.g. "PKT", "PCS", "NOS", "KG", "GMS", "CTN", "DOZ", "LTR"). Copy the printed label; do not translate, expand or standardise it. Return "" if the invoice prints no unit.
    - "unitPrice": Cost price / rate per unit. If only the line total is given, calculate unitPrice = lineTotal / quantity.
    - "taxRate": Total tax rate percentage for the line (GST, VAT or sales tax, whatever the bill shows). When the tax is split into parts (e.g. Indian CGST 2.5% + SGST 2.5%), add the parts together (e.g. 5.0). If the bill shows no tax for the line, return 0.
    - "taxAmount": Total tax on this line.
@@ -302,8 +302,10 @@ function normalizeUom(uomStr) {
   if (/^GM?S?$/i.test(raw) || raw === 'GRAM') return 'gm';
   if (/^L(?:TR|ITRE?|ITER)?S?$/i.test(raw)) return 'ltr';
   if (/^ML$/i.test(raw) || raw === 'MILLILITRE') return 'ml';
-  if (/^PCS?$/i.test(raw) || raw === 'PIECES?' || raw === 'NOS?') return 'pcs';
-  if (/^PKTS?$/i.test(raw) || raw === 'PACKETS?' || raw === 'PACK') return 'packet';
+  if (/^(PCS?|PCES?|PIECES?|NOS?|NR|EACH|EA)$/.test(raw)) return 'pcs';
+  if (/^(CTNS?|CARTONS?)$/.test(raw)) return 'carton';
+  if (/^(DOZ|DOZENS?)$/.test(raw)) return 'dozen';
+  if (/^(PKTS?|PACKETS?|PACKS?|PK)$/.test(raw)) return 'packet';
   if (/^BOX(?:ES)?$/i.test(raw)) return 'box';
   if (/^BAGS?$/i.test(raw) || raw === 'SACK') return 'bag';
   if (/^TINS?$/i.test(raw)) return 'tin';
@@ -337,6 +339,8 @@ function normalizeBillResult(raw) {
         rawName: rawName || name || 'Purchase Item',
         quantity: Math.round(quantity * 1000) / 1000,
         unitOfMeasure: normalizeUom(item?.unitOfMeasure),
+        // The unit as printed on the bill; the client maps it to Product Management UOMs
+        rawUnitOfMeasure: cleanString(item?.unitOfMeasure),
         // Keep 4 decimals: unit prices derived from totals need them, and some currencies use 3 decimals
         unitPrice: Math.round(unitPrice * 10000) / 10000,
         taxRate: Math.round(taxRate * 100) / 100,

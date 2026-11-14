@@ -1,4 +1,4 @@
-import { matchBillItem, sizeTokens, sizesCompatible, parseBillDate, toLocalInputValue } from '../billScanMatching';
+import { matchBillItem, sizeTokens, sizesCompatible, parseBillDate, toLocalInputValue, resolveBillUom } from '../billScanMatching';
 
 const catalog = [
   { id: 'p1', name: 'Britannia Marie Gold 300g', productType: 'PRODUCT' },
@@ -65,5 +65,40 @@ describe('bill dates', () => {
   it('returns null for unreadable dates', () => {
     expect(parseBillDate('not a date')).toBeNull();
     expect(parseBillDate('')).toBeNull();
+  });
+});
+
+describe('resolveBillUom', () => {
+  const uoms = [
+    { name: 'Kilogram', shortName: 'Kg', uomPrecision: 3 },
+    { name: 'Gram', shortName: 'gm', uomPrecision: 0 },
+    { name: 'Packet', shortName: 'pkt', uomPrecision: 0 },
+    { name: 'Pieces', shortName: 'pcs', uomPrecision: 0 },
+  ];
+
+  it('matches the exact configured name or short name, ignoring case and punctuation', () => {
+    expect(resolveBillUom('KG.', uoms).uom.name).toBe('Kilogram');
+    expect(resolveBillUom('Pkt', uoms).uom.name).toBe('Packet');
+  });
+
+  it('maps known aliases to the configured UOM', () => {
+    expect(resolveBillUom('KGS', uoms).uom.name).toBe('Kilogram');
+    expect(resolveBillUom('NOS', uoms).uom.name).toBe('Pieces');
+    expect(resolveBillUom('PACKETS', uoms).uom.name).toBe('Packet');
+  });
+
+  it('keeps the printed label and reports no match when no UOM fits', () => {
+    const r = resolveBillUom('Dozen', uoms);
+    expect(r.uom).toBeNull();
+    expect(r.matched).toBe(false);
+    expect(r.invoiceUnit).toBe('Dozen');
+  });
+
+  it('does not match anything when the UOM list is empty', () => {
+    expect(resolveBillUom('KG', []).matched).toBe(false);
+  });
+
+  it('reports no match for a blank label', () => {
+    expect(resolveBillUom('', uoms).matched).toBe(false);
   });
 });
