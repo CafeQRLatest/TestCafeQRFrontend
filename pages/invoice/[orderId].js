@@ -276,25 +276,21 @@ export default function PublicInvoicePage() {
                   <span>{formatMoney(invoice.subtotal)}</span>
                 </div>
 
-                {/* Tax Breakdown */}
-                {invoice.cgstAmount != null && Number(invoice.cgstAmount) > 0 && (
-                  <>
+                {/* Tax Breakdown — names/% from Tax Settings (split components when enabled) */}
+                {Number(invoice.totalTaxAmount) > 0 && (
+                  (invoice.taxSplit || (invoice.taxSummary && invoice.taxSummary.length > 1)) ? (
+                    invoice.taxSummary.map((t, i) => (
+                      <div className="ebill-total-row tax-subrow" key={`${t.label}-${i}`}>
+                        <span>{t.label}</span>
+                        <span>{formatMoney(t.amount)}</span>
+                      </div>
+                    ))
+                  ) : (
                     <div className="ebill-total-row tax-subrow">
-                      <span>CGST {invoice.cgstRate ? `(${invoice.cgstRate}%)` : ''}</span>
-                      <span>{formatMoney(invoice.cgstAmount)}</span>
+                      <span>{invoice.taxLabel || 'Taxes'}</span>
+                      <span>{formatMoney(invoice.totalTaxAmount)}</span>
                     </div>
-                    <div className="ebill-total-row tax-subrow">
-                      <span>SGST {invoice.sgstRate ? `(${invoice.sgstRate}%)` : ''}</span>
-                      <span>{formatMoney(invoice.sgstAmount)}</span>
-                    </div>
-                  </>
-                )}
-
-                {invoice.cgstAmount == null && invoice.totalTaxAmount && Number(invoice.totalTaxAmount) > 0 && (
-                  <div className="ebill-total-row tax-subrow">
-                    <span>{invoice.taxLabel || 'Taxes'}</span>
-                    <span>{formatMoney(invoice.totalTaxAmount)}</span>
-                  </div>
+                  )
                 )}
 
                 {invoice.roundOffAmount && Number(invoice.roundOffAmount) !== 0 && (

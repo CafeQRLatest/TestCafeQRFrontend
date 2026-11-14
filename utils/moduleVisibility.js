@@ -75,6 +75,7 @@ const ROUTE_FEATURES = [
   { pattern: /^\/owner\/credit-settlements(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Settlements' },
   { pattern: /^\/owner\/credit-customers(?:\/)?$/, flag: 'creditEnabled', label: 'Credit Ledger' },
   { pattern: /^\/owner\/stock(?:-|\/|$)/, flag: 'inventoryEnabled', label: 'Stock and Inventory' },
+  { pattern: /^\/owner\/product-cost-report(?:\/)?$/, flag: 'inventoryEnabled', label: 'Stock and Inventory' },
   { pattern: /^\/owner\/purchase-reports(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Reports' },
   { pattern: /^\/owner\/purchase-orders(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },
   { pattern: /^\/owner\/purchases(?:\/)?$/, flag: 'purchaseEnabled', label: 'Purchase Orders' },

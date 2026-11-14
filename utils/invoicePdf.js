@@ -10,6 +10,7 @@ import api from './api';
 import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from './customFonts';
 import { isLoyaltyModuleEnabled } from './moduleVisibility';
 import { formatTzDate } from './timezoneUtils';
+import { buildTaxBreakdown } from './taxSplit';
 import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -341,6 +342,22 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   const taxTotal = Number(invoiceData?.totalTaxAmount || invoiceData?.total_tax_amount|| order?.totalTaxAmount|| order?.total_tax_amount|| 0);
   const discount = Number(invoiceData?.totalDiscountAmount || invoiceData?.total_discount_amount || order?.totalDiscountAmount || order?.total_discount_amount || 0);
 
+  // Tax breakdown by rate; split into the components configured in Tax Settings when enabled.
+  const taxBreakdown = buildTaxBreakdown({
+    lines,
+    totalTax: taxTotal,
+    taxRates: cfg?.taxRates,
+    splitEnabled: cfg?.taxSplitEnabled === true,
+    taxLabel: cfg?.taxLabelGlobal || 'GST',
+    decimals: dp,
+  });
+  const publicTaxSummary = order?._publicData?.taxSummary;
+  const taxSummaryLines = Array.isArray(publicTaxSummary) && publicTaxSummary.length > 0
+    ? publicTaxSummary.map(t => ({ label: t.label, amount: Number(t.amount || 0) }))
+    : taxBreakdown.summaryLines;
+  const showTaxSplitRows = taxTotal > 0.001 && taxSummaryLines.length > 0
+    && (taxBreakdown.isSplit || order?._publicData?.taxSplit === true || taxSummaryLines.length > 1);
+
   const rawGrandTotal = Number(invoiceData?.totalAmount || invoiceData?.total_amount || order?.grandTotal || order?.grand_total || 0);
   const rawTotalBeforeRound = Number(order?.totalAmount || order?.total_amount || 0);
   let roundOff = Number(invoiceData?.roundOffAmount ?? invoiceData?.round_off_amount ?? order?.roundOffAmount ?? order?.round_off_amount ?? 0);
@@ -653,7 +670,7 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   });
 
   const finalY = doc.lastAutoTable?.finalY;
-  const tableBottomY = (typeof finalY === 'number' && !isNaN(finalY)) ? finalY : y;
+  let tableBottomY = (typeof finalY === 'number' && !isNaN(finalY)) ? finalY : y;
 
   // ── Totals block ──────────────────────────────────────────────────────────────
   const bW = 86, bX = W - margin - bW;
@@ -680,7 +697,11 @@ export async function generateInvoicePdfDoc(order, configOverride = null) {
   }
 
   totalRows.push(['Subtotal', money(displaySubtotal, sym, dp)]);
-  totalRows.push(['Tax Amount', money(taxTotal, sym, dp)]);
+  if (showTaxSplitRows) {
+    for (const t of taxSummaryLines) totalRows.push([t.label, money(t.amount, sym, dp)]);
+  } else {
+    totalRows.push(['Tax Amount', money(taxTotal, sym, dp)]);
+  }
   if (Math.abs(roundOff) > 0.001) {
     const sign = roundOff > 0 ? '+' : '';
     totalRows.push(['Round Off', `${sign}${money(roundOff, sym, dp)}`]);
@@ -909,7 +930,9 @@ export async function downloadPublicInvoicePdf(dto) {
     },
     cfg: virtualConfig,
     branchData: virtualBranch,
-    clientData: virtualClient
+    clientData: virtualClient,
+    taxSummary: dto.taxSummary || null,
+    taxSplit: dto.taxSplit === true
   };
 
   return downloadInvoicePdf(virtualOrder, virtualConfig);

@@ -19,6 +19,7 @@ import { setCachedConfig } from '../../utils/moduleVisibility';
 import { isNonFoodType } from '../../utils/businessTerms';
 import WhatsAppGatewayCard from '../../components/settings/WhatsAppGatewayCard';
 import CashDrawerSettings from '../../components/settings/CashDrawerSettings';
+import { validateTaxRateComponents } from '../../utils/taxSplit';
 import { FaEye, FaEyeSlash, FaReceipt, FaPlus, FaTrashAlt, FaCheck, FaEdit, FaPercent, FaBarcode, FaTh, FaList, FaBolt, FaHistory, FaCashRegister, FaTable, FaBroom, FaSearch } from 'react-icons/fa';
 
 // No unnecessary icon imports needed - clean iconless enterprise design
@@ -425,7 +426,8 @@ function ConfigurationsContent() {
 
   // UI State for Tax feature
   const [newRate, setNewRate]     = useState('');
-  const [showAddRuleModal, setShowAddRuleModal] = useState(false);
+  const [editingPartsId, setEditingPartsId] = useState(null);
+  const [rateError, setRateError] = useState('');
   const [printConfigRaw, setPrintConfigRaw] = useState(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
@@ -606,8 +608,8 @@ function ConfigurationsContent() {
             tax_label_global: d.taxLabelGlobal || 'Tax',
             tax_rates: parsedRates,
             tax_default_id: d.taxDefaultId || (parsedRates[0]?.id || null),
-            tax_prices_include: !!d.pricesIncludeTax, 
-            tax_split_enabled: false,
+            tax_prices_include: !!d.pricesIncludeTax,
+            tax_split_enabled: !!d.taxSplitEnabled,
 
             currency_symbol: d.currencySymbol || '',
             currency_position: d.currencyPosition || 'before',
@@ -703,16 +705,106 @@ function ConfigurationsContent() {
   // Tax Array Handlers
   const addTaxRate = () => {
     const val = parseFloat(newRate);
-    if (!isNaN(val) && val >= 0) {
-      const newObj = {
-        id: `tr-${Date.now()}`,
-        name: taxName || `${config.tax_label_global} ${val}%`,
-        value: val
-      };
-      setConfig(p => ({ ...p, tax_rates: [...p.tax_rates, newObj] }));
-      setNewRate('');
-      setTaxName('');
+    if (isNaN(val) || val < 0) {
+      setRateError('Enter a rate of 0% or more.');
+      return;
     }
+    // Bills look rules up by rate %, so two rules with the same % would be ambiguous.
+    if (config.tax_rates.some(r => Math.abs(Number(r.value) - val) < 0.0001)) {
+      setRateError(`A ${val}% rate already exists.`);
+      return;
+    }
+    const newObj = {
+      id: `tr-${Date.now()}`,
+      name: taxName.trim() || `${config.tax_label_global} ${val}%`,
+      value: val
+    };
+    setConfig(p => ({
+      ...p,
+      tax_rates: [...p.tax_rates, newObj],
+      tax_default_id: p.tax_default_id || newObj.id
+    }));
+    setNewRate('');
+    setTaxName('');
+    setRateError('');
+  };
+
+  const mapRuleComponents = (rateId, fn) => {
+    setConfig(p => ({
+      ...p,
+      tax_rates: p.tax_rates.map(r => r.id === rateId
+        ? { ...r, components: fn(Array.isArray(r.components) ? r.components : [], r) }
+        : r)
+    }));
+  };
+
+  // Values stay as typed (strings) while editing; they are cleaned on Done and on save.
+  const updateTaxComponent = (rateId, index, field, value) => {
+    mapRuleComponents(rateId, (comps, rule) => comps.map((c, i) => {
+      if (i !== index) return c;
+      if (field === 'value') {
+        if (value === '' || value === '.' || value === '0.') return { ...c, value };
+        const num = Number(value);
+        if (isNaN(num) || num < 0) return c;
+        const ruleVal = Number(rule.value) || 0;
+        const otherSum = comps.reduce((s, other, oi) => oi !== index ? s + (Number(other.value) || 0) : s, 0);
+        const maxAllowed = Math.max(0, Math.round((ruleVal - otherSum) * 10000) / 10000);
+        if (num > maxAllowed) {
+          return { ...c, value: maxAllowed > 0 ? String(maxAllowed) : '' };
+        }
+        return { ...c, value };
+      }
+      return { ...c, [field]: value };
+    }));
+  };
+
+  const addBlankTaxComponent = (rateId) => {
+    mapRuleComponents(rateId, (comps, rule) => {
+      const used = comps.reduce((s, c) => s + (Number(c.value) || 0), 0);
+      const left = Math.round((Number(rule.value) - used) * 10000) / 10000;
+      if (left <= 0.0001) return comps;
+      return [...comps, { name: '', value: String(left) }];
+    });
+  };
+
+  // A split needs at least two parts, so start with the rate divided equally in two.
+  const openPartsEditor = (rule) => {
+    const comps = Array.isArray(rule.components) ? rule.components : [];
+    if (comps.length === 0) {
+      const half = String(Math.round((Number(rule.value) / 2) * 10000) / 10000);
+      mapRuleComponents(rule.id, () => [{ name: '', value: half }, { name: '', value: half }]);
+    }
+    setEditingPartsId(rule.id);
+  };
+
+  const cleanComponents = (comps) => comps
+    .filter(c => String(c.name || '').trim() !== '' || (Number(c.value) || 0) > 0)
+    .map(c => ({ ...c, name: String(c.name || '').trim(), value: Number(c.value) || 0 }));
+
+  const closePartsEditor = (rateId) => {
+    let canClose = true;
+    mapRuleComponents(rateId, (comps, rule) => {
+      const cleaned = cleanComponents(comps);
+      const sum = cleaned.reduce((s, c) => s + (Number(c.value) || 0), 0);
+      const ruleVal = Number(rule.value) || 0;
+      if (cleaned.length > 0 && Math.abs(sum - ruleVal) > 0.0001) {
+        canClose = false;
+        return comps;
+      }
+      return cleaned;
+    });
+    if (canClose) {
+      setEditingPartsId(null);
+    }
+  };
+
+  const removeTaxComponent = (rateId, index) => {
+    setConfig(p => ({
+      ...p,
+      tax_rates: p.tax_rates.map(r => r.id === rateId
+        ? { ...r, components: (r.components || []).filter((_, i) => i !== index) }
+        : r)
+    }));
   };
 
   const removeTaxRate = (id) => {
@@ -731,6 +823,14 @@ function ConfigurationsContent() {
 
   // ─── Save ──────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
+    if (config.tax_enabled) {
+      const problems = validateTaxRateComponents(config.tax_rates);
+      if (problems.length > 0) {
+        setMsgType('error');
+        setMessage(`Fix tax components before saving — ${problems.join('; ')}`);
+        return;
+      }
+    }
     setSaving(true);
     setMessage(null);
     try {
@@ -758,7 +858,7 @@ function ConfigurationsContent() {
 
         taxEnabled: config.tax_enabled,
         taxLabelGlobal: config.tax_label_global,
-        taxRates: config.tax_rates,
+        taxRates: config.tax_rates.map(r => ({ ...r, components: cleanComponents(Array.isArray(r.components) ? r.components : []) })),
         taxDefaultId: config.tax_default_id,
         pricesIncludeTax: config.tax_prices_include,
         taxSplitEnabled: config.tax_split_enabled,
@@ -1426,24 +1526,41 @@ function ConfigurationsContent() {
             </div>
           )}
 
-          {activeTab === 'tax' && (
+          {activeTab === 'tax' && (() => {
+            const label = (config.tax_label_global || '').trim() || 'Tax';
+            const Label = label.charAt(0).toUpperCase() + label.slice(1);
+            const rules = config.tax_rates || [];
+            const defaultRule = rules.find(r => r.id === config.tax_default_id) || null;
+            const rateVal = Number(defaultRule?.value) || 0;
+            const comps = (defaultRule && Array.isArray(defaultRule.components)) ? defaultRule.components.filter(c => c && c.name) : [];
+            const isInc = !!config.tax_prices_include;
+            const showSplit = !!config.tax_split_enabled && comps.length > 0;
+
+            const sym = config.currency_symbol || currencySymbol;
+            const pos = config.currency_position;
+            const money = (v) => {
+              const s = (Number(v) || 0).toFixed(currencyDecimals);
+              return pos === 'before' ? `${sym}${s}` : `${s}${sym}`;
+            };
+
+            const menuPrice = 100;
+            const taxAmt = isInc ? menuPrice - (menuPrice / (1 + rateVal / 100)) : menuPrice * (rateVal / 100);
+            const netPrice = isInc ? menuPrice - taxAmt : menuPrice;
+            const total = isInc ? menuPrice : menuPrice + taxAmt;
+            const compAmt = (c) => rateVal > 0 ? taxAmt * ((Number(c.value) || 0) / rateVal) : 0;
+
+            return (
             <div className="fade-in tax-screen-container">
               <div className="tax-grid">
-                
-                {/* Left Column: Configs and Rules */}
-                <div className="tax-main-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  
-                  {/* Card 1: Tax Configurations */}
+
+                <div className="tax-main-col">
                   <div className="form-card">
-                      {/* Banner row toggle switch */}
+                      {/* Master switch */}
                       <div className="form-row toggle-row banner-row" onClick={() => toggle('tax_enabled')}>
                         <div className="row-icon"><FaReceipt /></div>
                         <div className="row-info">
-                           <label style={{ display: 'inline-flex', alignItems: 'center' }}>
-                             Enable {config.tax_label_global} Computations
-                             <InfoTooltip id="tip_tax_enabled" text="Turn on automatic tax calculation for all incoming orders and receipt generation." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
-                           </label>
-                           <span>Activate automatic tax calculations for all generated bills</span>
+                           <label>Charge {label} on bills</label>
+                           <span>{config.tax_enabled ? `${Label} is calculated automatically on every bill.` : `Turn on to add ${label} to bills automatically.`}</span>
                         </div>
                         <div className={`toggle-switch ${config.tax_enabled ? 'on' : ''}`}>
                             <div className="toggle-thumb"></div>
@@ -1451,132 +1568,310 @@ function ConfigurationsContent() {
                       </div>
 
                       {config.tax_enabled && (
-                        <div className="nested-forms animate-slide-down" style={{ border: 'none', background: 'transparent', padding: 0, marginTop: 0 }}>
-                          
-                          {/* Tax Logic Toggles */}
-                          <div className="tax-logic-toggles" style={{ marginTop: 0, marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                              <div className="form-row toggle-row styled-toggle-card" onClick={() => toggle('tax_prices_include')}>
-                                  <div className="row-info" style={{ marginLeft: 0 }}>
-                                      <label style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '15px' }}>
-                                        Prices Include {config.tax_label_global}
-                                        <InfoTooltip id="tip_tax_prices_include" text="Inclusive pricing: Menu price already includes the tax amount. Exclusive pricing: Tax is added on top of menu price." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
-                                      </label>
-                                      <span style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>(Inclusive) Tax is back-calculated from price</span>
-                                  </div>
-                                  <div className={`toggle-switch small ${config.tax_prices_include ? 'on' : ''}`}>
-                                      <div className="toggle-thumb"></div>
-                                  </div>
+                        <div className="tax-steps animate-slide-down">
+
+                          {/* Step 1: tax name */}
+                          <div className="tax-step">
+                            <div className="tax-step-num">1</div>
+                            <div className="tax-step-body">
+                              <div className="tax-step-title">What do you call this tax?</div>
+                              <div className="tax-step-hint">This name is printed on bills and reports.</div>
+                              <div className="tax-name-row">
+                                <input
+                                  value={config.tax_label_global}
+                                  onChange={e => set('tax_label_global', e.target.value)}
+                                  className="form-input"
+                                  placeholder="e.g. GST, VAT"
+                                  style={{ maxWidth: 180 }}
+                                />
+                                {['GST', 'VAT', 'Tax'].map(n => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    className={`tax-chip ${config.tax_label_global === n ? 'active' : ''}`}
+                                    onClick={() => set('tax_label_global', n)}
+                                  >{n}</button>
+                                ))}
                               </div>
+                            </div>
                           </div>
 
-                          <div className="divider-line" style={{ margin: '12px 0' }} />
+                          {/* Step 2: default rate */}
+                          <div className="tax-step">
+                            <div className="tax-step-num">2</div>
+                            <div className="tax-step-body">
+                              <div className="tax-step-title">Your {label} rates</div>
+                              <div className="tax-step-hint">Select the default rate, used for any item that doesn&apos;t have its own rate.</div>
 
-                          {/* Global Tax Label Input */}
-                          <div className="input-group">
-                              <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '14.5px', color: '#334155' }}>
-                                  Global Tax Label
-                                  <InfoTooltip id="tip_tax_label_global" text="Set the global name for taxes (e.g., GST, VAT, Tax) displayed on all bills and reports." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
-                              </label>
-                              <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>Used on bills and reports globally (e.g. Tax, VAT, GST).</span>
-                              <div className="input-with-prefix" style={{ position: 'relative', display: 'flex', alignItems: 'center', maxWidth: '300px', width: '100%' }}>
-                                  <input 
-                                      value={config.tax_label_global} 
-                                      onChange={e => set('tax_label_global', e.target.value)} 
-                                      className="form-input" 
-                                      placeholder="e.g. Tax, VAT" 
+                              <div className="rate-list" role="radiogroup">
+                                {rules.length === 0 && (
+                                  <div className="rate-empty">No rates yet. Add your first rate below.</div>
+                                )}
+                                {rules.map(r => {
+                                  const isDefault = config.tax_default_id === r.id;
+                                  const parts = Array.isArray(r.components) ? r.components : [];
+                                  const partSum = parts.reduce((s, c) => s + (Number(c.value) || 0), 0);
+                                  const remaining = Math.round((Number(r.value) - partSum) * 10000) / 10000;
+                                  const namesOk = parts.every(c => String(c.name || '').trim() && Number(c.value) > 0);
+                                  const partsOk = parts.length === 0 || (Math.abs(remaining) < 0.0001 && namesOk);
+                                  const editing = editingPartsId === r.id;
+                                  return (
+                                    <div key={r.id} className={`rate-item ${isDefault ? 'is-default' : ''}`}>
+                                      <div className="rate-main">
+                                        <button
+                                          type="button"
+                                          role="radio"
+                                          aria-checked={isDefault}
+                                          className="rate-pick"
+                                          onClick={() => set('tax_default_id', r.id)}
+                                          title={isDefault ? 'Default rate' : 'Make this the default rate'}
+                                        >
+                                          <span className="tax-choice-dot" />
+                                          <span className="rate-pct">{r.value}%</span>
+                                          <span className="rate-name">{(r.name || '').replace(/GST|Tax/gi, label)}</span>
+                                          {isDefault && <span className="rate-default">Default</span>}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="rate-icon-btn danger"
+                                          aria-label={`Remove ${r.name || `${r.value}%`}`}
+                                          title="Remove rate"
+                                          onClick={() => removeTaxRate(r.id)}
+                                        ><FaTrashAlt /></button>
+                                      </div>
+
+                                      {config.tax_split_enabled && !editing && (
+                                        <div className="rate-parts">
+                                          {parts.length > 0 ? (
+                                            <div className="rate-parts-line">
+                                              <span className="rate-parts-lbl">Prints as</span>
+                                              {parts.map((c, ci) => (
+                                                <span key={ci} className="part-chip">{c.name || '—'} {Number(c.value) || 0}%</span>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <span className="rate-parts-lbl">Prints as one line</span>
+                                          )}
+                                          <button type="button" className="tax-link" onClick={() => openPartsEditor(r)}>
+                                            {parts.length ? 'Edit parts' : 'Split into parts'}
+                                          </button>
+                                          {!partsOk && (
+                                            <span className="part-status bad">Needs fixing</span>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {config.tax_split_enabled && editing && (
+                                        <div className="parts-editor">
+                                          <div className="parts-head">
+                                            <span>Part name</span>
+                                            <span>Rate</span>
+                                            <span />
+                                          </div>
+                                          {parts.map((c, ci) => (
+                                            <div className="parts-row" key={ci}>
+                                              <input
+                                                className="form-input"
+                                                placeholder={`Part ${ci + 1} name`}
+                                                value={c.name}
+                                                autoFocus={ci === 0 && !c.name}
+                                                onChange={e => updateTaxComponent(r.id, ci, 'name', e.target.value)}
+                                              />
+                                              <div className="pct-input">
+                                                <input
+                                                  className="form-input"
+                                                  type="number"
+                                                  min="0"
+                                                  max={Math.max(0, Math.round(((Number(r.value) || 0) - parts.reduce((s, other, oi) => oi !== ci ? s + (Number(other.value) || 0) : s, 0)) * 10000) / 10000)} step="any"
+                                                  placeholder="0"
+                                                  value={c.value}
+                                                  onChange={e => updateTaxComponent(r.id, ci, 'value', e.target.value)}
+                                                />
+                                                <span>%</span>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                className="rate-icon-btn danger"
+                                                aria-label={`Remove part ${ci + 1}`}
+                                                title="Remove part"
+                                                onClick={() => removeTaxComponent(r.id, ci)}
+                                              ><FaTrashAlt /></button>
+                                            </div>
+                                          ))}
+                                          <div className="parts-foot">
+                                            <button
+                                              type="button"
+                                              className="tax-link"
+                                              disabled={remaining <= 0.0001}
+                                              onClick={() => addBlankTaxComponent(r.id)}
+                                              style={remaining <= 0.0001 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                              title={remaining <= 0.0001 ? `No rate left to split (rule is ${r.value}%)` : 'Add another part'}
+                                            >
+                                              <FaPlus style={{ fontSize: 10, marginRight: 4 }} />Add part
+                                            </button>
+                                            {parts.length > 0 && (
+                                              <button
+                                                type="button"
+                                                className="tax-link danger"
+                                                style={{ marginLeft: 8 }}
+                                                onClick={() => mapRuleComponents(r.id, () => [])}
+                                              >
+                                                Clear parts
+                                              </button>
+                                            )}
+                                            <span className={`part-status ${partsOk && parts.length ? 'ok' : 'bad'}`}>
+                                              {parts.length === 0
+                                                ? 'No parts — prints as one line'
+                                                : partsOk
+                                                  ? <><FaCheck style={{ fontSize: 10 }} /> Total {Number(partSum.toFixed(4))}% matches {r.value}%</>
+                                                  : remaining > 0.0001
+                                                    ? `Total ${Number(partSum.toFixed(4))}% — ${remaining}% left to assign`
+                                                    : remaining < -0.0001
+                                                      ? `Total ${Number(partSum.toFixed(4))}% is more than ${r.value}%`
+                                                      : 'Give every part a name and a rate above 0%'}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              className="btn-secondary parts-done"
+                                              disabled={!partsOk}
+                                              title={!partsOk ? (remaining < -0.0001 ? `Total exceeds ${r.value}%` : `Total must match ${r.value}%`) : ''}
+                                              style={!partsOk ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                              onClick={() => closePartsEditor(r.id)}
+                                            >
+                                              Done
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                <div className="rate-add">
+                                  <div className="pct-input">
+                                    <input
+                                      className="form-input"
+                                      type="number"
+                                      min="0"
+                                      placeholder="Rate"
+                                      value={newRate}
+                                      onChange={e => { setNewRate(e.target.value); setRateError(''); }}
+                                      onKeyDown={e => { if (e.key === 'Enter') addTaxRate(); }}
+                                    />
+                                    <span>%</span>
+                                  </div>
+                                  <input
+                                    className="form-input"
+                                    placeholder={newRate ? `${label} ${newRate}%` : 'Name (optional)'}
+                                    value={taxName}
+                                    onChange={e => setTaxName(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') addTaxRate(); }}
                                   />
-                              </div>
-                          </div>
-
-                          <div className="divider-line" style={{ margin: '12px 0' }} />
-
-                          {/* Default Tax Rate Selector */}
-                          <div className="input-group">
-                              <label className="group-lbl" style={{ display: 'inline-flex', alignItems: 'center', fontWeight: '700', fontSize: '14.5px', color: '#334155' }}>
-                                  Default Tax Rule
-                                  <InfoTooltip id="tip_tax_default_id" text="Select the default tax rule applied to new products and orders." activeTooltip={activeTooltip} setActiveTooltip={setActiveTooltip} />
-                              </label>
-                              <span className="group-desc" style={{ fontSize: '13px', color: '#64748b' }}>The primary tax rule applied to transactions by default.</span>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', maxWidth: '480px', width: '100%' }}>
-                                  <div style={{ flex: '1 1 160px', minWidth: 0 }} className="small-select">
-                                      <NiceSelect
-                                          value={config.tax_default_id}
-                                          onChange={(v) => set('tax_default_id', v)}
-                                          options={config.tax_rates.map(r => ({
-                                              value: r.id,
-                                              label: `${(r.name || '').replace(/GST|Tax/gi, config.tax_label_global)} (${r.value}%)`
-                                          }))}
-                                      />
-                                  </div>
-                                  <button type="button" className="btn-secondary" onClick={() => setShowAddRuleModal(true)}>
-                                      Add / Manage Rules
+                                  <button type="button" className="btn-secondary" onClick={addTaxRate}>
+                                    <FaPlus style={{ fontSize: 11 }} /> Add rate
                                   </button>
+                                </div>
+                                {rateError && <div className="part-warn" style={{ margin: '0 14px 12px' }}>{rateError}</div>}
                               </div>
+
+                              <div className="tax-split-row" onClick={() => toggle('tax_split_enabled')}>
+                                <div>
+                                  <div className="tax-split-title">Show {label} as separate parts on bills</div>
+                                  <div className="tax-step-hint" style={{ margin: 0 }}>
+                                    For example CGST + SGST instead of one {label} line. Set the parts on each rate above.
+                                  </div>
+                                </div>
+                                <div className={`toggle-switch small ${config.tax_split_enabled ? 'on' : ''}`}>
+                                  <div className="toggle-thumb"></div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
+                          {/* Step 3: inclusive / exclusive */}
+                          <div className="tax-step last">
+                            <div className="tax-step-num">3</div>
+                            <div className="tax-step-body">
+                              <div className="tax-step-title">Do your menu prices already include {label}?</div>
+                              <div className="tax-step-hint">Example uses a {money(menuPrice)} item at {rateVal}%.</div>
+                              <div className="tax-choice-grid" role="radiogroup">
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={!isInc}
+                                  className={`tax-choice ${!isInc ? 'active' : ''}`}
+                                  onClick={() => set('tax_prices_include', false)}
+                                >
+                                  <span className="tax-choice-dot" />
+                                  <span className="tax-choice-title">No, add {label} on top</span>
+                                  <span className="tax-choice-desc">
+                                    Customer pays <b>{money(menuPrice + menuPrice * rateVal / 100)}</b>
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={isInc}
+                                  className={`tax-choice ${isInc ? 'active' : ''}`}
+                                  onClick={() => set('tax_prices_include', true)}
+                                >
+                                  <span className="tax-choice-dot" />
+                                  <span className="tax-choice-title">Yes, prices include {label}</span>
+                                  <span className="tax-choice-desc">
+                                    Customer pays <b>{money(menuPrice)}</b> ({money(menuPrice - menuPrice / (1 + rateVal / 100))} is {label})
+                                  </span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
                   </div>
                 </div>
 
-                {/* Right Column: Simulator Preview (Orange Box) */}
+                {/* Bill preview */}
                 {config.tax_enabled && (
                   <div className="tax-side-col">
-                      <div className="simulator-card orange-theme">
-                          <div className="sim-title" style={{ color: '#ea580c' }}>Real-time Simulation</div>
-                          <p className="sim-desc" style={{ color: '#c2410c' }}>See how {currencySymbol}100 is computed with your current settings.</p>
-                          
-                          {(() => {
-                             const defaultRule = config.tax_rates.find(r => r.id === config.tax_default_id) || { value: 0 };
-                             const rateVal = defaultRule.value;
-                             const isInc = config.tax_prices_include;
-                             const base = 100;
-                             let itemPrice, taxAmt, total;
+                    <div className="simulator-card">
+                      <div className="sim-title">Bill preview</div>
+                      <p className="sim-desc">How a {money(menuPrice)} menu item will appear on the bill.</p>
 
-                             if (isInc) {
-                                 total = base;
-                                 taxAmt = base - (base / (1 + rateVal/100));
-                                 itemPrice = base - taxAmt;
-                             } else {
-                                 itemPrice = base;
-                                 taxAmt = base * (rateVal/100);
-                                 total = base + taxAmt;
-                             }
-
-                             const fmt = (v) => v.toFixed(currencyDecimals);
-                             const sym = config.currency_symbol;
-                             const pos = config.currency_position;
-                             const show = (v) => pos === 'before' ? `${sym}${v}` : `${v}${sym}`;
-
-                             return (
-                               <div className="sim-content">
-                                  <div className="sim-row">
-                                      <span style={{ color: '#c2410c' }}>Item Base Price</span>
-                                      <strong style={{ color: '#ea580c' }}>{show(fmt(itemPrice))}</strong>
-                                  </div>
-                                  <div className="sim-row active">
-                                      <span style={{ color: '#ea580c' }}>{config.tax_label_global} ({rateVal}%)</span>
-                                      <strong style={{ color: '#ea580c' }}>{show(fmt(taxAmt))}</strong>
-                                  </div>
-
-                                  <div className="sim-divider" style={{ background: '#fed7aa' }} />
-                                  <div className="sim-row total">
-                                      <span style={{ color: '#ea580c' }}>Grand Total</span>
-                                      <strong style={{ color: '#ea580c' }}>{show(fmt(total))}</strong>
-                                  </div>
-                                  <div className="sim-badge" style={{ background: '#ea580c', color: 'white' }}>
-                                      {isInc ? 'INCLUSIVE PRICING' : 'EXCLUSIVE PRICING'}
-                                  </div>
-                               </div>
-                             )
-                          })()}
+                      <div className="sim-receipt">
+                        <div className="sim-row">
+                          <span>Item price{isInc ? ` (before ${label})` : ''}</span>
+                          <strong>{money(netPrice)}</strong>
+                        </div>
+                        {showSplit ? comps.map((c, i) => (
+                          <div className="sim-row" key={`${c.name}-${i}`}>
+                            <span>{c.name} ({c.value}%)</span>
+                            <strong>{money(compAmt(c))}</strong>
+                          </div>
+                        )) : (
+                          <div className="sim-row">
+                            <span>{label} ({rateVal}%)</span>
+                            <strong>{money(taxAmt)}</strong>
+                          </div>
+                        )}
+                        <div className="sim-divider" />
+                        <div className="sim-row total">
+                          <span>Customer pays</span>
+                          <strong>{money(total)}</strong>
+                        </div>
                       </div>
+
+                      <div className="sim-foot">
+                        {isInc
+                          ? `${Label} is taken out of the menu price — the customer pays exactly what's on the menu.`
+                          : `${Label} is added on top of the menu price.`}
+                      </div>
+                    </div>
                   </div>
                 )}
 
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ═══════════════════════════════════════════════════════════════════ */}
           {/* TAB: ROUND-OFF                                                    */}
@@ -1959,67 +2254,6 @@ function ConfigurationsContent() {
           )}
         </div>
 
-        {/* Tax Rule Add / Manage Modal Popup */}
-        {showAddRuleModal && (
-          <div className="modal-overlay" onClick={() => setShowAddRuleModal(false)}>
-              <div className="modal-card" onClick={e => e.stopPropagation()}>
-                  <div className="modal-header">
-                      <h3 style={{ textTransform: 'capitalize' }}>Manage {config.tax_label_global} Rules</h3>
-                      <button type="button" className="close-btn" onClick={() => setShowAddRuleModal(false)}>✕</button>
-                  </div>
-                  <div className="modal-body">
-                      {/* Add New Rule Section */}
-                      <div className="modal-section-title">Add New Rule</div>
-                      <div className="input-group">
-                          <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Rule Name</label>
-                          <input value={taxName} onChange={e => setTaxName(e.target.value)} className="form-input" placeholder={`e.g. ${config.tax_label_global} 5%`} />
-                      </div>
-                      <div className="input-group" style={{ marginTop: '4px' }}>
-                          <label className="group-lbl" style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Tax Rate (%)</label>
-                          <div className="rate-input-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                              <input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} className="form-input" placeholder="0.00" />
-                              <span className="perc-sign" style={{ position: 'absolute', right: '16px', fontWeight: '800', color: '#94a3b8', fontSize: '14px' }}>%</span>
-                          </div>
-                      </div>
-                      <button type="button" className="btn-primary" onClick={addTaxRate} style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '13.5px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: 'none' }}>
-                          Add Rule
-                      </button>
-
-                      <div className="divider-line" style={{ margin: '12px 0' }} />
-
-                      {/* Defined Rules Section */}
-                      <div className="modal-section-title">Defined Rates</div>
-                      <div className="modal-rules-list">
-                          {config.tax_rates.length === 0 ? (
-                              <div className="empty-state" style={{ padding: '16px 0', fontSize: '13px' }}>No rates defined</div>
-                          ) : (
-                              config.tax_rates.map(r => (
-                                  <div key={r.id} className="modal-rule-row">
-                                      <div className="modal-rule-info">
-                                          <span className="modal-rule-name">{(r.name || '').replace(/GST|Tax/gi, config.tax_label_global)}</span>
-                                          <span className="modal-rule-value">({r.value}%)</span>
-                                          {config.tax_default_id === r.id && (
-                                              <span className="default-badge" style={{ fontSize: '8px', padding: '2px 6px', borderRadius: '99px', background: '#f97316', color: 'white', fontWeight: 900 }}>DEFAULT</span>
-                                          )}
-                                      </div>
-                                      <button 
-                                          type="button" 
-                                          className="modal-rule-delete" 
-                                          onClick={(e) => { e.stopPropagation(); removeTaxRate(r.id); }}
-                                      >
-                                          ✕
-                                      </button>
-                                  </div>
-                              ))
-                          )}
-                      </div>
-                  </div>
-                  <div className="modal-footer" style={{ marginTop: '8px' }}>
-                      <button type="button" className="btn-secondary" onClick={() => setShowAddRuleModal(false)} style={{ width: '100%', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13.5px', cursor: 'pointer', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Close</button>
-                  </div>
-              </div>
-          </div>
-        )}
 
 
 
@@ -2709,32 +2943,122 @@ function ConfigurationsContent() {
 
         .tax-logic-toggles { display: flex; flex-direction: column; gap: 20px; margin-top: 12px; }
 
-        /* ─── SIMULATOR ─── */
-        .simulator-card { 
-            background: #fffaf5; color: #c2410c; border-radius: 24px; padding: 24px; 
-            position: sticky; top: 24px; box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.06);
-            border: 2px solid #fed7aa;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+        /* ─── TAX STEPS ─── */
+        .tax-steps { display: flex; flex-direction: column; margin-top: 20px; }
+        .tax-step { display: flex; gap: 16px; position: relative; padding-bottom: 24px; }
+        .tax-step:not(.last)::before { content: ''; position: absolute; left: 13px; top: 30px; bottom: 4px; width: 2px; background: #f1f5f9; }
+        .tax-step.last { padding-bottom: 4px; }
+        .tax-step-num {
+            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+            background: #fff5ed; color: #ea580c; border: 1.5px solid #fed7aa;
+            display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800;
         }
-        .sim-title { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; color: #ea580c; }
-        .sim-desc { font-size: 13.5px; color: #c2410c; margin-bottom: 28px; line-height: 1.5; }
-        
-        .sim-content { display: flex; flex-direction: column; gap: 16px; }
-        .sim-row { display: flex; justify-content: space-between; font-size: 14.5px; color: #c2410c; }
-        .sim-row.active { color: #ea580c; font-weight: 700; }
-        .sim-row strong { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: #ea580c; }
-        
-        .sim-split { margin-left: 14px; display: flex; flex-direction: column; gap: 8px; margin-top: -6px; }
-        .split-row { font-size: 12.5px; color: #ea580c; font-family: 'JetBrains Mono', monospace; }
-        
-        .sim-divider { height: 1px; background: #fed7aa; margin: 8px 0; }
-        .sim-row.total { font-size: 20px; color: #ea580c; padding-top: 6px; }
-        .sim-row.total strong { font-weight: 900; font-size: 22px; color: #ea580c; }
-        
-        .sim-badge { 
-            margin-top: 24px; text-align: center; font-size: 11px; font-weight: 900; 
-            letter-spacing: 0.12em; color: white; background: #ea580c; padding: 8px; border-radius: 8px; 
+        .tax-step-body { flex: 1; min-width: 0; padding-top: 3px; }
+        .tax-step-title { font-size: 15px; font-weight: 700; color: #0f172a; }
+        .tax-step-hint { font-size: 13px; color: #64748b; margin: 3px 0 12px; }
+        .tax-name-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .tax-chip {
+            padding: 9px 14px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: white;
+            font-size: 13px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.15s;
         }
+        .tax-chip:hover { border-color: #fdba74; color: #ea580c; }
+        .tax-chip.active { border-color: #f97316; background: #fff7ed; color: #ea580c; }
+        .rate-list { border: 1.5px solid #e2e8f0; border-radius: 14px; overflow: hidden; background: white; max-width: 620px; }
+        .rate-empty { padding: 14px 16px; font-size: 13px; color: #64748b; }
+        .rate-item { border-bottom: 1px solid #f1f5f9; transition: background 0.15s; }
+        .rate-item.is-default { background: #fffaf5; }
+        .rate-main { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; }
+        .rate-pick {
+            flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 8px 8px;
+            background: none; border: none; cursor: pointer; text-align: left; font-family: inherit; border-radius: 10px;
+        }
+        .rate-pick:hover { background: #f8fafc; }
+        .rate-item.is-default .rate-pick:hover { background: transparent; }
+        .rate-item.is-default .tax-choice-dot { border: 5px solid #f97316; }
+        .rate-pct { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px; color: #0f172a; min-width: 48px; }
+        .rate-name { font-size: 14px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rate-default { font-size: 11px; font-weight: 800; color: #ea580c; background: #ffedd5; padding: 3px 8px; border-radius: 99px; flex-shrink: 0; }
+        .rate-icon-btn {
+            width: 32px; height: 32px; border-radius: 8px; border: none; background: transparent; color: #94a3b8;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; font-size: 13px;
+        }
+        .rate-icon-btn.danger:hover { background: #fee2e2; color: #ef4444; }
+        .rate-parts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 0 16px 12px 46px; }
+        .rate-parts-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .rate-parts-lbl { font-size: 12.5px; color: #64748b; }
+        .part-chip {
+            display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px;
+            background: #f1f5f9; font-size: 12.5px; font-weight: 600; color: #334155;
+        }
+        .part-chip button { border: none; background: none; padding: 0; cursor: pointer; color: #94a3b8; font-size: 11px; line-height: 1; }
+        .part-chip button:hover { color: #ef4444; }
+        .part-warn { flex-basis: 100%; font-size: 12.5px; color: #b45309; }
+        .part-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; }
+        .part-status.ok { color: #15803d; }
+        .part-status.bad { color: #b45309; }
+        .parts-editor {
+            margin: 0 14px 14px 46px; padding: 12px; border-radius: 12px;
+            background: white; border: 1.5px solid #fed7aa; display: flex; flex-direction: column; gap: 8px;
+        }
+        .parts-head, .parts-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px 32px; gap: 8px; align-items: center; }
+        .parts-head span { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; padding-left: 2px; }
+        .parts-row .form-input { padding-top: 9px; padding-bottom: 9px; font-size: 14px; }
+        .parts-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 4px; border-top: 1px dashed #f1f5f9; margin-top: 2px; }
+        .parts-foot .tax-link { display: inline-flex; align-items: center; text-decoration: none; }
+        .parts-foot .part-status { flex: 1; min-width: 160px; }
+        .parts-done { padding: 7px 16px !important; }
+        @media (max-width: 560px) { .parts-editor { margin-left: 14px; } }
+        .pct-input { position: relative; }
+        .pct-input .form-input { padding-right: 28px; width: 100%; box-sizing: border-box; }
+        .pct-input span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-weight: 700; font-size: 13px; pointer-events: none; }
+        .rate-add { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; padding: 12px 14px; background: #f8fafc; }
+        .rate-add .btn-secondary, .part-add .btn-secondary { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+        @media (max-width: 560px) {
+            .rate-add { grid-template-columns: 1fr 1fr; }
+            .rate-add .btn-secondary { grid-column: 1 / -1; justify-content: center; }
+            .part-add { grid-template-columns: 1fr 90px; }
+            .part-add .btn-secondary { grid-column: 1 / -1; justify-content: center; }
+            .rate-parts { padding-left: 16px; }
+        }
+        .tax-split-row { margin-top: 14px; max-width: 620px; padding: 12px 14px; border-radius: 12px; background: #fafbfc; border: 1.5px solid #f1f5f9; }
+        .tax-split-title { font-size: 14px; font-weight: 700; color: #0f172a; }
+        .tax-choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 640px) { .tax-choice-grid { grid-template-columns: 1fr; } }
+        .tax-choice {
+            display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; row-gap: 4px; align-items: center;
+            text-align: left; padding: 14px 16px; border-radius: 14px; border: 1.5px solid #e2e8f0;
+            background: white; cursor: pointer; transition: all 0.15s; font-family: inherit;
+        }
+        .tax-choice:hover { border-color: #fdba74; }
+        .tax-choice.active { border-color: #f97316; background: #fff7ed; box-shadow: 0 0 0 3px rgba(249,115,22,0.08); }
+        .tax-choice-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #cbd5e1; background: white; box-sizing: border-box; }
+        .tax-choice.active .tax-choice-dot { border: 5px solid #f97316; }
+        .tax-choice-title { font-size: 14px; font-weight: 700; color: #0f172a; }
+        .tax-choice-desc { grid-column: 2; font-size: 13px; color: #64748b; }
+        .tax-choice-desc b { color: #0f172a; }
+        .tax-split-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; }
+        .tax-note { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 13px; color: #475569; }
+        .tax-note.warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .tax-link { background: none; border: none; padding: 0; color: #ea580c; font-weight: 700; font-size: 13px; cursor: pointer; text-decoration: underline; }
+
+        /* ─── BILL PREVIEW ─── */
+        .simulator-card {
+            background: white; border-radius: 20px; padding: 22px;
+            position: sticky; top: 24px; border: 1.5px solid #e2e8f0;
+            box-shadow: 0 10px 25px -10px rgba(15, 23, 42, 0.08);
+        }
+        .sim-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+        .sim-desc { font-size: 13px; color: #64748b; margin: 0 0 16px; line-height: 1.5; }
+        .sim-receipt {
+            background: #fafaf9; border: 1.5px dashed #e2e8f0; border-radius: 12px; padding: 16px;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .sim-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; color: #475569; }
+        .sim-row strong { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #0f172a; font-weight: 600; }
+        .sim-divider { height: 1px; background: #e2e8f0; margin: 4px 0; }
+        .sim-row.total { font-size: 16px; font-weight: 800; color: #0f172a; }
+        .sim-row.total strong { font-size: 18px; font-weight: 800; color: #ea580c; }
+        .sim-foot { margin-top: 14px; font-size: 12.5px; color: #64748b; line-height: 1.5; }
 
         .help-card { background: #fffaf5; border: 1.5px solid #fed7aa; border-radius: 20px; padding: 24px; margin-top: 24px; }
         .help-card h5 { margin: 0 0 10px; font-size: 15px; font-weight: 800; color: #9a3412; }
@@ -3542,64 +3866,6 @@ function ConfigurationsContent() {
         }
 
 
-        .modal-section-title {
-            font-size: 11px;
-            font-weight: 800;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 2px;
-        }
-        .modal-rules-list {
-            max-height: 180px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            background: #f8fafc;
-            padding: 4px;
-        }
-        .modal-rule-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 12px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .modal-rule-row:last-child {
-            border-bottom: none;
-        }
-        .modal-rule-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .modal-rule-name {
-            font-size: 13.5px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-        .modal-rule-value {
-            font-size: 12px;
-            color: #64748b;
-            font-weight: 600;
-        }
-        .modal-rule-delete {
-            background: transparent;
-            border: none;
-            color: #94a3b8;
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal-rule-delete:hover {
-            background: #fee2e2;
-            color: #ef4444;
-        }
         .styled-toggle-card {
             background: #fafbfc;
             padding: 16px 20px;

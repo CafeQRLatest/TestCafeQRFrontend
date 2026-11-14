@@ -16,6 +16,7 @@ import {
   FaSort, FaSortUp, FaSortDown, FaSearch, FaFilePdf
 } from 'react-icons/fa';
 import { exportCreditSalesReportPdf } from '../../utils/creditSalesReportPdf';
+import { splitTaxReportRows, componentColumns } from '../../utils/taxSplit';
 
 const SALES_TABS = [
   { key: 'summary', label: 'Sales Summary', icon: <FaChartBar /> },
@@ -969,29 +970,37 @@ export default function SalesReportView({
     );
   };
 
-  const renderTax = () => (
+  const renderTax = () => {
+    // Component columns (names/%) come from Tax Settings; none when split is off.
+    const rows = splitTaxReportRows(taxData, config);
+    const compNames = componentColumns(rows);
+    const compAmount = (t, n) => t.components.find(c => c.name === n)?.amount ?? 0;
+    return (
     <>
       <div className="rpt-sales-toolbar">
         <button className="rpt-sales-btn" onClick={() => exportCSV(
-          ['Tax Rate,Taxable Amount,CGST,SGST,Total Tax'],
-          taxData.map(t => `${t.taxRate}%,${t.taxableAmount},${t.cgst},${t.sgst},${t.totalTax}`),
+          [['Tax Rate', 'Taxable Amount', ...compNames, 'Total Tax'].join(',')],
+          rows.map(t => [`${t.taxRate}%`, t.taxableAmount, ...compNames.map(n => compAmount(t, n)), t.totalTax].join(',')),
           'tax_report'
         )}><FaFileCsv /> HSN CSV</button>
         <button className="rpt-sales-btn" onClick={() => handlePrint('tax')}><FaPrint /> Print</button>
       </div>
-      {taxData.length === 0 ? <div className="rpt-sales-empty">No tax data</div> : (
+      {rows.length === 0 ? <div className="rpt-sales-empty">No tax data</div> : (
         <div className="rpt-sales-tbl-wrap">
           <table className="rpt-sales-tbl">
             <thead>
-              <tr><th>Tax Slab</th><th className="r">Taxable</th><th className="r">CGST</th><th className="r">SGST</th><th className="r">Total Tax</th></tr>
+              <tr>
+                <th>Tax Slab</th><th className="r">Taxable</th>
+                {compNames.map(n => <th key={n} className="r">{n}</th>)}
+                <th className="r">Total Tax</th>
+              </tr>
             </thead>
             <tbody>
-              {taxData.map((t, i) => (
+              {rows.map((t, i) => (
                 <tr key={i}>
                   <td><span className="rpt-sales-pill">{Number(t.taxRate)}%</span></td>
                   <td className="r">{SYM}{fmt(t.taxableAmount)}</td>
-                  <td className="r">{SYM}{fmt(t.cgst)}</td>
-                  <td className="r">{SYM}{fmt(t.sgst)}</td>
+                  {compNames.map(n => <td key={n} className="r">{SYM}{fmt(compAmount(t, n))}</td>)}
                   <td className="r rpt-sales-amt">{SYM}{fmt(t.totalTax)}</td>
                 </tr>
               ))}
@@ -1000,7 +1009,8 @@ export default function SalesReportView({
         </div>
       )}
     </>
-  );
+    );
+  };
 
   const renderHourly = () => {
     const maxAmt = hourly.length ? Math.max(...hourly.map(h => Number(h.totalAmount || 0)), 1) : 1;

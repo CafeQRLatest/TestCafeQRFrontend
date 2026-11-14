@@ -5,6 +5,7 @@ const GS = "\x1d";
 import { formatTzDate } from './timezoneUtils';
 import { buildUpiUri, buildEscposQrCommands } from './upiQrGenerator';
 import { formatQty } from '../components/CounterSale/domain/quantity';
+import { buildTaxBreakdown } from './taxSplit';
 
 function b(n) {
   return String.fromCharCode(n & 0xff);
@@ -199,6 +200,8 @@ function normalizeDisplayItem(raw) {
     order_discount_share: orderShare,
     discount_amount: discount,
     tax_amount: taxAmount,
+    tax_rate: pickNumber(raw, ["taxRate", "tax_rate", "taxSnapshotRate", "tax_snapshot_rate"], 0),
+    taxable_amount: pickNumber(raw, ["taxableAmount", "taxable_amount"], 0),
     line_total: lineTotal,
     productId: pickValue(raw, ["productId", "product_id", "pid", "id"], pickValue(menu, ["id", "productId"], undefined)),
     is_packaged_good: Boolean(
@@ -916,13 +919,24 @@ export function buildReceiptText(order, bill, restaurantProfile) {
       lines.push(withMargins(kvLine("Subtotal:", fmtRate(subtotalTaxable), W), layout));
     }
     if (showGstBreakdown && oTotalTax > 0.01) {
-      if (taxLabel === 'GST') {
-        const c = Math.round((oTotalTax / 2) * 100) / 100;
-        const s = Math.round((oTotalTax / 2) * 100) / 100;
-        lines.push(withMargins(kvLine(`CGST ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(c), W), layout));
-        lines.push(withMargins(kvLine(`SGST ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(s), W), layout));
+      // Components (names/%) come from Tax Settings; split only when enabled there.
+      const rawDp = restaurantProfile?.currency_decimals;
+      const taxDp = rawDp != null && rawDp !== '' && Number.isInteger(Number(rawDp)) ? Number(rawDp) : 2;
+      const breakdown = buildTaxBreakdown({
+        lines: items,
+        totalTax: oTotalTax,
+        taxRates: restaurantProfile?.tax_rates,
+        splitEnabled: restaurantProfile?.tax_split_enabled === true || restaurantProfile?.tax_split_enabled === 'true',
+        taxLabel,
+        decimals: taxDp,
+      });
+      const inclSuffix = isInclusiveOrder ? " (incl)" : "";
+      if (breakdown.isSplit) {
+        breakdown.summaryLines.forEach((t) => {
+          lines.push(withMargins(kvLine(`${t.label}${inclSuffix}:`, fmtRate(t.amount), W), layout));
+        });
       } else {
-        lines.push(withMargins(kvLine(`${taxLabel} ${isInclusiveOrder ? "(incl)" : ""}:`, fmtRate(oTotalTax), W), layout));
+        lines.push(withMargins(kvLine(`${taxLabel}${inclSuffix}:`, fmtRate(oTotalTax), W), layout));
       }
     }
     if (hasRoundOff) {

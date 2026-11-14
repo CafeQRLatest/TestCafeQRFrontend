@@ -700,8 +700,7 @@ function AccountingContent() {
         ...accountForm,
         code: accountForm.code.trim().toUpperCase(),
         name: accountForm.name.trim(),
-        openingBalance: numberValue(accountForm.openingBalance),
-        currentBalance: numberValue(accountForm.currentBalance || accountForm.openingBalance)
+        openingBalance: numberValue(accountForm.openingBalance)
       };
       const resp = await api.post('/api/v1/accounting/accounts', payload);
       if (resp.data.success) {
@@ -730,7 +729,6 @@ function AccountingContent() {
         accountType: editAccountForm.accountType,
         accountSubType: editAccountForm.accountSubType,
         openingBalance: numberValue(editAccountForm.openingBalance),
-        currentBalance: numberValue(editAccountForm.currentBalance),
         cashAccount: editAccountForm.cashAccount,
         bankAccount: editAccountForm.bankAccount,
       };
@@ -1557,10 +1555,6 @@ function AccountingContent() {
                     <label>Starting Amount ({SYM})</label>
                     <input className="form-input" type="number" step="0.01" value={accountForm.openingBalance} onChange={e => setAccountForm({ ...accountForm, openingBalance: e.target.value, currentBalance: e.target.value })} placeholder="0.00" />
                   </div>
-                  <div className="form-group">
-                    <label>Current Amount ({SYM})</label>
-                    <input className="form-input" type="number" step="0.01" value={accountForm.currentBalance} onChange={e => setAccountForm({ ...accountForm, currentBalance: e.target.value })} placeholder="0.00" />
-                  </div>
                 </div>
                 <div className="flag-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0 0' }}>
                   <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px', textTransform: 'none', fontSize: '13px', color: '#334155' }}>
@@ -1619,7 +1613,7 @@ function AccountingContent() {
                   </div>
                   <div className="form-group">
                     <label>Current Balance ({SYM})</label>
-                    <input className="form-input" type="number" step="0.01" value={editAccountForm.currentBalance} onChange={e => setEditAccountForm({ ...editAccountForm, currentBalance: e.target.value })} placeholder="0.00" />
+                    <input className="form-input" type="number" step="0.01" value={editAccountForm.currentBalance} readOnly disabled title="Calculated from posted transactions" placeholder="0.00" />
                   </div>
                 </div>
                 <div className="flag-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0 0' }}>

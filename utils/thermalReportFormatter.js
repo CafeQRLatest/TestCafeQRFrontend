@@ -1,5 +1,6 @@
 // utils/thermalReportFormatter.js
 import { formatTzDate } from './timezoneUtils';
+import { splitTaxReportRows, formatRate } from './taxSplit';
 import { formatQty, uomPrecisionOf } from '../components/CounterSale/domain/quantity';
 
 // Helper to pad strings
@@ -207,11 +208,12 @@ export function buildThermalReportText(tabKey, data, config, timezone, dateRange
     if (!data || data.length === 0) {
       lines.push('No tax data');
     } else {
-      data.forEach(t => {
+      splitTaxReportRows(data, config).forEach(t => {
         lines.push(`Tax Slab: ${t.taxRate}%`);
         lines.push(rowTwoCols('  Taxable:', `${sym} ${formatAmount(t.taxableAmount)}`, W));
-        lines.push(rowTwoCols('  CGST:', `${sym} ${formatAmount(t.cgst)}`, W));
-        lines.push(rowTwoCols('  SGST:', `${sym} ${formatAmount(t.sgst)}`, W));
+        t.components.forEach(c => {
+          lines.push(rowTwoCols(`  ${c.name} ${formatRate(c.rate)}%:`, `${sym} ${formatAmount(c.amount)}`, W));
+        });
         lines.push(rowTwoCols('  Total Tax:', `${sym} ${formatAmount(t.totalTax)}`, W));
         lines.push(dashes);
       });

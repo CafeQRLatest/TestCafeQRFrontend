@@ -3,6 +3,7 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol';
 import { FaPrint, FaUtensils, FaReceipt, FaBarcode } from 'react-icons/fa';
 import { bitmapToPngBase64 } from '../utils/logoBitmap';
 import { UpiQrCodeSvg, buildUpiUri } from '../utils/upiQrGenerator';
+import { buildTaxBreakdown } from '../utils/taxSplit';
 
 export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
   const currencySymbol = useCurrencySymbol();
@@ -17,6 +18,22 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
   const receiptTemplate = config?.receiptTemplate || config?.thermalTemplate || {};
   const kotTemplate = config?.kotTemplate || config?.thermalTemplate || {};
   const regularTemplate = config?.regularTemplate || {};
+
+  // Sample tax lines for the preview, using the configured default rule and its split components.
+  const previewTaxRows = (sampleTax) => {
+    const label = String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase();
+    const rates = config?.tax_rates || config?.taxRates || [];
+    const defaultId = config?.tax_default_id || config?.taxDefaultId;
+    const rule = rates.find(r => r?.id === defaultId) || rates[0];
+    const rate = Number(rule?.value) > 0 ? Number(rule.value) : 5;
+    const breakdown = buildTaxBreakdown({
+      lines: [{ taxRate: rate, taxAmount: sampleTax }],
+      taxRates: rates,
+      splitEnabled: (config?.tax_split_enabled ?? config?.taxSplitEnabled) === true,
+      taxLabel: label,
+    });
+    return breakdown.isSplit ? breakdown.summaryLines : [{ label: `${label} (${rate}%)`, amount: sampleTax }];
+  };
   const receiptHeader = receiptTemplate.header ?? receiptTemplate.receiptHeader;
   const receiptFooter = receiptTemplate.footer ?? receiptTemplate.receiptFooter;
   const kotHeader = kotTemplate.header ?? kotTemplate.kotHeader;
@@ -227,30 +244,12 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                     <span>693.00</span>
                   </div>
 
-                  {receiptTemplate.showGstBreakdown !== false && (() => {
-                    const taxLabel = String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase();
-                    if (taxLabel === 'GST') {
-                      return (
-                        <>
-                          <div className="total-row">
-                            <span>CGST (2.5%):</span>
-                            <span>17.33</span>
-                          </div>
-                          <div className="total-row">
-                            <span>SGST (2.5%):</span>
-                            <span>17.33</span>
-                          </div>
-                        </>
-                      );
-                    } else {
-                      return (
-                        <div className="total-row">
-                          <span>{taxLabel} (5%):</span>
-                          <span>34.66</span>
-                        </div>
-                      );
-                    }
-                  })()}
+                  {receiptTemplate.showGstBreakdown !== false && previewTaxRows(34.66).map(t => (
+                    <div className="total-row" key={t.label}>
+                      <span>{t.label}:</span>
+                      <span>{t.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
 
                   <div className="total-row">
                     <span>Round Off:</span>
@@ -516,30 +515,12 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                         <span>-61.00</span>
                       </div>
                     )}
-                    {regularTemplate.showTax && (() => {
-                      const taxLabel = String(config?.tax_label_global || config?.taxLabelGlobal || 'GST').toUpperCase();
-                      if (taxLabel === 'GST') {
-                        return (
-                          <>
-                            <div className="regular-total-row">
-                              <span>CGST (2.5%):</span>
-                              <span>13.73</span>
-                            </div>
-                            <div className="regular-total-row">
-                              <span>SGST (2.5%):</span>
-                              <span>13.73</span>
-                            </div>
-                          </>
-                        );
-                      } else {
-                        return (
-                          <div className="regular-total-row">
-                            <span>{taxLabel} (5%):</span>
-                            <span>27.46</span>
-                          </div>
-                        );
-                      }
-                    })()}
+                    {regularTemplate.showTax && previewTaxRows(27.46).map(t => (
+                      <div className="regular-total-row" key={t.label}>
+                        <span>{t.label}:</span>
+                        <span>{t.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
                     <div className="regular-total-row grand">
                       <span>Grand Total:</span>
                       <span>{currencySymbol}576.46</span>

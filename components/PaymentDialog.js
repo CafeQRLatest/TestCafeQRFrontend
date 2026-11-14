@@ -422,7 +422,14 @@ export default function PaymentDialog({
   const loyaltyDiscount = useMemo(() => {
     if (!redemptionRules || !appliedLoyaltyPoints || appliedLoyaltyPoints <= 0) return 0;
     const pts = Math.min(appliedLoyaltyPoints, maxRedeemablePoints);
-    const ratio = (redemptionRules.discountAmount || 0) / (redemptionRules.pointsRequired || 1);
+    const pointsRequired = redemptionRules.pointsRequired || 1;
+    // Must match LoyaltyCommandService.redeemPoints: proportional when partial redemption is
+    // allowed, otherwise whole blocks only (the server rejects non-multiples).
+    if (!redemptionRules.allowPartial) {
+      const blocks = Math.floor(pts / pointsRequired);
+      return Number((blocks * (redemptionRules.discountAmount || 0)).toFixed(dp));
+    }
+    const ratio = (redemptionRules.discountAmount || 0) / pointsRequired;
     return Number((pts * ratio).toFixed(dp));
   }, [redemptionRules, appliedLoyaltyPoints, maxRedeemablePoints, dp]);
 
@@ -770,6 +777,61 @@ export default function PaymentDialog({
 
   const payable = Math.max(0, Number((grossPayable - loyaltyDiscount).toFixed(dp)));
 
+  // ─── Loyalty redemption validation (mirrors LoyaltyCommandService.redeemPoints) ───
+  const pointsValue = (pts) => {
+    if (!redemptionRules || !pts || pts <= 0) return 0;
+    const step = redemptionRules.pointsRequired || 1;
+    const rate = redemptionRules.discountAmount || 0;
+    if (!redemptionRules.allowPartial) {
+      return Number((Math.floor(pts / step) * rate).toFixed(dp));
+    }
+    return Number((pts * (rate / step)).toFixed(dp));
+  };
+
+  // Most points the bill can absorb: the discount may not exceed the amount payable.
+  const billMaxPoints = useMemo(() => {
+    if (!redemptionRules || !(redemptionRules.discountAmount > 0)) return 0;
+    const step = redemptionRules.pointsRequired || 1;
+    const rate = redemptionRules.discountAmount;
+    if (!redemptionRules.allowPartial) {
+      return Math.floor(grossPayable / rate) * step;
+    }
+    return Math.floor((grossPayable * step) / rate + 1e-9);
+  }, [redemptionRules, grossPayable]);
+
+  const usablePoints = Math.max(0, Math.min(maxRedeemablePoints, billMaxPoints));
+
+  const validateRedeemPoints = (raw) => {
+    if (!redemptionRules) return 'No active loyalty programme.';
+    const text = String(raw ?? '').trim();
+    if (text === '') return 'Enter the points to redeem.';
+    if (!/^\d+$/.test(text)) return 'Enter a whole number of points.';
+    const pts = parseInt(text, 10);
+    const step = redemptionRules.pointsRequired || 1;
+    if (pts <= 0) return 'Points must be greater than 0.';
+    if (currentPoints < (redemptionRules.minPoints || 0)) {
+      return `Minimum ${redemptionRules.minPoints} points needed to redeem. Available: ${currentPoints}.`;
+    }
+    if (pts > currentPoints) return `Only ${currentPoints} points available.`;
+    if (redemptionRules.maxPointsPerOrder && pts > redemptionRules.maxPointsPerOrder) {
+      return `Maximum ${redemptionRules.maxPointsPerOrder} points per order.`;
+    }
+    if (!redemptionRules.allowPartial && pts % step !== 0) {
+      return `Points must be in multiples of ${step}.`;
+    }
+    const value = pointsValue(pts);
+    if (value <= 0) return `Too few points for a discount (${step} pts = ${sym}${redemptionRules.discountAmount}).`;
+    if (value > grossPayable + 1e-9) {
+      return `${pts} pts = ${sym}${value.toFixed(dp)}, more than the bill (${sym}${grossPayable.toFixed(dp)}). Use at most ${usablePoints} pts.`;
+    }
+    return null;
+  };
+
+  const redeemInputError = inputPoints === '' ? null : validateRedeemPoints(inputPoints);
+  // Re-check what is already applied: the bill, method or balance may have changed since.
+  const appliedLoyaltyError = appliedLoyaltyPoints > 0 ? validateRedeemPoints(String(appliedLoyaltyPoints)) : null;
+  const loyaltyInvalid = !!appliedLoyaltyError;
+
   const isRoundOffValid = useMemo(() => {
     if (!roundOffEnabled) return true;
     if (roundOffMode === 'manual') {
@@ -942,7 +1004,7 @@ export default function PaymentDialog({
   };
 
   const submit = () => {
-    if (mixedInvalid || creditInvalid || !isRoundOffValid) return;
+    if (mixedInvalid || creditInvalid || !isRoundOffValid || loyaltyInvalid) return;
     const finalRoundOff = roundOffEnabled ? roundOff : 0;
     const finalOrder = totals ? {
       ...order,
@@ -989,7 +1051,8 @@ export default function PaymentDialog({
     );
 
     if (paymentMethod === 'LOYALTY') {
-      const netPayable = Math.max(0, Number((payable - loyaltyDiscount).toFixed(dp)));
+      // `payable` already has the loyalty discount taken off — don't subtract it twice.
+      const netPayable = payable;
       const finalMethod = netPayable > 0 ? loyaltySecondaryMethod : 'LOYALTY';
       if (activeCustomerId) {
         invalidateCustomerLoyalty(activeCustomerId);
@@ -1534,22 +1597,27 @@ export default function PaymentDialog({
                 {!loyaltyLoading && maxRedeemablePoints > 0 && redemptionRules && (
                   <div>
                     <div style={{ fontSize: '10.5px', color: '#64748b', marginBottom: '6px' }}>
-                      Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off (Max: {maxRedeemablePoints})
+                      Rate: {redemptionRules.pointsRequired} pts = {sym}{redemptionRules.discountAmount} Off
+                      {' · '}Usable now: {usablePoints} pts
+                      {!redemptionRules.allowPartial ? ` · Multiples of ${redemptionRules.pointsRequired}` : ''}
+                      {redemptionRules.maxPointsPerOrder ? ` · Max ${redemptionRules.maxPointsPerOrder}/order` : ''}
                     </div>
 
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <input
                         type="number"
                         min={0}
-                        max={maxRedeemablePoints}
+                        step={redemptionRules.allowPartial ? 1 : (redemptionRules.pointsRequired || 1)}
+                        max={usablePoints}
                         value={inputPoints}
                         onChange={(e) => setInputPoints(e.target.value)}
                         placeholder="Points..."
+                        aria-invalid={!!redeemInputError}
                         style={{
                           flex: 1,
                           height: '32px',
                           borderRadius: '6px',
-                          border: '1px solid #cbd5e1',
+                          border: redeemInputError ? '1px solid #dc2626' : '1px solid #cbd5e1',
                           background: '#ffffff',
                           fontSize: '12px',
                           fontWeight: '500',
@@ -1562,20 +1630,22 @@ export default function PaymentDialog({
 
                       <button
                         type="button"
+                        disabled={inputPoints === '' || !!redeemInputError}
                         onClick={() => {
-                          const pts = Math.min(maxRedeemablePoints, Math.max(0, parseInt(inputPoints, 10) || 0));
-                          setAppliedLoyaltyPoints(pts);
+                          // Never silently change what the cashier typed: apply only valid input.
+                          if (validateRedeemPoints(inputPoints)) return;
+                          setAppliedLoyaltyPoints(parseInt(inputPoints, 10));
                         }}
                         style={{
                           height: '32px',
                           padding: '0 12px',
                           borderRadius: '6px',
                           border: 'none',
-                          background: '#ea580c',
+                          background: (inputPoints === '' || redeemInputError) ? '#fdba74' : '#ea580c',
                           color: '#ffffff',
                           fontSize: '12px',
                           fontWeight: '600',
-                          cursor: 'pointer',
+                          cursor: (inputPoints === '' || redeemInputError) ? 'not-allowed' : 'pointer',
                           transition: 'background 0.2s ease'
                         }}
                       >
@@ -1606,7 +1676,13 @@ export default function PaymentDialog({
                       )}
                     </div>
 
-                    {appliedLoyaltyPoints > 0 && loyaltyDiscount > 0 && (
+                    {redeemInputError && (
+                      <div role="alert" style={{ fontSize: '11.5px', color: '#dc2626', marginTop: '6px' }}>
+                        {redeemInputError}
+                      </div>
+                    )}
+
+                    {appliedLoyaltyPoints > 0 && loyaltyDiscount > 0 && !appliedLoyaltyError && (
                       <div style={{
                         fontSize: '11.5px',
                         fontWeight: '600',
@@ -2041,12 +2117,15 @@ export default function PaymentDialog({
             {!isRoundOffValid && (
               <ErrorText>Manual round off must not exceed the limit of ±{sym}{roundOffManualLimit.toFixed(dp)}.</ErrorText>
             )}
+            {loyaltyInvalid && (
+              <ErrorText>Loyalty points: {appliedLoyaltyError} Change or clear the redeemed points to continue.</ErrorText>
+            )}
 
             <Actions>
               <Button type="button" $theme={theme} disabled={loading} onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="button" $theme={theme} $primary disabled={loading || mixedInvalid || creditInvalid || !isRoundOffValid} onClick={submit}>
+              <Button type="button" $theme={theme} $primary disabled={loading || mixedInvalid || creditInvalid || !isRoundOffValid || loyaltyInvalid} onClick={submit}>
                 {loading ? 'Settling...' : isCreditSelected ? <><FaBook /> Complete as Credit</> : <><FaWallet /> Settle & Finish</>}
               </Button>
             </Actions>

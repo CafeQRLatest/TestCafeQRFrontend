@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import DashboardLayout from '../../components/DashboardLayout';
 import ModuleGate from '../../components/ModuleGate';
@@ -60,17 +60,76 @@ const TXN_TYPE_CFG = {
 };
 
 function fmtSign(n) {
-  if (n > 0) return `+${n}`;
-  return `${n}`;
+  if (n > 0) return `+${fmtNum(n)}`;
+  return `${fmtNum(n)}`;
 }
 
-function formatDate(iso) {
+// Locale-neutral grouping (no hard-coded en-IN lakh grouping: shops run in IN, ZA, AE, SA).
+function fmtNum(n) {
+  if (n === null || n === undefined || n === '') return '—';
+  const num = Number(n);
+  return Number.isFinite(num) ? num.toLocaleString() : String(n);
+}
+
+function pts(n) {
+  const num = Number(n);
+  return `${fmtNum(n)} ${Math.abs(num) === 1 ? 'pt' : 'pts'}`;
+}
+
+function formatDate(iso, tz = null) {
   if (!iso) return '—';
   try {
-    return formatTzDate(iso, null);
+    return formatTzDate(iso, tz);
   } catch {
     return iso;
   }
+}
+
+// Field-level validation for the programme form. Mirrors the server rules so the owner sees
+// problems next to the field instead of a server error after pressing Save.
+function validateProgramForm(form) {
+  const errs = {};
+  const num = (v) => (v === '' || v === null || v === undefined ? NaN : Number(v));
+  const isInt = (v) => Number.isInteger(num(v));
+
+  if (!String(form.name || '').trim()) errs.name = 'Enter a programme name.';
+
+  const spend = num(form.spendAmount);
+  if (!(spend >= 0.01)) errs.spendAmount = 'Enter an amount greater than 0.';
+
+  if (!isInt(form.earnPoints) || num(form.earnPoints) < 1) errs.earnPoints = 'Enter whole points, 1 or more.';
+
+  if (!isInt(form.pointsRequired) || num(form.pointsRequired) < 1) errs.pointsRequired = 'Enter whole points, 1 or more.';
+
+  const disc = num(form.discountAmount);
+  if (!(disc >= 0.01)) errs.discountAmount = 'Enter a discount greater than 0.';
+
+  const minRaw = form.minPoints;
+  const minPts = minRaw === '' || minRaw === null || minRaw === undefined ? 0 : num(minRaw);
+  if (!Number.isInteger(minPts) || minPts < 0) errs.minPoints = 'Enter 0 or more whole points.';
+
+  const maxRaw = form.maxPointsPerOrder;
+  if (maxRaw !== '' && maxRaw !== null && maxRaw !== undefined) {
+    const maxPts = num(maxRaw);
+    if (!Number.isInteger(maxPts) || maxPts < 1) {
+      errs.maxPointsPerOrder = 'Leave blank for no limit, or enter 1 or more.';
+    } else if (!errs.minPoints && maxPts < minPts) {
+      errs.maxPointsPerOrder = `Must be at least the minimum (${minPts} pts).`;
+    } else if (!form.allowPartial && !errs.pointsRequired && maxPts < num(form.pointsRequired)) {
+      errs.maxPointsPerOrder = `Must be at least ${num(form.pointsRequired)} pts when points are used in whole blocks.`;
+    }
+  }
+
+  const prio = num(form.priority);
+  if (form.priority !== '' && form.priority !== null && form.priority !== undefined && !Number.isInteger(prio)) {
+    errs.priority = 'Enter a whole number.';
+  }
+  return errs;
+}
+
+function FieldError({ msg }) {
+  if (!msg) return null;
+  return <span className="field-hint" style={{ color: '#ef4444' }}>{msg}</span>;
 }
 
 // ─── Minimal Standard Program Card Component ─────────────────────────────────
@@ -148,7 +207,7 @@ function ProgramCard({ prog, onEdit, onToggleActive, onSetDefault }) {
 
 // ─── Program Modal Component ──────────────────────────────────────────────────
 
-function ProgramModal({ prog, onClose, onSaved }) {
+function ProgramModal({ prog, onClose, onSaved, currentDefaultName = null }) {
   const currencyDecimals = useCurrencyDecimals();
   const currencySymbol = useCurrencySymbol();
   const { userRole, orgName } = useAuth();
@@ -180,37 +239,56 @@ function ProgramModal({ prog, onClose, onSaved }) {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState(false);
+  const initialFormRef = useRef(JSON.stringify(form));
 
-  // Live calculation preview
+  const fieldErrors = useMemo(() => validateProgramForm(form), [form]);
+  const hasErrors = Object.keys(fieldErrors).length > 0;
+  const showErr = (k) => (touched || form[k] !== EMPTY_PROGRAM[k] ? fieldErrors[k] : null);
+  const moneyStep = currencyDecimals > 0 ? (1 / 10 ** currencyDecimals).toFixed(currencyDecimals) : '1';
+  const wasDefault = Boolean(prog?.isDefault ?? prog?.default ?? false);
+
+  // Plain-language example of what the rules mean for a customer
   const livePreview = useMemo(() => {
     const spend = parseFloat(form.spendAmount) || 0;
-    const earnPts = parseInt(form.earnPoints) || 0;
-    const reqPts = parseInt(form.pointsRequired) || 0;
+    const earnPts = parseInt(form.earnPoints, 10) || 0;
+    const reqPts = parseInt(form.pointsRequired, 10) || 0;
     const disc = parseFloat(form.discountAmount) || 0;
 
     if (spend <= 0 || earnPts <= 0 || reqPts <= 0 || disc <= 0) return null;
     const valuePerPoint = disc / reqPts;
-    const pointsPerRupee = earnPts / spend;
-    const returnPercent = (pointsPerRupee * valuePerPoint * 100).toFixed(1);
+    const returnPercent = ((earnPts / spend) * valuePerPoint * 100).toFixed(1);
+    // Example bill: 10x the spend step, so the customer clearly earns some points
+    const exampleSpend = spend * 10;
+    const examplePoints = earnPts * 10;
+    const exampleValue = form.allowPartial
+      ? examplePoints * valuePerPoint
+      : Math.floor(examplePoints / reqPts) * disc;
 
     return {
       returnPercent,
       valuePerPoint: valuePerPoint.toFixed(currencyDecimals),
+      exampleSpend: exampleSpend.toFixed(currencyDecimals),
+      examplePoints,
+      exampleValue: exampleValue.toFixed(currencyDecimals),
     };
-  }, [form]);
+  }, [form, currencyDecimals]);
+
+  function handleCancel() {
+    const dirty = JSON.stringify(form) !== initialFormRef.current;
+    if (!isReadOnly && dirty && !window.confirm('Discard your unsaved changes?')) return;
+    onClose();
+  }
 
   async function handleSave(e) {
     e.preventDefault();
-    if (!form.name.trim()) {
-      setError('Program name is required.');
+    setTouched(true);
+    if (hasErrors) {
+      setError('Please fix the highlighted fields.');
       return;
     }
-    if (parseFloat(form.spendAmount) <= 0 || parseInt(form.earnPoints) <= 0) {
-      setError('Earning rule values must be greater than 0.');
-      return;
-    }
-    if (parseInt(form.pointsRequired) <= 0 || parseFloat(form.discountAmount) <= 0) {
-      setError('Redemption rule values must be greater than 0.');
+    if (wasDefault && !form.isDefault
+        && !window.confirm('This programme will no longer be the default. Customers will not earn or redeem points until another programme is made default. Continue?')) {
       return;
     }
     const finalIsActive = Boolean(form.isActive);
@@ -225,13 +303,16 @@ function ProgramModal({ prog, onClose, onSaved }) {
         isActive: finalIsActive,
         isDefault: finalIsDefault,
         isClientWide: form.isClientWide,
-        priority: parseInt(form.priority) || 10,
+        priority: Number.isInteger(parseInt(form.priority, 10)) ? parseInt(form.priority, 10) : 10,
         spendAmount: parseFloat(form.spendAmount),
         earnPoints: parseInt(form.earnPoints),
         pointsRequired: parseInt(form.pointsRequired),
         discountAmount: parseFloat(form.discountAmount),
-        minPoints: parseInt(form.minPoints) || 0,
-        maxPointsPerOrder: form.maxPointsPerOrder ? parseInt(form.maxPointsPerOrder) : null,
+        minPoints: parseInt(form.minPoints, 10) || 0,
+        maxPointsPerOrder:
+          form.maxPointsPerOrder === '' || form.maxPointsPerOrder === null || form.maxPointsPerOrder === undefined
+            ? null
+            : parseInt(form.maxPointsPerOrder, 10),
         allowPartial: form.allowPartial,
       };
 
@@ -258,10 +339,10 @@ function ProgramModal({ prog, onClose, onSaved }) {
             </div>
             <div>
               <h2>{prog?.id ? 'Edit Loyalty Program' : 'Create Loyalty Program'}</h2>
-              <p className="modal-sub">Configure earning multipliers and redemption discount rules</p>
+              <p className="modal-sub">Set how customers earn points and what their points are worth</p>
             </div>
           </div>
-          <button type="button" className="close-btn" onClick={onClose}>
+          <button type="button" className="close-btn" onClick={handleCancel}>
             ✕
           </button>
         </div>
@@ -300,6 +381,7 @@ function ProgramModal({ prog, onClose, onSaved }) {
                 readOnly={isReadOnly}
                 disabled={isReadOnly}
               />
+              <FieldError msg={showErr('name')} />
             </div>
             <div className="form-group">
               <label>Description</label>
@@ -326,6 +408,12 @@ function ProgramModal({ prog, onClose, onSaved }) {
                   <div className="toggle-handle" />
                 </div>
                 {!form.isActive && <span className="field-hint" style={{ color: '#ef4444' }}>Only active programs can be default</span>}
+                {form.isActive && form.isDefault && !wasDefault && currentDefaultName && (
+                  <span className="field-hint" style={{ color: '#b45309' }}>Replaces current default: {currentDefaultName}</span>
+                )}
+                {form.isActive && form.isDefault && (
+                  <span className="field-hint">Points are earned and redeemed with the default programme.</span>
+                )}
               </div>
               <div className="form-group toggle-group">
                 <label>Active Status</label>
@@ -368,33 +456,37 @@ function ProgramModal({ prog, onClose, onSaved }) {
             <div className="rule-card-input">
               <div className="form-row">
                 <div className="form-group">
-                  <label>For Every Spend ({currencySymbol})</label>
+                  <label>For every spend of ({currencySymbol})</label>
                   <div className="input-prefix">
                     <span>{currencySymbol}</span>
                     <input
                       type="number"
-                      min="1"
+                      min={moneyStep}
+                      step={moneyStep}
                       value={form.spendAmount}
                       onChange={(e) => setForm((f) => ({ ...f, spendAmount: e.target.value }))}
                       disabled={isReadOnly}
                       readOnly={isReadOnly}
                     />
                   </div>
+                  <FieldError msg={showErr('spendAmount')} />
                 </div>
                 <div className="arrow-sep">➔</div>
                 <div className="form-group">
-                  <label>Award Points (pts)</label>
+                  <label>Customer earns (points)</label>
                   <div className="input-prefix">
                     <span>pts</span>
                     <input
                       type="number"
                       min="1"
+                      step="1"
                       value={form.earnPoints}
                       onChange={(e) => setForm((f) => ({ ...f, earnPoints: e.target.value }))}
                       disabled={isReadOnly}
                       readOnly={isReadOnly}
                     />
                   </div>
+                  <FieldError msg={showErr('earnPoints')} />
                 </div>
               </div>
             </div>
@@ -406,66 +498,105 @@ function ProgramModal({ prog, onClose, onSaved }) {
             <div className="rule-card-input">
               <div className="form-row">
                 <div className="form-group">
-                  <label>Points Required</label>
+                  <label>Every (points)</label>
                   <div className="input-prefix">
                     <span>pts</span>
                     <input
                       type="number"
                       min="1"
+                      step="1"
                       value={form.pointsRequired}
                       onChange={(e) => setForm((f) => ({ ...f, pointsRequired: e.target.value }))}
                       disabled={isReadOnly}
                       readOnly={isReadOnly}
                     />
                   </div>
+                  <FieldError msg={showErr('pointsRequired')} />
                 </div>
                 <div className="arrow-sep">➔</div>
                 <div className="form-group">
-                  <label>Discount Amount ({currencySymbol})</label>
+                  <label>are worth a discount of ({currencySymbol})</label>
                   <div className="input-prefix">
                     <span>{currencySymbol}</span>
                     <input
                       type="number"
-                      min="1"
+                      min={moneyStep}
+                      step={moneyStep}
                       value={form.discountAmount}
                       onChange={(e) => setForm((f) => ({ ...f, discountAmount: e.target.value }))}
                       disabled={isReadOnly}
                       readOnly={isReadOnly}
                     />
                   </div>
+                  <FieldError msg={showErr('discountAmount')} />
                 </div>
               </div>
 
               <div className="form-row mt-12">
                 <div className="form-group">
-                  <label>Min Points to Redeem</label>
+                  <label>Points needed before first use</label>
                   <input
                     type="number"
                     min="0"
+                    step="1"
                     value={form.minPoints}
                     onChange={(e) => setForm((f) => ({ ...f, minPoints: e.target.value }))}
                     disabled={isReadOnly}
                     readOnly={isReadOnly}
                   />
+                  {showErr('minPoints')
+                    ? <FieldError msg={showErr('minPoints')} />
+                    : <span className="field-hint">
+                        {(parseInt(form.minPoints, 10) || 0) === 0
+                          ? 'Customers can use points straight away'
+                          : `Customers need ${parseInt(form.minPoints, 10)} pts before they can use them`}
+                      </span>}
                 </div>
                 <div className="form-group">
-                  <label>Max Points / Order</label>
+                  <label>Most points usable on one bill</label>
                   <input
                     type="number"
-                    min="0"
-                    placeholder="Unlimited"
+                    min="1"
+                    step="1"
+                    placeholder="No limit"
                     value={form.maxPointsPerOrder ?? ''}
                     disabled={isReadOnly}
                     readOnly={isReadOnly}
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        maxPointsPerOrder: e.target.value ? e.target.value : null,
+                        maxPointsPerOrder: e.target.value !== '' ? e.target.value : null,
                       }))
                     }
                   />
+                  {showErr('maxPointsPerOrder')
+                    ? <FieldError msg={showErr('maxPointsPerOrder')} />
+                    : <span className="field-hint">Leave blank for no limit</span>}
                 </div>
               </div>
+
+              <div className="form-row mt-12">
+                <div className="form-group toggle-group">
+                  <label>Allow any number of points?</label>
+                  <div
+                    className={`toggle-switch ${form.allowPartial ? 'on' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                    onClick={() => {
+                      if (isReadOnly) return;
+                      setForm((f) => ({ ...f, allowPartial: !f.allowPartial }));
+                    }}
+                  >
+                    <div className="toggle-handle" />
+                  </div>
+                  <span className="field-hint">
+                    {form.allowPartial
+                      ? 'On: e.g. 150 pts can be used for a proportional discount'
+                      : `Off: points are used in blocks of ${parseInt(form.pointsRequired, 10) || '—'} only`}
+                  </span>
+                </div>
+              </div>
+              <span className="field-hint" style={{ display: 'block', marginTop: '8px' }}>
+                Points are shared across all branches: a customer can use points earned at any branch.
+              </span>
             </div>
           </div>
 
@@ -474,9 +605,9 @@ function ProgramModal({ prog, onClose, onSaved }) {
             <div className="preview-box">
               <FaInfoCircle className="preview-icon" />
               <div>
-                <strong>Calculated Reward Rate: {livePreview.returnPercent}% Value Return</strong>
+                <strong>Customers get back {livePreview.returnPercent}% of what they spend</strong>
                 <p>
-                  Spending {currencySymbol}{form.spendAmount} earns {form.earnPoints} point(s). 1 point is worth {currencySymbol}{livePreview.valuePerPoint} in discount.
+                  Example: a bill of {currencySymbol}{livePreview.exampleSpend} earns {pts(livePreview.examplePoints)}, worth {currencySymbol}{livePreview.exampleValue} off a later bill. 1 point = {currencySymbol}{livePreview.valuePerPoint}.
                 </p>
               </div>
             </div>
@@ -485,11 +616,11 @@ function ProgramModal({ prog, onClose, onSaved }) {
           {error && <div className="error-alert">{error}</div>}
 
           <div className="modal-footer">
-            <button type="button" className="btn-cancel" onClick={onClose}>
+            <button type="button" className="btn-cancel" onClick={handleCancel}>
               {isReadOnly ? 'Close' : 'Cancel'}
             </button>
             {!isReadOnly && (
-              <button type="submit" className="btn-submit" disabled={saving}>
+              <button type="submit" className="btn-submit" disabled={saving || (touched && hasErrors)}>
                 {saving ? 'Saving...' : prog?.id ? 'Update Program' : 'Create Program'}
               </button>
             )}
@@ -509,19 +640,22 @@ function ProgramsTab() {
 
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [modalProg, setModalProg] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceFresh = false) => {
     setLoading(true);
+    setLoadError('');
     try {
-      const data = await fetchLoyaltyPrograms();
+      const data = await fetchLoyaltyPrograms(forceFresh);
       setPrograms(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load loyalty programs', e);
+      setLoadError(e?.response?.data?.message || 'Could not load loyalty programmes. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -562,75 +696,18 @@ function ProgramsTab() {
 
   function handleSaved() {
     setShowModal(false);
-    load();
+    load(true);
   }
 
-  async function handleToggleActive(p) {
-    const isClientWide = Boolean(p.isClientWide ?? p.is_client_wide);
-    if (isClientWide && !isSuperAdmin) {
-      alert('Only Super Admin can activate/deactivate client-wide loyalty programs.');
-      return;
-    }
-    const currentActive = (p.isActive ?? p.active ?? false);
-    const newActive = !currentActive;
-    try {
-      const payload = {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        isActive: newActive,
-        isDefault: newActive ? Boolean(p.isDefault ?? p.default ?? false) : false,
-        isClientWide: isClientWide,
-        priority: p.priority ?? 10,
-        spendAmount: p.earnRule?.spendAmount ?? 100,
-        earnPoints: p.earnRule?.earnPoints ?? 1,
-        pointsRequired: p.redemptionRule?.pointsRequired ?? 100,
-        discountAmount: p.redemptionRule?.discountAmount ?? 10,
-        minPoints: p.redemptionRule?.minPoints ?? 0,
-        maxPointsPerOrder: p.redemptionRule?.maxPointsPerOrder ?? null,
-        allowPartial: p.redemptionRule?.allowPartial !== false,
-      };
-      await updateLoyaltyProgram(p.id, payload);
-      load();
-    } catch (e) {
-      console.error('Failed to toggle status', e);
-    }
-  }
-
-  async function handleSetDefault(p) {
-    const isClientWide = Boolean(p.isClientWide ?? p.is_client_wide);
-    if (isClientWide && !isSuperAdmin) {
-      alert('Only Super Admin can set client-wide loyalty programs as default.');
-      return;
-    }
-    const isActive = (p.isActive ?? p.active ?? true);
-    if (!isActive) {
-      alert('Cannot set an inactive program as default. Please activate it first.');
-      return;
-    }
-    try {
-      const payload = {
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        isActive: isActive,
-        isDefault: true,
-        isClientWide: Boolean(p.isClientWide ?? p.is_client_wide ?? false),
-        priority: p.priority ?? 10,
-        spendAmount: p.earnRule?.spendAmount ?? 100,
-        earnPoints: p.earnRule?.earnPoints ?? 1,
-        pointsRequired: p.redemptionRule?.pointsRequired ?? 100,
-        discountAmount: p.redemptionRule?.discountAmount ?? 10,
-        minPoints: p.redemptionRule?.minPoints ?? 0,
-        maxPointsPerOrder: p.redemptionRule?.maxPointsPerOrder ?? null,
-        allowPartial: p.redemptionRule?.allowPartial !== false,
-      };
-      await updateLoyaltyProgram(p.id, payload);
-      load();
-    } catch (e) {
-      console.error('Failed to set default', e);
-    }
-  }
+  // Name of the current default in the scope the edited programme belongs to (for the "replaces" hint)
+  const currentDefaultName = useMemo(() => {
+    const editingClientWide = Boolean(modalProg?.isClientWide ?? modalProg?.is_client_wide);
+    const d = programs.find((p) =>
+      Boolean(p.isDefault ?? p.default) &&
+      Boolean(p.isClientWide ?? p.is_client_wide) === editingClientWide &&
+      p.id !== modalProg?.id);
+    return d ? d.name : null;
+  }, [programs, modalProg]);
 
   return (
     <div className="tab-pane">
@@ -666,19 +743,42 @@ function ProgramsTab() {
 
       {loading && <div className="loading-state">Loading loyalty programs...</div>}
 
-      {!loading && filteredPrograms.length === 0 && (
+      {!loading && loadError && (
         <div className="empty-state-card">
           <div className="empty-icon-wrap">
-            <FaStar />
+            <FaTimesCircle />
           </div>
-          <h3>No Loyalty Programs Found</h3>
-          <button type="button" className="btn-primary mt-14" onClick={openCreate}>
-            <FaPlus /> Create Program
+          <h3>Couldn&apos;t load programmes</h3>
+          <p>{loadError}</p>
+          <button type="button" className="btn-primary mt-14" onClick={() => load(true)}>
+            Retry
           </button>
         </div>
       )}
 
-      {!loading && filteredPrograms.length > 0 && (
+      {!loading && !loadError && filteredPrograms.length === 0 && (
+        <div className="empty-state-card">
+          <div className="empty-icon-wrap">
+            <FaStar />
+          </div>
+          {search.trim() ? (
+            <>
+              <h3>No programmes match &quot;{search.trim()}&quot;</h3>
+              <p>Try a different name, or clear the search.</p>
+            </>
+          ) : (
+            <>
+              <h3>No Loyalty Programs Yet</h3>
+              <p>Create a programme and mark it as default so customers start earning points.</p>
+              <button type="button" className="btn-primary mt-14" onClick={openCreate}>
+                <FaPlus /> Create Program
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {!loading && !loadError && filteredPrograms.length > 0 && (
         <div className="po-table-wrap">
           <table className="po-table">
             <thead>
@@ -724,13 +824,18 @@ function ProgramsTab() {
                     </td>
                     <td>
                       <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' }}>
-                        Spend {currencySymbol}{earn?.spendAmount?.toLocaleString('en-IN') || 100} ➔ Earn {earn?.earnPoints || 1} pt
+                        {earn ? <>Spend {currencySymbol}{fmtNum(earn.spendAmount)} ➔ Earn {pts(earn.earnPoints)}</> : '—'}
                       </span>
                     </td>
                     <td>
                       <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#1e293b' }}>
-                        {redeem?.pointsRequired || 100} pts ➔ {currencySymbol}{redeem?.discountAmount?.toLocaleString('en-IN') || 10}
+                        {redeem ? <>{pts(redeem.pointsRequired)} ➔ {currencySymbol}{fmtNum(redeem.discountAmount)} off</> : '—'}
                       </span>
+                      {redeem && redeem.allowPartial === false && (
+                        <span style={{ fontSize: '10.5px', color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px' }}>
+                          Whole blocks
+                        </span>
+                      )}
                       {redeem?.minPoints > 0 && (
                         <span style={{ fontSize: '10.5px', color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', marginLeft: '6px' }}>
                           Min {redeem.minPoints} pts
@@ -848,7 +953,12 @@ function ProgramsTab() {
       )}
 
       {showModal && (
-        <ProgramModal prog={modalProg} onClose={() => setShowModal(false)} onSaved={handleSaved} />
+        <ProgramModal
+          prog={modalProg}
+          currentDefaultName={currentDefaultName}
+          onClose={() => setShowModal(false)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );
@@ -856,8 +966,21 @@ function ProgramsTab() {
 
 // ─── Customer Loyalty History Tab View ────────────────────────────────────────
 
+const TXN_PAGE_SIZE = 100;
+
 function CustomerLoyaltyTab() {
   const currencySymbol = useCurrencySymbol();
+  const { timezone } = useAuth();
+  const fmtDate = useCallback((iso) => formatDate(iso, timezone), [timezone]);
+  const [shopConfig, setShopConfig] = useState(null);
+  const [accountError, setAccountError] = useState('');
+  const [customersError, setCustomersError] = useState('');
+  const [docError, setDocError] = useState('');
+  const [txnServerPage, setTxnServerPage] = useState(0);
+  const [txnHasMore, setTxnHasMore] = useState(false);
+  const [txnTotal, setTxnTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestSeq = useRef(0);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
@@ -874,6 +997,7 @@ function CustomerLoyaltyTab() {
   const handleOpenDoc = useCallback(async (orderId, pointsRedeemed = null) => {
     if (!orderId) return;
     setDocLoading(true);
+    setDocError('');
     try {
       const res = await api.get(`/api/v1/orders/${orderId}`);
       const ord = res.data?.data || res.data;
@@ -885,6 +1009,7 @@ function CustomerLoyaltyTab() {
       }
     } catch (e) {
       console.error('Failed to fetch order document:', e);
+      setDocError(e?.response?.data?.message || 'Could not open this order. Please try again.');
     } finally {
       setDocLoading(false);
     }
@@ -892,34 +1017,80 @@ function CustomerLoyaltyTab() {
 
   const loadAccountAndTxns = useCallback(async (cid) => {
     if (!cid) return;
+    // Ignore responses for a customer the user has since moved away from
+    const seq = ++requestSeq.current;
     setAccountLoading(true);
     setTxnLoading(true);
     setAccount(null);
+    setAccountError('');
     setTransactions([]);
+    setTxnServerPage(0);
+    setTxnHasMore(false);
+    setTxnTotal(0);
     try {
-      const acc = await fetchCustomerLoyalty(cid, true);
+      const [acc, txns] = await Promise.all([
+        fetchCustomerLoyalty(cid, true),
+        fetchCustomerTransactions(cid, 0, TXN_PAGE_SIZE),
+      ]);
+      if (seq !== requestSeq.current) return;
       setAccount(acc);
-      const txns = await fetchCustomerTransactions(cid, 0, 100);
       setTransactions(txns?.content || []);
+      setTxnHasMore(txns ? txns.last === false : false);
+      setTxnTotal(txns?.totalElements ?? (txns?.content?.length || 0));
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       console.error(e);
       setAccount(null);
       setTransactions([]);
+      setAccountError(e?.response?.data?.message || 'Could not load this customer\'s points. Please try again.');
     } finally {
-      setAccountLoading(false);
-      setTxnLoading(false);
+      if (seq === requestSeq.current) {
+        setAccountLoading(false);
+        setTxnLoading(false);
+      }
     }
+  }, []);
+
+  const loadOlderTxns = useCallback(async () => {
+    if (!selectedCustomerId || !txnHasMore) return;
+    const seq = requestSeq.current;
+    const nextPage = txnServerPage + 1;
+    setLoadingMore(true);
+    try {
+      const txns = await fetchCustomerTransactions(selectedCustomerId, nextPage, TXN_PAGE_SIZE);
+      if (seq !== requestSeq.current) return;
+      setTransactions((prev) => [...prev, ...(txns?.content || [])]);
+      setTxnServerPage(nextPage);
+      setTxnHasMore(txns ? txns.last === false : false);
+    } catch (e) {
+      console.error(e);
+      setAccountError(e?.response?.data?.message || 'Could not load older history. Please try again.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [selectedCustomerId, txnHasMore, txnServerPage]);
+
+  // Shop configuration (tax display + timezone) for the order popup
+  useEffect(() => {
+    api.get('/api/v1/configurations')
+      .then((res) => setShopConfig(res.data?.data || {}))
+      .catch(() => setShopConfig(null));
   }, []);
 
   // Load customer directory for quick selection
   useEffect(() => {
     setLoadingCustomers(true);
+    setCustomersError('');
     api
       .get('/api/v1/purchasing/customers')
       .then((res) => {
         const list = res.data?.data || res.data || [];
         const arr = Array.isArray(list) ? list : [];
         setCustomers(arr);
+      })
+      .catch((e) => {
+        console.error('Failed to load customers', e);
+        setCustomersError(e?.response?.data?.message || 'Could not load customers. Refresh the page to try again.');
       })
       .finally(() => setLoadingCustomers(false));
   }, []);
@@ -960,7 +1131,9 @@ function CustomerLoyaltyTab() {
               { id: 'ALL', label: 'All' },
               { id: 'EARN', label: 'Earned' },
               { id: 'REDEEM', label: 'Redeemed' },
-              { id: 'REVERSAL', label: 'Reversal' }
+              { id: 'REVERSAL', label: 'Reversal' },
+              { id: 'ADJUSTMENT', label: 'Adjustment' },
+              { id: 'EXPIRE', label: 'Expired' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -997,6 +1170,16 @@ function CustomerLoyaltyTab() {
             onChange={(e) => {
               setCustomerSearch(e.target.value);
               setShowDropdown(true);
+              // Typing a new search drops the previously shown customer so old data isn't mistaken for the new one
+              if (selectedCustomerId) {
+                requestSeq.current += 1;
+                setSelectedCustomerId(null);
+                setAccount(null);
+                setAccountError('');
+                setTransactions([]);
+                setAccountLoading(false);
+                setTxnLoading(false);
+              }
             }}
           />
           {customerSearch && (
@@ -1004,10 +1187,14 @@ function CustomerLoyaltyTab() {
               type="button"
               className="compact-clear-btn"
               onClick={() => {
+                requestSeq.current += 1;
                 setCustomerSearch('');
                 setSelectedCustomerId(null);
                 setAccount(null);
+                setAccountError('');
                 setTransactions([]);
+                setAccountLoading(false);
+                setTxnLoading(false);
                 setShowDropdown(false);
               }}
             >
@@ -1020,6 +1207,8 @@ function CustomerLoyaltyTab() {
             <div className="compact-autocomplete-dropdown">
               {loadingCustomers ? (
                 <div className="dropdown-item muted">Loading customers...</div>
+              ) : customersError ? (
+                <div className="dropdown-item muted" style={{ color: '#dc2626' }}>{customersError}</div>
               ) : filteredCustomerList.length === 0 ? (
                 <div className="dropdown-item muted">No matching customer found</div>
               ) : (
@@ -1048,6 +1237,14 @@ function CustomerLoyaltyTab() {
         <div className="loading-state">Loading transactions...</div>
       )}
 
+      {docLoading && <div className="loading-state">Opening order...</div>}
+      {docError && (
+        <div className="error-alert" style={{ marginBottom: '12px' }}>
+          {docError}{' '}
+          <button type="button" className="compact-clear-btn" onClick={() => setDocError('')}>×</button>
+        </div>
+      )}
+
       {!selectedCustomerId && !accountLoading && (
         <div className="empty-state-card">
           <div className="empty-icon-wrap">
@@ -1058,13 +1255,26 @@ function CustomerLoyaltyTab() {
         </div>
       )}
 
-      {selectedCustomerId && !accountLoading && !account && (
+      {selectedCustomerId && !accountLoading && accountError && (
+        <div className="empty-state-card">
+          <div className="empty-icon-wrap">
+            <FaTimesCircle />
+          </div>
+          <h3>Couldn&apos;t load points</h3>
+          <p>{accountError}</p>
+          <button type="button" className="btn-primary mt-14" onClick={() => loadAccountAndTxns(selectedCustomerId)}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {selectedCustomerId && !accountLoading && !accountError && !account && (
         <div className="empty-state-card">
           <div className="empty-icon-wrap">
             <FaTimesCircle />
           </div>
           <h3>No Loyalty Account Created Yet</h3>
-          <p>This customer does not have any loyalty points balance recorded yet.</p>
+          <p>This customer hasn&apos;t earned any points yet. Points are added automatically when they pay for a sale with their details attached.</p>
         </div>
       )}
 
@@ -1078,9 +1288,11 @@ function CustomerLoyaltyTab() {
               </div>
               <div>
                 <div className="strip-name">{account.customerName || 'Customer'}</div>
-                {account.customerPhone && (
+                {(account.customerPhone || account.programName) && (
                   <div className="strip-sub">
-                    <span>{account.customerPhone}</span>
+                    {account.customerPhone && <span>{account.customerPhone}</span>}
+                    {account.customerPhone && account.programName && <span> · </span>}
+                    {account.programName && <span>Programme: {account.programName}</span>}
                   </div>
                 )}
               </div>
@@ -1089,15 +1301,15 @@ function CustomerLoyaltyTab() {
             <div className="strip-stats">
               <div className="strip-stat-box highlight">
                 <span className="strip-lbl">AVAILABLE BALANCE</span>
-                <span className="strip-val">{account.currentPoints?.toLocaleString('en-IN')} pts</span>
+                <span className="strip-val">{pts(account.currentPoints ?? 0)}</span>
               </div>
               <div className="strip-stat-box">
                 <span className="strip-lbl">LIFETIME EARNED</span>
-                <span className="strip-val positive">+{account.lifetimeEarned?.toLocaleString('en-IN')} pts</span>
+                <span className="strip-val positive">+{pts(account.lifetimeEarned ?? 0)}</span>
               </div>
               <div className="strip-stat-box">
                 <span className="strip-lbl">LIFETIME REDEEMED</span>
-                <span className="strip-val muted">-{account.lifetimeRedeemed?.toLocaleString('en-IN')} pts</span>
+                <span className="strip-val muted">-{pts(account.lifetimeRedeemed ?? 0)}</span>
               </div>
             </div>
           </div>
@@ -1105,7 +1317,11 @@ function CustomerLoyaltyTab() {
           {/* PO History-Style Table */}
           <div className="po-table-wrap">
             {filteredTransactions.length === 0 ? (
-              <div className="empty-ledger">No transactions found for filter &quot;{filterType}&quot;.</div>
+              <div className="empty-ledger">
+                {filterType === 'ALL'
+                  ? 'No points activity yet for this customer.'
+                  : `No ${(TXN_TYPE_CFG[filterType]?.label || filterType).toLowerCase()} entries${txnHasMore ? ' in the loaded history' : ''}.`}
+              </div>
             ) : (
               <>
                 <table className="po-table">
@@ -1114,6 +1330,7 @@ function CustomerLoyaltyTab() {
                       <th>DATE & TIME</th>
                       <th>DOCUMENT NO</th>
                       <th>PROGRAM</th>
+                      <th>BRANCH</th>
                       <th>TYPE</th>
                       <th>POINTS</th>
                       <th>BALANCE AFTER</th>
@@ -1123,9 +1340,13 @@ function CustomerLoyaltyTab() {
                   <tbody>
                     {paginatedTransactions.map((t) => {
                       const cfg = TXN_TYPE_CFG[t.transactionType] || TXN_TYPE_CFG.ADJUSTMENT;
+                      // Reversals/adjustments can go either way: colour by the actual sign
+                      const amountColor = (t.transactionType === 'REVERSAL' || t.transactionType === 'ADJUSTMENT')
+                        ? (t.points >= 0 ? '#059669' : '#dc2626')
+                        : cfg.color;
                       return (
                         <tr key={t.id} className="po-row">
-                          <td className="date-cell">{formatDate(t.createdAt)}</td>
+                          <td className="date-cell">{fmtDate(t.createdAt)}</td>
                           <td>
                             {t.orderId ? (
                               <span
@@ -1145,6 +1366,11 @@ function CustomerLoyaltyTab() {
                             </span>
                           </td>
                           <td>
+                            <span style={{ fontSize: '12px', color: t.branchName ? '#475569' : '#94a3b8' }}>
+                              {t.branchName || '—'}
+                            </span>
+                          </td>
+                          <td>
                             <span
                               className="status-badge-po"
                               style={{
@@ -1156,10 +1382,10 @@ function CustomerLoyaltyTab() {
                               {cfg.label}
                             </span>
                           </td>
-                          <td className="points-cell" style={{ color: cfg.color }}>
-                            {fmtSign(t.points)} pts
+                          <td className="points-cell" style={{ color: amountColor }}>
+                            {fmtSign(t.points)} {Math.abs(t.points) === 1 ? 'pt' : 'pts'}
                           </td>
-                          <td className="balance-cell">{t.balanceAfter?.toLocaleString('en-IN')} pts</td>
+                          <td className="balance-cell">{pts(t.balanceAfter ?? 0)}</td>
                           <td className="remarks-cell">{t.remarks || '—'}</td>
                         </tr>
                       );
@@ -1200,7 +1426,9 @@ function CustomerLoyaltyTab() {
                       ← Previous
                     </button>
                     <span style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>
-                      Page {currentPage} of {totalPages} &nbsp;·&nbsp; {filteredTransactions.length} total
+                      Page {currentPage} of {totalPages} &nbsp;·&nbsp; {filterType === 'ALL'
+                        ? `${fmtNum(txnTotal || filteredTransactions.length)} total`
+                        : `${fmtNum(filteredTransactions.length)} shown`}
                     </span>
                     <button
                       type="button"
@@ -1224,6 +1452,25 @@ function CustomerLoyaltyTab() {
                     >
                       Next →
                     </button>
+                    {txnHasMore && currentPage >= totalPages && (
+                      <button
+                        type="button"
+                        onClick={loadOlderTxns}
+                        disabled={loadingMore}
+                        style={{
+                          padding: '8px 18px',
+                          borderRadius: '10px',
+                          border: '1px solid #e2e8f0',
+                          background: 'white',
+                          fontWeight: '700',
+                          fontSize: '13px',
+                          color: '#f97316',
+                          cursor: loadingMore ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {loadingMore ? 'Loading...' : 'Load older history'}
+                      </button>
+                    )}
                   </div>
                 )}
               </>
@@ -1238,9 +1485,9 @@ function CustomerLoyaltyTab() {
           docType={viewingDoc.type}
           vendors={[]}
           warehouses={[]}
-          timezone="Asia/Kolkata"
+          timezone={timezone || shopConfig?.timezone || undefined}
           currencySymbol={currencySymbol}
-          formatTzDate={formatDate}
+          formatTzDate={(val, tz) => formatDate(val, tz || timezone)}
           onClose={() => setViewingDoc(null)}
           onViewLinked={(order, type) => setViewingDoc({ order, type })}
           STATUS_CFG={{
@@ -1250,7 +1497,7 @@ function CustomerLoyaltyTab() {
             PAID:      { label: 'Paid',      color: '#059669', bg: '#ecfdf5', dot: '#10b981', border: '#6ee7b7' },
             CANCELLED: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
           }}
-          config={null}
+          config={shopConfig}
         />
       )}
     </div>
