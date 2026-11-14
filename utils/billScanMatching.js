@@ -4,7 +4,7 @@ export const cleanStr = (val, fb = '') => String(val ?? fb).trim();
 export const normalizeKey = (val) => cleanStr(val).toLowerCase().replace(/[^a-z0-9]/g, '');
 
 export const isIngredientProduct = (p) =>
-  p?.isIngredient === true || String(p?.productType).toUpperCase() === 'INGREDIENT';
+  p?.isIngredient === true;
 
 // Pack size, weight, volume and count tokens ("300g", "1l", "x20", "72p"). Different sizes are different SKUs.
 const SIZE_UNIT_ALIASES = [

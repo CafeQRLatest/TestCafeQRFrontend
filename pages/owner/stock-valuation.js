@@ -161,9 +161,7 @@ function ValuationContent() {
           p.isIngredient === true ||
           p.is_ingredient === true ||
           String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
-          String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
-          String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
-          String(p.categoryName || '').toLowerCase().includes('ingredient')
+          String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE'
         ) : false;
 
         valuationMap.set(key, {
@@ -202,9 +200,7 @@ function ValuationContent() {
       p.isIngredient === true ||
       p.is_ingredient === true ||
       String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'Y' ||
-      String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE' ||
-      String(p.type || p.productType || '').toUpperCase() === 'INGREDIENT' ||
-      String(p.categoryName || '').toLowerCase().includes('ingredient')
+      String(p.isIngredient || p.is_ingredient || '').trim().toUpperCase() === 'TRUE'
     );
 
     allValuationItems.push({

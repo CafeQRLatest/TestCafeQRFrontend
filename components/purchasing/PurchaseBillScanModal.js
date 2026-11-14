@@ -148,7 +148,7 @@ export default function PurchaseBillScanModal({
     return [
       { value: '__NEW__', label: '+ Treat as New Item' },
       ...products.map(p => {
-        const isIng = p.isIngredient === true || String(p.productType).toUpperCase() === 'INGREDIENT';
+        const isIng = isIngredientProduct(p);
         return {
           value: String(p.id),
           label: `${p.name} [${isIng ? 'Ingredient' : 'Product'}]`
@@ -391,7 +391,7 @@ export default function PurchaseBillScanModal({
       const prod = products.find(p => String(p.id) === String(newProductId));
       if (!prod) return l;
 
-      const isIng = prod.isIngredient === true || String(prod.productType).toUpperCase() === 'INGREDIENT';
+      const isIng = isIngredientProduct(prod);
       return {
         ...l,
         productId: String(prod.id),
@@ -519,7 +519,8 @@ export default function PurchaseBillScanModal({
           price: line.isIngredient ? 0 : (parseFloat(line.unitPrice) || 0),
           costPrice: parseFloat(line.unitPrice) || 0,
           isIngredient: Boolean(line.isIngredient),
-          productType: line.isIngredient ? 'INGREDIENT' : 'PRODUCT',
+          // Ingredient status is carried by isIngredient only; productType is a food type (VEG, NON_VEG, EGG)
+          productType: 'VEG',
           taxRate: parseFloat(line.taxRate) || 0,
           isActive: true,
           isAvailable: true,
@@ -697,7 +698,7 @@ export default function PurchaseBillScanModal({
         isReceived: true,
         paymentStatus: 'PAID',
         paymentMethod: 'CASH',
-        reference: invoiceNumber || 'AI-SCANNED-BILL',
+        reference: invoiceNumber || undefined,
         description: `Scanned from bill: ${invoiceNumber || detectedSupplierName || 'Supplier Bill'}`,
         lines: poLines,
         totalAmount: calculatedTotals.subtotal,
