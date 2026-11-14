@@ -18,6 +18,9 @@ const isExemptRoute = (pathname) => {
   if (pathname.startsWith('/api/')) return true;
   if (pathname.startsWith('/menu/')) return true;
   if (pathname === '/menu/[clientId]/[orgId]/[tableId]') return true;
+  if (pathname.startsWith('/invoice/')) return true;
+  if (pathname === '/invoice/[orderId]') return true;
+  if (pathname.startsWith('/bill/')) return true;
   return false;
 };
 

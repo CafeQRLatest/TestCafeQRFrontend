@@ -14,13 +14,34 @@ const PUBLIC_ROUTE_PREFIXES = [
   '/verify-email',
   '/subscription',
   '/menu',
+  '/invoice',
+  '/bill',
   '/qr',
   '/public',
   '/customer-menu',
 ];
 
+const CUSTOMER_ROUTE_PREFIXES = [
+  '/invoice',
+  '/bill',
+  '/menu',
+  '/customer-menu',
+  '/public',
+  '/qr',
+];
+
 const isPublicRoute = (pathname = '') => {
   return PUBLIC_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+};
+
+const isCustomerRoute = (pathname = '') => {
+  return CUSTOMER_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+};
+
+const getActivePath = (router) => {
+  if (router?.pathname && router.pathname !== '') return router.pathname;
+  if (typeof window !== 'undefined' && window.location?.pathname) return window.location.pathname;
+  return '';
 };
 
 export default function PwaLifecycle() {
@@ -36,16 +57,24 @@ export default function PwaLifecycle() {
       return undefined;
     }
 
+    const currentPath = getActivePath(router);
+
     const handleBeforeInstallPrompt = (event) => {
+      // Always prevent default to suppress native browser ambient install banner
       event.preventDefault();
-      setInstallPrompt(event);
+      // Only offer CafeQR PWA installation for staff/owners, never for customer-facing views (bills, menu)
+      const pathNow = getActivePath(router);
+      if (!isCustomerRoute(pathNow) && !isPublicRoute(pathNow)) {
+        setInstallPrompt(event);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     if ('serviceWorker' in navigator) {
       const isNativeApp = Boolean(window?.Capacitor?.isNativePlatform?.() || window?.Capacitor?.isNative || window?.cordova);
-      const shouldRegister = !isNativeApp && (
+      const isCustomer = isCustomerRoute(currentPath);
+      const shouldRegister = !isNativeApp && !isCustomer && (
         process.env.NODE_ENV === 'production' || window.location.search.includes('sw=1')
       );
 
@@ -137,7 +166,8 @@ export default function PwaLifecycle() {
     window.location.reload();
   };
 
-  if ((!installPrompt && !updateReady) || dismissed) {
+  const currentPath = getActivePath(router);
+  if (isCustomerRoute(currentPath) || (!installPrompt && !updateReady) || dismissed) {
     return null;
   }
 
