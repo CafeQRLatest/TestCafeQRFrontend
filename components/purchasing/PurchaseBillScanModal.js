@@ -9,9 +9,15 @@ import {
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
 import PremiumDateTimePicker from '../PremiumDateTimePicker';
+import {
+  cleanStr,
+  normalizeKey,
+  isIngredientProduct,
+  matchBillItem,
+  toLocalInputValue,
+  parseBillDate,
+} from '../../utils/billScanMatching';
 
-const cleanStr = (val, fb = '') => String(val ?? fb).trim();
-const normalizeKey = (val) => cleanStr(val).toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const trimPriceSuffix = (name) => {
   if (!name || typeof name !== 'string') return '';
@@ -82,7 +88,7 @@ export default function PurchaseBillScanModal({
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 16));
+  const [purchaseDate, setPurchaseDate] = useState(() => toLocalInputValue(new Date()));
   const [detectedSupplierName, setDetectedSupplierName] = useState('');
   const [rawBillTotals, setRawBillTotals] = useState({ subtotal: 0, taxTotal: 0, grandTotal: 0 });
 
@@ -178,60 +184,8 @@ export default function PurchaseBillScanModal({
     }
   };
 
-  // Branch catalog matching helper
-  const matchWithBranch = (extractedItem, productsList) => {
-    const fullName = cleanStr(extractedItem.name || extractedItem.rawName);
-    const billNameKey = normalizeKey(fullName);
-    const catalogCandidateKey = normalizeKey(extractedItem.matchedCatalogItem);
-
-    // 1. Check if AI matched exact catalog candidate
-    if (catalogCandidateKey) {
-      const direct = productsList.find(p => normalizeKey(p.name) === catalogCandidateKey);
-      if (direct) {
-        const isIng = direct.isIngredient === true || String(direct.productType).toUpperCase() === 'INGREDIENT';
-        return { matchedProduct: direct, isIngredient: isIng, confidence: 'HIGH' };
-      }
-    }
-
-    // 2. Exact name match
-    const exact = productsList.find(p => normalizeKey(p.name) === billNameKey);
-    if (exact) {
-      const isIng = exact.isIngredient === true || String(exact.productType).toUpperCase() === 'INGREDIENT';
-      return { matchedProduct: exact, isIngredient: isIng, confidence: 'HIGH' };
-    }
-
-    // 3. Substring / Token overlap match (require strong similarity to avoid overriding multi-word SKU with single generic word)
-    const tokens = fullName.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    let bestMatch = null;
-    let bestScore = 0;
-
-    for (const p of productsList) {
-      const pNameKey = normalizeKey(p.name);
-      if (pNameKey && billNameKey.includes(pNameKey) && pNameKey.length >= 6) {
-        const isIng = p.isIngredient === true || String(p.productType).toUpperCase() === 'INGREDIENT';
-        return { matchedProduct: p, isIngredient: isIng, confidence: 'MEDIUM' };
-      }
-
-      const pTokens = p.name.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-      const overlap = tokens.filter(t => pTokens.some(pt => pt === t || (pt.length > 4 && t.includes(pt))));
-      if (overlap.length > bestScore) {
-        bestScore = overlap.length;
-        bestMatch = p;
-      }
-    }
-
-    if (bestMatch && bestScore >= 2) {
-      const isIng = bestMatch.isIngredient === true || String(bestMatch.productType).toUpperCase() === 'INGREDIENT';
-      return { matchedProduct: bestMatch, isIngredient: isIng, confidence: 'MEDIUM' };
-    }
-
-    // 4. Default: New item, infer ingredient from AI guess
-    return {
-      matchedProduct: null,
-      isIngredient: Boolean(extractedItem.isIngredientLikely),
-      confidence: 'NEW'
-    };
-  };
+  // Branch catalog matching (rules live in utils/billScanMatching)
+  const matchWithBranch = matchBillItem;
 
   // Trigger AI Scan
   const startScan = async () => {
@@ -249,7 +203,9 @@ export default function PurchaseBillScanModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image: base64Data
+          image: base64Data,
+          // Branch product names, so the AI can point at an existing item instead of guessing
+          catalog: products.map(p => cleanStr(p?.name)).filter(Boolean).slice(0, 400),
         })
       });
 
@@ -277,12 +233,10 @@ export default function PurchaseBillScanModal({
       // Invoice # & Date
       if (data.invoiceNumber) setInvoiceNumber(data.invoiceNumber);
       if (data.invoiceDate) {
-        try {
-          const parsedD = new Date(data.invoiceDate);
-          if (!isNaN(parsedD.getTime())) {
-            setPurchaseDate(parsedD.toISOString().slice(0, 16));
-          }
-        } catch { /* use current */ }
+        const parsedD = parseBillDate(data.invoiceDate);
+        if (parsedD) {
+          setPurchaseDate(toLocalInputValue(parsedD));
+        }
       }
 
       setRawBillTotals({
@@ -331,17 +285,36 @@ export default function PurchaseBillScanModal({
     setBillItems(prev => prev.map((l, i) => i === idx ? { ...l, selected: !l.selected } : l));
   };
 
+  // Typing a name re-checks the catalog on every change: a name that matches an existing product maps to it
+  // (including typing back the original name), otherwise the line becomes a new item.
   const handleUpdateItemName = (idx, newName) => {
     setBillItems(prev => prev.map((l, i) => {
       if (i !== idx) return l;
-      const wasMapped = l.productId && l.productId !== '__NEW__';
-      const isSameAsMapped = wasMapped && products.some(p => String(p.id) === String(l.productId) && p.name === newName);
+      const key = normalizeKey(newName);
+      const match = key ? products.find(p => normalizeKey(p?.name) === key) : null;
+      if (match) {
+        const sameProduct = String(match.id) === String(l.productId);
+        return {
+          ...l,
+          productName: newName,
+          billName: newName,
+          productId: String(match.id),
+          isIngredient: sameProduct ? l.isIngredient : isIngredientProduct(match),
+          unitOfMeasure: match.uomName || l.unitOfMeasure,
+          uomPrecision: match.uomPrecision ?? l.uomPrecision ?? null,
+          confidence: sameProduct ? l.confidence : 'MANUAL',
+          oldCostPrice: match.costPrice || 0,
+          currentStock: warehouseStock[match.id] ?? '—',
+        };
+      }
       return {
         ...l,
         productName: newName,
         billName: newName,
-        productId: (wasMapped && !isSameAsMapped) ? '__NEW__' : l.productId,
-        confidence: (wasMapped && !isSameAsMapped) ? 'NEW' : l.confidence,
+        productId: '__NEW__',
+        confidence: 'NEW',
+        oldCostPrice: 0,
+        currentStock: '—',
       };
     }));
   };
@@ -442,14 +415,30 @@ export default function PurchaseBillScanModal({
 
   // Helper to ensure any __NEW__ items are auto-created in database and have real UUIDs
   const ensureProductsExist = async (linesToEnsure) => {
-    const newLines = linesToEnsure.filter(l => l.productId === '__NEW__' || !l.productId);
+    const lineNameKey = (line) => normalizeKey(cleanStr(line.productName || line.billName || 'Purchase Item'));
+    const existingByKey = new Map();
+    for (const p of products) {
+      const key = normalizeKey(p?.name);
+      if (key && !existingByKey.has(key)) existingByKey.set(key, p);
+    }
+
+    // A "new" line whose name already exists in the catalog maps to that product instead of creating another
+    const preMatched = linesToEnsure.map(line => {
+      if (line.productId && line.productId !== '__NEW__') return line;
+      const existing = existingByKey.get(lineNameKey(line));
+      return existing
+        ? { ...line, productId: String(existing.id), productName: existing.name, confidence: 'HIGH' }
+        : line;
+    });
+
+    const newLines = preMatched.filter(l => l.productId === '__NEW__' || !l.productId);
     if (newLines.length === 0) {
-      return linesToEnsure;
+      return preMatched;
     }
 
     setScanProgressText(`Provisioning ${newLines.length} new items in catalog...`);
 
-    // Deduplicate by normalized name
+    // One create request per distinct name
     const uniqueMap = new Map();
     for (const line of newLines) {
       const name = cleanStr(line.productName || line.billName || 'Purchase Item');
@@ -468,33 +457,39 @@ export default function PurchaseBillScanModal({
       }
     }
 
-    const payload = Array.from(uniqueMap.values());
+    const keys = Array.from(uniqueMap.keys());
+    const payload = keys.map(k => uniqueMap.get(k));
     const res = await api.post('/api/v1/products/bulk', payload);
     const createdList = res.data?.data || [];
 
-    const createdMap = new Map();
+    // The server returns one product per row, in order: newly created, or the existing product with that name
+    const resolvedByKey = new Map();
+    if (createdList.length === payload.length) {
+      keys.forEach((k, i) => {
+        if (createdList[i]?.id) resolvedByKey.set(k, createdList[i]);
+      });
+    }
     for (const prod of createdList) {
-      if (prod && prod.id) {
-        createdMap.set(normalizeKey(prod.name), prod);
-      }
+      const k = normalizeKey(prod?.name);
+      if (prod?.id && k && !resolvedByKey.has(k)) resolvedByKey.set(k, prod);
     }
 
     if (onProductsCreated && createdList.length > 0) {
       onProductsCreated(createdList);
     }
 
-    return linesToEnsure.map(line => {
+    const knownIds = new Set(products.map(p => String(p.id)));
+    return preMatched.map(line => {
       if (line.productId !== '__NEW__' && line.productId) {
         return line;
       }
-      const key = normalizeKey(line.productName || line.billName || '');
-      const matched = createdMap.get(key);
+      const matched = resolvedByKey.get(lineNameKey(line));
       if (matched) {
         return {
           ...line,
           productId: String(matched.id),
           productName: matched.name,
-          confidence: 'NEW_CREATED',
+          confidence: knownIds.has(String(matched.id)) ? 'HIGH' : 'NEW_CREATED',
         };
       }
       return line;

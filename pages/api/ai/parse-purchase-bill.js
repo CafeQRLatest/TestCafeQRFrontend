@@ -42,7 +42,40 @@ const BILL_SCHEMA = {
   required: ["items"],
 };
 
-function buildPrompt() {
+// Branch product names sent by the scanner. Capped and cleaned so the prompt stays small.
+function sanitizeCatalog(catalog) {
+  if (!Array.isArray(catalog)) return [];
+  const seen = new Set();
+  const names = [];
+  for (const raw of catalog) {
+    const name = String(raw ?? "").replace(/[\r\n\t"`]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+    if (names.length >= 400) break;
+  }
+  return names;
+}
+
+function buildCatalogSection(catalogNames) {
+  if (!catalogNames.length) {
+    return `
+Catalog matching:
+- No branch catalog was provided. Always return "matchedCatalogItem" as "".
+`;
+  }
+  return `
+Catalog matching:
+The branch already stocks the products listed below (one per line). For each bill line, set "matchedCatalogItem" to the EXACT text of the catalog product only when it is the SAME item: same brand, same product, same size/weight/volume and same pack count. If the size or pack count differs, or you are not sure, return "".
+Never invent a catalog name and never pick a catalog item just because it shares a generic word.
+<catalog>
+${catalogNames.join("\n")}
+</catalog>
+`;
+}
+
+function buildPrompt(catalogNames = []) {
   return `
 You are an expert procurement and accounting AI specializing in restaurant, cafe, and grocery purchase bills, supplier invoices, delivery challans, and cash memos.
 The image provided may be a printed tax invoice, a cash receipt, or a HANDWRITTEN supplier chit/bill. Decipher handwriting, cursive writing, abbreviations, brand names, and regional terms accurately.
@@ -64,7 +97,7 @@ Tasks:
    - "quantity": Number purchased. On wholesale invoices with both "Qty CB" (Carton Box) and "Qty NO" (Packets/Pieces), use "Qty NO" if it represents the billed individual units/packets, otherwise use the billed quantity. If unreadable, default to 1.
    - "unitOfMeasure": Standard unit (e.g. PCS, PKT, BOX, KG, G, LTR, ML, CAN, BOTTLE, TIN, UNIT). For packaged biscuits/snacks, use "pcs" or "pkt".
    - "unitPrice": Cost price / rate per unit. If only the line total is given, calculate unitPrice = lineTotal / quantity.
-   - "taxRate": Tax / GST rate percentage. For Indian GST invoices with CGST and SGST columns (e.g. CGST 2.5% + SGST 2.5%), add them together to get the total tax percentage (e.g. 5.0).
+   - "taxRate": Total tax rate percentage for the line (GST, VAT or sales tax, whatever the bill shows). When the tax is split into parts (e.g. Indian CGST 2.5% + SGST 2.5%), add the parts together (e.g. 5.0). If the bill shows no tax for the line, return 0.
    - "taxAmount": Total tax on this line.
    - "lineTotal": Total payable for this line item (Net Value / Total after discounts and taxes).
    - "isIngredientLikely": Set to TRUE if this is a raw cooking material, food ingredient, vegetable, dairy, oil, meat, grain, spice, bakery raw material, or packaging item used to prepare cafe dishes. Set to FALSE if it is a pre-packaged finished good for direct retail resale (e.g., packaged biscuits, snacks, canned soda, bottled beverage, prepackaged chips).
@@ -74,7 +107,8 @@ Important Rules:
 - Extract EVERY line item in the table from top to bottom. Do NOT omit or stop after a few items. If the invoice has 23 items, extract all 23 items!
 - Strictly maintain 1:1 row alignment: the commodity name in row N must correspond to the quantity, rate, tax, and line total of row N. NEVER mix up rows.
 - Discard header rows, phone numbers, bank details, or footer notes from the items list.
-- For prices in Indian format (₹, Rs., /-, INR), strip currency symbols and return plain numbers.
+- Strip currency symbols and codes (e.g. ₹, Rs., /-, INR, R, ZAR, AED, SAR, $, €) and thousands separators from all amounts and return plain numbers. Keep every decimal digit printed on the bill.
+${buildCatalogSection(catalogNames)}
 - Return only structured JSON matching the schema.
 `;
 }
@@ -303,10 +337,11 @@ function normalizeBillResult(raw) {
         rawName: rawName || name || 'Purchase Item',
         quantity: Math.round(quantity * 1000) / 1000,
         unitOfMeasure: normalizeUom(item?.unitOfMeasure),
-        unitPrice: Math.round(unitPrice * 100) / 100,
+        // Keep 4 decimals: unit prices derived from totals need them, and some currencies use 3 decimals
+        unitPrice: Math.round(unitPrice * 10000) / 10000,
         taxRate: Math.round(taxRate * 100) / 100,
-        taxAmount: Math.round(taxAmount * 100) / 100,
-        lineTotal: Math.round(lineTotal * 100) / 100,
+        taxAmount: Math.round(taxAmount * 10000) / 10000,
+        lineTotal: Math.round(lineTotal * 10000) / 10000,
         isIngredientLikely: Boolean(item?.isIngredientLikely),
         matchedCatalogItem: cleanString(item?.matchedCatalogItem),
       };
@@ -441,7 +476,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const prompt = buildPrompt();
+    const prompt = buildPrompt(sanitizeCatalog(catalog));
 
     const models = getModels();
     let lastError = null;
