@@ -125,9 +125,11 @@ describe('orderCalculations.js - Authoritative Order Calculation Engine', () => 
     ];
     const res = calculateOrderTotals(items, { type: 'amount', value: 20 }, profile);
 
-    // Symmetric allocation: both line totals — inclusive=108.00, exclusive=108.01 due to
-    // backend rounding semantic (round taxable first, then multiply rate).
-    expect(res.grand_total).toBe(216.01);
+    // Symmetric allocation: both lines get 10.00 off and total 108.00. The discounted exclusive
+    // line derives tax from its face total so 236 - 20 = 216.00 exactly (no 1-cent drift).
+    expect(res.grand_total).toBe(216);
+    expect(res.processed_items[0].line_total).toBe(108);
+    expect(res.processed_items[0].tax_amount).toBe(16.47);
     expect(res.processed_items[0].allocated_order_discount).toBe(8.47);
     expect(res.processed_items[1].allocated_order_discount).toBe(8.47);
   });

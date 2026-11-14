@@ -64,6 +64,18 @@ function roundMoney(value, dp) {
   return Number(Number(value || 0).toFixed(dp));
 }
 
+/**
+ * HALF_UP rounding (away from zero) matching Java BigDecimal RoundingMode.HALF_UP.
+ * toFixed() works on the binary float, so 1.005.toFixed(2) === '1.00'; this rounds it to 1.01
+ * like the server does, keeping per-line amounts identical between POS and invoice.
+ */
+function roundHalfUp(value, dp) {
+  const n = Number(value || 0);
+  const sign = n < 0 ? -1 : 1;
+  const scaled = Number(Math.abs(n).toPrecision(15) + 'e' + dp);
+  return sign * Number(Math.round(scaled) + 'e-' + dp);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────
 // Main calculation function
 // ─────────────────────────────────────────────────────────────────────────────────
@@ -329,14 +341,12 @@ export function calculateOrderTotals(
         itemDiscFace = totalOrderDiscFace - allocatedFaceSum;
       } else if (discType === 'PERCENT') {
         // Direct per-line percentage
-        itemDiscFace = Number(
-          (item.face_after_line_discount * (discVal / 100)).toFixed(dp)
-        );
+        itemDiscFace = roundHalfUp(item.face_after_line_discount * (discVal / 100), dp);
         allocatedFaceSum += itemDiscFace;
       } else {
         // Proportional amount allocation by face eligible weight
         const shareRatio = item.face_after_line_discount / totalFaceAfterLineDiscount;
-        itemDiscFace = Number((totalOrderDiscFace * shareRatio).toFixed(dp));
+        itemDiscFace = roundHalfUp(totalOrderDiscFace * shareRatio, dp);
         allocatedFaceSum += itemDiscFace;
       }
 
@@ -376,22 +386,28 @@ export function calculateOrderTotals(
 
     let taxable, tax, total;
 
-    if (isIncl) {
-      // Inclusive: derive from the final customer-visible face total
+    // Discounts are face (customer-visible) amounts. For a discounted EXCLUSIVE line, building up
+    // from the rounded base can drift a cent from (gross face − discount face), e.g. 118 − 10 → 108.01.
+    // So discounted exclusive lines also derive taxable/tax from the final face total (mirrors Java).
+    const hasDiscount = item.line_discount_face_amount > 0 || item.order_discount_face_share > 0;
+    const deriveFromFace = isIncl || (item.tax_type_resolved === 'EXCLUSIVE' && hasDiscount);
+
+    if (deriveFromFace) {
+      // Derive from the final customer-visible face total
       const faceTotal = Math.max(
         0,
         item.face_after_line_discount - item.order_discount_face_share
       );
-      total   = Number(faceTotal.toFixed(dp));
+      total   = roundHalfUp(faceTotal, dp);
       taxable = rate > 0
-        ? Number((total / (1 + lineRate)).toFixed(dp))
+        ? roundHalfUp(total / (1 + lineRate), dp)
         : total;
-      tax     = Number((total - taxable).toFixed(dp));
+      tax     = roundHalfUp(total - taxable, dp);
     } else {
-      // Exclusive or NONE: build up from base
-      taxable = Number(finalBase.toFixed(dp));
-      tax     = Number((taxable * lineRate).toFixed(dp));
-      total   = Number((taxable + tax).toFixed(dp));
+      // Exclusive (undiscounted) or NONE: build up from base
+      taxable = roundHalfUp(finalBase, dp);
+      tax     = roundHalfUp(taxable * lineRate, dp);
+      total   = roundHalfUp(taxable + tax, dp);
     }
 
     sumTaxable  += taxable;
