@@ -4,7 +4,7 @@ import {
   FaCamera, FaUpload, FaCheck, FaTimes, FaWarehouse, FaUserTie,
   FaCalendarAlt, FaHashtag, FaRobot, FaMagic, FaExchangeAlt,
   FaPlus, FaTrash, FaCheckCircle, FaExclamationTriangle, FaSearch,
-  FaFileInvoiceDollar, FaLayerGroup, FaArrowRight, FaSpinner, FaEye
+  FaFileInvoiceDollar, FaLayerGroup, FaArrowRight, FaSpinner, FaEye, FaLock
 } from 'react-icons/fa';
 import api from '../../utils/api';
 import NiceSelect from '../NiceSelect';
@@ -299,7 +299,7 @@ export default function PurchaseBillScanModal({
           productName: newName,
           billName: newName,
           productId: String(match.id),
-          isIngredient: sameProduct ? l.isIngredient : isIngredientProduct(match),
+          isIngredient: isIngredientProduct(match),
           unitOfMeasure: match.uomName || l.unitOfMeasure,
           uomPrecision: match.uomPrecision ?? l.uomPrecision ?? null,
           confidence: sameProduct ? l.confidence : 'MANUAL',
@@ -370,8 +370,31 @@ export default function PurchaseBillScanModal({
     }));
   };
 
+  // A line mapped to an existing product takes that product's type; only new items can choose a type.
+  const isMappedLine = (l) => Boolean(l?.productId) && l.productId !== '__NEW__';
+
   const handleToggleIngredient = (idx) => {
-    setBillItems(prev => prev.map((l, i) => i === idx ? { ...l, isIngredient: !l.isIngredient } : l));
+    setBillItems(prev => prev.map((l, i) => (i === idx && !isMappedLine(l)) ? { ...l, isIngredient: !l.isIngredient } : l));
+  };
+
+  const renderTypePill = (item, idx) => {
+    const locked = isMappedLine(item);
+    const label = item.isIngredient ? 'Ingredient' : 'Product';
+    return (
+      <button
+        type="button"
+        className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}${locked ? ' locked' : ''}`}
+        onClick={() => { if (!locked) handleToggleIngredient(idx); }}
+        disabled={locked}
+        aria-label={locked ? `${label} (type of existing product ${item.productName || ''})` : `${label}, click to switch type`}
+        title={locked
+          ? `Uses the existing ${label.toLowerCase()} "${item.productName || ''}". To change its type, edit it in Product Management, or map this line to a different product.`
+          : 'New item: click to switch between Ingredient and Product'}
+      >
+        {locked && <FaLock style={{ fontSize: 9, marginRight: 4, verticalAlign: '-1px' }} />}
+        {label}
+      </button>
+    );
   };
 
   const handleDeleteLine = (idx) => {
@@ -427,7 +450,7 @@ export default function PurchaseBillScanModal({
       if (line.productId && line.productId !== '__NEW__') return line;
       const existing = existingByKey.get(lineNameKey(line));
       return existing
-        ? { ...line, productId: String(existing.id), productName: existing.name, confidence: 'HIGH' }
+        ? { ...line, productId: String(existing.id), productName: existing.name, isIngredient: isIngredientProduct(existing), confidence: 'HIGH' }
         : line;
     });
 
@@ -489,6 +512,8 @@ export default function PurchaseBillScanModal({
           ...line,
           productId: String(matched.id),
           productName: matched.name,
+          // The server may return an existing product of the other type; the saved product's type wins
+          isIngredient: isIngredientProduct(matched),
           confidence: knownIds.has(String(matched.id)) ? 'HIGH' : 'NEW_CREATED',
         };
       }
@@ -860,14 +885,7 @@ export default function PurchaseBillScanModal({
                             />
                           </td>
                           <td>
-                            <button
-                              type="button"
-                              className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}`}
-                              onClick={() => handleToggleIngredient(idx)}
-                              title="Click to toggle between Ingredient and Product"
-                            >
-                              {item.isIngredient ? 'Ingredient' : 'Product'}
-                            </button>
+                            {renderTypePill(item, idx)}
                           </td>
                           <td>
                             <input
@@ -935,14 +953,7 @@ export default function PurchaseBillScanModal({
                           <span className="card-select-text">Include in Order</span>
                         </label>
                         <div className="card-top-actions">
-                          <button
-                            type="button"
-                            className={`type-pill ${item.isIngredient ? 'ingredient' : 'product'}`}
-                            onClick={() => handleToggleIngredient(idx)}
-                            title="Toggle Ingredient / Product"
-                          >
-                            {item.isIngredient ? 'Ingredient' : 'Product'}
-                          </button>
+                          {renderTypePill(item, idx)}
                           <button className="delete-row-btn" onClick={() => handleDeleteLine(idx)} title="Delete row">
                             <FaTrash />
                           </button>
@@ -1671,6 +1682,17 @@ export default function PurchaseBillScanModal({
 
         .type-pill:active {
           transform: scale(0.95);
+        }
+
+        .type-pill.locked,
+        .type-pill:disabled {
+          cursor: not-allowed;
+          opacity: 0.85;
+        }
+
+        .type-pill.locked:active,
+        .type-pill:disabled:active {
+          transform: none;
         }
 
         .type-pill.ingredient {
