@@ -10,6 +10,7 @@ import { businessTimeToUtc, getLocalISOString } from '../../../utils/timezoneUti
 import { isKitchenModuleEnabled } from '../../../utils/moduleVisibility';
 import api from '../../../utils/api';
 import { generateInvoicePdfDoc } from '../../../utils/invoicePdf';
+import { sendWhatsAppBillWithPdf } from '../../../utils/whatsappBill';
 import { autoOpenCashDrawerAfterSettle, CASH_DRAWER_TRIGGERS } from '../../../utils/cashDrawer';
 
 function createIdempotencyKey() {
@@ -221,10 +222,14 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
         orderNote
       });
 
+      // When a customer phone is known, the POS sends the WhatsApp bill itself (with the invoice PDF),
+      // so the server must not send a text-only bill first.
+      const preSettlePhone = paymentPayload?.customerPhone || primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone;
       let requestPayload = {
         ...payload,
         confirmStockWarning: Boolean(confirmStockWarning),
-        sourceLocalRef: idempotencyKey
+        sourceLocalRef: idempotencyKey,
+        ...(effectiveOrderMode === 'settle' && preSettlePhone && !knownOffline ? { deferWhatsAppDispatch: true } : {})
       };
 
       if (knownOffline && effectiveOrderMode === 'settle' && !mainOfflineDevice) {
@@ -347,20 +352,14 @@ export default function useOrderSubmission({ timezone, createOrderFn = createOrd
       // Automatically dispatch official digital e-bill via WhatsApp if settled with customer phone
       const customerPhone = paymentPayload?.customerPhone || primaryCustomer?.phone || selectedCreditCustomer?.phone || customerSelections?.[0]?.phone || savedOrder?.customerPhone;
       if (effectiveOrderMode === 'settle' && savedOrder?.id && customerPhone && !knownOffline) {
-        (async () => {
-          const formattedPhone = String(customerPhone).trim();
-          console.log('[useOrderSubmission] Order settled. Dispatching WhatsApp digital bill to:', formattedPhone, 'orderId:', savedOrder.id);
-          try {
-            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: savedOrder.id,
-              phone: formattedPhone,
-              frontendUrl: typeof window !== 'undefined' ? window.location.origin : undefined
-            });
-            console.log('[useOrderSubmission] WhatsApp digital bill dispatched successfully:', res?.data);
-          } catch (whatsAppErr) {
-            console.warn('[useOrderSubmission] Failed to dispatch WhatsApp digital bill:', whatsAppErr?.response?.data || whatsAppErr?.message || whatsAppErr);
-          }
-        })();
+        console.log('[useOrderSubmission] Order settled. Sending WhatsApp bill with invoice PDF, orderId:', savedOrder.id);
+        sendWhatsAppBillWithPdf({
+          order: printOrder,
+          orderId: savedOrder.id,
+          phone: customerPhone,
+          config,
+          logTag: 'useOrderSubmission'
+        });
       } else if (effectiveOrderMode === 'settle' && savedOrder?.id && !customerPhone) {
         console.log('[useOrderSubmission] Order settled without customer phone number. Skipping WhatsApp digital bill dispatch.');
       } else if (effectiveOrderMode === 'settle' && knownOffline) {

@@ -37,6 +37,7 @@ import {
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import NiceSelect from '../../components/NiceSelect';
 import { downloadInvoicePdf, generateInvoicePdfDoc } from '../../utils/invoicePdf';
+import { sendWhatsAppBillWithPdf } from '../../utils/whatsappBill';
 import { toDisplayItems } from '../../utils/printUtils';
 import { formatTzDate, getBusinessNow, businessTimeToUtc } from '../../utils/timezoneUtils';
 import {
@@ -824,18 +825,7 @@ export default function SalesHistoryPage() {
       const settledOrder = res?.data?.data || paymentOrder;
 
       if (settledOrder && targetPhone) {
-        try {
-          const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-          console.log('[sales-history:settle] Dispatching WhatsApp digital bill to:', targetPhone, 'orderId:', settledOrder.id || paymentOrder?.id);
-          const res = await api.post('/api/v1/whatsapp/send-order-bill', {
-            orderId: settledOrder.id || paymentOrder?.id,
-            phone: targetPhone,
-            frontendUrl: originUrl
-          });
-          console.log('[sales-history:settle] WhatsApp digital bill dispatched successfully:', res?.data);
-        } catch (waErr) {
-          console.warn('[sales-history:settle] Could not send WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
-        }
+        sendWhatsAppBillWithPdf({ order: settledOrder, orderId: settledOrder.id || paymentOrder?.id, phone: targetPhone, config, logTag: 'sales-history:settle' });
       } else {
         console.log('[sales-history:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }

@@ -51,6 +51,7 @@ import { useNotification } from '../context/NotificationContext';
 import { formatTzDate } from '../utils/timezoneUtils';
 import { subscribeLiveOrderChanges } from '../utils/liveOrderStream';
 import { downloadInvoicePdf, generateInvoicePdfDoc } from '../utils/invoicePdf';
+import { sendWhatsAppBillWithPdf } from '../utils/whatsappBill';
 import {
   isAndroidPrintStationEnabled,
   markCloudPrintJobPrinted,
@@ -1809,7 +1810,8 @@ export default function PosOrderTypeModal({
         ...settlementPayload,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
         skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
-        deferWhatsAppDispatch: true,
+        // POS sends the WhatsApp bill with the invoice PDF itself when it knows the phone
+        deferWhatsAppDispatch: !!(effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone),
         // Forward customer attachment from PaymentDialog (if cashier selected a customer)
         ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
         ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
@@ -1834,20 +1836,7 @@ export default function PosOrderTypeModal({
       // Automatically dispatch smart digital e-bill via WhatsApp
       const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
       if (phone && settledOrder?.id) {
-        (async () => {
-          try {
-            const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-            console.log('[PosOrderTypeModal:settle] Dispatching WhatsApp digital bill to:', phone, 'orderId:', settledOrder.id);
-            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: settledOrder.id,
-              phone: String(phone).trim(),
-              frontendUrl: originUrl
-            });
-            console.log('[PosOrderTypeModal:settle] WhatsApp digital bill dispatched successfully:', res?.data);
-          } catch (waErr) {
-            console.warn('[PosOrderTypeModal:settle] Could not dispatch WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
-          }
-        })();
+        sendWhatsAppBillWithPdf({ order: settledOrder, phone, config, logTag: 'PosOrderTypeModal:settle' });
       } else {
         console.log('[PosOrderTypeModal:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }

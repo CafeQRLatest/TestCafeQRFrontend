@@ -34,6 +34,7 @@ import { isNativePrintServicePaired } from '../../utils/printServiceClient';
 import { ensureOfflineSequenceLeases, isMainOfflineBillingDevice } from '../../utils/offlineSequences';
 import { normalizeOrder, normalizeOrders } from '../../utils/normalizeOrder';
 import { generateInvoicePdfDoc } from '../../utils/invoicePdf';
+import { sendWhatsAppBillWithPdf } from '../../utils/whatsappBill';
 import { completedOrderPaymentChanged, fetchLiveOrderState, isCompletedOrder, mergeLiveOrderState } from '../../utils/completedOrderRevision';
 
 const KotPrint = React.lazy(() => import('../../components/KotPrint'));
@@ -1610,23 +1611,18 @@ function SalesContent() {
       setActionBusy('settle');
       try {
         const localBillPrint = localPrintWillHandleKind('bill');
-        let pdfBase64 = null;
-        try {
-          const phone = order?.customerPhone || order?.customers?.[0]?.phone;
-          if (phone) {
-            const generated = await generateInvoicePdfDoc(order, config);
-            if (generated?.pdfBase64) pdfBase64 = generated.pdfBase64;
-          }
-        } catch (pdfErr) {
-          console.warn('[sales:auto-settle] Could not generate PDF attachment for WhatsApp:', pdfErr);
-        }
-        await api.post(`/api/v1/orders/${order.id}/settle`, {
+        const autoSettlePhone = order?.customerPhone || order?.customers?.[0]?.phone;
+        const { data: autoSettleRes } = await api.post(`/api/v1/orders/${order.id}/settle`, {
           paymentMethod: 'ONLINE',
           amountPaid: Number(order.grandTotal || order.grand_total || 0),
           ...(localBillPrint ? { skipAutoPrintKinds: ['BILL'] } : {}),
-          ...(pdfBase64 ? { pdfBase64 } : {}),
+          deferWhatsAppDispatch: !!autoSettlePhone,
         });
-        const settledOrder = { ...order, orderStatus: 'COMPLETED', paymentStatus: 'PAID' };
+        const settledOrder = { ...order, ...(autoSettleRes?.data || {}), orderStatus: 'COMPLETED', paymentStatus: 'PAID' };
+        if (autoSettlePhone) {
+          // PDF is generated after settlement so it carries the final invoice number
+          sendWhatsAppBillWithPdf({ order: settledOrder, phone: autoSettlePhone, config, logTag: 'sales:auto-settle' });
+        }
         setFloorOrders((current) => current.map((item) =>
           item.id === settledOrder.id ? { ...item, ...settledOrder } : item
         ));
@@ -1750,7 +1746,7 @@ function SalesContent() {
           roundOffAmount: 0,
           redeemPoints: payload.redeemPoints,
           loyaltyCustomerId: payload.loyaltyCustomerId,
-          deferWhatsAppDispatch: true,
+          deferWhatsAppDispatch: !!(effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone),
           ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
@@ -1758,7 +1754,7 @@ function SalesContent() {
         }
         : {
           ...payload,
-          deferWhatsAppDispatch: true,
+          deferWhatsAppDispatch: !!(effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone),
           ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
           ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
           ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
@@ -1778,20 +1774,7 @@ function SalesContent() {
       // Automatically dispatch smart digital e-bill via WhatsApp
       const phone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone || settledOrder?.customerPhone;
       if (phone && settledOrder?.id) {
-        (async () => {
-          try {
-            const originUrl = typeof window !== 'undefined' ? window.location.origin : null;
-            console.log('[sales:settle] Dispatching WhatsApp digital bill to:', phone, 'orderId:', settledOrder.id);
-            const res = await api.post('/api/v1/whatsapp/send-order-bill', {
-              orderId: settledOrder.id,
-              phone: String(phone).trim(),
-              frontendUrl: originUrl
-            });
-            console.log('[sales:settle] WhatsApp digital bill dispatched successfully:', res?.data);
-          } catch (waErr) {
-            console.warn('[sales:settle] Could not dispatch WhatsApp digital bill:', waErr?.response?.data || waErr?.message || waErr);
-          }
-        })();
+        sendWhatsAppBillWithPdf({ order: settledOrder, phone, config, logTag: 'sales:settle' });
       } else {
         console.log('[sales:settle] Order settled without customer phone number, skipping WhatsApp bill dispatch.');
       }
