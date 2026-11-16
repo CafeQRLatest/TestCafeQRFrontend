@@ -237,7 +237,7 @@ export default function PayrollDashboard({ embedded = false }) {
                 <ul style={{ margin: '0 0 8px', paddingLeft: 18 }}>
                   <li>Base pay (monthly salary, or hourly rate × worked hours)</li>
                   <li>Overtime, using the multiplier set in HR Settings</li>
-                  <li>Earnings and deductions from each employee's salary rules</li>
+                  <li>Earnings and deductions from each employee&apos;s salary rules</li>
                   <li>Advance installments and unpaid leave</li>
                 </ul>
                 <p style={{ margin: 0 }}>Amounts use the default currency from Currency Master.</p>
