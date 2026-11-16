@@ -9,6 +9,15 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  transpilePackages: [
+    '@capacitor/core',
+    '@capacitor/android',
+    '@capacitor/push-notifications',
+    '@capawesome/capacitor-app-update',
+    '@capawesome/capacitor-app-review',
+    'jwt-decode',
+    'axios',
+  ],
   ...(isStaticExport
     ? {
         output: 'export',

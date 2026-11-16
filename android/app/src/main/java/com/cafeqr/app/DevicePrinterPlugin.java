@@ -43,6 +43,16 @@ public class DevicePrinterPlugin extends Plugin {
   private static final Object BT_LOCK = new Object();
   private String pendingPermCallbackId = null;
 
+  private int getPendingIntentFlags(boolean mutable) {
+    int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      return flags | (mutable ? PendingIntent.FLAG_MUTABLE : PendingIntent.FLAG_IMMUTABLE);
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !mutable) {
+      return flags | PendingIntent.FLAG_IMMUTABLE;
+    }
+    return flags;
+  }
+
   private boolean hasBluetoothConnectPermission() {
     return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
         || ContextCompat.checkSelfPermission(getContext(), Manifest.permission.BLUETOOTH_CONNECT)
@@ -148,7 +158,7 @@ public class DevicePrinterPlugin extends Plugin {
           for (int j=0;j<intf.getEndpointCount();j++) {
             UsbEndpoint ep = intf.getEndpoint(j);
             if (ep.getDirection() == UsbConstants.USB_DIR_OUT) {
-              PendingIntent pi = PendingIntent.getBroadcast(getContext(), 0, new Intent("USB_PERMISSION"), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+              PendingIntent pi = PendingIntent.getBroadcast(getContext(), 0, new Intent("USB_PERMISSION"), getPendingIntentFlags(true));
               if (!mgr.hasPermission(dev)) { mgr.requestPermission(dev, pi); }
               UsbDeviceConnection conn = mgr.openDevice(dev);
               conn.claimInterface(intf, true);
@@ -467,7 +477,7 @@ public class DevicePrinterPlugin extends Plugin {
     if (mgr == null) return false;
     for (UsbDevice dev : mgr.getDeviceList().values()) {
       if (!mgr.hasPermission(dev)) {
-        PendingIntent pi = PendingIntent.getBroadcast(ctx, 0, new Intent("USB_PERMISSION"), PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pi = PendingIntent.getBroadcast(ctx, 0, new Intent("USB_PERMISSION"), getPendingIntentFlags(false));
         mgr.requestPermission(dev, pi);
         continue;
       }

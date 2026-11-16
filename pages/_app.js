@@ -1,3 +1,4 @@
+import '../utils/polyfills';
 import "@/styles/globals.css";
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -17,6 +18,9 @@ export default function App({ Component, pageProps }) {
   const router = useRouter();
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.__CAFEQR_MOUNTED = true;
+    }
     console.log('[App Router] Current route:', router.pathname, 'query:', router.query);
     const handleRouteStart = (url) => console.log('[App Router] Navigation starting to:', url);
     const handleRouteComplete = (url) => console.log('[App Router] Navigation completed to:', url);

@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.content.IntentSender;
 import android.os.Bundle;
 import android.util.Log;
+import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 import com.google.android.play.core.appupdate.AppUpdateInfo;
@@ -12,6 +13,7 @@ import com.google.android.play.core.appupdate.AppUpdateManagerFactory;
 import com.google.android.play.core.install.model.AppUpdateType;
 import com.google.android.play.core.install.model.UpdateAvailability;
 import com.google.android.gms.tasks.Task;
+import com.google.android.gms.security.ProviderInstaller;
 
 public class MainActivity extends BridgeActivity {
   private static final String TAG = "MainActivity";
@@ -23,8 +25,34 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(DevicePrinterPlugin.class);
     super.onCreate(savedInstanceState);
 
-    appUpdateManager = AppUpdateManagerFactory.create(this);
-    checkForAppUpdate();
+    // Enable remote debugging over USB for inspection on any Android device via chrome://inspect
+    try {
+      WebView.setWebContentsDebuggingEnabled(true);
+    } catch (Exception ignored) {}
+
+    // Update Security Provider on Android 5.0 - 7.1 to support modern TLS 1.2 / TLS 1.3
+    try {
+      ProviderInstaller.installIfNeededAsync(this, new ProviderInstaller.ProviderInstallListener() {
+        @Override
+        public void onProviderInstalled() {
+          Log.i(TAG, "Security provider successfully initialized for modern TLS ciphers.");
+        }
+
+        @Override
+        public void onProviderInstallFailed(int errorCode, Intent recoveryIntent) {
+          Log.w(TAG, "Security provider update failed (code: " + errorCode + "). Relying on embedded root CA.");
+        }
+      });
+    } catch (Exception e) {
+      Log.w(TAG, "ProviderInstaller unavailable: " + e.getMessage());
+    }
+
+    try {
+      appUpdateManager = AppUpdateManagerFactory.create(this);
+      checkForAppUpdate();
+    } catch (Exception e) {
+      Log.w(TAG, "AppUpdateManager initialization skipped: " + e.getMessage());
+    }
   }
 
   @Override

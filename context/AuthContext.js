@@ -644,7 +644,7 @@ export const AuthProvider = ({ children }) => {
       loading 
     }}>
       {loading ? (
-        <div style={{ display: 'flex', minHeight: '100dvh', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#f97316', fontFamily: 'sans-serif' }}>
+        <div style={{ display: 'flex', minHeight: '100vh', height: '100%', alignItems: 'center', justifyContent: 'center', background: '#0f172a', color: '#f97316', fontFamily: 'sans-serif' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '32px', height: '32px', border: '3px solid #334155', borderTopColor: '#f97316', borderRadius: '50%' }} />
             <span style={{ fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>Loading CafeQR...</span>
