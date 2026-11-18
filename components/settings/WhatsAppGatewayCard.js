@@ -10,7 +10,8 @@ import {
   FaShieldAlt, 
   FaSpinner, 
   FaExclamationTriangle,
-  FaFileInvoiceDollar
+  FaFileInvoiceDollar,
+  FaRedo
 } from 'react-icons/fa';
 import axios from 'axios';
 import api, { getApiUrl } from '../../utils/api';
@@ -59,6 +60,17 @@ export default function WhatsAppGatewayCard({
     return key ? { 'X-Founder-Key': key } : {};
   };
 
+  // Keep ref synchronized with current QR to prevent race conditions during polling
+  const qrCodeUrlRef = useRef(qrCodeUrl);
+  useEffect(() => {
+    qrCodeUrlRef.current = qrCodeUrl;
+  }, [qrCodeUrl]);
+
+  const gatewayStatusRef = useRef(gatewayStatus);
+  useEffect(() => {
+    gatewayStatusRef.current = gatewayStatus;
+  }, [gatewayStatus]);
+
   const fetchStatus = async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -83,8 +95,12 @@ export default function WhatsAppGatewayCard({
       if (st === 'CONNECTED') {
         setQrCodeUrl(null);
       } else if (st === 'SCAN_QR' || st === 'CONNECTING' || data.hasQr) {
-        // Only fetch QR if gateway indicates an active pairing QR is waiting
-        await fetchQr();
+        // CRITICAL FIX: Only fetch QR if we do not already hold an active QR code on screen!
+        // Re-fetching QR every 4 seconds cycles the ephemeral pairing token on WAHA,
+        // which instantly invalidates the phone scan handshake with "Couldn't link device".
+        if (!qrCodeUrlRef.current) {
+          await fetchQr();
+        }
       }
     } catch (err) {
       setGatewayStatus('DISCONNECTED');
@@ -122,11 +138,6 @@ export default function WhatsAppGatewayCard({
     }
   };
 
-  const gatewayStatusRef = useRef(gatewayStatus);
-  useEffect(() => {
-    gatewayStatusRef.current = gatewayStatus;
-  }, [gatewayStatus]);
-
   useEffect(() => {
     let alive = true;
     let timerId = null;
@@ -139,10 +150,9 @@ export default function WhatsAppGatewayCard({
       }
       if (!alive) return;
       const currentSt = gatewayStatusRef.current;
-      // Fast poll (4s) ONLY when user is scanning QR or connecting.
-      // Otherwise slow heartbeat (25s) when connected or idle to prevent server flooding.
+      // Heartbeat: 6s when scanning/connecting (status check only, no QR re-request), 25s when connected
       const nextDelay = isVisible 
-        ? ((currentSt === 'SCAN_QR' || currentSt === 'CONNECTING') ? 4000 : 25000)
+        ? ((currentSt === 'SCAN_QR' || currentSt === 'CONNECTING') ? 6000 : 25000)
         : 30000;
       timerId = setTimeout(poll, nextDelay);
     };
@@ -162,6 +172,64 @@ export default function WhatsAppGatewayCard({
     }
     setLoading(true);
     setFeedbackMsg({ text: '', type: '' });
+    try {
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/disconnect`;
+        await axios.post(url, { sessionId }, {
+          headers: getFounderHeaders(),
+        });
+      } else {
+        await api.post('/api/v1/whatsapp/disconnect', { sessionId });
+      }
+      setGatewayStatus('DISCONNECTED');
+      setConnectedUser(null);
+      setQrCodeUrl(null);
+      setFeedbackMsg({ text: 'WhatsApp unlinked successfully. You can now link a new number.', type: 'success' });
+      fetchStatus();
+    } catch (err) {
+      setFeedbackMsg({ text: 'Failed to unlink WhatsApp session.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Reset Session & Generate New QR:
+   * Purges any stale / corrupted .sessions files on WAHA, then requests a fresh pairing socket.
+   */
+  const handleResetSession = async () => {
+    setLoading(true);
+    setQrCodeUrl(null);
+    setGatewayStatus('CONNECTING');
+    setFeedbackMsg({ text: 'Purging stale WAHA session files & clearing locks...', type: 'info' });
+    try {
+      if (isFounderMode) {
+        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/disconnect`;
+        await axios.post(url, { sessionId }, {
+          headers: getFounderHeaders(),
+        });
+      } else {
+        await api.post('/api/v1/whatsapp/disconnect', { sessionId });
+      }
+      setFeedbackMsg({ text: 'Session purged successfully. Generating brand-new pairing QR...', type: 'success' });
+      setTimeout(async () => {
+        await fetchQr();
+        setLoading(false);
+      }, 1500);
+    } catch (err) {
+      setFeedbackMsg({ text: 'Failed to purge session on gateway.', type: 'error' });
+      setLoading(false);
+    }
+  };
+
+  const handleManualRefreshQr = async () => {
+    setLoading(true);
+    try {
+      await fetchQr();
+    } finally {
+      setLoading(false);
+    }
+  };
     try {
       if (isFounderMode) {
         const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/disconnect`;
@@ -437,6 +505,30 @@ export default function WhatsAppGatewayCard({
                     <small>Point your WhatsApp camera at the code once generated</small>
                   </div>
                 )}
+              </div>
+
+              {/* Controls directly under QR code */}
+              <div className="wa-qr-controls">
+                <button 
+                  type="button" 
+                  onClick={handleManualRefreshQr}
+                  className="wa-btn-qr-action refresh"
+                  disabled={loading}
+                  title="Refresh QR code if expired"
+                >
+                  <FaSyncAlt size={11} className={loading ? 'spinning' : ''} />
+                  <span>Refresh QR</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={handleResetSession}
+                  className="wa-btn-qr-action reset"
+                  disabled={loading}
+                  title="Purge session files and start a brand-new pairing attempt"
+                >
+                  <FaRedo size={11} className={loading ? 'spinning' : ''} />
+                  <span>Reset Session &amp; New QR</span>
+                </button>
               </div>
             </div>
           </div>
@@ -767,6 +859,56 @@ export default function WhatsAppGatewayCard({
           font-size: 11px;
           color: #94a3b8;
           max-width: 180px;
+        }
+
+        .wa-qr-controls {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+          max-width: 220px;
+          margin-top: 6px;
+        }
+
+        .wa-btn-qr-action {
+          flex: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          padding: 6px 8px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+
+        .wa-btn-qr-action.refresh {
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          color: #475569;
+        }
+
+        .wa-btn-qr-action.refresh:hover:not(:disabled) {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+
+        .wa-btn-qr-action.reset {
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
+          color: #c2410c;
+        }
+
+        .wa-btn-qr-action.reset:hover:not(:disabled) {
+          background: #ffedd5;
+          color: #9a3412;
+        }
+
+        .wa-btn-qr-action:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         /* Connected Panel */
