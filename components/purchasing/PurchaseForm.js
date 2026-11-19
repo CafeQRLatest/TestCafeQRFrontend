@@ -16,6 +16,8 @@ import { formatQty, parseQty, qtyInputStep, uomPrecisionOf } from '../CounterSal
 
 // Stop typing once the decimals exceed the product's UOM precision.
 const withinPrecision = (raw, precision) => (String(raw).split('.')[1] || '').length <= precision;
+const missingUnitPrice = (line) =>
+  line.unitPrice === '' || line.unitPrice === null || line.unitPrice === undefined || !Number.isFinite(Number(line.unitPrice));
 
 const STEPS = [
   { id: 1, label: 'Supplier',  icon: <FaUserTie /> },
@@ -173,6 +175,11 @@ export default function PurchaseForm({
     if (!po.vendorId) errs.vendorId = 'Please select a vendor / supplier';
     if (!po.warehouseId) errs.warehouseId = 'Please select a receiving warehouse';
     if (!po.lines || !po.lines.length) errs.lines = 'Cart is empty. Please add at least one product.';
+    const missingPriceLines = (po.lines || []).filter(missingUnitPrice);
+    if (missingPriceLines.length > 0) {
+      const productNames = missingPriceLines.map(line => line.productName || 'Unnamed product').join(', ');
+      errs.unitPrice = `Enter a unit price for: ${productNames}`;
+    }
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -180,6 +187,7 @@ export default function PurchaseForm({
       if (errs.vendorId) missing.push('Vendor');
       if (errs.warehouseId) missing.push('Warehouse');
       if (errs.lines) missing.push('Products in Cart');
+      if (errs.unitPrice) missing.push('Unit Price');
 
       if (errs.lines && missing.length === 1) {
         toast?.('No products in cart! Please add at least one product before proceeding.', 'error');
@@ -487,6 +495,12 @@ export default function PurchaseForm({
 
             {/* Line items list */}
             <div ref={linesEndRef} />
+            {errors.unitPrice && (
+              <div className={styles['inline-error']} style={{ margin: '12px 16px', padding: '10px 14px', background: '#fef2f2', border: '1.5px solid #fecaca', borderRadius: '10px', color: '#b91c1c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FaExclamationCircle style={{ color: '#dc2626', fontSize: '16px', flexShrink: 0 }} />
+                <span>{errors.unitPrice}</span>
+              </div>
+            )}
             {errors.lines && (
               <div 
                 className={styles['inline-error']} 
@@ -589,11 +603,12 @@ export default function PurchaseForm({
                           </div>
                         </td>
                         <td className={styles['tc-price']}>
-                          <div className={styles['price-wrap']}>
+                          <div className={`${styles['price-wrap']} ${errors.unitPrice && missingUnitPrice(line) ? styles['price-wrap-error'] : ''}`}>
                             <span className={styles['currency-prefix']}>{currencySymbol}</span>
                             <input 
                               type="number" 
                               className={styles['price-inp']} 
+                              placeholder="Price"
                               min="0" 
                               step="0.01"
                               value={line.unitPrice}
@@ -700,11 +715,12 @@ export default function PurchaseForm({
                         </div>
                         <div className={styles['mlc-field']}>
                           <label>Unit Price</label>
-                          <div className={styles['price-wrap']}>
+                          <div className={`${styles['price-wrap']} ${errors.unitPrice && missingUnitPrice(line) ? styles['price-wrap-error'] : ''}`}>
                             <span className={styles['currency-prefix']}>{currencySymbol}</span>
                             <input 
                               type="number" 
                               className={styles['price-inp']} 
+                              placeholder="Price"
                               value={line.unitPrice}
                               onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)} 
                               disabled={isLocked} 

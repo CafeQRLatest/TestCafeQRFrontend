@@ -1357,10 +1357,10 @@ namespace CafeQR.PrintService
                 Add("Daily Bill No: " + dailyBillNo);
             }
 
-            var staffName = PickValue(order, new[] { "taken_by_name", "takenByName" }).Trim();
+            var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
             if (!string.IsNullOrEmpty(staffName))
             {
-                Add("Attended by: " + staffName);
+                Add("Staff: " + staffName);
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
@@ -1683,10 +1683,10 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
 
-            var staffName = PickValue(order, new[] { "taken_by_name", "takenByName" }).Trim();
+            var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
             if (!string.IsNullOrEmpty(staffName))
             {
-                lines.Add(WithMargins("Attended by: " + staffName, layout));
+                lines.Add(WithMargins("Staff: " + staffName, layout));
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });

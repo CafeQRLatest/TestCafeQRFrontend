@@ -973,6 +973,10 @@
   color: #94a3b8;
   flex-shrink: 0;
 }
+.price-wrap-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px #ef4444;
+}
 .price-inp, .tax-inp {
   flex: 1;
   border: none;

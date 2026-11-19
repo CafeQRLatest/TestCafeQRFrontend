@@ -567,9 +567,9 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(withMargins(kotReference, layout));
     }
     const dailyBillNo = pickValue(order, ["dailyBillNo", "daily_bill_no"], null);
-    const staffName = String(pickValue(order, ["taken_by_name", "takenByName"], '')).trim();
+    const staffName = String(pickValue(order, ["updatedByName", "updated_by_name", "taken_by_name", "takenByName"], '')).trim();
     if (staffName) {
-      lines.push(withMargins(`Attended by: ${staffName}`, layout));
+      lines.push(withMargins(`Staff: ${staffName}`, layout));
     }
     const customerCount = pickValue(order, ["number_of_customers", "numberOfCustomers", "numberofcustomers"], null);
     if (customerCount)

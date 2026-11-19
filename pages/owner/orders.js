@@ -977,12 +977,14 @@ export default function OrdersPage() {
         to: toUtc,
         q: queryToSend || undefined,
         status: filters.status ? filters.status : (queryToSend ? undefined : 'COMPLETED_CANCELLED'),
-        orgId: filters.branchId || orgId || undefined,
+        orgId: filters.branchId === 'ALL' ? undefined : (filters.branchId || orgId || undefined),
         terminalId: filters.terminalId || undefined,
         page,
         size: 20
       }, {
-        signal: controller.signal
+        signal: controller.signal,
+        // Scope the request to the filtered branch (server requires it to match the active branch)
+        headers: (filters.branchId || orgId) ? { 'X-Org-ID': filters.branchId === 'ALL' ? '0' : (filters.branchId || orgId) } : undefined
       });
 
       const { summary, orders } = response.data?.data || {};
@@ -1058,6 +1060,7 @@ export default function OrdersPage() {
     api.get('/api/v1/credit/customers', { params: { status: 'ACTIVE' } })
       .then(res => setCreditCustomers(res.data?.data || []))
       .catch(console.error);
+    // Branch filter is super admin only; other roles stay on their own branch
     if (userRole === 'SUPER_ADMIN') {
       api.get('/api/v1/organizations')
         .then(res => setBranches(res.data?.data || []))
@@ -1065,14 +1068,33 @@ export default function OrdersPage() {
     }
   }, [userRole]);
 
+  // Super admin with no header branch: default the filter to the first branch
   useEffect(() => {
-    const url = (userRole === 'SUPER_ADMIN' && orgId && orgId !== '0')
-      ? `/api/v1/terminals/org/${orgId}`
+    if (userRole === 'SUPER_ADMIN' && (!orgId || orgId === '0') && !historyFilters.branchId && branches.length > 0) {
+      const f = { ...historyFilters, branchId: branches[0].id };
+      setHistoryFilters(f);
+      fetchHistoryOrders(0, f);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branches, orgId, userRole]);
+
+  // Terminals follow the branch filter (defaults to the active branch)
+  const filterBranchId = historyFilters.branchId || orgId || '';
+  useEffect(() => {
+    const url = (filterBranchId && filterBranchId !== '0' && filterBranchId !== 'ALL')
+      ? `/api/v1/terminals/org/${filterBranchId}`
       : '/api/v1/terminals';
+    let active = true;
     api.get(url)
-      .then(res => setTerminals(res.data?.data || []))
+      .then(res => { if (active) setTerminals(res.data?.data || []); })
       .catch(console.error);
-  }, [orgId, userRole]);
+    return () => { active = false; };
+  }, [filterBranchId]);
+
+  // Switching the header branch resets the screen's branch filter back to it
+  useEffect(() => {
+    setHistoryFilters(f => (f.branchId ? { ...f, branchId: undefined, terminalId: '' } : f));
+  }, [orgId]);
 
   useEffect(() => {
     if (config && config.tableManagementEnabled === false && activeSegment === 'table') {
@@ -2082,12 +2104,26 @@ export default function OrdersPage() {
 
 
 
+                  {userRole === 'SUPER_ADMIN' && branches.length > 0 && (
+                    <NiceSelect
+                      className="nice-select"
+                      options={[{ value: 'ALL', label: 'All Branches' }, ...branches.map(b => ({ value: b.id, label: b.name || b.orgCode || 'Branch' }))]}
+                      value={filterBranchId}
+                      onChange={(val) => {
+                        historyFiltersTouchedRef.current = true;
+                        const f = { ...historyFilters, branchId: val, terminalId: '' };
+                        setHistoryFilters(f);
+                        fetchHistoryOrders(0, f);
+                      }}
+                    />
+                  )}
+
                   {terminals.length > 0 && (
                     <NiceSelect
                       className="nice-select"
                       options={[
                         { value: '', label: 'All Terminals' },
-                        ...terminals.map(t => ({ value: t.id, label: t.name || t.terminalCode || 'Terminal' }))
+                        ...terminals.map(t => ({ value: t.id, label: `${t.name || t.terminalCode || 'Terminal'}${filterBranchId === 'ALL' && t.organization?.name ? ` (${t.organization.name})` : ''}` }))
                       ]}
                       value={historyFilters.terminalId || ''}
                       onChange={(val) => {

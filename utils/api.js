@@ -310,7 +310,20 @@ api.interceptors.request.use(
     
     // Read context from cookies or localStorage fallback
     config.headers['X-Client-ID'] = getHeaderVal('clientId') || '0';
-    config.headers['X-Org-ID'] = getHeaderVal('orgId') || '0';
+    // A per-screen branch filter scopes a request to a branch other than the header-selected one:
+    // honour an explicit X-Org-ID header, or a UUID `orgId` query param (report screens send both
+    // the filter and the data scope this way). Otherwise fall back to the active branch.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const rawParamOrg = config.params ? (config.params.orgId || config.params.branchId) : null;
+    // 'ALL' = super admin "All branches": send the global selection (X-Org-ID 0) and drop the param
+    const allBranches = rawParamOrg === 'ALL';
+    if (allBranches) {
+      delete config.params.orgId;
+      delete config.params.branchId;
+      delete config.params.branch;
+    }
+    const paramOrg = typeof rawParamOrg === 'string' && uuidRe.test(rawParamOrg) ? rawParamOrg : null;
+    config.headers['X-Org-ID'] = config.headers['X-Org-ID'] || (allBranches ? '0' : null) || paramOrg || getHeaderVal('orgId') || '0';
     config.headers['X-Terminal-ID'] = getHeaderVal('terminalId') || '0';
     config.headers['X-User-ID'] = getHeaderVal('userId') || '0';
     config.headers['X-User-Email'] = getHeaderVal('userEmail') || '';

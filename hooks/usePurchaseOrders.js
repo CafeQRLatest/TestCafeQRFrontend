@@ -317,7 +317,7 @@ export function usePurchaseOrders() {
       return;
     }
 
-    let initialUnitPrice = 0;
+    let initialUnitPrice = '';
     if (selectedVariant && selectedVariant.costPrice !== undefined && selectedVariant.costPrice !== null && Number(selectedVariant.costPrice) > 0) {
       // Use variant-specific purchase cost price
       initialUnitPrice = Number(selectedVariant.costPrice);
@@ -325,7 +325,7 @@ export function usePurchaseOrders() {
       // Use base product purchase cost price
       initialUnitPrice = Number(product.costPrice);
     }
-    // Do NOT fall back to sale price (product.price / overridePrice) — leave 0 so user fills it in
+    // Do NOT fall back to sale price (product.price / overridePrice); leave blank so a missing purchase cost is explicit.
 
     const displayName = variantLabel ? `${product.name} (${variantLabel})` : product.name;
 
@@ -370,7 +370,7 @@ export function usePurchaseOrders() {
   }, [calcTotals]);
 
   /* ── validation ── */
-  const validate = useCallback((paymentMethodOverride = null) => {
+  const validate = useCallback((paymentMethodOverride = null, requireUnitPrices = true) => {
     const e = {};
     if (!po.vendorId) e.vendorId = 'Please select a vendor / supplier';
     if (!po.warehouseId) e.warehouseId = 'Please select a receiving warehouse';
@@ -383,6 +383,16 @@ export function usePurchaseOrders() {
       e.lines = `${unmappedLines.length} item(s) have no valid product assigned. Please map them to existing products.`;
     }
 
+    const missingPriceLines = requireUnitPrices
+      ? (po.lines || []).filter(l =>
+          l.unitPrice === '' || l.unitPrice === null || l.unitPrice === undefined || !Number.isFinite(Number(l.unitPrice))
+        )
+      : [];
+    if (missingPriceLines.length > 0) {
+      const productNames = missingPriceLines.map(l => l.productName || 'Unnamed product').join(', ');
+      e.unitPrice = `Enter a unit price for: ${productNames}`;
+    }
+
     setErrors(e);
 
     if (Object.keys(e).length > 0) {
@@ -391,6 +401,7 @@ export function usePurchaseOrders() {
       if (e.warehouseId) missing.push('Warehouse');
       if (e.lines) missing.push(unmappedLines.length > 0 ? `${unmappedLines.length} Unmapped Product(s)` : 'Products in Cart');
       if (e.paymentMethod) missing.push('Payment Method');
+      if (e.unitPrice) missing.push('Unit Price');
 
       if (unmappedLines.length > 0) {
         toast(`Cannot proceed: ${unmappedLines.length} item(s) are missing a product link. Please map or re-add them.`, 'error');
@@ -420,7 +431,7 @@ export function usePurchaseOrders() {
         toast('Cannot complete purchase order: Payment type not set in payment type master for purchase', 'error');
         return;
       }
-      if (!validate(effectivePaymentMethod)) {
+      if (!validate(effectivePaymentMethod, targetStatus !== 'CANCELLED')) {
         return;
       }
     }
@@ -459,7 +470,7 @@ export function usePurchaseOrders() {
             variantId: l.variantId || null,
             productName: l.productName || l.name || '',
             quantity: parseFloat(l.quantity) || 1,
-            unitPrice: parseFloat(l.unitPrice) || 0,
+            unitPrice: l.unitPrice === '' || l.unitPrice == null ? null : parseFloat(l.unitPrice),
             unitOfMeasure: uom,
             uomPrecision: prec,
             taxRate: parseFloat(l.taxRate) || 0,
@@ -528,7 +539,9 @@ export function usePurchaseOrders() {
         unitOfMeasure:  uom,
         uomPrecision:   prec,
         quantity:       l.quantity != null ? formatQty(l.quantity, prec) : formatQty(1, prec),
-        unitPrice:      parseFloat(l.unitPrice ?? l.price ?? 0),
+        unitPrice:      l.unitPrice == null && l.price == null
+          ? ''
+          : (l.unitPrice ?? l.price) === '' ? '' : parseFloat(l.unitPrice ?? l.price),
         taxRate:        parseFloat(l.taxRate ?? 0),
         discountAmount: parseFloat(l.discountAmount ?? 0),
         taxAmount:      parseFloat(l.taxAmount ?? 0),

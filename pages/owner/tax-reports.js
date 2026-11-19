@@ -66,8 +66,8 @@ function TaxReportsContent() {
   // Superadmin org/terminal states
   const [organizations, setOrganizations] = useState([]);
   const [allTerminals, setAllTerminals] = useState([]);
-  // Branch selector removed: super admin sees all branches; other logins are scoped by the server.
-  const selectedOrgId = '';
+  // Use the active branch from AuthContext for superadmin report filtering.
+  const selectedOrgId = orgId || '';
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
 
   // Main UI states

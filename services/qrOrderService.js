@@ -13,6 +13,18 @@ export const qrOrderService = {
   },
 
   /**
+   * Same as fetchTableSession, plus a short-lived guest token (data.guestToken, data.guestTokenExpiresAt)
+   * for the chat view's calls to cafe-qr-ai (/api/guest/**). Call once per visit and keep the token;
+   * each call starts a new chat session. Do not use for polling.
+   */
+  async fetchGuestSession(clientId, orgId, tableId) {
+    const res = await api.get(`/api/v1/public/menu/${clientId}/${orgId || 'null'}/table/${tableId}`, {
+      params: { guestSession: true }
+    });
+    return res.data;
+  },
+
+  /**
    * Fetches the full active digital menu for the branch.
    */
   async fetchMenu(clientId, orgId) {

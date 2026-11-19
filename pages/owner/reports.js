@@ -75,39 +75,66 @@ export default function Reports() {
   const [dateFrom, setDateFrom] = useState(() => `${getLocalDate()}T00:00`);
   const [dateTo, setDateTo] = useState(() => `${getLocalDate()}T23:59`);
 
-  // Superadmin org/terminal filter states
+  // Branch + terminal filters. The branch filter (defaults to the active branch) scopes all report
+  // data; terminals are listed for the filtered branch only.
   const [organizations, setOrganizations] = useState([]);
-  const [allTerminals, setAllTerminals] = useState([]);
-  // Branch selector removed: super admin sees all branches; other logins are scoped by the server.
-  const selectedOrgId = '';
+  const [filteredTerminals, setFilteredTerminals] = useState([]);
+  const [branchFilter, setBranchFilter] = useState(orgId || '');
+  const selectedOrgId = branchFilter || orgId || '';
   const [selectedTerminalId, setSelectedTerminalId] = useState('');
   const [config, setConfig] = useState(null);
 
-  // Load organisations and terminals for superadmin
+  // Follow the header branch selector when it changes
+  useEffect(() => {
+    if (orgId) setBranchFilter(orgId);
+  }, [orgId]);
+
+  // Super admin only: load branches for the Branch filter. Other roles stay on their own branch.
   useEffect(() => {
     if (!isSuperAdmin) return;
-    Promise.all([
-      api.get('/api/v1/organizations'),
-      api.get('/api/v1/terminals')
-    ]).then(([orgRes, termRes]) => {
-      if (orgRes.data?.success) setOrganizations(orgRes.data.data || []);
-      if (termRes.data?.success) setAllTerminals(termRes.data.data || []);
-    }).catch(() => {});
+    api.get('/api/v1/organizations')
+      .then((res) => {
+        if (res.data?.success) {
+          const list = res.data.data || [];
+          setOrganizations(list);
+          // No header branch needed: fall back to the first branch
+          setBranchFilter((cur) => cur || list[0]?.id || '');
+        }
+      })
+      .catch(() => {});
   }, [isSuperAdmin]);
 
-  // When org changes, clear terminal selection
+  // "All Branches" (super admin) only works for sales + payment-balance reports; the other
+  // domains need a single branch, so fall back to the first one when switching to them.
+  const allBranchesSupported = domain === 'sales' || domain === 'balances';
+  useEffect(() => {
+    if (branchFilter === 'ALL' && !allBranchesSupported) {
+      setBranchFilter(orgId || organizations[0]?.id || '');
+    }
+  }, [branchFilter, allBranchesSupported, orgId, organizations]);
 
-  // Terminals filtered by selected org
-  const filteredTerminals = useMemo(() => {
-    if (!selectedOrgId) return allTerminals;
-    return allTerminals.filter(t => t.orgId === selectedOrgId || t.organization?.id === selectedOrgId);
-  }, [allTerminals, selectedOrgId]);
+  // Load terminals for the filtered branch (all terminals for "All Branches"); reset terminal
+  // selection when the branch changes
+  useEffect(() => {
+    setSelectedTerminalId('');
+    if (!selectedOrgId) {
+      setFilteredTerminals([]);
+      return;
+    }
+    let active = true;
+    api.get(selectedOrgId === 'ALL' ? '/api/v1/terminals' : `/api/v1/terminals/org/${selectedOrgId}`)
+      .then((res) => { if (active) setFilteredTerminals(res.data?.data || []); })
+      .catch(() => { if (active) setFilteredTerminals([]); });
+    return () => { active = false; };
+  }, [selectedOrgId]);
 
   // Load config
   useEffect(() => {
+    // Configuration is per branch; keep the current one while "All Branches" is selected
+    if (selectedOrgId === 'ALL') return;
     let active = true;
     const params = {};
-    if (isSuperAdmin && selectedOrgId) {
+    if (selectedOrgId) {
       params.orgId = selectedOrgId;
     }
     api.get('/api/v1/configurations', { params })
@@ -119,7 +146,7 @@ export default function Reports() {
         if (active) setConfig(null);
       });
     return () => { active = false; };
-  }, [orgId, isSuperAdmin, selectedOrgId]);
+  }, [selectedOrgId]);
 
   // Document Viewer Modal State
   const [viewingDoc, setViewingDoc] = useState(null);
@@ -245,26 +272,39 @@ export default function Reports() {
             </div>
           </div>
 
-          {isSuperAdmin && (
-            <div className="rpt-sa-filters">
+          <div className="rpt-sa-filters">
+            {isSuperAdmin && organizations.length > 0 && (
               <div className="rpt-sa-item">
-                <label className="rpt-sa-label">Terminal</label>
+                <label className="rpt-sa-label">Branch</label>
                 <NiceSelect
-                  value={selectedTerminalId}
-                  onChange={setSelectedTerminalId}
+                  value={selectedOrgId}
+                  onChange={setBranchFilter}
                   options={[
-                    { value: '', label: 'All Terminals' },
-                    ...filteredTerminals.map(t => ({
-                      value: t.id,
-                      label: `${t.name || t.terminalCode}${t.organization ? ` (${t.organization.name})` : ''}`
-                    }))
+                    ...(allBranchesSupported ? [{ value: 'ALL', label: 'All Branches' }] : []),
+                    ...organizations.map(o => ({ value: o.id, label: o.name || o.orgCode || 'Branch' }))
                   ]}
-                  placeholder="All Terminals"
+                  placeholder="Select Branch"
                   style={{ minWidth: 140 }}
                 />
               </div>
+            )}
+            <div className="rpt-sa-item">
+              <label className="rpt-sa-label">Terminal</label>
+              <NiceSelect
+                value={selectedTerminalId}
+                onChange={setSelectedTerminalId}
+                options={[
+                  { value: '', label: 'All Terminals' },
+                  ...filteredTerminals.map(t => ({
+                    value: t.id,
+                    label: `${t.name || t.terminalCode || 'Terminal'}${selectedOrgId === 'ALL' && t.organization?.name ? ` (${t.organization.name})` : ''}`
+                  }))
+                ]}
+                placeholder="All Terminals"
+                style={{ minWidth: 140 }}
+              />
             </div>
-          )}
+          </div>
         </div>
 
         {/* Domain View Components */}
