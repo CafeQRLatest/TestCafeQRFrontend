@@ -14,6 +14,19 @@ const STATUS_CFG = {
   VOID:      { label: 'Voided',    color: '#dc2626', bg: '#fef2f2', dot: '#ef4444', border: '#fca5a5' },
 };
 
+/**
+ * Vendors store `isactive` as 'Y'/'N' (serialized as `isActive`); the credit module's
+ * partner rows carry `status` ACTIVE/INACTIVE instead. Missing means active.
+ */
+export const isVendorActive = (v) => {
+  const raw = v?.isActive ?? v?.isactive;
+  if (raw !== undefined && raw !== null && raw !== '') {
+    return !(raw === false || ['N', 'FALSE'].includes(String(raw).toUpperCase()));
+  }
+  const status = String(v?.status || '').toUpperCase();
+  return !['INACTIVE', 'SUSPENDED', 'N'].includes(status);
+};
+
 const blankPO = () => ({
   orderNo:        '', // Managed by backend DocumentSequenceService
   orderType:      'PURCHASE',
@@ -374,6 +387,13 @@ export function usePurchaseOrders() {
     const e = {};
     if (!po.vendorId) e.vendorId = 'Please select a vendor / supplier';
     if (!po.warehouseId) e.warehouseId = 'Please select a receiving warehouse';
+    if (po.vendorId) {
+      const v = vendors.find(x => String(x.id) === String(po.vendorId));
+      // Saved orders may keep a vendor deactivated later; new orders and vendor changes may not.
+      if (v && !isVendorActive(v) && !po.id) {
+        e.vendorId = `Vendor "${v.name}" is inactive. Please select an active vendor.`;
+      }
+    }
     if (!po.lines || !po.lines.length) e.lines = 'Cart is empty. Please add at least one product.';
     const effectivePaymentMethod = paymentMethodOverride ?? po.paymentMethod;
     if (!effectivePaymentMethod) e.paymentMethod = 'Cannot complete purchase order: Payment type not set in payment type master for purchase';
@@ -413,7 +433,7 @@ export function usePurchaseOrders() {
       return false;
     }
     return true;
-  }, [po.vendorId, po.warehouseId, po.lines, po.paymentMethod, setErrors, toast]);
+  }, [po.vendorId, po.id, vendors, po.warehouseId, po.lines, po.paymentMethod, setErrors, toast]);
 
   /* ── save ── */
   const handleSave = useCallback(async (targetStatus, paymentOverride = null) => {
@@ -588,6 +608,14 @@ export function usePurchaseOrders() {
 
   /* ── derived state ── */
   const vendorOptions    = useMemo(() => vendors.map(v => ({ value: String(v.id), label: v.name })), [vendors]);
+  // Vendor picker for a purchase: active vendors only, plus the one already on the order
+  // (so an order placed before the vendor was deactivated still shows its vendor).
+  const vendorFormOptions = useMemo(
+    () => vendors
+      .filter(v => isVendorActive(v) || (po.id && String(v.id) === String(po.vendorId)))
+      .map(v => ({ value: String(v.id), label: isVendorActive(v) ? v.name : `${v.name} (inactive)` })),
+    [vendors, po.vendorId, po.id]
+  );
   const warehouseOptions = useMemo(() => warehouses.map(w => ({ value: String(w.id), label: w.name })), [warehouses]);
   const selectedVendor   = useMemo(() => vendors.find(v => String(v.id) === String(po.vendorId)), [vendors, po.vendorId]);
   const selectedWarehouse = useMemo(() => warehouses.find(w => String(w.id) === String(po.warehouseId)), [warehouses, po.warehouseId]);
@@ -703,6 +731,7 @@ export function usePurchaseOrders() {
     loadDraft,
     startFresh,
     vendorOptions,
+    vendorFormOptions,
     warehouseOptions,
     selectedVendor,
     selectedWarehouse,

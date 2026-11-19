@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import * as service from './creditCustomerService';
 import { isFeatureEnabled } from '../../utils/moduleVisibility';
+import { isVendorActive } from '../../hooks/usePurchaseOrders';
 
 const emptyCustomerForm = {
   name: '',
@@ -456,7 +457,7 @@ export default function useCreditSettlements() {
   }, [vendors, search]);
 
   const vendorTotals = useMemo(() => ({
-    active: (vendors || []).filter((v) => String(v?.isactive || v?.status || 'Y').toUpperCase() !== 'N').length,
+    active: (vendors || []).filter(isVendorActive).length,
     owed: (vendors || []).reduce((sum, v) => sum + Number(v?.balance ?? 0), 0),
     lifetime: (vendors || []).reduce((sum, v) => sum + Number(v?.creditLimit || v?.openingBalance || 0), 0),
   }), [vendors]);
@@ -485,7 +486,10 @@ export default function useCreditSettlements() {
         openingBalance: Number(vendorForm.openingBalance || 0),
       };
       if (editingVendor) {
-        await api.put(`/api/v1/purchasing/vendors/${editingVendor.id}`, payload);
+        // The credit list row is a summary DTO; merge onto the full vendor so fields the
+        // form doesn't show (status, pricelist, ...) are not wiped by the update.
+        const { data: full } = await api.get(`/api/v1/purchasing/vendors/${editingVendor.id}`);
+        await api.put(`/api/v1/purchasing/vendors/${editingVendor.id}`, { ...(full?.data || {}), ...payload });
       } else {
         await api.post('/api/v1/purchasing/vendors', payload);
       }
@@ -501,11 +505,14 @@ export default function useCreditSettlements() {
   };
 
   const toggleVendorStatus = async (vendor) => {
-    const isSuspended = String(vendor.isactive || vendor.status || 'Y').toUpperCase() === 'N';
+    const isSuspended = !isVendorActive(vendor);
     try {
+      // Rows here come from /credit/partners (status ACTIVE/INACTIVE, no contact/address fields),
+      // so load the full vendor and send the flag under the name the API binds (isActive).
+      const { data: full } = await api.get(`/api/v1/purchasing/vendors/${vendor.id}`);
       await api.put(`/api/v1/purchasing/vendors/${vendor.id}`, {
-        ...vendor,
-        isactive: isSuspended ? 'Y' : 'N',
+        ...(full?.data || {}),
+        isActive: isSuspended ? 'Y' : 'N',
       });
       notify('success', isSuspended ? 'Vendor reactivated' : 'Vendor suspended');
       await loadData();

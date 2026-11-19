@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
+import { isVendorActive } from '../../hooks/usePurchaseOrders';
 import {
   FaCamera, FaUpload, FaCheck, FaTimes, FaWarehouse, FaUserTie,
   FaCalendarAlt, FaHashtag, FaRobot, FaMagic, FaExchangeAlt,
@@ -127,7 +128,7 @@ export default function PurchaseBillScanModal({
   const vendorOptions = useMemo(() => {
     return [
       { value: '', label: 'Select Supplier / Vendor...' },
-      ...vendors.map(v => ({
+      ...vendors.filter(isVendorActive).map(v => ({
         value: String(v.id),
         label: v.name || v.businessName || 'Unnamed Vendor'
       }))
@@ -237,7 +238,7 @@ export default function PurchaseBillScanModal({
       setDetectedSupplierName(data.supplierName || '');
       if (data.supplierName) {
         const sKey = normalizeKey(data.supplierName);
-        const matchedVendor = vendors.find(v => {
+        const matchedVendor = vendors.filter(isVendorActive).find(v => {
           const vKey = normalizeKey(v.name || v.businessName || '');
           return vKey && (sKey.includes(vKey) || vKey.includes(sKey));
         });

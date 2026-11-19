@@ -87,6 +87,7 @@ function PurchaseContent() {
     loadDraft,
     startFresh,
     vendorOptions,
+    vendorFormOptions,
     warehouseOptions,
     payMethodOptions,
     selectedVendor,
@@ -733,7 +734,7 @@ function PurchaseContent() {
         <PurchaseForm
           po={po} setPo={setPo}
           vendors={vendors} warehouses={warehouses} products={products} filteredProducts={filteredProducts}
-          vendorOptions={vendorOptions} warehouseOptions={warehouseOptions}
+          vendorOptions={vendorFormOptions} warehouseOptions={warehouseOptions}
           selectedVendor={selectedVendor} selectedWarehouse={selectedWarehouse}
           isLocked={isLocked} statusCfg={statusCfg}
           step={step} setStep={setStep} stepOk={stepOk}

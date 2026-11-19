@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FaBook, FaCheck, FaEye, FaPause, FaWallet, FaFileAlt } from 'react-icons/fa';
 import PageSizeSelect from './PageSizeSelect';
+import { isVendorActive } from '../../hooks/usePurchaseOrders';
 import { formatTzDate } from '../../utils/timezoneUtils';
 
 export default function CreditVendorTable({
@@ -123,7 +124,7 @@ export default function CreditVendorTable({
             const isExpanded = expandedVendor?.id === vendor.id;
             const balance = Number(vendor.balance ?? 0);
             const limit = Number(vendor.creditLimit || 0);
-            const isSuspended = String(vendor.isactive || vendor.status || 'Y').toUpperCase() === 'N' || String(vendor.status).toUpperCase() === 'SUSPENDED';
+            const isSuspended = !isVendorActive(vendor);
 
             const rawOrders = ordersByVendor[vendor.id] || [];
             const vendorOrders = rawOrders.filter((o) => {
