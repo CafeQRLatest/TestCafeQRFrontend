@@ -1360,7 +1360,7 @@ namespace CafeQR.PrintService
             var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
             if (!string.IsNullOrEmpty(staffName))
             {
-                Add("Staff: " + staffName);
+                Add("Created: " + staffName);
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
@@ -1686,7 +1686,7 @@ namespace CafeQR.PrintService
             var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
             if (!string.IsNullOrEmpty(staffName))
             {
-                lines.Add(WithMargins("Staff: " + staffName, layout));
+                lines.Add(WithMargins("Created: " + staffName, layout));
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
