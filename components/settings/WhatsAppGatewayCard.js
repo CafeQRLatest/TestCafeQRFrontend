@@ -230,26 +230,7 @@ export default function WhatsAppGatewayCard({
       setLoading(false);
     }
   };
-    try {
-      if (isFounderMode) {
-        const url = `${getBaseApiUrl()}/api/v1/founder/whatsapp/disconnect`;
-        await axios.post(url, { sessionId }, {
-          headers: getFounderHeaders(),
-        });
-      } else {
-        await api.post('/api/v1/whatsapp/disconnect', { sessionId });
-      }
-      setGatewayStatus('DISCONNECTED');
-      setConnectedUser(null);
-      setQrCodeUrl(null);
-      setFeedbackMsg({ text: 'WhatsApp unlinked successfully. You can now link a new number.', type: 'success' });
-      fetchStatus();
-    } catch (err) {
-      setFeedbackMsg({ text: 'Failed to unlink WhatsApp session.', type: 'error' });
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const handleSendTest = async (e) => {
     e.preventDefault();
