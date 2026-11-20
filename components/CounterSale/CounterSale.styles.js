@@ -16,6 +16,7 @@ export const CsModalOverlay = styled.div`
   height: 100%;
   overflow: hidden;
   zoom: ${props => props.$zoom || 1};
+  --cs-zoom: ${props => props.$zoom || 1};
 `;
 
 export const CsModalContent = styled.div`
@@ -158,8 +159,11 @@ export const CsCartSection = styled.aside`
     right: 0;
     bottom: 0;
     width: 100%;
-    max-height: min(82vh, 680px);
-    max-height: min(82dvh, 680px);
+    /* The overlay is CSS-zoomed (0.8–1.4) and zoom also scales viewport units, so
+       divide by it or the sheet grows taller than the screen at zoom > ~1.2 and
+       its header (the close button) is pushed off the top. */
+    max-height: calc(min(82vh, 680px) / var(--cs-zoom, 1));
+    max-height: calc(min(82dvh, 680px) / var(--cs-zoom, 1));
     border-left: 0;
     border-top: 1px solid #e2e8f0;
     border-radius: 24px 24px 0 0;
@@ -170,8 +174,8 @@ export const CsCartSection = styled.aside`
   }
 
   @media (max-width: 520px) {
-    max-height: calc(82vh - env(safe-area-inset-bottom, 0px));
-    max-height: calc(82dvh - env(safe-area-inset-bottom, 0px));
+    max-height: calc((82vh - env(safe-area-inset-bottom, 0px)) / var(--cs-zoom, 1));
+    max-height: calc((82dvh - env(safe-area-inset-bottom, 0px)) / var(--cs-zoom, 1));
     border-radius: 20px 20px 0 0;
   }
 `;
@@ -1380,6 +1384,10 @@ export const CsCartCloseBtn = styled.button`
 
   @media (max-width: 900px) {
     display: inline-flex;
+    flex: 0 0 auto;
+    /* 44px touch target, independent of the overlay zoom */
+    width: calc(44px / var(--cs-zoom, 1));
+    height: calc(44px / var(--cs-zoom, 1));
   }
 `;
 
