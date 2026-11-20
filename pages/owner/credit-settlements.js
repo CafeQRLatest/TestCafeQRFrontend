@@ -62,6 +62,8 @@ function CreditSettlementsContent() {
     setPaymentAmount,
     paymentMethod,
     setPaymentMethod,
+    paymentDate,
+    setPaymentDate,
     manualAllocations,
     setManualAllocations,
     expandedCustomer,
@@ -93,6 +95,8 @@ function CreditSettlementsContent() {
     setVendorPaymentMethod,
     vendorPaymentNotes,
     setVendorPaymentNotes,
+    vendorPaymentDate,
+    setVendorPaymentDate,
     vendorManualAllocations,
     setVendorManualAllocations,
     expandedVendor,
@@ -200,6 +204,8 @@ function CreditSettlementsContent() {
             setAmount={setPaymentAmount}
             method={paymentMethod}
             setMethod={setPaymentMethod}
+            paymentDate={paymentDate}
+            setPaymentDate={setPaymentDate}
             manualAllocations={manualAllocations}
             setManualAllocations={setManualAllocations}
             config={config}
@@ -232,6 +238,8 @@ function CreditSettlementsContent() {
             setMethod={setVendorPaymentMethod}
             notes={vendorPaymentNotes}
             setNotes={setVendorPaymentNotes}
+            paymentDate={vendorPaymentDate}
+            setPaymentDate={setVendorPaymentDate}
             manualAllocations={vendorManualAllocations}
             setManualAllocations={setVendorManualAllocations}
             config={config}

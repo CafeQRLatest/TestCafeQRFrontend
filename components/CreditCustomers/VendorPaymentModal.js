@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
+import PremiumDateTimePicker from '../PremiumDateTimePicker';
 import { fetchPurchasePaymentTypes } from '../../services/paymentApi';
 
 export default function VendorPaymentModal({
@@ -11,6 +12,8 @@ export default function VendorPaymentModal({
   setMethod,
   notes,
   setNotes,
+  paymentDate,
+  setPaymentDate,
   manualAllocations = [],
   setManualAllocations,
   config,
@@ -173,6 +176,15 @@ export default function VendorPaymentModal({
             )}
           </div>
 
+          <div className="form-group">
+            <label>Transaction Date &amp; Time</label>
+            <PremiumDateTimePicker
+              value={paymentDate}
+              onChange={(val) => setPaymentDate && setPaymentDate(val)}
+              themeColor="#f97316"
+              closeOnDaySelect
+            />
+          </div>
           <div className="form-group">
             <label>Payment Method</label>
             <NiceSelect 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import NiceSelect from '../NiceSelect';
+import PremiumDateTimePicker from '../PremiumDateTimePicker';
 import { fetchSalesPaymentTypes } from '../../services/paymentApi';
 
 export default function PaymentModal({
@@ -9,6 +10,8 @@ export default function PaymentModal({
   setAmount,
   method,
   setMethod,
+  paymentDate,
+  setPaymentDate,
   manualAllocations,
   setManualAllocations,
   config,
@@ -171,6 +174,15 @@ export default function PaymentModal({
                 ? <span className="form-hint">Max payable: <strong>{money(customerBalance)}</strong></span>
                 : <span className="form-hint text-success">No outstanding balance for this customer.</span>
             )}
+          </div>
+          <div className="form-group">
+            <label>Transaction Date &amp; Time</label>
+            <PremiumDateTimePicker
+              value={paymentDate}
+              onChange={(val) => setPaymentDate && setPaymentDate(val)}
+              themeColor="#f97316"
+              closeOnDaySelect
+            />
           </div>
           <div className="form-group">
             <label>Payment Method</label>

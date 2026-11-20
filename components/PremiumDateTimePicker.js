@@ -4,7 +4,7 @@ import { FaCalendarAlt, FaClock, FaChevronLeft, FaChevronRight, FaChevronDown, F
 import { useAuth } from '../context/AuthContext';
 import { getBusinessNow as getBizNow } from '../utils/timezoneUtils';
 
-export default function PremiumDateTimePicker({ value, onChange, themeColor = '#f97316', disabled = false, dateOnly = false }) {
+export default function PremiumDateTimePicker({ value, onChange, themeColor = '#f97316', disabled = false, dateOnly = false, closeOnDaySelect = false }) {
   const { timezone } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
@@ -157,6 +157,7 @@ export default function PremiumDateTimePicker({ value, onChange, themeColor = '#
     newDate.setDate(day);
     setSelectedDate(newDate);
     if (onChange) onChange(getLocalISO(newDate));
+    if (closeOnDaySelect) setIsOpen(false);
   };
 
   const adjustTime = (e, type, delta) => {

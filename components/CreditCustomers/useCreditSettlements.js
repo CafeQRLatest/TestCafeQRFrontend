@@ -6,6 +6,7 @@ import api from '../../utils/api';
 import * as service from './creditCustomerService';
 import { isFeatureEnabled } from '../../utils/moduleVisibility';
 import { isVendorActive } from '../../hooks/usePurchaseOrders';
+import { getLocalISOString, businessTimeToUtc } from '../../utils/timezoneUtils';
 
 const emptyCustomerForm = {
   name: '',
@@ -58,6 +59,7 @@ export default function useCreditSettlements() {
   const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [paymentDate, setPaymentDate] = useState(() => getLocalISOString(timezone));
   const [manualAllocations, setManualAllocations] = useState([]);
 
   // Expanded Customer Ledger
@@ -78,6 +80,7 @@ export default function useCreditSettlements() {
   const [vendorPaymentAmount, setVendorPaymentAmount] = useState('');
   const [vendorPaymentMethod, setVendorPaymentMethod] = useState('CASH');
   const [vendorPaymentNotes, setVendorPaymentNotes] = useState('');
+  const [vendorPaymentDate, setVendorPaymentDate] = useState(() => getLocalISOString(timezone));
   const [vendorManualAllocations, setVendorManualAllocations] = useState([]);
 
   // Expanded Vendor Ledger
@@ -309,6 +312,7 @@ export default function useCreditSettlements() {
     setPaymentInvoice(invoice);
     setPaymentAmount(invoice ? String(invoice.amountDue || '') : '');
     setPaymentMethod('CASH');
+    setPaymentDate(getLocalISOString(timezone));
     if (invoice) {
       setManualAllocations([]);
       return;
@@ -363,6 +367,7 @@ export default function useCreditSettlements() {
       await service.recordPayment(paidCustomer.id, {
         amount,
         paymentMethod,
+        paymentDate: businessTimeToUtc(paymentDate, timezone) || null,
         allocationMode,
         invoiceId: paidInvoice ? paidInvoice.invoiceId : null,
         allocations,
@@ -582,6 +587,7 @@ export default function useCreditSettlements() {
     setVendorPaymentAmount(order ? String(due) : '');
     setVendorPaymentMethod('CASH');
     setVendorPaymentNotes('');
+    setVendorPaymentDate(getLocalISOString(timezone));
 
     if (order) {
       setVendorManualAllocations([]);
@@ -632,6 +638,7 @@ export default function useCreditSettlements() {
         amount,
         paymentMethod: vendorPaymentMethod,
         description: vendorPaymentNotes || null,
+        paymentDate: businessTimeToUtc(vendorPaymentDate, timezone) || null,
         invoiceId,
         partnerType: 'VENDOR',
       });
@@ -709,6 +716,8 @@ export default function useCreditSettlements() {
     setPaymentAmount,
     paymentMethod,
     setPaymentMethod,
+    paymentDate,
+    setPaymentDate,
     manualAllocations,
     setManualAllocations,
     expandedCustomer,
@@ -740,6 +749,8 @@ export default function useCreditSettlements() {
     setVendorPaymentMethod,
     vendorPaymentNotes,
     setVendorPaymentNotes,
+    vendorPaymentDate,
+    setVendorPaymentDate,
     vendorManualAllocations,
     setVendorManualAllocations,
     expandedVendor,
