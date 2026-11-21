@@ -104,9 +104,9 @@ export default function Reports() {
       .catch(() => {});
   }, [isSuperAdmin]);
 
-  // "All Branches" (super admin) only works for sales + payment-balance reports; the other
-  // domains need a single branch, so fall back to the first one when switching to them.
-  const allBranchesSupported = domain === 'sales' || domain === 'balances';
+  // "All Branches" (super admin) works for sales, purchases, expenses and payment-balance reports;
+  // the other domains (P&L) need a single branch, so fall back to the first one when switching to them.
+  const allBranchesSupported = domain === 'sales' || domain === 'purchases' || domain === 'expenses' || domain === 'balances';
   useEffect(() => {
     if (branchFilter === 'ALL' && !allBranchesSupported) {
       setBranchFilter(orgId || organizations[0]?.id || '');
