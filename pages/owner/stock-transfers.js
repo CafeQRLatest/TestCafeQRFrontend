@@ -193,6 +193,17 @@ function TransferContent() {
     }));
   }, [destWarehouseList]);
 
+  // Client-wise products (orgId null/0) can always be transferred.
+  // Branch-specific products can only be transferred when source and destination are the same branch
+  // and the product belongs to that branch.
+  const isProductTransferable = (p) => {
+    if (!p) return false;
+    if (isOrgIdZeroOrNull(p.orgId)) return true;
+    if (!sourceBranchId || !destBranchId) return false;
+    if (String(sourceBranchId) !== String(destBranchId)) return false;
+    return String(p.orgId) === String(sourceBranchId);
+  };
+
   const handleSourceBranchChange = (branchId) => {
     setSourceBranchId(branchId);
     const branchWhs = warehouses.filter(w => {
@@ -283,8 +294,7 @@ function TransferContent() {
         const rawProducts = pResp.data.data || [];
         const eligible = rawProducts.filter(p => {
           if (p.isActive === false || p.isactive === 'N') return false;
-          // Only allow products with orgId 0 or null
-          if (!isOrgIdZeroOrNull(p.orgId)) return false;
+          // Branch eligibility (client-wise vs same-branch) is applied at use time via isProductTransferable
           // Exclude manufactured/recipe products that have ingredients
           if (hasRecipeIngredients(p)) return false;
           return true;
@@ -416,10 +426,10 @@ function TransferContent() {
 
     const nonGlobalItem = transfer.lines.find(l => {
       const p = products.find(prod => String(prod.id) === String(l.productId));
-      return p && !isOrgIdZeroOrNull(p.orgId);
+      return p && !isProductTransferable(p);
     });
     if (nonGlobalItem) {
-      return showToast(`Item "${nonGlobalItem.productName || 'product'}" cannot be transferred because only products with orgId 0 or null are allowed.`, "error");
+      return showToast(`Item "${nonGlobalItem.productName || 'product'}" cannot be transferred between different branches because it is not a client-wise (All Branches) product.`, "error");
     }
 
     if (nonStockTransferPolicy === 'BLOCK' && finalStatus !== 'DRAFT') {
@@ -591,8 +601,8 @@ function TransferContent() {
       return;
     }
 
-    if (!isOrgIdZeroOrNull(product.orgId)) {
-      showToast(`Cannot transfer "${product.name}". Only products with orgId 0 or null are allowed.`, "error");
+    if (!isProductTransferable(product)) {
+      showToast(`Cannot transfer "${product.name}" between different branches. Only client-wise (All Branches) products are allowed.`, "error");
       setShowSuggestions(false);
       return;
     }
@@ -651,8 +661,8 @@ function TransferContent() {
       return;
     }
 
-    if (!isOrgIdZeroOrNull(product.orgId)) {
-      showToast(`Cannot transfer "${product.name}". Only products with orgId 0 or null are allowed.`, "error");
+    if (!isProductTransferable(product)) {
+      showToast(`Cannot transfer "${product.name}" between different branches. Only client-wise (All Branches) products are allowed.`, "error");
       setProductSearch("");
       setShowSuggestions(false);
       return;
@@ -800,9 +810,11 @@ function TransferContent() {
     return bName ? `${w.name} (${bName})` : w.name;
   };
 
-  const filteredSuggestions = productSearch.trim() === "" 
-    ? products.slice(0, 15) 
-    : products.filter(p => 
+  const transferableProducts = products.filter(isProductTransferable);
+
+  const filteredSuggestions = productSearch.trim() === ""
+    ? transferableProducts.slice(0, 15)
+    : transferableProducts.filter(p =>
         (p.name || "").toLowerCase().includes(productSearch.toLowerCase()) || 
         (p.productCode || "").toLowerCase().includes(productSearch.toLowerCase())
       ).slice(0, 15);

@@ -6,6 +6,7 @@ import NiceSelect from './NiceSelect';
 import CafeQRPopup from './CafeQRPopup';
 import api from '../utils/api';
 import { printBarcodeLabel } from '../utils/barcodeLabelPrint';
+import { getProductFormTerms, showsDietInfo } from '../utils/businessTerms';
 import { 
   FaBoxOpen, FaUtensils, FaCheckCircle, 
   FaTimes, FaCamera, FaLayerGroup, FaClock,
@@ -28,7 +29,9 @@ export default function ProductManagementPopup({
 }) {
   const currencySymbol = useCurrencySymbol();
   const { notify } = useNotification();
-  const { userRole } = useAuth();
+  const { userRole, posType } = useAuth();
+  const terms = getProductFormTerms(posType);
+  const showDiet = showsDietInfo(posType);
   const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'ROLE_SUPER_ADMIN';
 
   const [rawViewOnly, setViewOnly] = useState(initialViewOnly);
@@ -786,7 +789,7 @@ export default function ProductManagementPopup({
          </button>
          <button type="button" className={`drawer-tab ${formTab === 'upsells' ? 'active' : ''}`} onClick={() => setFormTab('upsells')}>
             <FaLayerGroup />
-            <span>Upsells</span>
+            <span>{terms.upsellsTab}</span>
          </button>
       </div>
 
@@ -865,8 +868,8 @@ export default function ProductManagementPopup({
              <div className="erp-section">
                 <div className="section-title"><FaBarcode /> Basic Info</div>
                 <div className="input-row">
-                   <div className="input-group"><label>Name <span style={{ color: '#ef4444' }}>*</span></label><input value={selectedProduct.name} onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})} placeholder="e.g. Chicken Burger" /></div>
-                   <div className="input-group"><label>Item Code</label><input value={selectedProduct.productCode || ''} onChange={e => setSelectedProduct({...selectedProduct, productCode: e.target.value})} placeholder="e.g. CB001" /></div>
+                   <div className="input-group"><label>Name <span style={{ color: '#ef4444' }}>*</span></label><input value={selectedProduct.name} onChange={e => setSelectedProduct({...selectedProduct, name: e.target.value})}  /></div>
+                   <div className="input-group"><label>{terms.codeLabel}</label><input value={selectedProduct.productCode || ''} onChange={e => setSelectedProduct({...selectedProduct, productCode: e.target.value})} placeholder={terms.codePlaceholder} /></div>
                 </div>
                
                 <div className="input-row" style={{ marginTop: '16px' }}>
@@ -878,14 +881,16 @@ export default function ProductManagementPopup({
                          onChange={val => setSelectedProduct({...selectedProduct, category: categoryOptions.find(c => c.id === val)})}
                        />
                    </div>
+                  {showDiet && (
                   <div className="input-group">
                      <label>Product Type</label>
-                     <NiceSelect 
+                     <NiceSelect
                        options={[{ value: 'VEG', label: 'Vegetarian' }, { value: 'NON_VEG', label: 'Non-Vegetarian' }, { value: 'EGG', label: 'Contains Egg' }]}
                        value={selectedProduct.productType || 'VEG'}
                        onChange={val => setSelectedProduct({...selectedProduct, productType: val})}
                      />
                   </div>
+                  )}
                </div>
                <div className="input-row" style={{ marginTop: '16px' }}>
                   <div className="input-group" style={{ flex: barcodeEnabled ? undefined : 1 }}>
@@ -969,7 +974,7 @@ export default function ProductManagementPopup({
                    <textarea 
                      value={selectedProduct.description || ''} 
                      onChange={e => setSelectedProduct({...selectedProduct, description: e.target.value})} 
-                     placeholder="Describe product details, ingredients, or preparation notes..." 
+                     placeholder={terms.descriptionPlaceholder}
                      rows={2} 
                      style={{ width: '100%', padding: '6px 10px', border: '1px solid #cbd5e1', borderRadius: '7px', fontSize: '12px', resize: 'vertical' }} 
                    />
@@ -985,7 +990,7 @@ export default function ProductManagementPopup({
                  </div>
                  {inventoryEnabled && (
                    <div className="control-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '140px' }}>
-                      <label style={{ margin: 0 }}>Is Ingredient</label>
+                      <label style={{ margin: 0 }}>{terms.rawMaterialLabel}</label>
                       <div className={`erp-switch ${selectedProduct.isIngredient ? 'active' : ''}`} onClick={() => !viewOnly && setSelectedProduct({...selectedProduct, isIngredient: !selectedProduct.isIngredient})}>
                         <div className="switch-knob"></div>
                       </div>
@@ -1026,7 +1031,7 @@ export default function ProductManagementPopup({
                <div className="erp-section" style={{ marginTop: '12px' }}>
                   <div className="input-row">
                      <div className="input-group"><label>Tax (%)</label><input type="number" value={selectedProduct.taxRate || 0} onChange={e => setSelectedProduct({...selectedProduct, taxRate: parseFloat(e.target.value)})} /></div>
-                     <div className="input-group"><label>HSN Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
+                     <div className="input-group"><label>HSN Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder={terms.taxCodePlaceholder} /></div>
                   </div>
                </div>
              )}
@@ -1046,7 +1051,7 @@ export default function ProductManagementPopup({
              {!selectedProduct.isIngredient && (
                 <div className="erp-section" style={{ marginTop: '16px' }}>
                    <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaCogs /> Recipe / Bill of Materials</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><FaCogs /> {terms.recipeTitle}</span>
                       {(selectedProduct.recipeLines || []).length > 0 && (
                          <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#475569', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px' }}>
                             {(selectedProduct.recipeLines || []).length} {(selectedProduct.recipeLines || []).length === 1 ? 'item' : 'items'}
@@ -1155,9 +1160,9 @@ export default function ProductManagementPopup({
 
                    {/* NiceSelect Ingredient Dropdown */}
                    <div className="mapping-selector" style={{ marginBottom: '12px' }}>
-                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Add Ingredient</label>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>{terms.addComponentLabel}</label>
                       <NiceSelect
-                        placeholder="Search ingredient to add..."
+                        placeholder={terms.componentSearchPlaceholder}
                         options={ingredientOptions}
                         value=""
                         onChange={ingId => {
@@ -1483,7 +1488,7 @@ export default function ProductManagementPopup({
                    <div className="section-title"><FaClock /> Shared Tax Config</div>
                    <div className="input-row">
                       <div className="input-group"><label>Tax Rate (%)</label><input type="number" placeholder="0" value={selectedProduct.taxRate === 0 || selectedProduct.taxRate === '' || selectedProduct.taxRate === null || selectedProduct.taxRate === undefined || isNaN(selectedProduct.taxRate) ? '' : selectedProduct.taxRate} onChange={e => setSelectedProduct({...selectedProduct, taxRate: e.target.value === '' ? '' : parseFloat(e.target.value)})} /></div>
-                      <div className="input-group"><label>HSN / Tax Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder="e.g. 2106" /></div>
+                      <div className="input-group"><label>HSN / Tax Code</label><input value={selectedProduct.taxCode || ''} onChange={e => setSelectedProduct({...selectedProduct, taxCode: e.target.value})} placeholder={terms.taxCodePlaceholder} /></div>
                    </div>
                 </div>
              )}
@@ -1720,11 +1725,11 @@ export default function ProductManagementPopup({
          {formTab === 'upsells' && (
            <>
              <div className="erp-section">
-                <div className="section-title"><FaPlus /> Upsells & Add-ons</div>
+                <div className="section-title"><FaPlus /> {terms.upsellsTitle}</div>
                 <p className="section-desc">Suggest these products when this item is added to cart.</p>
 
                  <div className="mapping-selector" style={{ marginBottom: '16px' }}>
-                    <label>Link Product (Upsell)</label>
+                    <label>{terms.upsellLinkLabel}</label>
                     <NiceSelect 
                       placeholder="Search product to link..."
                       options={(products || [])
