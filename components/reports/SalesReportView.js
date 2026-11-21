@@ -1115,7 +1115,6 @@ export default function SalesReportView({
               notify,
             });
           }}><FaFilePdf /> Export PDF</button>
-          <button className="rpt-sales-btn" onClick={() => handlePrint('credit')}><FaPrint /> Print</button>
         </div>
         <div className="rpt-sales-kpi-grid">
           {cards.map((card) => (
