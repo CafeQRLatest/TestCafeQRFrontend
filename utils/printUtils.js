@@ -570,9 +570,10 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(withMargins(kotReference, layout));
     }
     const dailyBillNo = pickValue(order, ["dailyBillNo", "daily_bill_no"], null);
-    const staffName = String(pickValue(order, ["createdByName", "created_by_name", "taken_by_name", "takenByName"], '')).trim();
+    const updatedByRaw = String(pickValue(order, ["updatedByName", "updated_by_name", "updatedBy", "updated_by"], '')).trim();
+    const staffName = updatedByRaw && updatedByRaw.toUpperCase() !== 'SYSTEM' && !updatedByRaw.includes('(customer)') ? updatedByRaw : '';
     if (showCreatedBy && staffName) {
-      lines.push(withMargins(`Created: ${staffName}`, layout));
+      lines.push(withMargins(`Updated by: ${staffName}`, layout));
     }
     const customerCount = pickValue(order, ["number_of_customers", "numberOfCustomers", "numberofcustomers"], null);
     if (customerCount)

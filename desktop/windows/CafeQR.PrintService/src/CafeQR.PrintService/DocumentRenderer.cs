@@ -488,6 +488,15 @@ namespace CafeQR.PrintService
             return merged;
         }
 
+        // Name of the staff member who last updated the order; blank for SYSTEM or customer-edited orders.
+        private static string UpdatedByDisplayName(JObject order)
+        {
+            var name = PickValue(order, new[] { "updatedByName", "updated_by_name", "updatedBy", "updated_by" }).Trim();
+            if (string.IsNullOrEmpty(name) || name.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase) || name.Contains("(customer)"))
+                return string.Empty;
+            return name;
+        }
+
         private static string PickTemplateValue(JObject obj, string[] keys, string fallback = "")
         {
             foreach (var key in keys)
@@ -1364,10 +1373,10 @@ namespace CafeQR.PrintService
                 Add("Daily Bill No: " + dailyBillNo);
             }
 
-            var staffName = PickValue(order, new[] { "createdByName", "created_by_name", "taken_by_name", "takenByName" }).Trim();
+            var staffName = UpdatedByDisplayName(order);
             if (showCreatedBy && !string.IsNullOrEmpty(staffName))
             {
-                Add("Created: " + staffName);
+                Add("Updated by: " + staffName);
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
@@ -1700,10 +1709,10 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
 
-            var staffName = PickValue(order, new[] { "createdByName", "created_by_name", "taken_by_name", "takenByName" }).Trim();
+            var staffName = UpdatedByDisplayName(order);
             if (showCreatedBy && !string.IsNullOrEmpty(staffName))
             {
-                lines.Add(WithMargins("Created: " + staffName, layout));
+                lines.Add(WithMargins("Updated by: " + staffName, layout));
             }
 
             var customerCount = PickValue(order, new[] { "number_of_customers", "numberOfCustomers", "numberofcustomers" });
