@@ -91,6 +91,7 @@ const DEFAULT_KOT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: false,
   showInstructions: true,
+  showCreatedBy: false,
   titleFontSize: 'NORMAL',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
@@ -205,6 +206,7 @@ const mergeKotTemplate = (template) => {
     ...DEFAULT_KOT_TEMPLATE,
     ...source,
     showInstructions: source.showInstructions !== false,
+    showCreatedBy: source.showCreatedBy === true,
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
@@ -247,6 +249,7 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
   if (documentKey === 'KOT') {
     localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
+    localStorage.setItem(`${prefix}SHOW_CREATED_BY`, template.showCreatedBy === true ? '1' : '0');
   } else {
     localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
   }
@@ -460,6 +463,7 @@ export const syncPrintConfigToLocalStorage = (config) => {
   localStorage.setItem('PRINT_SHOW_GST_BREAKDOWN', receiptTemplate.showGstBreakdown !== false ? '1' : '0');
   localStorage.setItem('PRINT_SHOW_REMARKS', receiptTemplate.showRemarks !== false ? '1' : '0');
   localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kotTemplate.showInstructions !== false ? '1' : '0');
+  localStorage.setItem('PRINT_KOT_SHOW_CREATED_BY', kotTemplate.showCreatedBy === true ? '1' : '0');
 
   // Set margins and column formatting defaults
   localStorage.setItem('PRINT_KOT_HEADER', kotTemplate.header ?? '*** KOT ***');
@@ -1417,7 +1421,7 @@ export default function PrintPlatformSetup({ restaurantId, config: legacyConfig,
       ['showCustomerDetails', 'Customer'],
       ['showTableLabel', 'Table/type'],
       ['showFssai', 'FSSAI'],
-      ...(documentKey === 'kot' ? [['showInstructions', 'Instructions']] : []),
+      ...(documentKey === 'kot' ? [['showInstructions', 'Instructions'], ['showCreatedBy', 'Created by (staff name)']] : []),
       ...(documentKey === 'receipt' ? [['showGstBreakdown', 'GST'], ['showRemarks', 'Remarks']] : []),
     ];
 

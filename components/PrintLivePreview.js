@@ -337,7 +337,9 @@ export default function PrintLivePreview({ config, activeDoc, onDocChange }) {
                 <div className="order-meta text-left font-small">
                   <div>Date: 16/06/2026 02:45 PM</div>
                   <div>Sale Order No: SO-2026-0000348</div>
-                  <div>Attended by: Cashier Sam</div>
+                  {kotTemplate.showCreatedBy === true && (
+                    <div>Created: Cashier Sam</div>
+                  )}
                   {kotTemplate.showCustomerDetails !== false && (
                     <div className="customer-info">
                       Customer: John Doe

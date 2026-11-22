@@ -120,6 +120,7 @@ const DEFAULT_KOT_TEMPLATE = {
   ...DEFAULT_THERMAL_LAYOUT,
   showGstBreakdown: false,
   showInstructions: true,
+  showCreatedBy: false,
   titleFontSize: 'DOUBLE',
   fontSize: 'NORMAL',
   totalFontSize: 'DOUBLE',
@@ -221,6 +222,7 @@ const mergeKotTemplate = (template) => {
     ...DEFAULT_KOT_TEMPLATE,
     ...source,
     showInstructions: source.showInstructions !== false,
+    showCreatedBy: source.showCreatedBy === true,
     titleFontSize: source.titleFontSize ?? source.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: source.fontSize ?? source.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: source.totalFontSize ?? source.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
@@ -285,6 +287,7 @@ const buildThermalCompatibilityTemplate = (kotInput, receiptInput) => {
     showGstBreakdown: receipt.showGstBreakdown !== false,
     showRemarks: receipt.showRemarks !== false,
     showInstructions: kot.showInstructions !== false,
+    showCreatedBy: kot.showCreatedBy === true,
     kotFontSize: kot.fontSize,
     kotTitleFontSize: kot.titleFontSize,
     kotTotalFontSize: kot.totalFontSize,
@@ -317,6 +320,7 @@ const syncThermalTemplateToLocalStorage = (documentKey, template) => {
   localStorage.setItem(`${prefix}SHOW_GST_BREAKDOWN`, template.showGstBreakdown !== false ? '1' : '0');
   if (documentKey === 'KOT') {
     localStorage.setItem(`${prefix}SHOW_INSTRUCTIONS`, template.showInstructions !== false ? '1' : '0');
+    localStorage.setItem(`${prefix}SHOW_CREATED_BY`, template.showCreatedBy === true ? '1' : '0');
   } else {
     localStorage.setItem(`${prefix}SHOW_REMARKS`, template.showRemarks !== false ? '1' : '0');
     localStorage.setItem(`${prefix}SHOW_UPI_QR`, template.showUpiQr !== false ? '1' : '0');
@@ -349,6 +353,7 @@ function syncPrintSettingsToLocalStorage(config) {
     if (receipt.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(receipt.upiId || ''));
     if (receipt.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(receipt.upiPayeeName || ''));
     localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? 'true' : 'false');
+    localStorage.setItem('PRINT_KOT_SHOW_CREATED_BY', kot.showCreatedBy === true ? 'true' : 'false');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');
@@ -966,7 +971,7 @@ function ConfigurationsContent() {
       ['showCustomerDetails', 'Customer details'],
       ['showTableLabel', 'Table / order type'],
       ['showFssai', 'FSSAI license'],
-      ...(kind === 'kotTemplate' ? [['showInstructions', 'Instructions']] : []),
+      ...(kind === 'kotTemplate' ? [['showInstructions', 'Instructions'], ['showCreatedBy', 'Created by (staff name)']] : []),
       ...(kind === 'receiptTemplate' ? [['showGstBreakdown', 'GST breakdown'], ['showRemarks', 'Remarks'], ['showUpiQr', 'UPI Payment QR Code']] : []),
     ];
 

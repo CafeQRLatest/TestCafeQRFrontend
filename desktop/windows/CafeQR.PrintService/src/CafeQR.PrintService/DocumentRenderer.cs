@@ -1314,6 +1314,7 @@ namespace CafeQR.PrintService
             bool showCustomerDetails = ValueBool(tpl, "showCustomerDetails", true);
             bool showTableLabel = ValueBool(tpl, "showTableLabel", true);
             bool showInstructions = ValueBool(tpl, "showInstructions", true);
+            bool showCreatedBy = ValueBool(tpl, "showCreatedBy", false);
 
             string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
             string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
@@ -1363,8 +1364,8 @@ namespace CafeQR.PrintService
                 Add("Daily Bill No: " + dailyBillNo);
             }
 
-            var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
-            if (!string.IsNullOrEmpty(staffName))
+            var staffName = PickValue(order, new[] { "createdByName", "created_by_name", "taken_by_name", "takenByName" }).Trim();
+            if (showCreatedBy && !string.IsNullOrEmpty(staffName))
             {
                 Add("Created: " + staffName);
             }
@@ -1643,6 +1644,7 @@ namespace CafeQR.PrintService
             bool showTableLabel = tpl != null ? ValueBool(tpl, "showTableLabel", true) : true;
             bool showFssai = tpl != null ? ValueBool(tpl, "showFssai", true) : true;
             bool showInstructions = tpl != null ? ValueBool(tpl, "showInstructions", true) : true;
+            bool showCreatedBy = tpl != null ? ValueBool(tpl, "showCreatedBy", false) : false;
 
             string kotHeader = PickTemplateValue(tpl, new[] { "header", "kotHeader" }, "*** KOT ***");
             string kotFooter = PickTemplateValue(tpl, new[] { "footer", "kotFooter" }, "*** SEND TO KITCHEN ***");
@@ -1698,8 +1700,8 @@ namespace CafeQR.PrintService
                 lines.Add(WithMargins("Daily Bill No: " + dailyBillNo, layout));
             }
 
-            var staffName = PickValue(order, new[] { "updatedByName", "updated_by_name", "taken_by_name", "takenByName" }).Trim();
-            if (!string.IsNullOrEmpty(staffName))
+            var staffName = PickValue(order, new[] { "createdByName", "created_by_name", "taken_by_name", "takenByName" }).Trim();
+            if (showCreatedBy && !string.IsNullOrEmpty(staffName))
             {
                 lines.Add(WithMargins("Created: " + staffName, layout));
             }

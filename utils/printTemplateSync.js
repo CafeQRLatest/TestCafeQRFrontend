@@ -16,7 +16,7 @@ const DEFAULT_KOT_TEMPLATE = {
   feedLines: 3, autoCut: true, soundAlert: false,
   showRestaurantName: true, showDailyBillNo: true, showCustomerDetails: true,
   showTableLabel: true, showFssai: true, showGstBreakdown: false,
-  showInstructions: true,
+  showInstructions: true, showCreatedBy: false,
   titleFontSize: 'DOUBLE', fontSize: 'NORMAL', totalFontSize: 'DOUBLE',
   header: '*** KOT ***', footer: '*** SEND TO KITCHEN ***',
 };
@@ -40,6 +40,7 @@ function mergeKotTemplate(template) {
   return {
     ...DEFAULT_KOT_TEMPLATE, ...src,
     showInstructions: src.showInstructions !== false,
+    showCreatedBy: src.showCreatedBy === true,
     titleFontSize: src.titleFontSize ?? src.kotTitleFontSize ?? DEFAULT_KOT_TEMPLATE.titleFontSize,
     fontSize: src.fontSize ?? src.kotFontSize ?? DEFAULT_KOT_TEMPLATE.fontSize,
     totalFontSize: src.totalFontSize ?? src.kotTotalFontSize ?? DEFAULT_KOT_TEMPLATE.totalFontSize,
@@ -158,6 +159,7 @@ export async function ensurePrintTemplatesSynced(force = false) {
     if (receipt.upiId !== undefined) localStorage.setItem('PRINT_UPI_ID', String(receipt.upiId || ''));
     if (receipt.upiPayeeName !== undefined) localStorage.setItem('PRINT_UPI_PAYEE_NAME', String(receipt.upiPayeeName || ''));
     localStorage.setItem('PRINT_KOT_SHOW_INSTRUCTIONS', kot.showInstructions !== false ? '1' : '0');
+    localStorage.setItem('PRINT_KOT_SHOW_CREATED_BY', kot.showCreatedBy === true ? '1' : '0');
 
     localStorage.setItem('PRINT_TITLE_FONT_SIZE', receipt.titleFontSize || 'DOUBLE');
     localStorage.setItem('PRINT_FONT_SIZE', receipt.fontSize || 'NORMAL');
