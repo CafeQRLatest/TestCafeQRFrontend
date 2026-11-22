@@ -1229,22 +1229,24 @@ namespace CafeQR.PrintService
             public bool ShowDiscCol;
         }
 
-        private static BillCols GetBillCols(int innerW, bool hasDiscount)
+        // amountW = chars needed for the largest amount (5 integer digits + ".00" = 8).
+        private static BillCols GetBillCols(int innerW, bool hasDiscount, int amountW = 8)
         {
             bool showDiscCol = false;
             int gaps = showDiscCol ? 4 : 3;
             int qty = innerW >= 44 ? 6 : (innerW >= 38 ? 6 : 4);
-            int rate = innerW >= 44 ? 7 : (innerW >= 38 ? 7 : 5);
+            // Rate and total must fit 5-digit amounts; a narrower column silently drops leading digits (RightAlignEnd).
+            int rate = Math.Max(amountW, innerW >= 44 ? 7 : (innerW >= 38 ? 7 : 5));
             int disc = 0;
-            int total = innerW >= 44 ? 8 : (innerW >= 38 ? 7 : 7);
+            int total = Math.Max(amountW, innerW >= 44 ? 8 : (innerW >= 38 ? 7 : 7));
             int fixedCols = qty + rate + total + disc + gaps;
             int name = innerW - fixedCols;
             if (name < 8)
             {
                 qty = 3;
-                rate = 5;
+                rate = Math.Max(amountW, 5);
                 disc = 0;
-                total = 7;
+                total = Math.Max(amountW, 7);
                 int fixedCols2 = qty + rate + total + disc + gaps;
                 name = Math.Max(6, innerW - fixedCols2);
             }
@@ -1885,7 +1887,8 @@ namespace CafeQR.PrintService
             // Determine columns for bill printing
             int itemScale = IsWideThermalSize(bFontSize) ? 2 : 1;
             int effW = Math.Max(16, W / itemScale);
-            var billCols = GetBillCols(effW, hasLineDiscount);
+            // C# line totals are always rendered with 2 decimals ("0.00") below, so 8 chars covers 5 integer digits.
+            var billCols = GetBillCols(effW, hasLineDiscount, 8);
             int nameW = billCols.Name;
             int qtyW = billCols.Qty;
             int rateW = billCols.Rate;

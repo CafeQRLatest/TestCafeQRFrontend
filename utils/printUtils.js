@@ -449,18 +449,20 @@ function buildLogoEscPos(restaurantProfile) {
   return out;
 }
 
-function getBillCols(innerW, hasDiscount) {
+// amountW = chars needed for the largest amount the bill can show (5 integer digits + decimals).
+function getBillCols(innerW, hasDiscount, amountW = 8) {
   const showDiscCol = false;
   const gaps = showDiscCol ? 4 : 3;
   // Qty fits the 4-decimal maximum (e.g. 12.3456 = 7 chars) plus a space.
   let qty = innerW >= 38 ? 8 : 7;
-  let rate = innerW >= 44 ? 7 : innerW >= 38 ? 7 : 5;
+  // Rate and total must fit 5-digit amounts; a narrower column silently drops leading digits (rightAlignEnd).
+  let rate = Math.max(amountW, innerW >= 44 ? 7 : innerW >= 38 ? 7 : 5);
   let disc = showDiscCol ? (innerW >= 44 ? 7 : 6) : 0;
-  let total = innerW >= 44 ? 8 : innerW >= 38 ? 7 : 7;
+  let total = Math.max(amountW, innerW >= 44 ? 8 : innerW >= 38 ? 7 : 7);
   const fixed = qty + rate + total + disc + gaps;
   let name = innerW - fixed;
   if (name < 8) {
-    qty = 7; rate = 5; disc = 0; total = 7;
+    qty = 7; rate = Math.max(amountW, 5); disc = 0; total = Math.max(amountW, 7);
     const fixed2 = qty + rate + total + disc + gaps;
     name = Math.max(6, innerW - fixed2);
   }
@@ -797,7 +799,10 @@ export function buildReceiptText(order, bill, restaurantProfile) {
 
     const itemScale = (bFontSize === 'DOUBLE' || bFontSize === 'DOUBLE_WIDTH') ? 2 : 1;
     const effW = Math.max(16, Math.floor(W / itemScale));
-    const cols = getBillCols(effW, hasLineDiscount);
+    const rawAmountDp = restaurantProfile?.currency_decimals;
+    const amountDp = rawAmountDp != null && rawAmountDp !== '' && Number.isInteger(Number(rawAmountDp)) ? Number(rawAmountDp) : 2;
+    const amountW = 5 + (amountDp > 0 ? amountDp + 1 : 0);
+    const cols = getBillCols(effW, hasLineDiscount, amountW);
     const { name, qty, rate, disc, total, showDiscCol } = cols;
     const lines = [];
 
