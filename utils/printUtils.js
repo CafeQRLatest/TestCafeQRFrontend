@@ -586,7 +586,7 @@ export function buildKotText(order, restaurantProfile) {
       lines.push(withMargins(MODE_BOLD + "Instructions:" + MODE_NO_BOLD, layout));
       inst.split('\n').map(s => s.trim()).filter(Boolean).forEach(line => {
         wrapText(line, W).forEach(wl => {
-          lines.push(withMargins(wl, layout));
+          lines.push(withMargins(MODE_BOLD + wl + MODE_NO_BOLD, layout));
         });
       });
     }
@@ -645,7 +645,7 @@ export function buildKotText(order, restaurantProfile) {
         if (itemNote) {
           lines.push(SIZE_1X + MODE_NO_BOLD);
           wrapText(`  >> ${itemNote}`, W).forEach(noteLine => {
-            lines.push(withMargins(noteLine, layout));
+            lines.push(withMargins(MODE_BOLD + noteLine + MODE_NO_BOLD, layout));
           });
           lines.push(MODE_BOLD + getFontSizeCmd(bFontSize));
         }
