@@ -703,7 +703,7 @@ function ProductManagementContent() {
                    <button className="erp-btn primary" onClick={startNewProduct}><FaPlus /> <span className="btn-label">New Product</span></button>
                  </>
                ) : activeTab === 'categories' ? (
-                 <button className="erp-btn primary" onClick={() => setSelectedCategory({ name: '', description: '', isActive: true })}><FaPlus /> New Category</button>
+                 <button className="erp-btn primary" onClick={() => setSelectedCategory({ name: '', description: '', isActive: true, sequenceNo: null })}><FaPlus /> New Category</button>
                ) : activeTab === 'uoms' ? (
                  <button className="erp-btn primary" onClick={() => setSelectedUom({ name: '', shortName: '', isActive: true, isDefault: false, uomPrecision: 0 })}><FaPlus /> New UOM</button>
                ) : (
@@ -810,11 +810,11 @@ function ProductManagementContent() {
                 )}
                 {activeTab === 'categories' && (
                    <>
-                    <thead><tr><th>Name</th><th>Description</th><th>Status</th><th>Edit</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Description</th><th>Seq No</th><th>Status</th><th>Edit</th></tr></thead>
                     <tbody>
                        {categories.filter(c => (!tableStatusFilter || (tableStatusFilter === 'ACTIVE' ? c.isActive !== false : c.isActive === false)) && c.name.toLowerCase().includes(searchTerm.toLowerCase())).map(c => (
                         <tr key={c.id} onClick={() => setSelectedCategory(c)} className="clickable-row">
-                          <td><span className="name-text">{c.name}</span></td><td>{c.description || '-'}</td>
+                          <td><span className="name-text">{c.name}</span></td><td>{c.description || '-'}</td><td>{c.sequenceNo ?? '-'}</td>
                           <td>
                              <span className={`status-pill ${c.isActive ? 'active' : 'inactive'}`}>
                                 <span className="status-dot"></span>
@@ -1000,6 +1000,7 @@ function ProductManagementContent() {
           >
             <div className="drawer-form">
                <div className="input-group"><label>Name</label><input value={selectedCategory.name} onChange={e => setSelectedCategory({...selectedCategory, name: e.target.value})} /></div>
+               <div className="input-group"><label>Sequence No</label><input type="number" min="0" step="1" placeholder="Optional - used when sales screen order is Sequence No" value={selectedCategory.sequenceNo ?? ''} onChange={e => { const v = e.target.value; setSelectedCategory({...selectedCategory, sequenceNo: v === '' ? null : Math.max(0, parseInt(v, 10) || 0)}); }} /></div>
                <div className="input-group"><label>Description</label><textarea value={selectedCategory.description || ''} onChange={e => setSelectedCategory({...selectedCategory, description: e.target.value})} /></div>
                 <div className="control-row">
                    <label>Active Status</label>

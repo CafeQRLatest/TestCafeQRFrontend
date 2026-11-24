@@ -705,8 +705,8 @@ export default function WhatsAppGatewayCard({
         /* Responsive Setup Grid */
         .wa-setup-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
-          gap: 24px;
+          grid-template-columns: minmax(0, 1fr) 240px;
+          gap: 32px;
           align-items: center;
         }
 
@@ -770,12 +770,19 @@ export default function WhatsAppGatewayCard({
         /* QR Frame */
         .wa-qr-display-panel {
           display: flex;
+          flex-direction: column;
           justify-content: center;
           align-items: center;
+          gap: 12px;
+          width: 100%;
+          min-width: 0;
+          padding-left: 32px;
+          border-left: 1px solid #f1f5f9;
+          box-sizing: border-box;
         }
 
         .wa-qr-frame {
-          width: min(200px, 80vw);
+          width: min(208px, 80vw);
           aspect-ratio: 1/1;
           background: #ffffff;
           border: 1.5px dashed #cbd5e1;
@@ -844,10 +851,11 @@ export default function WhatsAppGatewayCard({
 
         .wa-qr-controls {
           display: flex;
+          flex-direction: column;
           gap: 8px;
           width: 100%;
-          max-width: 220px;
-          margin-top: 6px;
+          max-width: 208px;
+          margin-top: 0;
         }
 
         .wa-btn-qr-action {
@@ -856,9 +864,9 @@ export default function WhatsAppGatewayCard({
           align-items: center;
           justify-content: center;
           gap: 5px;
-          padding: 6px 8px;
+          padding: 8px 10px;
           border-radius: 8px;
-          font-size: 11px;
+          font-size: 11.5px;
           font-weight: 700;
           cursor: pointer;
           transition: all 0.2s;
@@ -1079,6 +1087,28 @@ export default function WhatsAppGatewayCard({
         }
 
         /* ───────── UNIVERSAL RESPONSIVE BREAKPOINTS ───────── */
+        @media (max-width: 960px) {
+          .wa-setup-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+          .wa-qr-display-panel {
+            order: -1;
+            padding-left: 0;
+            border-left: none;
+          }
+          .wa-qr-controls {
+            flex-direction: row;
+            max-width: 320px;
+          }
+          .wa-test-form {
+            flex-wrap: wrap;
+          }
+          .wa-test-form input {
+            flex: 1 1 100%;
+          }
+        }
+
         @media (max-width: 768px) {
           .wa-card-header {
             align-items: flex-start;
@@ -1100,6 +1130,8 @@ export default function WhatsAppGatewayCard({
           }
           .wa-qr-display-panel {
             order: -1; /* Display QR above instructions on mobile for fast scanning */
+            padding-left: 0;
+            border-left: none;
           }
           .wa-qr-frame {
             width: min(190px, 75vw);
@@ -1131,6 +1163,13 @@ export default function WhatsAppGatewayCard({
           .wa-qr-frame {
             width: 100%;
             max-width: 200px;
+          }
+          .wa-qr-controls {
+            flex-direction: column;
+            max-width: 208px;
+          }
+          .wa-card-header {
+            flex-wrap: wrap;
           }
         }
       `}</style>

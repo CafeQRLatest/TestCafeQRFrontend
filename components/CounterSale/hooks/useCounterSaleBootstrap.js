@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as api from '../services/counterSaleApi';
 import { extractUniqueCategories } from '../domain/products';
+import { applyCategoryOrder } from '../domain/categoryOrder';
 
 // Organization-scoped caches to persist configurations and pricelists across mounts
 const sessionConfigCache = new Map();
@@ -256,6 +257,15 @@ export default function useCounterSaleBootstrap({ orgId, propConfig, initialCred
         // Extract unique categories
         const cats = extractUniqueCategories(sortedProducts);
         setCategories(cats);
+
+        // Apply the owner's category order (sequence / A-Z / most sold ...). Best effort: never blocks or breaks loading.
+        Promise.resolve(api.fetchOrderedCategories?.(signalOption))
+          .then(ordered => {
+            if (active && Array.isArray(ordered) && ordered.length > 0) {
+              setCategories(applyCategoryOrder(cats, ordered));
+            }
+          })
+          .catch(() => { /* keep A-Z fallback */ });
 
         // Terminate loading state as soon as critical dependencies resolve
         setLoading(false);

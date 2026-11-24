@@ -74,8 +74,12 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
   }, [open]);
 
   const dropdownWidth = Math.max(coords.width, 240);
-  const boundedLeft = typeof window !== 'undefined'
-    ? Math.max(8, Math.min(coords.left, window.innerWidth - dropdownWidth - 8))
+  // clientWidth excludes the page scrollbar (innerWidth does not), so the menu never slips under it.
+  const viewportWidth = typeof document !== 'undefined'
+    ? (document.documentElement.clientWidth || window.innerWidth)
+    : 0;
+  const boundedLeft = viewportWidth
+    ? Math.max(8, Math.min(coords.left, viewportWidth - dropdownWidth - 16))
     : coords.left;
 
   const dropdownContent = open && (
@@ -87,8 +91,8 @@ export default function NiceSelect({ value, onChange, options, placeholder = "Se
         top: coords.direction === 'down' ? coords.top + 8 : 'auto',
         bottom: coords.direction === 'up' ? (window.innerHeight - coords.top) + 8 : 'auto',
         left: boundedLeft,
-        width: coords.width,
-        minWidth: 240,
+        width: dropdownWidth,
+        maxWidth: 'calc(100vw - 24px)',
         background: "#fff",
         borderRadius: 12,
         border: "1px solid #e2e8f0",

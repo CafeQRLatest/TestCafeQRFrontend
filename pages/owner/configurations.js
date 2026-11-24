@@ -420,7 +420,7 @@ function ConfigurationsContent() {
   const configQuery = configSearch.trim().toLowerCase();
   const matchesConfigQuery = (...parts) => !configQuery || parts.join(' ').toLowerCase().includes(configQuery);
   const moduleMatches = (m) => matchesConfigQuery(m.title, m.desc, ...(m.children || []).flatMap(c => [c.title, c.desc]));
-  const salesMatches = matchesConfigQuery('sales pos terminal screen classic counter standard cache catalog v2 history');
+  const salesMatches = matchesConfigQuery('sales pos terminal screen classic counter standard cache catalog v2 history category categories order sort sequence');
   const visibleModules = MODULES.filter(m => (!m.superAdminOnly || isSuperAdmin) && moduleMatches(m));
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -449,6 +449,7 @@ function ConfigurationsContent() {
     pm_customer_age: false,
     pm_cash_drawer: false, pm_cd_auto_sale: true, pm_cd_auto_order: true, pm_cd_reason_required: true, cd_open_tenders: 'CASH',
     credit_allocation_mode: 'OLDEST_FIRST',
+    category_sort_mode: 'NAME_ASC',
     
     tax_enabled: false,
     tax_label_global: 'Tax',
@@ -608,6 +609,7 @@ function ConfigurationsContent() {
             pm_cd_auto_order: d.cashDrawerAutoOpenOnOrderSettle !== false, pm_cd_reason_required: d.cashDrawerManualReasonRequired !== false,
             cd_open_tenders: d.cashDrawerOpenTenders || 'CASH',
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
+            category_sort_mode: d.categorySortMode || 'NAME_ASC',
             
             tax_enabled: !!d.taxEnabled, 
             tax_label_global: d.taxLabelGlobal || 'Tax',
@@ -846,6 +848,7 @@ function ConfigurationsContent() {
         menuImagesEnabled: config.pm_menu_images,
         creditEnabled: hasModule('CREDIT_LEDGER', orgId) ? config.pm_credit_ledger : false, tableManagementEnabled: config.pm_table_management,
         creditAllocationMode: config.credit_allocation_mode || 'OLDEST_FIRST',
+        categorySortMode: config.category_sort_mode || 'NAME_ASC',
         qrOrderingEnabled: config.pm_qr_ordering, inventoryEnabled: hasModule('INVENTORY', orgId) ? config.pm_inventory : false,
         purchaseEnabled: hasModule('INVENTORY', orgId) ? config.pm_purchase : false,
         nonStockSalesPolicy: (config.pm_inventory && hasModule('INVENTORY', orgId)) ? (config.non_stock_sales_policy || 'NONE') : 'NONE',
@@ -1272,6 +1275,30 @@ function ConfigurationsContent() {
                     >
                       POS V2 + History
                     </button>
+                  </div>
+                </div>
+
+                <div className="pos-simple-row">
+                  <div className="pos-simple-text">
+                    <span className="pos-simple-label">Category order</span>
+                    <span className="pos-simple-desc">How category tabs are ordered on the sales screen. Sequence No uses the number set on each category. Sold-based options use the last 30 days.</span>
+                  </div>
+                  <div className="small-select" style={{ minWidth: 200 }}>
+                    <NiceSelect
+                      value={config.category_sort_mode || 'NAME_ASC'}
+                      onChange={(v) => set('category_sort_mode', v)}
+                      maxHeight={380}
+                      options={[
+                        { value: 'SEQUENCE', label: 'Sequence No' },
+                        { value: 'NAME_ASC', label: 'A to Z' },
+                        { value: 'NAME_DESC', label: 'Z to A' },
+                        { value: 'MOST_SOLD', label: 'Most sold' },
+                        { value: 'LEAST_SOLD', label: 'Least sold' },
+                        { value: 'HIGHEST_REVENUE', label: 'Highest revenue' },
+                        { value: 'RECENTLY_SOLD', label: 'Recently sold' },
+                        { value: 'MOST_PRODUCTS', label: 'Most products' }
+                      ]}
+                    />
                   </div>
                 </div>
 

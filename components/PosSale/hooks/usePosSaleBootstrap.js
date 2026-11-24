@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as api from '../services/posSaleApi';
 import httpApi from '../../../utils/api';
 import { extractUniqueCategories } from '../../CounterSale/domain/products';
+import { keepCategoryOrder } from '../../CounterSale/domain/categoryOrder';
 import { getPosCachedBootstrap, savePosCachedBootstrap } from '../services/posIndexedDb';
 
 // Organization-scoped cache to persist bootstrap across mounts (session RAM)
@@ -17,18 +18,13 @@ function isAbortError(err) {
 
 function formatSortedCategories(list) {
   if (!Array.isArray(list) || list.length === 0) return ['ALL'];
-  const names = list.map(c => (typeof c === 'string' ? c : c?.name)).filter(Boolean);
-  const sortedUnique = Array.from(new Set(names)).sort((a, b) =>
-    String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-  );
-  return ['ALL', ...sortedUnique];
+  // Order comes from the server (category sort mode) - do not re-sort here.
+  return ['ALL', ...keepCategoryOrder(list)];
 }
 
 function sortCategoryBeans(list) {
-  if (!Array.isArray(list)) return [];
-  return [...list].sort((a, b) =>
-    String(a?.name || a || '').localeCompare(String(b?.name || b || ''), undefined, { numeric: true, sensitivity: 'base' })
-  );
+  // Keep the server-provided order (category sort mode); no client-side re-sort.
+  return Array.isArray(list) ? [...list] : [];
 }
 
 function sortProducts(products) {
@@ -342,7 +338,7 @@ export default function usePosSaleBootstrap({ orgId, propConfig, initialCreditCu
 
   const refreshCategories = async () => {
     try {
-      const resp = await httpApi.get('/api/v1/products/categories');
+      const resp = await httpApi.get('/api/v1/pos/sale/categories');
       if (resp.data?.success && Array.isArray(resp.data?.data)) {
         const catList = resp.data.data.filter(c => c && c.isActive !== false);
         const sortedBeans = sortCategoryBeans(catList);

@@ -28,6 +28,11 @@ export async function fetchPricelists(options = {}) {
   return data.data || [];
 }
 
+export async function fetchOrderedCategories(options = {}) {
+  const { data } = await api.get('/api/v1/pos/sale/categories', options);
+  return data.data || [];
+}
+
 export async function fetchCategories(options = {}) {
   const { data } = await api.get('/api/v1/products/categories', options);
   return data.data || [];

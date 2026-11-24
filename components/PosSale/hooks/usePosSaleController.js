@@ -23,6 +23,7 @@ import useOrderSubmission from '../../CounterSale/hooks/useOrderSubmission';
 import { saveCustomer, createSaleOrder } from '../services/posSaleApi';
 import { cartKeyFor, withoutDiscounts } from '../../CounterSale/domain/cart';
 import { extractUniqueCategories } from '../../CounterSale/domain/products';
+import { keepCategoryOrder } from '../../CounterSale/domain/categoryOrder';
 
 /**
  * POS Sale V2 Controller Hook
@@ -563,10 +564,8 @@ export default function usePosSaleController({
               const currentList = Array.isArray(prev) ? prev : ['ALL'];
               if (!currentList.includes(catName)) {
                 const nonAll = currentList.filter(c => c !== 'ALL');
+                // Unseen category: append; the next refresh applies the configured sort order.
                 nonAll.push(catName);
-                nonAll.sort((a, b) =>
-                  String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
-                );
                 return ['ALL', ...new Set(nonAll)];
               }
               return prev;
@@ -575,10 +574,7 @@ export default function usePosSaleController({
               bootstrap.setCategoryBeans?.(prev => {
                 const list = Array.isArray(prev) ? prev : [];
                 if (!list.some(b => b.id === catId || b.name === catName)) {
-                  const updated = [...list, { id: String(catId), name: catName }];
-                  return updated.sort((a, b) =>
-                    String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true, sensitivity: 'base' })
-                  );
+                  return [...list, { id: String(catId), name: catName }];
                 }
                 return list;
               });
@@ -630,14 +626,10 @@ export default function usePosSaleController({
       bootstrap.setProducts(sortedProducts);
       
       if (freshBootstrap.categories && freshBootstrap.categories.length > 0) {
-        const sortedBeans = [...freshBootstrap.categories].sort((a, b) =>
-          String(a?.name || a || '').localeCompare(String(b?.name || b || ''), undefined, { numeric: true, sensitivity: 'base' })
-        );
-        bootstrap.setCategoryBeans?.(sortedBeans);
-        const names = Array.from(
-          new Set(sortedBeans.map(c => typeof c === 'string' ? c : c?.name).filter(Boolean))
-        ).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' }));
-        bootstrap.setCategories(['ALL', ...names]);
+        // Server already ordered these per the category sort mode - keep that order.
+        const orderedBeans = [...freshBootstrap.categories];
+        bootstrap.setCategoryBeans?.(orderedBeans);
+        bootstrap.setCategories(['ALL', ...keepCategoryOrder(orderedBeans)]);
       } else {
         const cats = extractUniqueCategories(sortedProducts);
         bootstrap.setCategories(cats);

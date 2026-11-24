@@ -16,9 +16,10 @@ import useCustomerSelection from './useCustomerSelection';
 import useDiscounts, { getSavedDiscountUnit } from './useDiscounts';
 import useOrderSubmission from './useOrderSubmission';
 
-import { saveCustomer, fetchProducts } from '../services/counterSaleApi';
+import { saveCustomer, fetchProducts, fetchOrderedCategories } from '../services/counterSaleApi';
 import { cartKeyFor, withoutDiscounts } from '../domain/cart';
 import { extractUniqueCategories } from '../domain/products';
+import { applyCategoryOrder } from '../domain/categoryOrder';
 
 export default function useCounterSaleController({
   onBack,
@@ -495,6 +496,14 @@ export default function useCounterSaleController({
       
       const cats = extractUniqueCategories(sortedProducts);
       bootstrap.setCategories(cats);
+      try {
+        const ordered = await fetchOrderedCategories();
+        if (Array.isArray(ordered) && ordered.length > 0) {
+          bootstrap.setCategories(applyCategoryOrder(cats, ordered));
+        }
+      } catch (e) {
+        // keep A-Z fallback
+      }
 
       if (updatedProduct) {
         const updatedProductId = String(updatedProduct.id);
