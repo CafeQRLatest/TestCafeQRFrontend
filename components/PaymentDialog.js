@@ -48,10 +48,14 @@ const getMethodIcon = (val, ptType) => {
   return <FaStore style={{ fontSize: '14px', color: '#64748b' }} />;
 };
 
-export default function PaymentDialog({ 
-  order, 
+// Stable empty array: a fresh `[]` default each render would re-trigger effects
+// that depend on it (e.g. the customer search, whose timer then never fires).
+const EMPTY_LIST = [];
+
+export default function PaymentDialog({
+  order,
   customer = null,
-  allCustomers = [],
+  allCustomers = EMPTY_LIST,
   loading = false, 
   config = null, 
   creditCustomers = [], 
@@ -300,6 +304,7 @@ export default function PaymentDialog({
   useEffect(() => {
     if (!allowCustomerSelection || hasAttachedCustomer || localCustomer) {
       setSearchResults([]);
+      setSearchLoading(false);
       return;
     }
     const cleanPhone = String(customerPhone || '').trim();
@@ -307,29 +312,21 @@ export default function PaymentDialog({
     const q = cleanPhone || cleanName;
     if (!q || q.length < 2) {
       setSearchResults([]);
+      setSearchLoading(false);
       return;
     }
+    let cancelled = false;
+    const controller = new AbortController();
     setSearchLoading(true);
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(async () => {
       try {
-        // in-memory first
-        const inMem = (Array.isArray(allCustomers) ? allCustomers : []).filter(c => {
-          const nm = (c.name || '').toLowerCase();
-          const ph = (c.phone || '');
-          return nm.includes(q.toLowerCase()) || ph.includes(q);
-        }).slice(0, 15);
-        if (inMem.length > 0) {
-          setSearchResults(inMem);
-          setSearchLoading(false);
-          // Auto-select if exact 10-digit phone match found
-          if (cleanPhone.length >= 10 && inMem.length === 1 && String(inMem[0].phone).trim() === cleanPhone) {
-            handleSelectCustomer(inMem[0]);
-          }
-          return;
-        }
-        // fallback: API search
-        const res = await api.get('/api/v1/pos/sale/customers/search', { params: { q, limit: 15 } });
+        // Server-side search only (same as the POS cart) — no in-memory list.
+        const res = await api.get('/api/v1/pos/sale/customers/search', {
+          params: { q, limit: 15 },
+          signal: controller.signal,
+        });
+        if (cancelled) return;
         const results = res.data?.data || [];
         setSearchResults(results);
         // Auto-select if exact 10-digit phone match found
@@ -337,14 +334,20 @@ export default function PaymentDialog({
           handleSelectCustomer(results[0]);
         }
       } catch (err) {
+        if (cancelled) return;
         console.warn('[PaymentDialog] Customer search error:', err);
         setSearchResults([]);
       } finally {
-        setSearchLoading(false);
+        if (!cancelled) setSearchLoading(false);
       }
     }, 250);
-    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-  }, [customerName, customerPhone, allowCustomerSelection, hasAttachedCustomer, localCustomer, allCustomers]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      setSearchLoading(false);
+    };
+  }, [customerName, customerPhone, allowCustomerSelection, hasAttachedCustomer, localCustomer]);
 
   // Click outside to dismiss customer dropdown
   useEffect(() => {
