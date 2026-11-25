@@ -116,6 +116,7 @@ export default function PaymentDialog({
 
   // ─── Customer Selection State (New Sales only) ─────────────────────────────
   const [localCustomer, setLocalCustomer] = useState(null); // { id, name, phone } picked in dialog
+  const [customerRemoved, setCustomerRemoved] = useState(false); // user explicitly removed the customer in this dialog
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -358,6 +359,7 @@ export default function PaymentDialog({
 
   const handleSelectCustomer = useCallback((c) => {
     setLocalCustomer({ id: c.id, name: c.name, phone: c.phone });
+    setCustomerRemoved(false);
     setCustomerName(c.name || '');
     setCustomerPhone(c.phone || '');
     setSearchResults([]);
@@ -370,6 +372,7 @@ export default function PaymentDialog({
 
   const handleRemoveLocalCustomer = useCallback(() => {
     setLocalCustomer(null);
+    setCustomerRemoved(true);
     setResolvedCustomerId(null);
     setCustomerName('');
     setCustomerPhone('');
@@ -1049,6 +1052,11 @@ export default function PaymentDialog({
         ? { id: null, name: customerName?.trim() || null, phone: customerPhone?.trim() || null }
         : null
     );
+    // If the user explicitly removed the customer in this dialog, say so — otherwise the host
+    // can't tell "cleared" from "unchanged" and would reuse the order's previous customer.
+    const customerPayloadFields = effectiveCustomer
+      ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone }
+      : (customerRemoved ? { customerCleared: true } : {});
 
     if (paymentMethod === 'LOYALTY') {
       // `payable` already has the loyalty discount taken off — don't subtract it twice.
@@ -1066,7 +1074,7 @@ export default function PaymentDialog({
         loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
         creditCustomerId: finalMethod === 'CREDIT' ? (activeCustomerId || creditCustomerId) : null,
         updatedOrder: finalOrder,
-        ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
+        ...customerPayloadFields,
       });
       return;
     }
@@ -1084,7 +1092,7 @@ export default function PaymentDialog({
         redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
         loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
         updatedOrder: finalOrder, // Send modified lines & totals back to host first!
-        ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
+        ...customerPayloadFields,
       });
       return;
     }
@@ -1116,7 +1124,7 @@ export default function PaymentDialog({
       redeemPoints: appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : null,
       loyaltyAmount: loyaltyDiscount > 0 ? Number(loyaltyDiscount.toFixed(dp)) : null,
       updatedOrder: finalOrder, // Send modified lines & totals back to host first!
-      ...(effectiveCustomer ? { customerId: effectiveCustomer.id, customerName: effectiveCustomer.name, customerPhone: effectiveCustomer.phone } : {}),
+      ...customerPayloadFields,
     });
   };
 

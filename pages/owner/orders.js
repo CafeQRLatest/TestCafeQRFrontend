@@ -1576,15 +1576,34 @@ export default function OrdersPage() {
       // discountAmount and roundOffAmount in the payload are handled by the settle
       // endpoint directly, so discount-only changes are safe without a prior PUT.
       //
+      // The customer chosen/cleared in the payment dialog is authoritative. Never fall back
+      // field-by-field to the order's previous customer, or the bill (WhatsApp) would reach
+      // the old customer's phone.
+      const customerCleared = settlementPayload?.customerCleared === true;
+      const dialogCustomerPicked = !customerCleared && (
+        settlementPayload?.customerId != null ||
+        !!settlementPayload?.customerPhone ||
+        !!settlementPayload?.customerName
+      );
+      const customerOverride = customerCleared
+        ? { customerId: null, customerName: null, customerPhone: null, customers: [] }
+        : dialogCustomerPicked
+          ? {
+              customerId: settlementPayload?.customerId || null,
+              customerName: settlementPayload?.customerName || null,
+              customerPhone: settlementPayload?.customerPhone || null,
+              customers: [{ id: settlementPayload?.customerId, name: settlementPayload?.customerName, phone: settlementPayload?.customerPhone, primary: true }],
+            }
+          : {
+              customerId: paymentOrder?.customerId,
+              customerName: paymentOrder?.customerName,
+              customerPhone: paymentOrder?.customerPhone,
+              customers: paymentOrder?.customers,
+            };
       const effectiveOrder = {
         ...paymentOrder,
         ...(settlementPayload?.updatedOrder || {}),
-        customerId: settlementPayload?.customerId || paymentOrder?.customerId,
-        customerName: settlementPayload?.customerName || paymentOrder?.customerName,
-        customerPhone: settlementPayload?.customerPhone || paymentOrder?.customerPhone,
-        customers: (settlementPayload?.customerPhone || settlementPayload?.customerName)
-          ? [{ id: settlementPayload?.customerId, name: settlementPayload?.customerName, phone: settlementPayload?.customerPhone, primary: true }]
-          : paymentOrder?.customers,
+        ...customerOverride,
         paymentMethod: settlementPayload?.paymentMethod || paymentOrder?.paymentMethod,
         orgId: paymentOrder?.orgId || config?.orgId || config?.branchId,
         clientId: paymentOrder?.clientId || config?.clientId,
@@ -1595,14 +1614,16 @@ export default function OrdersPage() {
       };
 
       const targetPhone = effectiveOrder.customerPhone || effectiveOrder.customers?.[0]?.phone;
+      const { customerCleared: _customerCleared, ...settlementPayloadForApi } = settlementPayload || {};
       const payloadToSend = {
-        ...settlementPayload,
+        ...settlementPayloadForApi,
         ...(settlementPayload?.paymentMethod === 'CREDIT' ? { roundOffAmount: 0 } : {}),
         skipAutoPrintKinds: [...(settlementPayload.skipAutoPrintKinds || []), 'bill'],
         ...(effectiveOrder.customerId ? { customerId: effectiveOrder.customerId } : {}),
         ...(effectiveOrder.customerName ? { customerName: effectiveOrder.customerName } : {}),
         ...(effectiveOrder.customerPhone ? { customerPhone: effectiveOrder.customerPhone } : {}),
-        deferWhatsAppDispatch: !!targetPhone,
+        // When the customer was cleared, reserve the dispatch so the server doesn't send to the old stored phone.
+        deferWhatsAppDispatch: !!targetPhone || customerCleared,
       };
 
       const url = payloadToSend.paymentMethod === 'CREDIT'
