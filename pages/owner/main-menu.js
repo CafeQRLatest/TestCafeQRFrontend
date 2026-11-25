@@ -172,6 +172,7 @@ function MainMenuContent() {
       color: cfg.color || '#64748b',
       bg:    cfg.bg    || '#f8fafc',
       cat:   cfg.cat   || 'Operations',
+      isPos: resolvedName === 'POS' && config?.highlightPosEnabled !== false,
     });
   });
 
@@ -218,7 +219,9 @@ function MainMenuContent() {
   };
 
   // Group items by category (live filtered if searching)
-  const displayItemsList = searchQueryClean ? searchMatchingItems : filteredItems;
+  const baseList = searchQueryClean ? searchMatchingItems : filteredItems;
+  // POS always first (stable sort keeps the rest in their original order)
+  const displayItemsList = [...baseList].sort((a, b) => Number(!!b.isPos) - Number(!!a.isPos));
   const grouped = {};
   categoryOrder.forEach(c => { grouped[c] = []; });
   displayItemsList.forEach(item => {
@@ -297,7 +300,7 @@ function MainMenuContent() {
                 {items.map((item, i) => (
                   <Link href={item.href} key={i} legacyBehavior>
                     <a
-                      className="m-card"
+                      className={`m-card${item.isPos ? ' m-card-pos' : ''}`}
                       style={{ '--c': item.color, '--cbg': item.bg }}
                     >
                       <div className="m-icon">
@@ -603,6 +606,19 @@ function MainMenuContent() {
           border-color: var(--c);
           box-shadow: 0 4px 16px -6px rgba(0,0,0,0.08);
           transform: translateY(-1px);
+        }
+
+        /* ─── POS highlight ─── */
+        .m-card-pos {
+          border: 2px solid #f97316;
+          animation: posBlink 1.2s ease-in-out infinite;
+        }
+        @keyframes posBlink {
+          0%, 100% { border-color: #f97316; box-shadow: 0 0 0 0 rgba(249,115,22,0.55); }
+          50%      { border-color: rgba(249,115,22,0.25); box-shadow: 0 0 0 5px rgba(249,115,22,0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .m-card-pos { animation: none; }
         }
 
         /* ─── Icon ─── */

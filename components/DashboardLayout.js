@@ -421,6 +421,17 @@ export default function DashboardLayout({ children, title, subtitle, showBack = 
           box-shadow: 0 8px 16px -4px rgba(249, 115, 22, 0.4);
           transform: translateY(-1px);
         }
+        .sidebar-link.pos-link:not(.active) {
+          border: 2px solid #f97316;
+          animation: sidebarPosBlink 1.2s ease-in-out infinite;
+        }
+        @keyframes sidebarPosBlink {
+          0%, 100% { border-color: #f97316; box-shadow: 0 0 0 0 rgba(249,115,22,0.55); }
+          50%      { border-color: rgba(249,115,22,0.25); box-shadow: 0 0 0 5px rgba(249,115,22,0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .sidebar-link.pos-link:not(.active) { animation: none; }
+        }
         .sidebar-icon { font-size: 16px; display: flex; align-items: center; justify-content: center; }
         .sidebar-section-title {
           font-size: 10px; font-weight: 800; color: #94a3b8;
@@ -1056,7 +1067,7 @@ function Sidebar({ collapsed, menus = [], config, onToggle }) {
                   <Link
                     key={m.id || m._id || m.url}
                     href={targetUrl}
-                    className={`sidebar-link ${active ? 'active' : ''} ${collapsed ? 'collapsed-link' : ''}`}
+                    className={`sidebar-link ${active ? 'active' : ''} ${collapsed ? 'collapsed-link' : ''} ${displayName === 'POS' && config?.highlightPosEnabled !== false ? 'pos-link' : ''}`}
                     title={collapsed ? displayName : ''}
                   >
                     <div className={`sidebar-icon ${collapsed ? 'icon-pill' : ''} ${active && collapsed ? 'icon-pill-active' : ''}`}>
@@ -1359,7 +1370,7 @@ function MobileSidebar({ onNavigate, menus = [], config }) {
                     key={m.id || m._id || m.url}
                     href={targetUrl}
                     onClick={onNavigate}
-                    className={`sidebar-link ${active ? 'active' : ''}`}
+                    className={`sidebar-link ${active ? 'active' : ''} ${displayName === 'POS' && config?.highlightPosEnabled !== false ? 'pos-link' : ''}`}
                   >
                     <div className="sidebar-icon">{displayIcon}</div>
                     <span>{displayName}</span>

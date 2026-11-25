@@ -449,6 +449,7 @@ function ConfigurationsContent() {
     pm_customer_age: false,
     pm_cash_drawer: false, pm_cd_auto_sale: true, pm_cd_auto_order: true, pm_cd_reason_required: true, cd_open_tenders: 'CASH',
     credit_allocation_mode: 'OLDEST_FIRST',
+    pm_highlight_pos: true,
     category_sort_mode: 'NAME_ASC',
     
     tax_enabled: false,
@@ -608,6 +609,7 @@ function ConfigurationsContent() {
             pm_cash_drawer: d.cashDrawerEnabled === true, pm_cd_auto_sale: d.cashDrawerAutoOpenOnSale !== false,
             pm_cd_auto_order: d.cashDrawerAutoOpenOnOrderSettle !== false, pm_cd_reason_required: d.cashDrawerManualReasonRequired !== false,
             cd_open_tenders: d.cashDrawerOpenTenders || 'CASH',
+            pm_highlight_pos: d.highlightPosEnabled !== false,
             credit_allocation_mode: d.creditAllocationMode || 'OLDEST_FIRST',
             category_sort_mode: d.categorySortMode || 'NAME_ASC',
             
@@ -863,6 +865,7 @@ function ConfigurationsContent() {
         cashDrawerEnabled: !!config.pm_cash_drawer, cashDrawerAutoOpenOnSale: config.pm_cd_auto_sale !== false,
         cashDrawerAutoOpenOnOrderSettle: config.pm_cd_auto_order !== false, cashDrawerManualReasonRequired: config.pm_cd_reason_required !== false,
         cashDrawerOpenTenders: config.cd_open_tenders || 'CASH',
+        highlightPosEnabled: config.pm_highlight_pos !== false,
 
         taxEnabled: config.tax_enabled,
         taxLabelGlobal: config.tax_label_global,
@@ -1299,6 +1302,29 @@ function ConfigurationsContent() {
                         { value: 'MOST_PRODUCTS', label: 'Most products' }
                       ]}
                     />
+                  </div>
+                </div>
+
+                <div className="pos-simple-row">
+                  <div className="pos-simple-text">
+                    <span className="pos-simple-label">Highlight POS in menu</span>
+                    <span className="pos-simple-desc">Lists POS first and shows a blinking orange outline on the main menu and sidebar, so new users find it quickly.</span>
+                  </div>
+                  <div className="pos-seg">
+                    <button
+                      type="button"
+                      className={config.pm_highlight_pos !== false ? 'on' : ''}
+                      onClick={() => set('pm_highlight_pos', true)}
+                    >
+                      On
+                    </button>
+                    <button
+                      type="button"
+                      className={config.pm_highlight_pos === false ? 'on' : ''}
+                      onClick={() => set('pm_highlight_pos', false)}
+                    >
+                      Off
+                    </button>
                   </div>
                 </div>
 
