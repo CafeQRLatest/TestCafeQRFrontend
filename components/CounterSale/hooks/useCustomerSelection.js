@@ -3,6 +3,10 @@ import { filterCustomers } from '../domain/customers';
 import { fetchCustomerLoyalty, fetchLoyaltyPrograms, prefetchCustomerLoyalty } from '../../../services/loyaltyApi';
 import { isLoyaltyModuleEnabled } from '../../../utils/moduleVisibility';
 
+// Search/list rows carry the legacy customers.loyalty_points column, which can disagree with the
+// real loyalty account. Drop it so the cart only shows points from fetchCustomerLoyalty.
+const withoutLegacyLoyalty = (cust) => (cust ? { ...cust, loyaltyPoints: null, loyalty_points: null } : cust);
+
 export default function useCustomerSelection({
   allCustomers,
   creditCustomers,
@@ -60,7 +64,7 @@ export default function useCustomerSelection({
       }
       if (match?.id) {
         setSelectedCustomerId(match.id);
-        setSelectedCustomer(match);
+        setSelectedCustomer(withoutLegacyLoyalty(match));
       }
     }
   }, [customerPhone, customerName, allCustomers, selectedCustomerId, customersEnabled]);
@@ -86,12 +90,12 @@ export default function useCustomerSelection({
     if (cust?.id) {
       prefetchCustomerLoyalty(cust.id);
     }
-    setSelectedCustomer(cust);
+    setSelectedCustomer(withoutLegacyLoyalty(cust));
 
     if (config?.allowMultipleCustomersPerOrder) {
       setSelectedCustomers(prev => {
         if (!prev.find(c => c.id === cust.id)) {
-          return [...prev, cust];
+          return [...prev, withoutLegacyLoyalty(cust)];
         }
         return prev;
       });

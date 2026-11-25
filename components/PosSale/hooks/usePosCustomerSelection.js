@@ -12,6 +12,11 @@ import { searchPosCustomers } from '../services/posSaleApi';
  * - Automatic loyalty resolution on selection or exact match.
  * - Same exact interface as CounterSale's useCustomerSelection for 100% component compatibility.
  */
+// Search rows carry the legacy customers.loyalty_points column, which can disagree with the
+// real loyalty account (and is what the Loyalty page ignores). Drop it so the cart only shows
+// points from fetchCustomerLoyalty.
+const withoutLegacyLoyalty = (cust) => (cust ? { ...cust, loyaltyPoints: null, loyalty_points: null } : cust);
+
 export default function usePosCustomerSelection({
   creditCustomers = [],
   customersEnabled = true,
@@ -95,7 +100,7 @@ export default function usePosCustomerSelection({
             const exactMatch = results[0];
             if (exactMatch && String(exactMatch.phone).trim() === cleanPhone) {
               setSelectedCustomerId(exactMatch.id);
-              setSelectedCustomer(exactMatch);
+              setSelectedCustomer(withoutLegacyLoyalty(exactMatch));
               setShowCustomerDropdown(false);
             }
           }
@@ -137,12 +142,12 @@ export default function usePosCustomerSelection({
     if (cust?.id) {
       prefetchCustomerLoyalty(cust.id);
     }
-    setSelectedCustomer(cust);
+    setSelectedCustomer(withoutLegacyLoyalty(cust));
 
     if (config?.allowMultipleCustomersPerOrder) {
       setSelectedCustomers(prev => {
         if (!prev.find(c => c.id === cust.id)) {
-          return [...prev, cust];
+          return [...prev, withoutLegacyLoyalty(cust)];
         }
         return prev;
       });
