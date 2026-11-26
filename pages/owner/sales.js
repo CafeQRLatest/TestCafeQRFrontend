@@ -1974,7 +1974,7 @@ function SalesContent() {
 
     setEditSaving(true);
     try {
-      const localKotPrint = localPrintWillHandleKind('kot');
+      const localKotPrint = isKitchenModuleEnabled(config) && localPrintWillHandleKind('kot');
       const payloadWithSkip = {
         ...payload,
         skipAutoPrintKinds: Array.from(new Set([

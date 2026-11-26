@@ -2972,7 +2972,7 @@ export default function PosOrderTypeModal({
             onSave={async (updatedOrder, originalOrder) => {
               setActionBusy('edit_save');
               try {
-                const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
+                const localKotPrint = isKitchenModuleEnabled(effectiveConfig) && (typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true);
                 const payloadWithSkip = {
                   ...updatedOrder,
                   skipAutoPrintKinds: Array.from(new Set([

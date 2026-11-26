@@ -111,6 +111,7 @@ import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import { getFCMToken } from '../../lib/firebase/messaging';
 import { stopDeliveryAlarm } from '../../utils/audio';
 import { isStockWarningError, confirmStockWarning } from '../../utils/stockWarning';
+import { isKitchenModuleEnabled, getCachedConfig } from '../../utils/moduleVisibility';
 import {
   getStoredPushToken,
   clearStoredPushToken,
@@ -1409,7 +1410,7 @@ export default function OrdersPage() {
     try {
       setActionBusy(editingOrder.id);
       
-      const localKotPrint = localPrintWillHandleKind('kot');
+      const localKotPrint = isKitchenModuleEnabled(config || getCachedConfig()) && localPrintWillHandleKind('kot');
       const payloadWithSkip = {
         ...editedPayload,
         skipAutoPrintKinds: Array.from(new Set([

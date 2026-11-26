@@ -2,6 +2,7 @@ import { formatQty, uomPrecisionOf } from '../../components/CounterSale/domain/q
 import { useCurrencyDecimals } from '../../hooks/useCurrencyConfig';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
+import { isKitchenModuleEnabled, getCachedConfig } from '../../utils/moduleVisibility';
 import styled from 'styled-components';
 import Cookies from 'js-cookie';
 import api from '../../utils/api';
@@ -736,7 +737,7 @@ export default function SalesHistoryPage() {
 
     setActionBusy(editingOrder.id);
     try {
-      const localKotPrint = typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true;
+      const localKotPrint = isKitchenModuleEnabled(config || getCachedConfig()) && (typeof localPrintWillHandleKind === 'function' ? localPrintWillHandleKind('kot') : true);
       const payloadWithSkip = {
         ...updatedOrderData,
         skipAutoPrintKinds: Array.from(new Set([
