@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import styled from 'styled-components';
 import Cookies from 'js-cookie';
 import api from '../../utils/api';
+import { isStockWarningError, confirmStockWarning } from '../../utils/stockWarning';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -743,7 +744,18 @@ export default function SalesHistoryPage() {
           ...(localKotPrint ? ['KOT'] : [])
         ]))
       };
-      const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+      let res;
+      try {
+        res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+      } catch (stockErr) {
+        if (!isStockWarningError(stockErr)) throw stockErr;
+        const proceed = await confirmStockWarning(showConfirm, stockErr);
+        if (!proceed) {
+          notify('info', 'Order update cancelled.');
+          return;
+        }
+        res = await api.patch(`/api/v1/orders/${editingOrder.id}`, { ...payloadWithSkip, confirmStockWarning: true });
+      }
       const updateWarnings = res?.data?.warnings || res?.data?.data?.warnings || [];
       if (Array.isArray(updateWarnings) && updateWarnings.length > 0) {
         updateWarnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));

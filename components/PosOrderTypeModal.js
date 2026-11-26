@@ -62,6 +62,7 @@ import {
 import PaymentDialog from './PaymentDialog';
 import KotPrint from './KotPrint';
 import EditOrderPanel from './EditOrderPanel';
+import { isStockWarningError, confirmStockWarning } from '../utils/stockWarning';
 import { isKitchenModuleEnabled, getCachedConfig } from '../utils/moduleVisibility';
 import { getFCMToken } from '../lib/firebase/messaging';
 import { formatQty, uomPrecisionOf } from './CounterSale/domain/quantity';
@@ -2979,7 +2980,18 @@ export default function PosOrderTypeModal({
                     ...(localKotPrint ? ['KOT'] : [])
                   ]))
                 };
-                const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+                let res;
+                try {
+                  res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+                } catch (stockErr) {
+                  if (!isStockWarningError(stockErr)) throw stockErr;
+                  const proceed = await confirmStockWarning(showConfirm, stockErr);
+                  if (!proceed) {
+                    notify('info', 'Order update cancelled.');
+                    return;
+                  }
+                  res = await api.patch(`/api/v1/orders/${editingOrder.id}`, { ...payloadWithSkip, confirmStockWarning: true });
+                }
                 const updateWarnings = res?.data?.warnings || res?.data?.data?.warnings || [];
                 if (Array.isArray(updateWarnings) && updateWarnings.length > 0) {
                   updateWarnings.forEach(warn => notify('warning', `⚠️ Stock Warning: ${warn}`));

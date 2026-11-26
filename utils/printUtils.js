@@ -71,7 +71,11 @@ export function parseDate(raw) {
   if (!raw) return new Date();
   if (raw instanceof Date) return raw;
   let s = String(raw);
-  if (s.includes('T') && !s.includes('Z') && !s.includes('+') && !s.includes('-')) {
+  // Backend timestamps are UTC. If the time part has no zone designator
+  // (Z, +hh:mm, -hh:mm), mark it as UTC. Only look after the 'T' —
+  // the date part always contains '-'.
+  const tIdx = s.indexOf('T');
+  if (tIdx >= 0 && !/[Zz+-]/.test(s.slice(tIdx + 1))) {
     s += 'Z';
   }
   const d = new Date(s);

@@ -1081,9 +1081,17 @@ namespace CafeQR.PrintService
         {
             if (string.IsNullOrEmpty(raw)) return DateTime.Now;
             var s = raw;
-            if (s.Contains("T") && !s.Contains("Z") && !s.Contains("+") && !s.Contains("-"))
+            // Backend timestamps are UTC. If the time part has no zone designator
+            // (Z, +hh:mm, -hh:mm), mark it as UTC. Only look after the 'T' —
+            // the date part always contains '-'.
+            int tIdx = s.IndexOf('T');
+            if (tIdx >= 0)
             {
-                s += "Z";
+                var timePart = s.Substring(tIdx + 1);
+                if (timePart.IndexOfAny(new[] { 'Z', 'z', '+', '-' }) < 0)
+                {
+                    s += "Z";
+                }
             }
 
             DateTime dt;

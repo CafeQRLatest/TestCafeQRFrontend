@@ -101,7 +101,8 @@ export default function GlobalUI() {
           inset: 0;
           background: rgba(15, 23, 42, 0.05);
           backdrop-filter: blur(6px);
-          z-index: 10000;
+          /* Must sit above page-level dialogs (Edit Order / Payment wrappers use 10005-10010) */
+          z-index: 20000;
           display: flex;
           align-items: center;
           justify-content: center;

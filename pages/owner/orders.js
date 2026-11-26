@@ -110,6 +110,7 @@ import NiceSelect from '../../components/NiceSelect';
 import PremiumDateTimePicker from '../../components/PremiumDateTimePicker';
 import { getFCMToken } from '../../lib/firebase/messaging';
 import { stopDeliveryAlarm } from '../../utils/audio';
+import { isStockWarningError, confirmStockWarning } from '../../utils/stockWarning';
 import {
   getStoredPushToken,
   clearStoredPushToken,
@@ -352,7 +353,7 @@ function getStatusBorderColor(status) {
 
 export default function OrdersPage() {
   const currencyDecimals = useCurrencyDecimals();
-  const { notify } = useNotification();
+  const { notify, showConfirm } = useNotification();
   const router = useRouter();
   const { timezone, orgId, userRole, switchBranch, canCancelOrder, canPrintOrder, hasModule, posType, canAutoOpenCashDrawer } = useAuth();
   const sliderRef = useRef(null);
@@ -1419,7 +1420,18 @@ export default function OrdersPage() {
 
       // Backend voids the old order and creates a new one with a fresh UUID.
       // The response will have the new order's data.
-      const res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+      let res;
+      try {
+        res = await api.patch(`/api/v1/orders/${editingOrder.id}`, payloadWithSkip);
+      } catch (stockErr) {
+        if (!isStockWarningError(stockErr)) throw stockErr;
+        const proceed = await confirmStockWarning(showConfirm, stockErr);
+        if (!proceed) {
+          notify('info', 'Order update cancelled.');
+          return;
+        }
+        res = await api.patch(`/api/v1/orders/${editingOrder.id}`, { ...payloadWithSkip, confirmStockWarning: true });
+      }
       const newOrder = res?.data?.data;
 
       if (localKotPrint && newOrder?.id) {
